@@ -10,6 +10,7 @@
 #include <string.h>
 #include <sys/stat.h>
 
+#include "esp_heap_caps.h"
 #include "esp_log.h"
 #include "esp_timer.h"
 
@@ -65,7 +66,11 @@ int64_t cardtime_root_candidate(const char *mount, int64_t ref)
 {
     if (!mount || !*mount || ref <= 0) return 0;
 
-    int64_t *cand = calloc(CARDTIME_SCAN_MAX, sizeof(int64_t));
+    /* 2 KB of scratch for the length of one directory walk: PSRAM, where
+     * it cannot compete with DMA buffers (5116). */
+    int64_t *cand = heap_caps_calloc(CARDTIME_SCAN_MAX, sizeof(int64_t),
+                                     MALLOC_CAP_SPIRAM | MALLOC_CAP_8BIT);
+    if (!cand) cand = calloc(CARDTIME_SCAN_MAX, sizeof(int64_t));
     if (!cand) return 0;
 
     DIR *d = opendir(mount);

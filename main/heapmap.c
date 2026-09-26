@@ -10,6 +10,7 @@
 #include "freertos/task.h"
 #include "esp_heap_caps.h"
 #include "esp_log.h"
+#include "esp_memory_utils.h"
 #include "esp_timer.h"
 #include "sdkconfig.h"
 #if CONFIG_HEAP_TASK_TRACKING
@@ -54,6 +55,52 @@ void heapmap_log(const char *why)
 #endif
 }
 
+/*
+ * 5116: WHO ASKED.
+ *
+ * The 5115 log had nine `8192 bytes, caps 0x00000008` failures in the
+ * reindex task, and nothing in main/ asks for plain MALLOC_CAP_DMA at
+ * that size: it is a library, and the task name does not say which.
+ * There are no frame pointers to walk, so this reads the words above the
+ * stack pointer and prints the ones that point into code. Return
+ * addresses are among them; so is some noise. idf.py monitor turns every
+ * 0x4xxxxxxx on the line into a function and file, which is enough to
+ * name the caller. Once per distinct size and caps, and only a few.
+ */
+#define SCRAPE_WORDS     (192)
+#define SCRAPE_MAX_ADDRS (12)
+#define SCRAPE_KINDS     (4)
+
+static void scrape_callers(size_t size, uint32_t caps)
+{
+    static struct { size_t size; uint32_t caps; } seen[SCRAPE_KINDS];
+    static unsigned nseen;
+    for (unsigned i = 0; i < nseen; i++) {
+        if (seen[i].size == size && seen[i].caps == caps) return;
+    }
+    if (nseen >= SCRAPE_KINDS) return;
+    seen[nseen].size = size;
+    seen[nseen].caps = caps;
+    nseen++;
+
+    const uint32_t *sp = (const uint32_t *)__builtin_frame_address(0);
+    char line[SCRAPE_MAX_ADDRS * 11 + 1];
+    size_t used = 0;
+    unsigned found = 0;
+    for (unsigned i = 0; i < SCRAPE_WORDS && found < SCRAPE_MAX_ADDRS; i++) {
+        const uint32_t *w = sp + i;
+        if (!esp_ptr_byte_accessible(w)) break;   /* off the end of RAM */
+        const uint32_t v = *w;
+        if (!esp_ptr_executable((const void *)(uintptr_t)v)) continue;
+        used += (size_t)snprintf(line + used, sizeof(line) - used, " 0x%08x",
+                                 (unsigned)v);
+        found++;
+    }
+    line[used] = 0;
+    ESP_LOGW(TAG, "  code addresses on the stack (callers among them):%s",
+             found ? line : " none");
+}
+
 static void on_alloc_failed(size_t size, uint32_t caps, const char *fn)
 {
     if (xPortInIsrContext()) return;            /* nothing safe to do here */
@@ -66,6 +113,9 @@ static void on_alloc_failed(size_t size, uint32_t caps, const char *fn)
         ESP_LOGW(TAG, "allocation failed: %u bytes, caps 0x%08x, in %s, task %s (#%u)",
                  (unsigned)size, (unsigned)caps, fn ? fn : "?",
                  task ? task : "?", (unsigned)n);
+    }
+    if (uxTaskGetStackHighWaterMark(NULL) >= HEAPMAP_MIN_STACK / 2) {
+        scrape_callers(size, caps);
     }
 
     const int64_t now = esp_timer_get_time();

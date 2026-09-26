@@ -6725,8 +6725,21 @@ static void service_notices(void)
 
     if (s_notice_pending) {
         s_notice_pending = false;
-        const char *lines[1] = { s_notice_body };
-        ui_show_notice(s_notice_head, lines, s_notice_body[0] ? 1 : 0, true);
+        /* 5114: up to three lines, split on '\n' -- the card draws its
+         * body at 21 px a character, about 25 to a line in portrait, and
+         * a file name alone is 24. */
+        static char body[sizeof(s_notice_body)];
+        memcpy(body, s_notice_body, sizeof(body));
+        const char *lines[3];
+        int n = 0;
+        for (char *p = body; *p && n < 3; ) {
+            lines[n++] = p;
+            char *nl = strchr(p, '\n');
+            if (!nl) break;
+            *nl = '\0';
+            p = nl + 1;
+        }
+        ui_show_notice(s_notice_head, lines, n, true);
     }
 }
 

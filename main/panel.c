@@ -7,6 +7,7 @@
 #include <stdarg.h>
 #include <stdio.h>
 #include <string.h>
+#include <time.h>
 
 #include "freertos/FreeRTOS.h"
 #include "freertos/task.h"
@@ -650,6 +651,18 @@ static void bench_box(int *x, int *y, int *w, int *h)
     *x = 0; *y = bench_y(); *w = gfx_w(); *h = AUDIO_SWITCH_H;
 }
 
+/* 5114: the clock -- what this player believes the time is, whether NTP
+ * has confirmed it, and a way back to the build stamp without a network. */
+#define NET_CLOCK_NOTE_LINES (3)
+static int clock_y(void) { return bench_y() + AUDIO_SWITCH_H
+                                  + AUDIO_NOTE_GAP
+                                  + NET_BENCH_NOTE_LINES * AUDIO_NOTE_STEP
+                                  + AUDIO_GAP; }
+static void clock_box(int *x, int *y, int *w, int *h)
+{
+    *x = 0; *y = clock_y(); *w = gfx_w(); *h = AUDIO_SWITCH_H;
+}
+
 /*
  * The benchmark row's three lines.
  *
@@ -888,8 +901,37 @@ static int draw_net(void)
     bench_lines(&bs, netok, blines);
     const char *bench_note[NET_BENCH_NOTE_LINES] = { blines[0], blines[1],
                                                      blines[2] };
-    const int ntp_used = draw_note(y + bh + AUDIO_NOTE_GAP, bench_note,
-                                   NET_BENCH_NOTE_LINES);
+    draw_note(y + bh + AUDIO_NOTE_GAP, bench_note, NET_BENCH_NOTE_LINES);
+
+    /* --- Clock (5114) ------------------------------------------------ */
+    clock_box(&x, &y, &bw, &bh);
+    gfx_fill_rect(x, y, bw, bh, C_ROW);
+    gfx_draw_text(24, y + (bh - GFX_GLYPH_H(NAME_SCALE)) / 2, "Clock",
+                  NAME_SCALE, 400, C_TEXT);
+    const bool verified = settings_time_verified();
+    {
+        /* Live only while the time is a guess: after NTP, a reset would
+         * throw away the one time this player knows is right. */
+        const int pw = 160, ph = 56;
+        draw_state_pill(w - 24 - pw, y + (bh - ph) / 2, pw, ph,
+                        "RESET", false, !verified, NAME_SCALE);
+    }
+    char c0[48];
+    {
+        const time_t now = (time_t)settings_now();
+        struct tm tm;
+        gmtime_r(&now, &tm);
+        char when[24];
+        strftime(when, sizeof(when), "%Y-%m-%d %H:%MZ", &tm);
+        snprintf(c0, sizeof(c0), "%s, %s", when, verified ? "from NTP" : "a guess");
+    }
+    const char *clock_note[NET_CLOCK_NOTE_LINES] = {
+        c0,
+        "RESET: back to the build time; this",
+        "boot's recordings are renamed to match.",
+    };
+    const int ntp_used = draw_note(y + bh + AUDIO_NOTE_GAP, clock_note,
+                                   NET_CLOCK_NOTE_LINES);
 
     /*
      * No zone row, and see settings.h: nothing on this device displays a
@@ -1336,6 +1378,18 @@ bool panel_touch(bool down, int x, int y)
             const bool asked = bench_request();
             ESP_LOGI(TAG, "benchmark: %s", asked ? "requested"
                                                  : "not now");
+            s_dirty = true;
+        }
+
+        /* 5114: the clock back to the build stamp. The recorder renames
+         * this boot's recordings on its next pass. */
+        clock_box(&bx, &by, &bw, &bh);
+        if (y >= by && y < by + bh) {
+            if (settings_time_verified()) {
+                ESP_LOGI(TAG, "clock reset: not while NTP's time stands");
+            } else if (!settings_clock_reset()) {
+                ESP_LOGW(TAG, "clock reset: no build time to go back to");
+            }
             s_dirty = true;
         }
         return false;

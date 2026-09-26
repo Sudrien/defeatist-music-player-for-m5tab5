@@ -14014,3 +14014,54 @@ floor and 5110 only logs a move. A cold power-on is the check.
 
 Compiled at -O2 -Werror against ESP-IDF 5.5.1 headers. Not on the
 board.
+
+### 5114 -- A clock reset, recordings renamed when the time moves, and where one was saved
+
+The board after 5113, SD card out: `loaded /usb/.defeatist.dat
+(volume=58, 2028-12-02 03:22:01Z)`, and four recordings named 2028.
+That record was saved during the earlier 2028 session, and a record's
+time is loaded at boot; 5112 stops a card file from starting it again,
+but the stored time needed an NTP reply (5101) to come down.
+
+**Reset, without a network.** NET tab, a new last row: "Clock", the
+time this player believes and whether it is "from NTP" or "a guess",
+and RESET. RESET puts the time back to the build stamp -- the one lower
+bound true by construction -- sets the system clock back with it
+(clock_follow() only moves it forward), and marks every mounted
+volume's records for compaction at the next save, exactly as 5101's NTP
+path does; so the USB drive's record loses its 2028 too. Greyed once
+NTP has answered: after that the time is known and a reset would only
+make it wrong. Logged: `clock reset by hand: <was> -> <build>`.
+
+**Recordings follow the time.** settings.c now sums every move of its
+time within a boot -- NTP replies, a corroborated card, a reset -- as
+settings_clock_offset(). A recording started while the time is
+unverified is remembered (up to 32 a boot, in PSRAM) with the offset
+its name was made at; when the offset moves, ui_task renames it by
+exactly the difference, shifts its FAT date by the same amount, and
+deletes its sidecar (named for the old name, keyed on the old date;
+the player rebuilds it). The recording in progress waits for its
+close. Logged: `clock moved -N s: <old> -> <new>`. The common case is
+the other direction: before NTP a name is the build time plus uptime,
+and the first NTP reply moves every one of this boot's names forward
+to the truth.
+
+**Not repaired: earlier boots.** A wrong time carried across a power-
+off is wrong by an amount that changed while the device was off -- the
+true time went on, the stored one did not -- so there is nothing to
+subtract. The four 2028 files on the drive keep their names; rename
+them by hand.
+
+**Where a recording went.** The "Recording saved" card names the
+volume: `on microSD, 0:13` / `on USB, 0:13`, then the file name on its
+own line. The notice card's body is drawn at 21 px a character, about
+25 to a line in portrait, and the one-line body before this --
+"Recordings/2026-09-26 16.05.10.flac, 0:13", 42 characters -- was
+being cut off. player.c now splits a notice body on '\n', up to three
+lines (the card takes four).
+
+Compiled at -O2 -Werror against ESP-IDF 5.5.1 headers (recorder,
+settings, panel; player.c apart from the display-driver lines). Not on
+the board. What to look for: RESET on the NET tab with the time shown
+as a guess; `clock reset by hand`; a recording made before it renamed
+in the log on the next pass; the saved card naming the volume.

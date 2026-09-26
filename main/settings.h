@@ -393,6 +393,27 @@ int64_t settings_last_ntp_boot_us(void);
 int64_t settings_now(void);
 
 /*
+ * 5114. Whether an NTP reply has been taken this boot -- until then
+ * settings_now() is a floor, a best guess.
+ */
+bool settings_time_verified(void);
+
+/*
+ * 5114. Every move of settings_now() this boot, summed, in seconds: NTP
+ * replies, a card's time, a reset. Something named from settings_now()
+ * at offset A was named (settings_clock_offset() - A) seconds wrong.
+ */
+int64_t settings_clock_offset(void);
+
+/*
+ * 5114. Put the time back to the build stamp and rewrite every mounted
+ * volume's records at their next save -- for a stored time that is
+ * wrong forward, with no network to correct it. False if the build
+ * stamp did not parse. The system clock follows.
+ */
+bool settings_clock_reset(void);
+
+/*
  * NO ZONE SETTING, DELIBERATELY.
  *
  * NTP answers in UTC and nothing here displays a local time: there is no

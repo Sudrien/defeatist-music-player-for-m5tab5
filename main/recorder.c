@@ -13,6 +13,7 @@
 #include <sys/stat.h>
 #include <time.h>
 #include <unistd.h>
+#include <utime.h>
 
 #include "esp_err.h"
 #include "esp_heap_caps.h"
@@ -112,6 +113,30 @@ static bool s_notice;
 static char s_notice_head[40];
 static char s_notice_body[96];
 
+/*
+ * 5114: recordings named while the time was a guess.
+ *
+ * Before NTP answers, settings_now() is a floor -- the build, a card, the
+ * last session -- and a recording is named for it. When the time moves
+ * (NTP, a corroborated card, a reset from the NET tab), every recording
+ * made this boot under the old guess is renamed by exactly the amount it
+ * moved, and its file date with it. settings_clock_offset() is the sum
+ * of the moves; each entry remembers the offset its name last matched.
+ *
+ * Only this boot's: an earlier boot's offset from the truth is not
+ * known, because the time that was wrong was carried across the power-
+ * off, when the true time kept going and the guess did not. Held in
+ * PSRAM with the recorder's buffers; REC_FIX_MAX recordings a boot.
+ */
+#define REC_FIX_MAX         (32)
+typedef struct {
+    char    path[160];
+    int64_t epoch;          /* the time the name says */
+    int64_t offset;         /* settings_clock_offset() the name matches */
+} rec_fix_t;
+static rec_fix_t *s_fix;
+static int        s_fix_n;
+
 static void notice(const char *head, const char *body)
 {
     xSemaphoreTake(s_text_lock, portMAX_DELAY);
@@ -148,9 +173,32 @@ static bool file_write(void *ctx, const uint8_t *buf, size_t n)
     return true;
 }
 
-/* "<mount>/Recordings/2026-09-26 18.04.33.flac", then " (2)" and on if
- * that exists -- two presses in one second, or a clock that has not
- * moved since the last boot. */
+/* 5114: the time a recording is named for, and the clock offset then. */
+static int64_t s_start_epoch, s_start_offset;
+
+/* A free name in dir for a recording started at epoch: "2026-09-26
+ * 18.04.33.flac", then " (2)" and on if that exists -- two presses in one
+ * second, or a clock that has not moved since the last boot. */
+static bool name_for(const char *dir, int64_t epoch, char *name, size_t name_len,
+                     char *path, size_t path_len)
+{
+    _Static_assert(sizeof(time_t) == 8, "time_t must be 64-bit for settings_now()");
+    const time_t t = (time_t)epoch;
+    struct tm tm;
+    gmtime_r(&t, &tm);
+    char stem[24];
+    strftime(stem, sizeof(stem), "%Y-%m-%d %H.%M.%S", &tm);
+    struct stat sb;
+    for (int n = 1; n < 100; n++) {
+        if (n == 1) snprintf(name, name_len, "%s.flac", stem);
+        else        snprintf(name, name_len, "%s (%d).flac", stem, n);
+        if (!storage_join_path(path, path_len, dir, name)) return false;
+        if (stat(path, &sb) != 0) return true;
+    }
+    return false;
+}
+
+/* "<mount>/Recordings/<settings_now()>.flac". */
 static bool pick_path(const char *mount)
 {
     char dir[96];
@@ -167,20 +215,9 @@ static bool pick_path(const char *mount)
      * timer. time_t is 64 bits here, so gmtime_r() does not truncate
      * what settings.c keeps in an int64_t.
      */
-    _Static_assert(sizeof(time_t) == 8, "time_t must be 64-bit for settings_now()");
-    const time_t now = (time_t)settings_now();
-    struct tm tm;
-    gmtime_r(&now, &tm);
-    char stem[24];
-    strftime(stem, sizeof(stem), "%Y-%m-%d %H.%M.%S", &tm);
-    struct stat sb;
-    for (int n = 1; n < 100; n++) {
-        if (n == 1) snprintf(s_name, sizeof(s_name), "%s.flac", stem);
-        else        snprintf(s_name, sizeof(s_name), "%s (%d).flac", stem, n);
-        if (!storage_join_path(s_path, sizeof(s_path), dir, s_name)) return false;
-        if (stat(s_path, &sb) != 0) return true;
-    }
-    return false;
+    s_start_epoch = settings_now();
+    s_start_offset = settings_clock_offset();
+    return name_for(dir, s_start_epoch, s_name, sizeof(s_name), s_path, sizeof(s_path));
 }
 
 static void finish_file(void)
@@ -278,8 +315,12 @@ static void rec_enc_task(void *arg)
     }
     if (!s_write_failed) {
         char body[96];
-        snprintf(body, sizeof(body), "%s/%s, %" PRIu32 ":%02" PRIu32,
-                 REC_DIR, s_name, secs / 60, secs % 60);
+        /* Which volume, first: with a card and a drive both in, "saved"
+         * alone does not say where to look. */
+        const storage_id_t vol = storage_of_path(s_path);
+        snprintf(body, sizeof(body), "on %s, %" PRIu32 ":%02" PRIu32 "\n%s",
+                 vol < STORAGE_COUNT ? storage_label(vol) : "?",
+                 secs / 60, secs % 60, s_name);
         notice("Recording saved", body);
     }
     s_log_end = true;           /* the map prints from ui_task's stack */
@@ -298,7 +339,8 @@ static bool buffers(void)
     s_in_buf  = heap_caps_malloc(REC_IN_FRAMES * REC_FRAME_BYTES, MALLOC_CAP_SPIRAM | MALLOC_CAP_8BIT);
     s_enc_buf = heap_caps_malloc(REC_BLOCK * REC_FRAME_BYTES, MALLOC_CAP_SPIRAM | MALLOC_CAP_8BIT);
     s_beam    = heap_caps_malloc(sizeof(beam_t), MALLOC_CAP_SPIRAM | MALLOC_CAP_8BIT);
-    if (!s_ring_storage || !s_in_buf || !s_enc_buf || !s_beam) {
+    s_fix     = heap_caps_calloc(REC_FIX_MAX, sizeof(rec_fix_t), MALLOC_CAP_SPIRAM | MALLOC_CAP_8BIT);
+    if (!s_ring_storage || !s_in_buf || !s_enc_buf || !s_beam || !s_fix) {
         /* Kept for the next try rather than freed: see the rule above. */
         ESP_LOGE(TAG, "no PSRAM for the recording buffers");
         return false;
@@ -367,8 +409,17 @@ bool recorder_start(char *why, size_t why_len)
         s_in_done = true;
         REFUSE("No memory for the recording task.");
     }
-    ESP_LOGI(TAG, "recording to %s (%s)", s_path,
-             s_use_beam ? "beam, mono" : "stereo, MIC1 left");
+    ESP_LOGI(TAG, "recording to %s (%s)%s", s_path,
+             s_use_beam ? "beam, mono" : "stereo, MIC1 left",
+             settings_time_verified() ? "" : "; the time is a guess until NTP, "
+                                             "the name follows it if it moves");
+    /* 5114: remembered for repair while the time is unverified. */
+    if (!settings_time_verified() && s_fix_n < REC_FIX_MAX) {
+        rec_fix_t *f = &s_fix[s_fix_n++];
+        snprintf(f->path, sizeof(f->path), "%s", s_path);
+        f->epoch = s_start_epoch;
+        f->offset = s_start_offset;
+    }
     heapmap_log("recording started");
     return true;
 #undef REFUSE
@@ -397,12 +448,66 @@ void recorder_status(recorder_status_t *out)
     snprintf(out->name, sizeof(out->name), "%s", s_name);
 }
 
+/*
+ * 5114: rename what the clock has moved under. ui_task, from
+ * recorder_take_notice(). The recording in progress waits for its close.
+ */
+static void fix_names(void)
+{
+    if (!s_fix_n) return;
+    const int64_t off = settings_clock_offset();
+    int keep = 0;
+    for (int i = 0; i < s_fix_n; i++) {
+        rec_fix_t *f = &s_fix[i];
+        const bool open = s_active && strcmp(f->path, s_path) == 0;
+        if (f->offset != off && !open) {
+            const int64_t d = off - f->offset;
+            char dir[160], name[40], to[160];
+            snprintf(dir, sizeof(dir), "%s", f->path);
+            char *slash = strrchr(dir, '/');
+            if (!slash) continue;               /* not ours; dropped */
+            *slash = '\0';
+            const char *old_name = slash + 1;
+            struct stat st;
+            storage_io_acquire(STORAGE_IO_BACKGROUND);
+            bool ok = stat(f->path, &st) == 0 &&
+                      name_for(dir, f->epoch + d, name, sizeof(name), to, sizeof(to)) &&
+                      rename(f->path, to) == 0;
+            if (ok) {
+                /* The file date by the same amount, and the sidecar --
+                 * named for the old name, and keyed on the old date --
+                 * removed; the player rebuilds it at the next play. */
+                const struct utimbuf ut = { .actime = st.st_mtime + d,
+                                            .modtime = st.st_mtime + d };
+                utime(to, &ut);
+                char side[200];
+                snprintf(side, sizeof(side), "%s/.%s.rgcache", dir, old_name);
+                remove(side);
+            }
+            storage_io_release();
+            if (!ok) {
+                ESP_LOGW(TAG, "could not rename %s after the clock moved %+lld s "
+                              "(gone, or the volume is out)", f->path, (long long)d);
+                continue;                       /* dropped */
+            }
+            ESP_LOGI(TAG, "clock moved %+lld s: %s -> %s", (long long)d, old_name, name);
+            snprintf(f->path, sizeof(f->path), "%s", to);
+            f->epoch += d;
+            f->offset = off;
+        }
+        /* Kept while the time is still a guess, or while unrepaired. */
+        if (!settings_time_verified() || f->offset != off || open) s_fix[keep++] = *f;
+    }
+    s_fix_n = keep;
+}
+
 bool recorder_take_notice(char *head, size_t head_len, char *body, size_t body_len)
 {
     if (s_log_end) {
         s_log_end = false;
         heapmap_log("recording stopped");
     }
+    fix_names();
     if (!s_text_lock || !s_notice) return false;
     xSemaphoreTake(s_text_lock, portMAX_DELAY);
     const bool had = s_notice;

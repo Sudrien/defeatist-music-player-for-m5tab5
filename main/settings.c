@@ -442,6 +442,36 @@ int64_t settings_now(void)
  * compiled -- so from the first boot onward there is always a floor,
  * and a device that has never reached a network still refuses 1970.
  */
+/*
+ * 5114: every move of this player's time within a boot, summed. The
+ * recorder reads it to repair names it gave while the time was a guess:
+ * a file named at offset A and still unrepaired when the offset is B
+ * was named B - A seconds wrong. Written from whichever task moved the
+ * floor (SNTP's, settings', ui_task's), read from ui_task, so under a
+ * spinlock. The build-stamp seed at boot moves it too; nothing has been
+ * named by then.
+ */
+static portMUX_TYPE s_offset_mux = portMUX_INITIALIZER_UNLOCKED;
+static int64_t      s_clock_offset;
+
+static void note_correction(int64_t delta)
+{
+    if (delta > -2 && delta < 2) return;
+    portENTER_CRITICAL(&s_offset_mux);
+    s_clock_offset += delta;
+    portEXIT_CRITICAL(&s_offset_mux);
+}
+
+int64_t settings_clock_offset(void)
+{
+    portENTER_CRITICAL(&s_offset_mux);
+    const int64_t v = s_clock_offset;
+    portEXIT_CRITICAL(&s_offset_mux);
+    return v;
+}
+
+bool settings_time_verified(void) { return s_ntp_truth; }
+
 static bool note_time(int64_t epoch, int64_t boot_us, bool from_ntp)
 {
     /* Every path in comes through here, including the build-time seed.
@@ -475,6 +505,7 @@ static bool note_time(int64_t epoch, int64_t boot_us, bool from_ntp)
     }
 
     if (epoch == s_last_ntp_epoch && boot_us == s_last_ntp_boot_us) return true;
+    note_correction(epoch - floor_s);           /* 5114 */
     s_last_ntp_epoch   = epoch;
     s_last_ntp_boot_us = boot_us;
     s_dirty = true;
@@ -557,6 +588,7 @@ bool settings_note_ntp_reply(int64_t epoch, int64_t boot_us)
                       "NTP corrects it",
                  (long long)((floor_s - epoch) / 86400),
                  (long long)((floor_s - epoch) % 86400 / 3600));
+        note_correction(epoch - floor_s);       /* 5114 */
         s_last_ntp_epoch   = epoch;
         s_last_ntp_boot_us = boot_us;
         for (int v = 0; v < STORAGE_COUNT; v++) s_compact_due[v] = true;
@@ -566,6 +598,42 @@ bool settings_note_ntp_reply(int64_t epoch, int64_t boot_us)
     }
     if (ok) s_ntp_truth = true;
     return ok;
+}
+
+/*
+ * 5114: back to the build stamp, without a network.
+ *
+ * The one lower bound that is true by construction. For a stored time
+ * that is wrong forward -- a record saved while a stray card file had
+ * the floor at 2028 carries 2028 into every later boot, and before this
+ * only an NTP reply (5101) could bring it down. Same effect as that
+ * path: every mounted volume's records are compacted at their next
+ * save, so the wrong time leaves the files too; and the system clock is
+ * set back with it, since clock_follow() only ever moves it forward.
+ *
+ * Not "verified": NTP still owns the truth, and still moves it -- and
+ * the recorder repairs this boot's names again when it does.
+ */
+bool settings_clock_reset(void)
+{
+    if (s_build_epoch <= 0) return false;
+    const int64_t before = settings_now();
+    const int64_t boot_us = esp_timer_get_time();
+    note_correction(s_build_epoch - before);
+    s_last_ntp_epoch   = s_build_epoch;
+    s_last_ntp_boot_us = boot_us;
+    s_ntp_truth = false;
+    for (int v = 0; v < STORAGE_COUNT; v++) s_compact_due[v] = true;
+    s_dirty = true;
+    s_dirty_since = xTaskGetTickCount();
+    const struct timeval tv = { .tv_sec = (time_t)s_build_epoch, .tv_usec = 0 };
+    settimeofday(&tv, NULL);
+    char was[24], is[24];
+    fmt_epoch(before, was, sizeof(was));
+    fmt_epoch(s_build_epoch, is, sizeof(is));
+    ESP_LOGW(TAG, "clock reset by hand: %s -> %s (the build); every volume's "
+                  "records rewritten at the next save", was, is);
+    return true;
 }
 
 

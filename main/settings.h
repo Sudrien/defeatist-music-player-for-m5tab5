@@ -414,6 +414,14 @@ int64_t settings_clock_offset(void);
 bool settings_clock_reset(void);
 
 /*
+ * 5115. The last correction NTP made that brought a stored time down by
+ * more than a day, in seconds (negative), or 0. Kept in NVS. A file named
+ * in the future by a boot that carried that wrong time is at most the
+ * device's off-time late once this is added to it.
+ */
+int64_t settings_known_clock_error(void);
+
+/*
  * NO ZONE SETTING, DELIBERATELY.
  *
  * NTP answers in UTC and nothing here displays a local time: there is no

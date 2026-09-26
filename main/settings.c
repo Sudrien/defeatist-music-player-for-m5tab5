@@ -454,6 +454,42 @@ int64_t settings_now(void)
 static portMUX_TYPE s_offset_mux = portMUX_INITIALIZER_UNLOCKED;
 static int64_t      s_clock_offset;
 
+/*
+ * 5115: the last large correction NTP made, kept in NVS. A stored time
+ * that was wrong forward (2028, from a stray card file) was wrong by the
+ * same amount on every boot that carried it, less whatever time the
+ * device then spent switched off -- the true time went on, the stored
+ * one did not. So a file those boots named in the future can be brought
+ * back by this amount and land at most that off-time late: never in the
+ * future, and far nearer than the guess. Kept across boots because the
+ * card holding such files may not be in the slot on the boot NTP
+ * answers. Only corrections of more than a day are kept.
+ */
+#define CLKFIX_NVS_KEY  "clkfix"
+#define CLKFIX_MIN_S    (86400)
+static int64_t s_clkfix;
+
+static void clkfix_load(void)
+{
+    nvs_handle_t h;
+    if (nvs_open(WIFI_NVS_NS, NVS_READONLY, &h) != ESP_OK) return;
+    int64_t v = 0;
+    if (nvs_get_i64(h, CLKFIX_NVS_KEY, &v) == ESP_OK && v < 0) s_clkfix = v;
+    nvs_close(h);
+}
+
+static void clkfix_save(int64_t delta)
+{
+    if (delta > -CLKFIX_MIN_S) return;
+    s_clkfix = delta;
+    nvs_handle_t h;
+    if (nvs_open(WIFI_NVS_NS, NVS_READWRITE, &h) != ESP_OK) return;
+    if (nvs_set_i64(h, CLKFIX_NVS_KEY, delta) == ESP_OK) (void)nvs_commit(h);
+    nvs_close(h);
+}
+
+int64_t settings_known_clock_error(void) { return s_clkfix; }
+
 static void note_correction(int64_t delta)
 {
     if (delta > -2 && delta < 2) return;
@@ -589,6 +625,7 @@ bool settings_note_ntp_reply(int64_t epoch, int64_t boot_us)
                  (long long)((floor_s - epoch) / 86400),
                  (long long)((floor_s - epoch) % 86400 / 3600));
         note_correction(epoch - floor_s);       /* 5114 */
+        clkfix_save(epoch - floor_s);           /* 5115 */
         s_last_ntp_epoch   = epoch;
         s_last_ntp_boot_us = boot_us;
         for (int v = 0; v < STORAGE_COUNT; v++) s_compact_due[v] = true;
@@ -1579,6 +1616,7 @@ void settings_init(void)
         if (wifi_nvs_read(&on)) s_wifi_enabled = on;
     }
     prefs_nvs_load();                   /* 5064 */
+    clkfix_load();                      /* 5115 */
 
     /*
      * Seeded from the build timestamp, through the same checked entry

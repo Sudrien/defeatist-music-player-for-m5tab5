@@ -14065,3 +14065,52 @@ settings, panel; player.c apart from the display-driver lines). Not on
 the board. What to look for: RESET on the NET tab with the time shown
 as a guess; `clock reset by hand`; a recording made before it renamed
 in the log on the next pass; the saved card naming the volume.
+
+### 5115 -- Recordings named in the future, brought back after NTP
+
+5114 on the board (v0.4.0-123), SD out, USB drive in, Wi-Fi switched on:
+
+    W tab5_settings: the stored time was 797 days 6 h ahead of NTP; NTP corrects it
+    I tab5_rec: clock moved -68883050 s: 2028-12-02 03.24.39.flac -> 2026-09-26 21.13.49.flac
+    I tab5_settings: compacted /usb/.defeatist.dat (volume=58)
+
+That repaired the one recording made in that boot. The earlier boots'
+2028 recordings -- two on the card, four on the drive -- were left, as
+5114 said they would be. But they can be brought back: a stored time
+that is wrong forward advances only with uptime, so every boot that
+carried it was wrong by NTP's eventual correction plus the device's
+off-time since. Adding the correction to such a name lands it at most
+that off-time late -- never in the future.
+
+- settings.c keeps the last correction NTP made that brought the time
+  down by more than a day, in NVS (`radiokeep`/`clkfix`), since the
+  card holding such files may not be in the slot on the boot NTP
+  answers. settings_known_clock_error().
+- Once the time is verified, and again at every mount after that,
+  recorder.c reads each volume's Recordings folder and renames every
+  recording named more than an hour in the future by that correction,
+  shifts its FAT date the same way, and drops its sidecar. One the
+  correction would still leave in the future is logged and left. The
+  player's own root files (stations.m3u, favorites.m3u, starred.m3u,
+  Recordings) get the current time if theirs is in the future.
+
+The parser (`YYYY-MM-DD HH.MM.SS[ (n)].flac` to an epoch) was checked on
+the host against Python's calendar, leap days and century years
+included.
+
+**The files already on the drive.** Their correction was made on
+5114, before NVS kept it, so this cannot find it by itself; the SD
+card's own record still says 2028, and inserting it on a boot that
+reaches NTP will set it. Or by hand, with the -68883050 s from the log
+above (UTC; these land a few minutes late, the off-time between those
+boots):
+
+    2028-12-02 03.20.47.flac -> 2026-09-26 21.09.57.flac   (SD)
+    2028-12-02 03.22.04.flac -> 2026-09-26 21.11.14.flac   (SD)
+    2028-12-02 03.23.48.flac -> 2026-09-26 21.12.58.flac   (USB)
+    2028-12-02 03.24.11.flac -> 2026-09-26 21.13.21.flac   (USB)
+    2028-12-02 03.24.37.flac -> 2026-09-26 21.13.47.flac   (USB)
+    2028-12-02 03.25.00.flac -> 2026-09-26 21.14.10.flac   (USB)
+
+Compiled at -O2 -Werror against ESP-IDF 5.5.1 headers. Not on the
+board.

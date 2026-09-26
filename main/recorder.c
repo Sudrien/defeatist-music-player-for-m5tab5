@@ -5,6 +5,7 @@
  */
 #include "recorder.h"
 
+#include <dirent.h>
 #include <errno.h>
 #include <inttypes.h>
 #include <stdio.h>
@@ -501,6 +502,137 @@ static void fix_names(void)
     s_fix_n = keep;
 }
 
+/*
+ * 5115: recordings from earlier boots named in the future.
+ *
+ * fix_names() can only repair this boot's recordings: it knows how far
+ * each was named wrong. An earlier boot that carried a wrong stored time
+ * (2028-12-02, from a stray card file, until NTP) named its recordings
+ * wrong by the correction NTP later made plus the device's off-time since
+ * -- and settings_known_clock_error() keeps that correction. So once the
+ * time is verified, each volume's Recordings folder is read, and every
+ * recording named more than an hour in the future is brought back by it,
+ * its file date with it, its sidecar dropped. Anything the correction
+ * would still leave in the future is left alone and logged.
+ *
+ * And the player's own root files, which cardtime.c skips but a computer
+ * shows, get today's date if theirs is in the future.
+ *
+ * Once per volume per mount, after NTP. ui_task.
+ */
+#define SWEEP_MAX           (64)
+#define FUTURE_SLACK_S      (3600)
+
+/* "2028-12-02 03.20.47.flac" or "... (2).flac" to an epoch, 0 if not. */
+static int64_t name_epoch(const char *n)
+{
+    int y, mo, d, h, mi, se;
+    if (sscanf(n, "%4d-%2d-%2d %2d.%2d.%2d", &y, &mo, &d, &h, &mi, &se) != 6) return 0;
+    if (mo < 1 || mo > 12 || d < 1 || d > 31 || h > 23 || mi > 59 || se > 60) return 0;
+    /* days_from_civil (H. Hinnant) */
+    const int yy = y - (mo <= 2);
+    const int era = (yy >= 0 ? yy : yy - 399) / 400;
+    const unsigned yoe = (unsigned)(yy - era * 400);
+    const unsigned doy = (unsigned)((153 * (mo + (mo > 2 ? -3 : 9)) + 2) / 5 + d - 1);
+    const unsigned doe = yoe * 365 + yoe / 4 - yoe / 100 + doy;
+    const int64_t days = (int64_t)era * 146097 + (int64_t)doe - 719468;
+    return days * 86400 + h * 3600 + mi * 60 + se;
+}
+
+static void sweep_volume(storage_id_t vol)
+{
+    const char *mount = storage_mount_path(vol);
+    const int64_t now = settings_now();
+    const int64_t fix = settings_known_clock_error();
+    char dir[96];
+    if (!storage_join_path(dir, sizeof(dir), mount, REC_DIR)) return;
+
+    /* Names first, then renames: not while the directory is open. */
+    char (*names)[40] = heap_caps_malloc(SWEEP_MAX * 40, MALLOC_CAP_SPIRAM | MALLOC_CAP_8BIT);
+    if (!names) return;
+    int n = 0;
+    storage_io_acquire(STORAGE_IO_BACKGROUND);
+    DIR *d = opendir(dir);
+    if (d) {
+        const struct dirent *e;
+        while ((e = readdir(d)) != NULL && n < SWEEP_MAX) {
+            if (e->d_name[0] == '.' || strlen(e->d_name) >= 40) continue;
+            const int64_t t = name_epoch(e->d_name);
+            if (t > now + FUTURE_SLACK_S) snprintf(names[n++], 40, "%s", e->d_name);
+        }
+        closedir(d);
+    }
+    storage_io_release();
+
+    int moved = 0, left = 0;
+    for (int i = 0; i < n; i++) {
+        char from[160], to[160], name[40];
+        if (!storage_join_path(from, sizeof(from), dir, names[i])) continue;
+        if (s_active && strcmp(from, s_path) == 0) continue;
+        const int64_t t = name_epoch(names[i]);
+        if (!fix || t + fix > now + FUTURE_SLACK_S) {
+            if (left++ < 4) ESP_LOGW(TAG, "%s/%s is named in the future and no known "
+                                          "correction brings it back; left as it is",
+                                     dir, names[i]);
+            continue;
+        }
+        struct stat st;
+        storage_io_acquire(STORAGE_IO_BACKGROUND);
+        bool ok = stat(from, &st) == 0 &&
+                  name_for(dir, t + fix, name, sizeof(name), to, sizeof(to)) &&
+                  rename(from, to) == 0;
+        if (ok) {
+            const time_t mt = (int64_t)st.st_mtime > now + FUTURE_SLACK_S
+                            ? st.st_mtime + fix : st.st_mtime;
+            const struct utimbuf ut = { .actime = mt, .modtime = mt };
+            utime(to, &ut);
+            char side[200];
+            snprintf(side, sizeof(side), "%s/.%s.rgcache", dir, names[i]);
+            remove(side);
+        }
+        storage_io_release();
+        if (ok) {
+            moved++;
+            ESP_LOGI(TAG, "named in the future: %s -> %s (%+lld s, NTP's correction)",
+                     names[i], name, (long long)fix);
+        }
+    }
+    free(names);
+
+    /* The player's own root files and the folder itself. */
+    static const char *const own[] = { "stations.m3u", "favorites.m3u", "starred.m3u", REC_DIR };
+    int touched = 0;
+    for (size_t i = 0; i < sizeof(own) / sizeof(own[0]); i++) {
+        char p[128];
+        struct stat st;
+        if (!storage_join_path(p, sizeof(p), mount, own[i])) continue;
+        storage_io_acquire(STORAGE_IO_BACKGROUND);
+        if (stat(p, &st) == 0 && (int64_t)st.st_mtime > now + FUTURE_SLACK_S) {
+            const struct utimbuf ut = { .actime = (time_t)now, .modtime = (time_t)now };
+            if (utime(p, &ut) == 0) touched++;
+        }
+        storage_io_release();
+    }
+    if (moved || left || touched) {
+        ESP_LOGI(TAG, "%s: %d recording(s) brought back from the future, %d left, "
+                      "%d of the player's own files re-dated", mount, moved, left, touched);
+    }
+}
+
+static void sweep(void)
+{
+    static uint32_t seen_gen;
+    static bool seen_verified;
+    if (!settings_time_verified()) return;
+    const uint32_t gen = storage_generation();
+    if (seen_verified && gen == seen_gen) return;
+    seen_verified = true;
+    seen_gen = gen;
+    for (int v = 0; v < STORAGE_COUNT; v++) {
+        if (storage_present((storage_id_t)v)) sweep_volume((storage_id_t)v);
+    }
+}
+
 bool recorder_take_notice(char *head, size_t head_len, char *body, size_t body_len)
 {
     if (s_log_end) {
@@ -508,6 +640,7 @@ bool recorder_take_notice(char *head, size_t head_len, char *body, size_t body_l
         heapmap_log("recording stopped");
     }
     fix_names();
+    sweep();                            /* 5115 */
     if (!s_text_lock || !s_notice) return false;
     xSemaphoreTake(s_text_lock, portMAX_DELAY);
     const bool had = s_notice;

@@ -14824,3 +14824,80 @@ and the two radio-browser failures either side of it -- an mbedtls
 handshake returning -0x0050 and a getaddrinfo returning 202 -- cleared
 on their own, with the click report succeeding two seconds afterwards.
 Transient, on two different mirrors, and not obviously the player's.
+
+### 5149-5152 -- The refresh ladder, and a log line that made the panel strobe
+
+This records an experiment that was tried, abandoned, and then had to be
+abandoned a second time because the first abandonment was incomplete. The
+tree is back where it started; what follows is the only thing left of it.
+
+**What was asked.** Whether the DSI refresh rate could come down further,
+to give the scanout fetch more slack. The note above `DPI_CLOCK_MHZ` had
+said since the 0500s how to find out: walk the clock down a step at a
+time, reflash at each, and watch for the black screen that means the
+ST7121 has dropped out of lock.
+
+**What 5149 did.** Took the first step, 70 -> 60 MHz, and added six lines
+to `panel_init()` that computed the resulting frame rate and scanout
+bandwidth from the timing the peripheral was actually handed, and logged
+them once:
+
+    DPI 60 MHz: 802 x 1524 total, 49.0 Hz, 90 MB/s of scanout
+
+**The panel did not blank. It strobed.** UI up, touch working, log clean,
+picture visibly fluttering. The note's model was wrong in a way worth
+keeping: between the rate that holds and the rate that blanks there is a
+BAND, not a cliff -- the timing generator tracks the incoming VSYNC and
+hunts -- and a rate inside that band boots clean and is unusable. The
+first bad step down the ladder is not black. It is worse than the step
+before in a way only an eye catches, with nothing in any log to say so.
+
+**5150 put the clock back and kept the six log lines**, on the grounds
+that a diagnostic costs nothing.
+
+**It cost the display.** The panel went on strobing at 70 MHz -- the rate
+that had run cleanly all day and every session before it. Reverse-applying
+that one remaining hunk, and nothing else, stopped it: same source
+revision, different ELF (`cdb755811` against `c78aefc35`), no strobing.
+
+**That is the measurement. The mechanism is not established.** Two
+candidates, written down because either would bite again:
+
+- **Code layout.** The block adds about a hundred bytes to `player.c` and
+  shifts every function after it. Instructions come from flash through the
+  cache, and the cache is one of the masters competing with the DPI's
+  DW-GDMA channel for the bus -- the entire subject of the AXI QoS note in
+  that file. A layout that changes miss patterns changes how hard the
+  cache pulls, and this firmware is close enough to the edge that 60 MHz
+  strobes. It would explain all three observations: 60 strobed,
+  70-with-the-block strobed, 70-without-it does not.
+- **Stack.** It runs on `main_task`, whose stack already carries the
+  `dpi`, `vendor`, `pcfg` and `dbi` structs, and it adds two 64-bit
+  divisions and a six-argument `ESP_LOGI`. `vsnprintf` is not cheap in
+  stack, and an overflow there corrupts what is below it rather than
+  tripping cleanly.
+
+**Two lessons, both certain even though the mechanism is not.**
+
+On this device a boot-time diagnostic is not free, and "it only logs" is
+not a reason to leave one in. The rate and the bandwidth are computable
+from the constants by hand, and the table in `player.c`'s comment has
+them.
+
+And a revert that leaves part of the change behind is worse than no
+revert, because it is reported as complete and moves the suspicion
+elsewhere -- here, onto the panel hardware, which was briefly thought to
+have been damaged. `git apply -R` on the hunk found it; nothing in the
+log would have.
+
+**Where this leaves the ladder.** 70 MHz, 802x1524 total, 57.2 Hz,
+105 MB/s. 65 MHz is untried and would be 53.1 Hz for a 7% saving on the
+fetch, and 60 fluttering is reason to expect it would flutter too. The
+ladder exists for the DSI underrun, which is one frame once or twice a
+session and already classified above as a non-bug; a screen that flutters
+continuously to avoid a frame that tears twice an hour is the wrong trade.
+The one untried avenue is panel-side rather than SoC-side: ST7121P
+datasheet line 203 lists "Supports low frame rate mode", and section
+7.3.2 gives Vertical Frequency as Min --, Typ 60, Max -- Hz, i.e. no
+published range at all. If the rate is to come down, that mode is the
+documented way, not the DPI clock.

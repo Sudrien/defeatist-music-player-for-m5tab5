@@ -11184,6 +11184,10 @@ static void restore_last_track(void)
          * star read "no track" and hid itself for the whole pause.
          */
         snprintf(s_shown_path, sizeof(s_shown_path), "%s", s_path);
+        /* The chooser's red marker, for the same reason: track_commit()
+         * is what normally publishes it, and the chooser is about to be
+         * reopened on this track's folder below. */
+        browser_set_playing(s_path);
         load_track_visuals(s_path);
         ESP_LOGI(TAG, "ready to resume %s (paused)", s_path);
 

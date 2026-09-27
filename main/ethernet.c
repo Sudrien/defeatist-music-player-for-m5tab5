@@ -22,6 +22,7 @@
 #include "iot_eth_netif_glue.h"
 
 #include "ethernet.h"
+#include "heapmap.h"
 #include "netlink.h"
 #include "streamprobe.h"
 #include "usbhost.h"
@@ -267,6 +268,21 @@ static void on_event(void *arg, esp_event_base_t base, int32_t id, void *data)
         ESP_LOGI(TAG, "%s: address " IPSTR ", gateway " IPSTR, i->name,
                  IP2STR(&e->ip_info.ip), IP2STR(&e->ip_info.gw));
         dns_save(e->esp_netif, s_dns_cable);    /* see pick_default() */
+        /*
+         * The cable's baseline, beside the station's (wifi.c) and the
+         * server's (remote.c). 5146 measured the DMA-capable internal
+         * heap at 19 bytes free with a largest block of ZERO once the
+         * station and the HTTPS server are both up -- so a second netif
+         * and a USB driver arriving after that is the next thing likely
+         * to fail for want of it, the way the JPEG engine did. Once per
+         * boot, at the address, so it can be compared with the station's
+         * map line for line.
+         */
+        static bool mapped;
+        if (!mapped) {
+            mapped = true;
+            heapmap_log("ethernet up");
+        }
         ev = NETLINK_EV_GOT_IP;
     } else if (base == IP_EVENT && id == IP_EVENT_ETH_LOST_IP) {
         const ip_event_got_ip_t *e = data;

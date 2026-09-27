@@ -258,7 +258,7 @@ NETLINK_BIN := netlinktest
 # ../test_audio_files so the bytes under test are the bytes on the card.
 CUE_BIN := cuesheettest
 
-all: run-remote run run-ctrl run-wifi run-clock run-rotate run-cardtime run-mediaindex run-medialist run-mediasearch run-mpdqueue run-mpdproto run-mpduri run-mpdmode run-screendim run-artplace run-mediawalk run-mediasync run-menuscroll run-fade run-tail run-portal run-old check-ui run-bright run-sleep run-sniff run-icy run-netplan run-stations run-pcmfold run-bufplan run-stbjpeg run-addrpin run-codec run-mp3 run-framewin run-streamplan run-stationnav run-radiobrowser run-levelhist run-favmatch run-netlink run-cue run-flacenc run-beam
+all: run-remote run run-ctrl run-wifi run-clock run-rotate run-cardtime run-mediaindex run-medialist run-mediasearch run-mpdqueue run-mpdproto run-mpduri run-mpdmode run-screendim run-artplace run-mediawalk run-mediasync run-menuscroll run-fade run-tail run-portal run-old check-ui check-netbudget run-bright run-sleep run-sniff run-icy run-netplan run-stations run-pcmfold run-bufplan run-stbjpeg run-addrpin run-codec run-mp3 run-framewin run-streamplan run-stationnav run-radiobrowser run-levelhist run-favmatch run-netlink run-cue run-flacenc run-beam
 
 $(BIN): $(SRCS) shim.h ../main/gfx.h ../components/ark12/ark12.h
 	$(CC) $(CFLAGS) -o $@ $(SRCS) $(LDFLAGS)
@@ -492,7 +492,7 @@ run-old: $(OLD_BINS)
 	done
 
 clean:
-	rm -f $(BIN) $(CTRL_BIN) $(WIFI_BIN) $(CLOCK_BIN) $(FADE_BIN) $(TAIL_BIN) $(PORTAL_BIN) $(REMOTE_BIN) $(OLD_BINS) $(BRIGHT_BIN) $(SLEEP_BIN) $(SNIFF_BIN) $(ICY_BIN) $(NETPLAN_BIN) $(STATION_BIN) $(BUFPLAN_BIN) $(CODEC_BIN) $(MP3_BIN) $(FRAMEWIN_BIN) $(STREAMPLAN_BIN) $(STATIONNAV_BIN) $(RADIOBROWSER_BIN) $(LEVELHIST_BIN) $(SGAIN_BIN) $(JSONPICK_BIN) $(FAVMATCH_BIN) $(FLACENC_BIN) $(BEAM_BIN) $(NETLINK_BIN) $(CUE_BIN) $(ROTATE_BIN) $(CARDTIME_BIN) $(MEDIAINDEX_BIN) $(MEDIALIST_BIN) $(MEDIASEARCH_BIN) $(MPDQUEUE_BIN) $(MPDPROTO_BIN) $(MPDURI_BIN) $(MPDMODE_BIN) $(SCREENDIM_BIN) $(ARTPLACE_BIN) $(MEDIAWALK_BIN) $(MEDIASYNC_BIN) $(MENUSCROLL_BIN) $(STBJPEG_BIN) $(ADDRPIN_BIN)
+	rm -f netbudget_probe.c $(BIN) $(CTRL_BIN) $(WIFI_BIN) $(CLOCK_BIN) $(FADE_BIN) $(TAIL_BIN) $(PORTAL_BIN) $(REMOTE_BIN) $(OLD_BINS) $(BRIGHT_BIN) $(SLEEP_BIN) $(SNIFF_BIN) $(ICY_BIN) $(NETPLAN_BIN) $(STATION_BIN) $(BUFPLAN_BIN) $(CODEC_BIN) $(MP3_BIN) $(FRAMEWIN_BIN) $(STREAMPLAN_BIN) $(STATIONNAV_BIN) $(RADIOBROWSER_BIN) $(LEVELHIST_BIN) $(SGAIN_BIN) $(JSONPICK_BIN) $(FAVMATCH_BIN) $(FLACENC_BIN) $(BEAM_BIN) $(NETLINK_BIN) $(CUE_BIN) $(ROTATE_BIN) $(CARDTIME_BIN) $(MEDIAINDEX_BIN) $(MEDIALIST_BIN) $(MEDIASEARCH_BIN) $(MPDQUEUE_BIN) $(MPDPROTO_BIN) $(MPDURI_BIN) $(MPDMODE_BIN) $(SCREENDIM_BIN) $(ARTPLACE_BIN) $(MEDIAWALK_BIN) $(MEDIASYNC_BIN) $(MENUSCROLL_BIN) $(STBJPEG_BIN) $(ADDRPIN_BIN)
 	rm -rf $(BIN).dSYM $(CTRL_BIN).dSYM $(WIFI_BIN).dSYM $(CLOCK_BIN).dSYM $(FADE_BIN).dSYM $(TAIL_BIN).dSYM $(PORTAL_BIN).dSYM
 	rm -rf $(addsuffix .dSYM,$(OLD_BINS))
 
@@ -628,4 +628,42 @@ check-ui:
 		$(CC) $(WARNCFLAGS) -c $$f -o /dev/null || exit 1; \
 	done
 
-.PHONY: all run-pcmfold run run-ctrl run-wifi run-clock run-rotate run-cardtime run-mediaindex run-medialist run-mediasearch run-mpdqueue run-mpdproto run-mpduri run-mpdmode run-screendim run-artplace run-mediawalk run-mediasync run-menuscroll run-fade run-tail run-portal run-old check-ui run-bright run-sleep run-sniff run-icy run-netplan run-stations run-pcmfold run-bufplan run-stbjpeg run-addrpin run-codec run-mp3 run-framewin run-streamplan run-stationnav run-radiobrowser run-levelhist run-favmatch run-netlink run-cue run-flacenc run-beam clean
+# 5157: the socket budget's guard, checked both ways.
+#
+# netbudget.h's #error IS the proof that a sdkconfig.defaults change took
+# (CLAUDE.md), so a guard that has quietly stopped firing would remove the
+# only thing standing between a stale sdkconfig and a board running on the
+# old ceiling -- which is what 5033 was. So this asserts it REFUSES below
+# the census as well as accepting at it, because an #error that never
+# fires and an #error that always passes look identical from a green
+# build.
+#
+# NETBUDGET_NEEDED is 22; the boundary is checked at 21 and 22 rather than
+# at a round number, and unset is checked because unset is the stale case.
+NETBUDGET_H := ../main/netbudget.h
+
+check-netbudget: $(NETBUDGET_H)
+	@echo '#include "netbudget.h"' > netbudget_probe.c
+	@echo 'int main(void){return 0;}' >> netbudget_probe.c
+	@for v in 1 10 21; do \
+		if $(CC) -I../main -DCONFIG_LWIP_MAX_SOCKETS=$$v -c netbudget_probe.c \
+			-o /dev/null 2>/dev/null; then \
+			echo "FAIL: netbudget.h accepted CONFIG_LWIP_MAX_SOCKETS=$$v"; \
+			rm -f netbudget_probe.c; exit 1; \
+		fi; \
+	done
+	@if $(CC) -I../main -c netbudget_probe.c -o /dev/null 2>/dev/null; then \
+		echo "FAIL: netbudget.h accepted an UNSET CONFIG_LWIP_MAX_SOCKETS"; \
+		rm -f netbudget_probe.c; exit 1; \
+	fi
+	@for v in 22 24 61; do \
+		if ! $(CC) -I../main -DCONFIG_LWIP_MAX_SOCKETS=$$v -c netbudget_probe.c \
+			-o /dev/null 2>/dev/null; then \
+			echo "FAIL: netbudget.h refused CONFIG_LWIP_MAX_SOCKETS=$$v"; \
+			rm -f netbudget_probe.c; exit 1; \
+		fi; \
+	done
+	@rm -f netbudget_probe.c
+	@echo "netbudget: refuses below 22, accepts 22 and up, refuses unset -- all passed"
+
+.PHONY: all run-pcmfold run run-ctrl run-wifi run-clock run-rotate run-cardtime run-mediaindex run-medialist run-mediasearch run-mpdqueue run-mpdproto run-mpduri run-mpdmode run-screendim run-artplace run-mediawalk run-mediasync run-menuscroll run-fade run-tail run-portal run-old check-ui check-netbudget run-bright run-sleep run-sniff run-icy run-netplan run-stations run-pcmfold run-bufplan run-stbjpeg run-addrpin run-codec run-mp3 run-framewin run-streamplan run-stationnav run-radiobrowser run-levelhist run-favmatch run-netlink run-cue run-flacenc run-beam clean

@@ -262,16 +262,30 @@ the same edges as the remote -- `want && have_ip()`, polled from
 `settings_remote_enabled()` exactly (`settings.c:383-390`, three places:
 the read, the key-parse and the write), off by default, card not NVS.
 
-**Socket budget is the real constraint.** `CONFIG_LWIP_MAX_SOCKETS` is
-not set in `sdkconfig.defaults`, so it is IDF's default of **10**.
-Already spoken for: portal httpd 4, portal DNS 1, remote HTTPS 4, remote
-plain 2 -- eleven if everything were up, which is *why* the plain server
-yields. An MPD listener plus clients comes out of the same ten. Either
-budget hard (listener + 2 clients, refusing the third with a close) or
-raise the limit -- and raising it touches `sdkconfig.defaults`, which
-per `CLAUDE.md` means `rm sdkconfig` before the next build, a note in
-the commit message, and a line in the log that proves the new value
-took.
+**Socket budget is the real constraint. SETTLED IN 5157: the limit was
+raised.** And the census in this paragraph was wrong when it was written,
+which is the more useful part.
+
+It said: `CONFIG_LWIP_MAX_SOCKETS` unset, so IDF's default of 10, with
+portal httpd 4, portal DNS 1, remote HTTPS 4 and remote plain 2 already
+spoken for -- "eleven if everything were up, which is *why* the plain
+server yields".
+
+**An httpd instance costs `max_open_sockets + 3`**, three being reserved
+for the server's own working (`esp_http_server.h`, enforced per instance
+in `httpd_main.c`), so those figures are 7, 1, 7 and 5. The portal and the
+plain server never run together, so the worst case is the setup phase --
+portal 7 + DNS 1 + remote HTTPS 7 = **15 against a ceiling of 10**, before
+SNTP, a stream or a radio-browser search adds one each. IDF checks each
+instance and never the sum, and every server passes its own check, so
+nothing warned. That was already broken with no MPD in the image.
+
+`main/netbudget.h` now holds the census as arithmetic and
+`sdkconfig.defaults` sets 24, which leaves MPD a listener and three
+clients -- three rather than two because an idling client holds its socket
+indefinitely and the realistic case is a phone, a desktop client and one
+left open. Raising it was preferred to budgeting down because the cost is
+the static socket table and not a buffer per socket.
 
 The task: 4-6 KB, the portal/remote precedent (`portal.c:902`,
 `remote.c:306`), priority 3. It must never call `netdec_open()` --

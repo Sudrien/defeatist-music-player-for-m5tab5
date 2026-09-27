@@ -571,3 +571,34 @@ CONFIG_HTTPD_WS_SUPPORT=y
 # before building; `tab5_remote: up at https://` is the line that says
 # it took.
 CONFIG_ESP_HTTPS_SERVER_ENABLE=y
+
+# 5157: A SOCKET CEILING THAT THE SERVERS ALREADY EXCEED.
+#
+# CONFIG_LWIP_MAX_SOCKETS was unset, so IDF's default of 10 applied, and
+# it is a GLOBAL ceiling on open sockets shared by every server and client
+# in the image. An httpd instance costs max_open_sockets + 3, not
+# max_open_sockets -- three are reserved for the server's own working and
+# esp_http_server.h says so -- and IDF validates that per instance and
+# never validates the sum. Each server here passes its own check at 10;
+# the total does not.
+#
+# The worst case during setup is the portal's httpd (4+3), its DNS socket
+# and the remote's HTTPS server (4+3), which is 15 before SNTP, a stream
+# or a radio-browser search adds one each. That is over 10 today, without
+# MPD in the image at all, and what it produces is an accept() or a
+# connect() failing somewhere unrelated to whatever filled the table --
+# which reads as a network fault. main/netbudget.h has the whole census
+# and the arithmetic; this is the number it demands.
+#
+# 24 is its 22 plus two spare. The cost is the static socket table, a
+# small struct per slot and under 2 KB for fourteen more; it is NOT a
+# buffer per socket, because the receive window above is filled from the
+# pbuf pool by connections that exist, so a raised ceiling costs nothing
+# until something opens one.
+#
+# rm sdkconfig before building. Proof it took: netbudget.h's #error fires
+# at compile time if it did not -- which is a better proof than a log line
+# and why there is no log line, 5149-5152 having established that a
+# boot-time diagnostic is not free on this device. The direct check is
+# `grep CONFIG_LWIP_MAX_SOCKETS sdkconfig` reading 24 and not 10.
+CONFIG_LWIP_MAX_SOCKETS=24

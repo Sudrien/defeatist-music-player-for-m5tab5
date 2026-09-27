@@ -57,6 +57,14 @@ extern const uint8_t favicon_ico_end[]   asm("_binary_favicon_ico_end");
  * page's own /art fetch beside its WebSocket. lru_purge drops the oldest
  * when a fifth arrives rather than refusing it. */
 #define REMOTE_SOCKETS      (4)
+
+/* 5157: this number is one term of a global budget, and the ceiling it
+ * counts against is checked there rather than here -- an httpd costs
+ * REMOTE_SOCKETS + 3 and nothing in IDF validates the sum across
+ * servers. Included so that raising it fails the build if it no longer
+ * fits, for the reason NETDEC_MIN_STACK stopped living inside an
+ * xTaskCreate call. */
+#include "netbudget.h"
 /* Not the portal's 32768: the two servers can run at once. */
 #define REMOTE_CTRL_PORT    (32770)
 /* The position is sent at most this often when nothing else moved --

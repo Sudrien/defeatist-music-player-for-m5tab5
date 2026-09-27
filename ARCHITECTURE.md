@@ -15322,3 +15322,91 @@ Nothing calls this yet, like `mpdqueue` and `mpduri` before it. The
 consumer is `status` on one side and, on the other, whatever sets
 `browser.c`'s `s_order` from a socket -- which is the shared mutation path
 of step 5 and does not exist.
+
+### 5157 -- The socket ceiling the servers already exceeded
+
+`MPD.md` step 9's "socket budget decision", taken as its own patch ahead
+of `mpd.c` for a reason `CLAUDE.md` gives: the first build after a
+`sdkconfig.defaults` change gets its diff read, and bundling that with
+several hundred lines of new socket code makes a failure ambiguous about
+which half caused it. This patch is the number and the arithmetic, and
+nothing else.
+
+**It fixes something that is wrong today, with no MPD in the image.**
+That is what makes it independently justifiable rather than groundwork.
+
+`CONFIG_LWIP_MAX_SOCKETS` was unset, so IDF's default of 10 applied. It is
+a GLOBAL ceiling on open sockets, shared by every server and client in the
+firmware, and **an httpd instance costs `max_open_sockets + 3`, not
+`max_open_sockets`** -- three are reserved for the server's own working,
+which `esp_http_server.h` documents and `httpd_main.c` enforces:
+
+    if (HTTPD_MAX_SOCKETS < config->max_open_sockets + 3) {
+        ESP_LOGE(TAG, "Config option max_open_sockets is too large ...
+
+**MPD.md's census undercounts by three per server.** It says "portal httpd
+4, portal DNS 1, remote HTTPS 4, remote plain 2 -- eleven if everything
+were up, which is why the plain server yields". The real figures are 7, 1,
+7 and 5. And because the portal and the plain server never run together
+(`remote.c:912-913` -- the plain server exists to hand port 80 over), there
+are two worst cases rather than one sum:
+
+    during setup   portal 7 + DNS 1 + remote HTTPS 7   = 15
+    afterwards     remote HTTPS 7 + remote plain 5     = 12
+
+Fifteen against a ceiling of ten, before SNTP, a playing stream or a
+radio-browser search adds one each. **IDF validates each instance and
+never validates the sum**, and every server here passes its own check at
+10 because none asks for more than 4 + 3 -- so nothing warns. What the
+ceiling produces is an `accept()` or a `connect()` failing somewhere
+unrelated to whatever filled the table, which reads as a network fault and
+would have been diagnosed as one.
+
+`main/netbudget.h` is the census as arithmetic, with every number cited to
+the line it came from, and `sdkconfig.defaults` is raised to 24 -- its 22
+plus two spare, so adding one client somewhere does not need the header
+edited before it can be tested, and not more than that because a ceiling
+with room for anything stops catching a leak.
+
+**Raising it is cheap, and the reason is worth knowing**: the cost is the
+static socket table, a small struct per slot and under 2 KB for fourteen
+more. It is NOT a buffer per socket -- the receive window
+(`CONFIG_LWIP_TCP_WND_DEFAULT`, 16384 since 5098) is filled from the pbuf
+pool by connections that actually exist, so a raised ceiling costs nothing
+until something opens a socket. That asymmetry is why this was worth doing
+instead of budgeting MPD down to two clients, which was the other option
+MPD.md offered.
+
+**The proof that the value took is a build-time `#error`, not a log
+line**, which is a deliberate departure from how the other
+`sdkconfig.defaults` entries in that file record their proof.
+`CLAUDE.md` wants evidence because 5033 was "not working" purely from a
+stale `sdkconfig`; `netbudget.h` fails the build when the configured
+ceiling is below its census, and an unset `CONFIG_LWIP_MAX_SOCKETS`
+evaluates to 0 and fails too -- so the stale-sdkconfig case is caught
+before a board is flashed rather than after. A boot log line would prove
+it later and cost something forever, and 5149-5152 is emphatic that on
+this device a boot-time diagnostic is not free and "it only logs" is not a
+reason to leave one in. The direct check, for anyone who wants one, is
+`grep CONFIG_LWIP_MAX_SOCKETS sdkconfig` reading 24.
+
+The header is included from `remote.c`, next to `REMOTE_SOCKETS`, so that
+raising that constant fails the build if it no longer fits -- the same
+reason `NETDEC_MIN_STACK` stopped living inside an `xTaskCreate` call.
+
+**And the guard is checked in both directions**, as `check-netbudget` in
+the host suite. An `#error` that has quietly stopped firing and one that
+is working look identical from a green build, and this one is the only
+thing standing between a stale `sdkconfig` and a board on the old ceiling
+-- so the check asserts it REFUSES 1, 10, 21 and unset as well as
+ACCEPTING 22, 24 and 61. The boundary is tested at 21 and 22 rather than
+at a round number. That much was verified here; the rest of this patch has
+not been on hardware, and what a flash has to confirm is that the build
+takes the new value and that the servers still come up.
+
+**Not verified, and worth saying plainly:** the census is read out of the
+code rather than measured on a board. Nothing counts open sockets at
+runtime, so "15 during setup" is what the configuration permits and not
+something observed. If a future patch wants the real high-water mark it
+has to be instrumented, and per 5149-5152 that instrumentation should not
+be left in.

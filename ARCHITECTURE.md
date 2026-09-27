@@ -14197,3 +14197,11 @@ a switch that lives on the panel could not start the server until the
 panel was closed. It runs at the top of every pass now. remote_publish()
 stays where the ui_state_t is built; a page open while the panel is up
 keeps the last state until it closes.
+
+### 5119 -- The remote's favicon
+
+`/favicon.ico` on the remote's server: a white disc with the switch's
+green play arrow (#4cc05e), at 16, 32 and 48 px in one file, embedded
+with EMBED_FILES (binary -- no NUL appended, unlike the page). Made with
+Pillow from a 256 px drawing. Browsers asked for it on every page load
+and got a 404 until now.

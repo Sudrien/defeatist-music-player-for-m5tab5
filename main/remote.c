@@ -30,6 +30,10 @@ static const char *TAG = "tab5_remote";
  * NUL-terminated and the NUL is not part of it). */
 extern const char remote_html_start[] asm("_binary_remote_html_start");
 extern const char remote_html_end[]   asm("_binary_remote_html_end");
+/* 5119: a white disc with the switch's green play arrow, 16/32/48 px.
+ * EMBED_FILES, so no NUL is added and the length is end - start. */
+extern const uint8_t favicon_ico_start[] asm("_binary_favicon_ico_start");
+extern const uint8_t favicon_ico_end[]   asm("_binary_favicon_ico_end");
 
 /* Four sockets: a phone and a laptop with a page each, and room for the
  * page's own /art fetch beside its WebSocket. lru_purge drops the oldest
@@ -134,6 +138,14 @@ static esp_err_t h_page(httpd_req_t *req)
     httpd_resp_set_hdr(req, "Cache-Control", "no-cache");
     return httpd_resp_send(req, remote_html_start,
                            (ssize_t)(remote_html_end - remote_html_start - 1));
+}
+
+static esp_err_t h_icon(httpd_req_t *req)
+{
+    httpd_resp_set_type(req, "image/x-icon");
+    httpd_resp_set_hdr(req, "Cache-Control", "public, max-age=86400");
+    return httpd_resp_send(req, (const char *)favicon_ico_start,
+                           (ssize_t)(favicon_ico_end - favicon_ico_start));
 }
 
 /*
@@ -243,7 +255,7 @@ static void start(void)
     cfg.max_open_sockets = REMOTE_SOCKETS;
     cfg.lru_purge_enable = true;
     cfg.stack_size = 6144;
-    cfg.max_uri_handlers = 4;
+    cfg.max_uri_handlers = 5;
     if (httpd_start(&s_srv, &cfg) != ESP_OK) {
         s_srv = NULL;
         s_retry_us = esp_timer_get_time() + REMOTE_RETRY_US;
@@ -253,6 +265,7 @@ static void start(void)
     const httpd_uri_t uris[] = {
         { .uri = "/",    .method = HTTP_GET, .handler = h_page },
         { .uri = "/art", .method = HTTP_GET, .handler = h_art  },
+        { .uri = "/favicon.ico", .method = HTTP_GET, .handler = h_icon },
         { .uri = "/ws",  .method = HTTP_GET, .handler = h_ws, .is_websocket = true },
     };
     for (size_t i = 0; i < sizeof(uris) / sizeof(uris[0]); i++) {

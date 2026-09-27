@@ -210,8 +210,15 @@ static const char *TAG = "tab5_ui";
  * anyway. Trough colour follows the knob -- green playing, red
  * recording (the colour every recorder uses), grey paused.
  *
+ * A tap anywhere on it toggles pause and play, as the two-way switch
+ * did. Recording takes a slide: drag the knob to the left detent. A
+ * slide to either of the others works too, and is how a recording is
+ * left -- or a tap, which from record means pause. Starting a recording
+ * is the one thing a stray touch must not do, so it is the one thing a
+ * tap cannot.
+ *
  * 240 wide gives the knob two 73 px throws, close to the old single
- * 76 px throw. Each third of the pill is its own tap target.
+ * 76 px throw.
  */
 #define PILL_W      (240)
 #define PILL_H      (92)
@@ -337,7 +344,10 @@ static bool s_notice_up;
 static bool s_notice_dismissible;
 static int  s_notice_x, s_notice_y, s_notice_w, s_notice_h;
 
-static int s_drag = -1;         /* 0 = seek, 1 = volume */
+static int s_drag = -1;         /* 0 = seek, 1 = volume, 2 = transport switch */
+/* The switch drag: where the finger went down, and the detent the knob
+ * was on then (-1 record, 0 pause, 1 play). */
+static int s_sw_x0, s_sw_from;
 /* s_drag_x is still tracked: draw_slider_c() and the envelope both need
  * the finger's x to show where the value is. Only the bubble wanted it in
  * order to follow the hand. */
@@ -655,6 +665,16 @@ static void draw_slider_c(int x0, int x1, int y, int pct, uint16_t fill)
 
 /* The knob's three detents, as offsets from the pill's centre. */
 #define KNOB_THROW  (PILL_W / 2 - KNOB_R - 2)
+/* Less movement than this on release is a tap, not a slide. */
+#define SW_SLIDE_MIN (24)
+
+/* The detent nearest a knob offset: past half a throw is the next one. */
+static int sw_detent(int off)
+{
+    if (off <= -KNOB_THROW / 2) return -1;
+    if (off >=  KNOB_THROW / 2) return 1;
+    return 0;
+}
 
 static void draw_pause_bars(int x, int y, int h, uint16_t c)
 {
@@ -689,11 +709,22 @@ static void draw_play_pause(bool playing, bool recording)
     if (pos != 0)  draw_pause_bars(cx, cy, 10, hint);
     if (pos != 1)  draw_play_tri(cx + KNOB_THROW, cy, 10, hint);
 
-    const int kx = cx + pos * KNOB_THROW;
+    /* Under a finger the knob follows it, and the glyph shows the
+     * detent it would land on if let go now. */
+    int kx = cx + pos * KNOB_THROW;
+    int shown = pos;
+    if (s_drag == 2) {
+        int off = s_sw_from * KNOB_THROW + (s_drag_x - s_sw_x0);
+        if (off < -KNOB_THROW) off = -KNOB_THROW;
+        if (off >  KNOB_THROW) off =  KNOB_THROW;
+        kx = cx + off;
+        shown = sw_detent(off);
+    }
     gfx_fill_circle(kx, cy, KNOB_R, C_THUMB);
+    const int pos_drawn = shown;
 
-    if (pos == -1)     gfx_fill_circle(kx, cy, 18, C_FILL);
-    else if (pos == 0) draw_pause_bars(kx, cy, 20, C_BG);
+    if (pos_drawn == -1)     gfx_fill_circle(kx, cy, 18, C_FILL);
+    else if (pos_drawn == 0) draw_pause_bars(kx, cy, 20, C_BG);
     else               draw_play_tri(kx, cy, 20, C_BG);
 }
 
@@ -2169,6 +2200,27 @@ ui_action_t ui_touch(const ui_state_t *st, bool down, int x, int y)
      */
     if (s_notice_up && ui_in_art(x, y)) return act;
 
+    if (s_drag == 2) {
+        if (down) {
+            s_drag_x = x;
+            return act;
+        }
+        const int dx = s_drag_x - s_sw_x0;
+        s_drag = -1;
+        if (!released) return act;
+        if (dx > -SW_SLIDE_MIN && dx < SW_SLIDE_MIN) {
+            /* A tap: pause and play swap; from record it means pause. */
+            act.kind = (s_sw_from == 0) ? UI_ACTION_PLAY : UI_ACTION_PAUSE;
+            return act;
+        }
+        const int to = sw_detent(s_sw_from * KNOB_THROW + dx);
+        if (to != s_sw_from) {
+            act.kind = to < 0 ? UI_ACTION_RECORD
+                     : to > 0 ? UI_ACTION_PLAY : UI_ACTION_PAUSE;
+        }
+        return act;
+    }
+
     if (s_drag >= 0) {
         int x0, x1, sy;
         if (s_drag == 0) seek_bounds(&x0, &x1, &sy);
@@ -2206,7 +2258,7 @@ ui_action_t ui_touch(const ui_state_t *st, bool down, int x, int y)
      * The toggle's box is the PILL, not the disc it replaced.
      *
      * in_box() takes one half-extent because every other control on
-     * this row is square; the pill is 168x92 and a BTN_R box would be a
+     * this row is square; the pill is 240x92 and a BTN_R box would be a
      * 92 px target inside a 168 px control -- the 38 px either end that
      * look pressable would not be. Written out rather than adding a
      * rectangular in_box() for one caller.
@@ -2214,13 +2266,11 @@ ui_action_t ui_touch(const ui_state_t *st, bool down, int x, int y)
     play_centre(&cx, &cy);
     if (x >= cx - PILL_W / 2 - HIT_PAD_X && x <= cx + PILL_W / 2 + HIT_PAD_X &&
         y >= cy - PILL_H / 2 - HIT_PAD_Y && y <= cy + PILL_H / 2 + HIT_PAD_Y) {
-        /* Thirds, not a toggle: each detent is its own target, so a
-         * tap says which state is wanted and never depends on which
-         * one the player thinks it is in. */
-        const int third = PILL_W / 6;
-        act.kind = x < cx - third ? UI_ACTION_RECORD
-                 : x > cx + third ? UI_ACTION_PLAY
-                 :                  UI_ACTION_PAUSE;
+        /* Nothing fires on the press: whether this is a tap or a slide
+         * is only known at release. See PILL_W. */
+        s_drag = 2;
+        s_sw_x0 = s_drag_x = x;
+        s_sw_from = st->recording ? -1 : (st->playing ? 1 : 0);
         return act;
     }
 

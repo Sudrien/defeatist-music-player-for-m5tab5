@@ -46,9 +46,19 @@ extern "C" {
 #define MEDIASEARCH_NAME        ".defeatist.sr1"
 #define MEDIASEARCH_TEMP_NAME   ".defeatist.srn"
 
-/* Search files an earlier build wrote, removed on the next run, the way
- * MEDIALIB_OLD_INDEX_NAMES works. Empty for now: sr1 is the first. */
-#define MEDIASEARCH_OLD_NAMES   { }
+/*
+ * Search files an earlier build wrote, removed on the next run, the way
+ * MEDIALIB_OLD_INDEX_NAMES works.
+ *
+ * sr1 is the first, so there is nothing here yet -- and the list holds
+ * a NULL rather than nothing, which readers skip. An empty initialiser
+ * is a zero-length array: a GNU extension, and it makes the obvious
+ * `i < sizeof(a)/sizeof(a[0])` loop compare against 0 and warn under
+ * -Wextra, which is an error in the host build. A NULL costs a pointer
+ * and keeps the loop real, so the build that adds sr2 adds a name and
+ * changes nothing else.
+ */
+#define MEDIASEARCH_OLD_NAMES   { NULL }
 
 /*
  * A line: the catalog offset, then four folded fields, tab-separated.

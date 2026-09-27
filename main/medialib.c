@@ -7,16 +7,19 @@
 
 #include <stdint.h>
 #include <stdio.h>
+#include <stdlib.h>
 #include <string.h>
 
 #include "covertag.h"
 #include "cuedir.h"
 #include "cuesheet.h"
+#include "esp_heap_caps.h"
 #include "esp_log.h"
 #include "esp_timer.h"
 #include "freertos/FreeRTOS.h"
 #include "freertos/task.h"
 #include "mediacat.h"
+#include "mediasearch.h"
 #include "mediawalk.h"
 #include "settings.h"
 #include "storage_io.h"
@@ -157,6 +160,221 @@ static mwalk_result_t walk(void *ctx, mwalk_fn fn, void *wctx)
     return mwalk_volume(c->mount, guarded, c);
 }
 
+/* ---- the search file: a second pass ----------------------------------- */
+
+/*
+ * A SEPARATE PASS OVER THE FINISHED INDEX, not a line written as each
+ * record goes by.
+ *
+ * The reason is what survives a failure. Built into the reconcile, a
+ * card that fills up or is pulled while the search file is being
+ * written takes the index down with it and the next boot has neither
+ * browsing nor search. Built afterwards, from an index that is already
+ * installed and already proved good, a failure here costs search alone:
+ * lsinfo still answers, the glass still lists, and the next reconcile
+ * tries again. Search is the feature that can be missing for a while;
+ * the listing is not.
+ *
+ * It costs one more read of the catalog. That is the price of the
+ * isolation and it is paid on a background task after the run the
+ * listener was waiting for has already finished.
+ *
+ * WHY THE OFFSETS ARE SORTED FIRST. The index is in path order and the
+ * catalog is in append order, so walking the index and reading each
+ * record where it points is a random seek per track -- and through a
+ * 16 KB stdio buffer a 250-byte record scattered through the file
+ * refills the buffer nearly every time. At 1200 tracks that is tens of
+ * megabytes of reads for a 300 KB file. Sorted, the same pass reads the
+ * catalog front to back.
+ *
+ * The search file has no order of its own to lose by this: it is
+ * scanned start to finish and nothing seeks into it (mediasearch.h), so
+ * catalog order is as good as any.
+ */
+static uint32_t *s_off;             /* PSRAM: live records' catalog offsets */
+static uint32_t  s_off_cap;
+
+static int cmp_off(const void *a, const void *b)
+{
+    const uint32_t x = *(const uint32_t *)a, y = *(const uint32_t *)b;
+    return (x < y) ? -1 : (x > y) ? 1 : 0;
+}
+
+static bool search_build(storage_id_t vol, const char *mount,
+                         const volatile bool *abort)
+{
+    char final[32], temp[32], index[32];
+    if (!storage_join_path(final, sizeof(final), mount, MEDIASEARCH_NAME) ||
+        !storage_join_path(temp, sizeof(temp), mount, MEDIASEARCH_TEMP_NAME) ||
+        !storage_join_path(index, sizeof(index), mount, MEDIALIB_INDEX_NAME)) {
+        return false;
+    }
+
+    /* A search file from an earlier format is removed, never read --
+     * MEDIALIB_OLD_INDEX_NAMES' rule, and the mechanism exists from the
+     * start so the build that needs it does not have to invent it. */
+    static const char *const old_names[] = MEDIASEARCH_OLD_NAMES;
+    for (size_t i = 0; i < sizeof(old_names) / sizeof(old_names[0]); i++) {
+        char old[32];
+        if (!old_names[i]) continue;        /* the list's NULL placeholder */
+        if (!storage_join_path(old, sizeof(old), mount, old_names[i])) continue;
+        storage_io_acquire(CLS);
+        const bool gone = remove(old) == 0;
+        storage_io_release();
+        if (gone) ESP_LOGI(TAG, "removed %s: an earlier format", old);
+    }
+
+    const int64_t t0 = esp_timer_get_time();
+
+    FILE *ix = storage_io_open(index, "rb");
+    if (!ix) {
+        ESP_LOGW(TAG, "%s: no index to build a search file from",
+                 storage_label(vol));
+        return false;
+    }
+
+    storage_io_acquire(CLS);
+    const bool sized = fseek(ix, 0, SEEK_END) == 0;
+    const long bytes = sized ? ftell(ix) : -1;
+    storage_io_release();
+
+    if (bytes <= 0 || (bytes % MIDX_REC_SIZE) != 0) {
+        ESP_LOGW(TAG, "%s: index is %ld bytes, not a whole number of records",
+                 storage_label(vol), bytes);
+        storage_io_close(ix);
+        return false;
+    }
+    const uint32_t n = (uint32_t)(bytes / MIDX_REC_SIZE);
+
+    if (s_off_cap < n) {
+        free(s_off);
+        s_off = heap_caps_malloc((size_t)n * sizeof(uint32_t),
+                                 MALLOC_CAP_SPIRAM | MALLOC_CAP_8BIT);
+        s_off_cap = s_off ? n : 0;
+        if (!s_off) {
+            ESP_LOGW(TAG, "%s: no PSRAM for %u offsets; no search file",
+                     storage_label(vol), (unsigned)n);
+            storage_io_close(ix);
+            return false;
+        }
+    }
+
+    /* Pass one: the live records' offsets, out of the index. */
+    uint32_t live = 0;
+    for (uint32_t i = 0; i < n; i++) {
+        if (abort && *abort) {
+            storage_io_close(ix);
+            ESP_LOGI(TAG, "%s: search file abandoned", storage_label(vol));
+            return false;
+        }
+        uint8_t raw[MIDX_REC_SIZE];
+        if (!storage_io_read_at(ix, (long)i * MIDX_REC_SIZE, raw,
+                                sizeof(raw), CLS)) {
+            ESP_LOGW(TAG, "%s: index read failed at record %u",
+                     storage_label(vol), (unsigned)i);
+            storage_io_close(ix);
+            return false;
+        }
+        midx_rec_t rec;
+        if (!midx_rec_unpack(raw, &rec)) {
+            ESP_LOGW(TAG, "%s: record %u is not a record; no search file",
+                     storage_label(vol), (unsigned)i);
+            storage_io_close(ix);
+            return false;
+        }
+        if (rec.flags & MIDX_F_DEAD) continue;      /* no line for the dead */
+        s_off[live++] = rec.cat_off;
+    }
+    storage_io_close(ix);
+
+    qsort(s_off, live, sizeof(uint32_t), cmp_off);
+
+    /* Pass two: the catalog front to back, into the temp file. */
+    if (!mediacat_session_open(vol)) {
+        ESP_LOGW(TAG, "%s: cannot read the catalog; no search file",
+                 storage_label(vol));
+        return false;
+    }
+
+    FILE *out = storage_io_open(temp, "wb");
+    if (!out) {
+        mediacat_session_close();
+        ESP_LOGW(TAG, "%s: cannot write %s", storage_label(vol), temp);
+        return false;
+    }
+
+    static mediacat_rec_t cat;          /* ~720 bytes: never a local */
+    static char line[MEDIASEARCH_LINE_MAX];
+    uint32_t written = 0, skipped = 0;
+    bool ok = true;
+
+    for (uint32_t i = 0; i < live && ok; i++) {
+        if (abort && *abort) { ok = false; break; }
+
+        if (!mediacat_session_read(s_off[i], &cat)) {
+            /* One unreadable line is not a reason to have no search at
+             * all: the index still points at it and browsing still
+             * shows it, so the track is missing from search results and
+             * nothing else. A file this happens to a lot of is a file
+             * the next reconcile rebuilds anyway. */
+            skipped++;
+            continue;
+        }
+        const int len = mediasearch_encode(&cat, s_off[i], line, sizeof(line));
+        if (len < 0) { skipped++; continue; }
+
+        storage_io_acquire(CLS);
+        ok = fwrite(line, 1, (size_t)len, out) == (size_t)len;
+        storage_io_release();
+        if (ok) written++;
+    }
+
+    storage_io_acquire(CLS);
+    if (ok) ok = fflush(out) == 0;
+    storage_io_release();
+    storage_io_close(out);
+    mediacat_session_close();
+
+    if (!ok) {
+        storage_io_acquire(CLS);
+        remove(temp);
+        storage_io_release();
+        ESP_LOGW(TAG, "%s: search file failed after %u lines; the index "
+                 "stands and browsing is unaffected",
+                 storage_label(vol), (unsigned)written);
+        return false;
+    }
+
+    /* Installed the way the index is: the old one goes, then the new
+     * one takes its name, so a card pulled mid-write leaves either the
+     * previous search file or none -- never half of one. */
+    storage_io_acquire(CLS);
+    remove(final);
+    const bool moved = rename(temp, final) == 0;
+    storage_io_release();
+
+    if (!moved) {
+        storage_io_acquire(CLS);
+        remove(temp);
+        storage_io_release();
+        ESP_LOGW(TAG, "%s: could not install the search file",
+                 storage_label(vol));
+        return false;
+    }
+    storage_mark_hidden(final);
+
+    ESP_LOGI(TAG, "%s: search file %u lines of %u records in %d ms%s",
+             storage_label(vol), (unsigned)written, (unsigned)n,
+             (int)((esp_timer_get_time() - t0) / 1000),
+             skipped ? " (some records unreadable)" : "");
+    if (skipped) {
+        ESP_LOGW(TAG, "%s: %u records had no line; those tracks browse but "
+                 "do not appear in search", storage_label(vol),
+                 (unsigned)skipped);
+    }
+    return true;
+}
+
 msync_result_t medialib_reconcile(storage_id_t vol, const volatile bool *abort,
                                   msync_stats_t *stats)
 {
@@ -220,6 +438,7 @@ msync_result_t medialib_reconcile(storage_id_t vol, const volatile bool *abort,
              ms - tag_ms - cat_ms);
 
     if (r == MSYNC_DONE) storage_mark_hidden(index);
+    if (r == MSYNC_DONE) search_build(vol, mount, abort);
     return r;
 }
 

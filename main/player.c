@@ -234,7 +234,32 @@ static const char *TAG = "tab5_mp3";
  * and shrinking that carries no risk of anything going dark. Do that
  * first.
  */
-#define DPI_CLOCK_MHZ           (70)
+/*
+ * 5149: walking it down, one step, the way the note above says to. 70 is
+ * the rate this panel is KNOWN to hold; 60 is the next line of the table
+ * and has never been on the glass.
+ *
+ * IF THE SCREEN IS BLACK AFTER FLASHING THIS, that is the answer, not a
+ * fault: the ST7121 locks its timing generator to the incoming VSYNC and
+ * stops driving the glass below its lock range rather than degrading, so
+ * there is no error anywhere -- esp_lcd_panel_init() returns ESP_OK and
+ * the log runs clean to the last line. The serial log still works, and
+ * the line panel_init() now prints says which rate was tried. Put this
+ * back to 70 and reflash.
+ *
+ * What it buys if it holds: 105 MB/s of scanout becomes 90, which is the
+ * fetch that underruns when USB-ECM and esp_hosted DMA collide with it
+ * (see the AXI QoS note below). What it costs: 57.3 Hz becomes 49.1, and
+ * whether that shows on a drag or a fade is a thing to look at rather
+ * than calculate.
+ *
+ * DSI_LANE_RATE_MBPS is deliberately NOT changed with it. 60 MHz needs
+ * 480 Mbps a lane and 700 is more margin than the ~20% Espressif
+ * suggests, but the lane rate only has to be enough, the panel's lock
+ * range is about frame rate and not lane rate, and moving two things at
+ * once makes a black screen ambiguous.
+ */
+#define DPI_CLOCK_MHZ           (60)
 
 /*
  * DSI bridge underruns, counted in the ISR.
@@ -1050,6 +1075,32 @@ static esp_err_t panel_init(void)
     ESP_RETURN_ON_ERROR(esp_lcd_panel_reset(s_panel), TAG, "reset");
     ESP_RETURN_ON_ERROR(esp_lcd_panel_init(s_panel), TAG, "init");
     ESP_RETURN_ON_ERROR(esp_lcd_panel_disp_on_off(s_panel, true), TAG, "disp on");
+    /*
+     * What the rate above actually came out as, computed from the same
+     * timing the peripheral was given rather than from the table in the
+     * comment -- a table and a config that disagree is how a walk down
+     * this ladder would end up measuring the wrong thing. It is also the
+     * only evidence available when the answer is a black screen.
+     */
+    {
+        const uint32_t htot = (uint32_t)dpi.video_timing.h_size +
+                              dpi.video_timing.hsync_pulse_width +
+                              dpi.video_timing.hsync_back_porch +
+                              dpi.video_timing.hsync_front_porch;
+        const uint32_t vtot = (uint32_t)dpi.video_timing.v_size +
+                              dpi.video_timing.vsync_pulse_width +
+                              dpi.video_timing.vsync_back_porch +
+                              dpi.video_timing.vsync_front_porch;
+        const uint64_t total = (uint64_t)htot * vtot;
+        const uint64_t hz10  = ((uint64_t)DPI_CLOCK_MHZ * 1000000ull * 10) / total;
+        const uint64_t bps   = ((uint64_t)LCD_H_RES * LCD_V_RES * 2ull *
+                                (uint64_t)DPI_CLOCK_MHZ * 1000000ull) / total;
+        ESP_LOGI(TAG, "DPI %d MHz: %u x %u total, %u.%u Hz, %u MB/s of scanout",
+                 DPI_CLOCK_MHZ, (unsigned)htot, (unsigned)vtot,
+                 (unsigned)(hz10 / 10), (unsigned)(hz10 % 10),
+                 (unsigned)(bps / 1000000));
+    }
+
     ESP_LOGI(TAG, "ST7121 initialised (%dx%d)", LCD_H_RES, LCD_V_RES);
     return ESP_OK;
 }

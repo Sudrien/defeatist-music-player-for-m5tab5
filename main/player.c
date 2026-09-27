@@ -7153,8 +7153,20 @@ static void ui_task(void *arg)
             if (!s_screen_off && duty != applied) {
                 backlight_set(duty);
                 applied = duty;
-                ESP_LOGI(TAG, "brightness %d%% from settings (duty %d%%)",
-                         (int)settings_brightness(), duty);
+                /* The effective level, not the setting: while dimmed
+                 * these disagree, and 5141's first board log read
+                 * "brightness 90% from settings (duty 17%)" -- a line
+                 * that says the screen is at 90% while driving the duty
+                 * for 45%. The duty was right and the sentence was
+                 * wrong, which is the worse way round. */
+                if (s_dimmed) {
+                    ESP_LOGI(TAG, "brightness %d%% dimmed from %d%% (duty %d%%)",
+                             effective_brightness(), (int)settings_brightness(),
+                             duty);
+                } else {
+                    ESP_LOGI(TAG, "brightness %d%% from settings (duty %d%%)",
+                             (int)settings_brightness(), duty);
+                }
             }
             /* The filter regardless of the screen: it is what the next
              * wake should show, and changing it on a dark screen costs a

@@ -14377,3 +14377,215 @@ buffer is now sized for the larger of the state and the envelope.
 Not yet: the Radio tab (stations, favourites, the directory), stars on
 rows, and search. Syntax-checked against the IDF headers with the rest
 stubbed; the page driven headless with a fake socket. Not on the board.
+
+### 5124-5125 -- MPD.md: the plan, and whose queue it is
+
+`MPD.md` in `MEDIA-INDEX.md`'s idiom -- a plan, not a description -- for
+the v0.5.0 API target taken at full queue semantics, and what that
+costs. The short version of the argument is that MPD's queue and
+`playlist.c` are not the same object and cannot be made into one by
+adding functions: `playlist.c` holds a folder, `load_dir()` re-sorts on
+every load, and an order a listener chose cannot survive that.
+
+5125 turned the framing round. 5124 had the queue as something MPD
+needed with the remote page beside it; it is the other way round. The
+page already browses the card over the socket (5123) and the natural
+thing to do with a listed file is enqueue it, so the queue is the
+device's and both protocols are views of it -- which justifies it even
+if nothing ever listens on 6600, and decides where the mutation path
+lives. `remote_take()` and `remote_take_open()` are single-consumer by
+construction and their queue and mailbox are static to `remote.c`, so a
+second server cannot grow its own pair without `ui_task` polling two
+sets and nothing saying which request wins in a pass.
+
+### 5126 -- The prefetch borrowed a pointer the playlist frees
+
+`playlist_peek_next()` returns `s_paths[i]` and `playlist_clear()`
+`free()`s it at the top of every load. `prefetch_next()` held that
+pointer across the whole tag-and-cover read -- `storage_io_open()`,
+`covertag_read_tags()`, `covertag_extract_art()`, `sidecar_prime()` --
+hundreds of milliseconds of card I/O, and logged it at the end.
+
+Safe only because `ui_task` is the sole mutator and only at a tap, and
+the `s_track_gen` checks in that function do not cover it: they ask
+whether the track changed BETWEEN the stages and the free would happen
+inside one. Nothing is known to have crashed on it; a socket that can
+rewrite the list turns the window into a fault rather than a race nobody
+can hit, which is why it was closed before the queue work and not
+during it.
+
+Every other caller already copies immediately -- `request_track()` and
+`player_loop()` both `snprintf` and are done -- so this was one copy.
+The rule went into `playlist.h` rather than only the function that got
+it right, for the reason `NETDEC_MIN_STACK` stopped living inside an
+`xTaskCreate` call.
+
+### 5127 -- ID3v2.2, named
+
+"no cover art in this file (ESP_ERR_NOT_SUPPORTED)" covered two
+unrelated causes and named neither: a picture this device cannot draw
+(already warned about, with its MIME type) and a tag older than v2.3,
+which has no picture frame at all and said so only at `LOGD`. The tag
+reader was worse -- it refused the same versions silently.
+
+So a v2.2 file produced "no text tags in this file; showing the
+filename" and "no cover art" as if they were two faults, when v2.2 names
+frames in three characters (`TT2`, `TP1`, `TAL`) where v2.3 uses four
+(`TIT2`, `TPE1`, `TALB`) and neither walk recognises anything. Both say
+the version at `INFO` now. Confirmed on the board against the Donut
+County soundtrack, which is v2.2 throughout.
+
+### 5128, 5132 -- medialist: one folder, both volumes merged
+
+The query layer `MEDIA-INDEX.md` specified and 5010-5019 did not build.
+Header-only and pure, driven through `midx_src_t`'s callbacks, so the
+host test builds it against a synthetic index with no card and no IDF.
+
+Two things carry the cost model. A subfolder is one `MIDX_PAST_PREFIX`
+search and not a read per track beneath it, which is what that mode was
+added for -- 250 tracks under one album cost a search. And a folder
+whose every track is buried does not appear, which needs the run scanned
+for the first live record: one extra read in the ordinary case, a full
+scan only for a folder that is entirely dead. Emitting on sight would
+have listed deleted albums forever, because tombstones are kept on
+purpose.
+
+The first cost assertion in the test was set against a 32-record
+fixture, where a binary search is not cheaper than a walk, so it failed
+on a correct implementation and proved nothing either way. 252 records
+now.
+
+**5132 corrected a claim that had been in `MEDIA-INDEX.md` since before
+there was code**: byte-exact matching of `ABBA/` against `Abba/` is NOT
+"the filesystem's own answer on exFAT". exFAT and FAT32 with long names
+are case-insensitive and case-preserving, so the two cannot coexist on
+one volume and byte-exact costs nothing there. Across two volumes they
+can, and the merged listing then shows two folders where the
+filesystem's rule says one. Left as it is: folding case in the merge
+needs a case-folded index order to stay consistent with the walk and
+reconcile, which is a format change and not one to make as a side effect
+of fixing a listing.
+
+### 5129-5131, 5137, 5138 -- The search file, and three wrong diagnoses
+
+`MEDIA-INDEX.md` point 2, and the thing its closing paragraph says the
+whole index was justified by. The format is the catalog offset as eight
+lower-case hex digits and then four tab-separated folded fields --
+title, artist, album, path. Folded means ASCII lower case, so the file
+answers MPD's `search` (case-insensitive substring) and is only a FILTER
+for its `find` (exact, case-sensitive): it narrows the card to the
+candidate lines and the caller confirms each against the unfolded tags
+in the catalog at `cat_off`. That is why the offset is on every line.
+Nothing above 0x7F is folded -- there is no case table on this device,
+and the byte-wise `|= 0x20` that looks like folding corrupts UTF-8 into
+different characters.
+
+Built as a SECOND PASS over the finished index (5130), not a line
+written as each record goes by, and the reason is what survives a
+failure: built in, a card that fills mid-write takes the index with it
+and the next boot has neither browsing nor search; built after an index
+already installed and proved good, a failure costs search alone.
+
+**Then it took three tries to make it fast, and each try fixed the thing
+I had just been reading rather than the largest remaining cost.**
+
+    5130   20373 ms   a seek per record, both passes
+    5131    8252 ms   catalog streamed; index still seeking
+    5137    6614 ms   index streamed too; cJSON still parsing
+    5138    1040 ms   four jsonpick lookups instead of a parse
+
+5130 sorted the offsets so the seeks would run forwards, on the
+assumption that a forward seek inside a buffer already holding the bytes
+is nearly free. It is not: `mediacat_read_at()` does `fseek()` and then
+reads `MEDIACAT_LINE_MAX`, and `fseek()` discards a stdio buffer
+whichever way it goes, so every record cost a seek and a fresh 3 KB
+read and the order made no difference. The reconcile's own log had said
+so since 5014 -- 103 catalog reads, 1593 ms, 15 ms each -- and 1203 of
+those is 18 s, which is the number that turned up.
+
+5131 streamed the catalog and left the index pass doing exactly what it
+had stopped doing to the catalog. 5137 fixed that, with a
+`_Static_assert` that `SEARCH_BLOCK` stays a multiple of
+`MIDX_REC_SIZE`, so a future block size that is not fails as a bad
+constant rather than as a corrupt index.
+
+5138 found the rest was not I/O at all: `mediacat_decode()` builds a
+cJSON document per line, and 1203 of those were the remaining five
+seconds. `jsonpick.h` was already in the tree for precisely this -- one
+string field out of one flat object, no allocation, no document -- and
+is used as it stands, four calls for four fields, not extended, which
+its header forbids in capitals. The numbers are not read and need not
+be: the only one that matters is `deleted_at`, and the index's DEAD flag
+already answered it.
+
+1040 ms and 1060 ms on two consecutive runs, which is BELOW the
+reconcile's own 1645 ms in the catalog -- because that figure is 103
+seeking reads and this is one sequential pass.
+
+Also settled here: "1203 lines of 1204 records", which 5130 logged
+without a way to read it back to a cause. It was a tombstone, which gets
+no line by design. Live, buried and skipped are counted separately now,
+because a count that cannot be explained gets investigated twice.
+
+### 5133-5135 -- exFAT: 64-bit sizes, and the ceiling that is not a type
+
+`cmake/exfat.cmake` runs `tools/enable_exfat.sh` at configure time, so a
+file can be larger than 4 GB, and the code was written when it could
+not. `CLAUDE.md` carries the rule; what belongs here is where it leads.
+
+**The player's one random-access ceiling is
+`storage_io_read_at()`** (5134). Every seek-then-read comes through it,
+so the addressable file size is whatever it can reach, and no wider type
+anywhere else raises that. `fseek()` takes `long`, 32 bits here, so the
+reach is `LONG_MAX` -- 2 GB, and NOT the 4 GB a `uint32_t` offset
+suggests. ESP-IDF's `off_t` is the same `long`, so `fseeko()` buys
+nothing; the 64-bit seek lives in FatFs, whose `f_lseek` takes a 64-bit
+`FSIZE_t` when exFAT is compiled in, and it is. An offset past the limit
+is refused with a log line rather than truncated, because a truncated
+offset reads the wrong bytes and calls them audio -- a decoder fault a
+day's tracing from its cause, where a refusal is a track that will not
+play.
+
+5135 widened `mp4seek`'s sample offsets to `int64_t` and removed a
+refusal -- "a chunk offset is past 4 GB" -- that had been justified by
+FAT32's file size limit. MP4 has `co64` for exactly this and the parser
+already read it, then threw the value away. Eight bytes a sample instead
+of four, in PSRAM: about 165 KB an hour at 1024 samples a frame.
+
+**Neither is exercisable yet**, and the honest reason is worth keeping:
+`find_box()` still walks the atom tree in `long`, and a file that is not
+faststart keeps `moov` at the END, so a large M4A fails in the walk
+before a sample offset is read. Below all of it sits 5134's 2 GB. The
+order to lift them in is the seek first, then the box walk, then
+anything else -- widening the upper layers first is motion in code
+nothing can reach.
+
+### 5136 -- mpdqueue: a list somebody built
+
+`MPD.md` step 4, first half; nothing calls it and `playlist.c` is
+untouched. Entries carry an id that survives a move and is never reused
+within a boot, which is what MPD means by a songid, and a version.
+
+Deliberately absent: where playback is. That stays with the player and
+`playlist.c`'s cursor, because the decoder, the three rings and the
+prefetch already agree about it and a second opinion is what the 1200
+series was spent on. `song` and `songid` are answered by asking the
+player which entry it is on.
+
+**The version is the part with a trap in it.** `plchanges` asks for the
+songs whose position or content changed since version V, so an entry's
+version has to move when its POSITION moves and not only when it is the
+entry being edited -- removing the first of ten shifts nine others, and
+a client told only about entry 0 draws nine rows in the wrong places.
+The first implementation stamped from the edit to the end of the list,
+which is right for an insert and a remove and wrong for a move: 1 -> 3
+shifts 1, 2 and 3 and leaves 4 alone, and stamping 4 makes every client
+re-read a row that was already correct, which is the work the version
+scheme exists to avoid. It is a range now. The test caught it because it
+asks MPD's question rather than recording what the code does.
+
+1166 checks, nine deliberate bugs confirmed caught. **Not caught:**
+shuffle bias. `% s_n` instead of `% (i + 1)` still produces a
+permutation, so every property the suite checks holds; catching it needs
+a statistical test, which is a flaky test, and the cost is a shuffle
+that favours some orders rather than a wrong list.

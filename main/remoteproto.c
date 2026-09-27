@@ -137,6 +137,16 @@ static void put_str(buf_t *b, const char *s)
     put(b, "\"", 1);
 }
 
+size_t remoteproto_json_str(const char *in, char *out, size_t cap)
+{
+    if (!out || cap == 0) return 0;
+    buf_t b = { out, cap, 0, false };
+    out[0] = '\0';
+    put_str(&b, in ? in : "");
+    if (b.over) { out[0] = '\0'; return 0; }
+    return b.n;
+}
+
 static void key(buf_t *b, const char *k, bool first)
 {
     if (!first) put(b, ",", 1);

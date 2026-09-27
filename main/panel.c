@@ -881,6 +881,10 @@ static int draw_net(void)
             snprintf(url_line, sizeof(url_line), "Open %s", url);
             rn[0] = url_line;
             rn[1] = "in a browser on the same network.";
+        } else if (settings_remote_enabled() && portal_running()) {
+            /* 5120: the portal has port 80 while it runs. */
+            rn[0] = "Off while network setup has the page.";
+            rn[1] = "It comes back when setup closes.";
         } else if (settings_remote_enabled()) {
             rn[0] = netok ? "Waiting for a network address."
                           : "Needs a network: Wi-Fi or a cable.";

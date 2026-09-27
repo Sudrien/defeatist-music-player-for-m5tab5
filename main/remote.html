@@ -17,7 +17,26 @@
 html, body { margin: 0; height: 100%; background: var(--bg); color: var(--thumb);
   font: 16px/1.2 system-ui, -apple-system, "Segoe UI", sans-serif;
   -webkit-tap-highlight-color: transparent; user-select: none; }
-body { display: grid; place-items: center; overflow: hidden; }
+/* 5120: the controls are the first screen; the stations are below the
+   fold, where the chooser will go too. */
+html, body { height: auto; }
+.screen { height: 100dvh; display: grid; place-items: center; overflow: hidden; }
+.below { max-width: 720px; margin: 0 auto; padding: 24px 24px 64px; user-select: text; }
+.below h2 { font-size: 1.3em; margin: 0 0 .6em; }
+.below p { color: var(--album); margin: .4em 0 1em; }
+.below form { display: grid; gap: .8em; margin-bottom: 1.2em; }
+.below label { display: grid; gap: .3em; color: var(--icon); }
+.below input { font: inherit; padding: .6em .7em; border-radius: 8px;
+  border: 1px solid #444; background: #1c1c1c; color: var(--thumb); }
+.below button { justify-self: start; padding: .6em 1.2em; border-radius: 999px;
+  background: var(--play); color: #111; font-weight: 600; }
+.below button:disabled { opacity: .5; }
+.below .msg { min-height: 1.2em; color: var(--icon); }
+.below .msg.bad { color: var(--fill); }
+.below ul { list-style: none; padding: 0; margin: 0; border-top: 1px solid #2a2a2a; }
+.below li { padding: .55em 0; border-bottom: 1px solid #2a2a2a; }
+.fold { position: fixed; left: 50%; bottom: 6px; transform: translateX(-50%);
+  color: var(--icon-off); font-size: 13px; pointer-events: none; transition: opacity .2s; }
 button { font: inherit; color: inherit; background: none; border: 0; padding: 0;
   cursor: pointer; touch-action: manipulation; }
 
@@ -138,6 +157,7 @@ svg { display: block; width: 100%; height: 100%; }
 </style>
 </head>
 <body>
+<div class="screen">
 <main class="stage" id="stage">
   <div class="art"><img id="art" alt=""></div>
 
@@ -181,6 +201,23 @@ svg { display: block; width: 100%; height: 100%; }
   <div class="card" id="card"><b id="cardh"></b><span id="cardb"></span></div>
   <div class="gone on" id="gone">Connecting to the player…</div>
 </main>
+</div>
+<div class="fold" id="fold">&#9662; stations</div>
+
+<section class="below" id="stations">
+  <h2>Radio stations</h2>
+  <p>Added to <code>stations.m3u</code> on the card. The name is optional &mdash;
+    without one the station is listed by its address.</p>
+  <form id="addf">
+    <label>Name<input name="name" maxlength="63" autocomplete="off" placeholder="optional"></label>
+    <label>Stream address<input name="url" type="url" maxlength="511" autocomplete="off"
+      autocapitalize="none" inputmode="url" required placeholder="http://&hellip;"></label>
+    <button>Add station</button>
+    <div class="msg" id="addmsg"></div>
+  </form>
+  <p id="have"></p>
+  <ul id="list"></ul>
+</section>
 
 <script>
 "use strict";
@@ -350,6 +387,35 @@ env.addEventListener("pointerup", () => {
 env.addEventListener("pointercancel", () => { dragPct = -1; draw(); });
 
 knobGlyph("pause");
+/* ---- stations, below the fold (5120) ---- */
+async function loadStations() {
+  try {
+    const r = await fetch("/stations", { cache: "no-store" });
+    const j = await r.json();
+    $("have").textContent = j.list.length
+      ? `Already on the card (${j.list.length} of ${j.max}):` : "None on the card yet.";
+    const ul = $("list"); ul.textContent = "";
+    for (const n of j.list) { const li = document.createElement("li"); li.textContent = n; ul.appendChild(li); }
+    $("addf").querySelector("button").disabled = j.list.length >= j.max;
+  } catch { $("have").textContent = "Could not read the list."; }
+}
+$("addf").addEventListener("submit", async e => {
+  e.preventDefault();
+  const f = e.target, b = f.querySelector("button"), m = $("addmsg");
+  b.disabled = true; m.className = "msg"; m.textContent = "Adding\u2026";
+  try {
+    const r = await fetch("/station", { method: "POST",
+      headers: { "Content-Type": "application/x-www-form-urlencoded" },
+      body: new URLSearchParams(new FormData(f)).toString() });
+    const j = await r.json();
+    m.textContent = j.msg; m.className = j.ok ? "msg" : "msg bad";
+    if (j.ok) f.reset();
+  } catch { m.textContent = "The player did not answer."; m.className = "msg bad"; }
+  b.disabled = false; loadStations();
+});
+addEventListener("scroll", () => { $("fold").style.opacity = scrollY > 40 ? 0 : 1; }, { passive: true });
+loadStations();
+
 connect();
 </script>
 </body>

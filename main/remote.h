@@ -21,10 +21,9 @@
  * is why it is off by default and why the panel says so under the
  * switch.
  *
- * PORT 8080, not 80, so that it never meets the setup portal: the two
- * are separate httpd instances with separate control ports and can run
- * at once. The portal keeps port 80 because a phone on its access point
- * is sent there by the captive-portal check.
+ * PORT 80, taking turns with the setup portal (5120; it was 8080 in
+ * 5117): see REMOTE_PORT. Separate httpd instances with separate control
+ * ports, never both listening.
  *
  * THREADS. remote_poll() and remote_publish() are ui_task's; the server's
  * handlers run on the httpd task and reach the player only through a
@@ -46,7 +45,15 @@
 extern "C" {
 #endif
 
-#define REMOTE_PORT     (8080)
+/*
+ * 5120: port 80, shared with the setup portal by taking turns. The
+ * portal runs only while "Add a network" (or the chooser's station form)
+ * is up, and while it runs it owns port 80 and this server is down:
+ * with no address of its own the player is a captive portal on its AP;
+ * with one or two (Wi-Fi, cable) port 80 is the controls. 5117's reason
+ * for 8080 was only to avoid that meeting.
+ */
+#define REMOTE_PORT     (80)
 
 /* Once, from app_main(), before ui_task. Allocates the queue and the
  * buffers; starts nothing. */

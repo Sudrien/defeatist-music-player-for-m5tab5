@@ -20,6 +20,10 @@
 
 #include "ethernet.h"
 #include "mediacache.h"
+#include "portal.h"
+#include "portalweb.h"
+#include "stationlist.h"
+#include "stations.h"
 #include "remoteproto.h"
 #include "waveform.h"
 #include "wifi.h"
@@ -181,6 +185,99 @@ static esp_err_t h_art(httpd_req_t *req)
     return err;
 }
 
+/* ---- stations (5120) --------------------------------------------------- */
+
+/*
+ * The list, as {"max":N,"list":["name",...]} -- names only, as the
+ * portal's page shows them. Chunked, a name at a time, so nothing the
+ * size of the list is held anywhere.
+ */
+static esp_err_t h_stations(httpd_req_t *req)
+{
+    httpd_resp_set_type(req, "application/json");
+    httpd_resp_set_hdr(req, "Cache-Control", "no-store");
+    char head[48];
+    snprintf(head, sizeof(head), "{\"max\":%d,\"list\":[", STATIONLIST_MAX);
+    httpd_resp_send_chunk(req, head, HTTPD_RESP_USE_STRLEN);
+
+    /* Static: a station_t is 576 bytes and the escaped name up to 6x 64,
+     * and this runs on the httpd task's 6 KB stack. One handler runs at
+     * a time on that task, so one copy serves. */
+    static station_t st;
+    static char esc[STATION_NAME_MAX * 6 + 4];
+    const int n = stations_count();
+    bool first = true;
+    for (int i = 0; i < n; i++) {
+        if (!stations_get(i, &st)) continue;
+        if (!remoteproto_json_str(st.name, esc, sizeof(esc))) continue;
+        if (!first) httpd_resp_send_chunk(req, ",", 1);
+        httpd_resp_send_chunk(req, esc, HTTPD_RESP_USE_STRLEN);
+        first = false;
+    }
+    httpd_resp_send_chunk(req, "]}", 2);
+    return httpd_resp_send_chunk(req, NULL, 0);
+}
+
+static esp_err_t station_reply(httpd_req_t *req, bool ok, const char *msg)
+{
+    static char esc[256 * 6 + 4];
+    if (!remoteproto_json_str(msg, esc, sizeof(esc))) snprintf(esc, sizeof(esc), "\"\"");
+    httpd_resp_set_type(req, "application/json");
+    httpd_resp_send_chunk(req, ok ? "{\"ok\":true,\"msg\":" : "{\"ok\":false,\"msg\":",
+                          HTTPD_RESP_USE_STRLEN);
+    httpd_resp_send_chunk(req, esc, HTTPD_RESP_USE_STRLEN);
+    httpd_resp_send_chunk(req, "}", 1);
+    return httpd_resp_send_chunk(req, NULL, 0);
+}
+
+/*
+ * The portal's h_station(), answering in JSON for the page's fetch()
+ * rather than with a redrawn form. Same fields (name, url; form-encoded),
+ * same validation from stationlist.h, same stations_append(), same
+ * sentences -- so a station added here and one added through the portal
+ * cannot be held to different rules.
+ */
+#define STATION_BODY_MAX    (1024)
+static esp_err_t h_station_add(httpd_req_t *req)
+{
+    static char body[STATION_BODY_MAX];
+    static char name[STATION_NAME_MAX + 16], url[STATION_URL_MAX + 16];
+
+    if (req->content_len == 0 || req->content_len > STATION_BODY_MAX) {
+        return station_reply(req, false, "That form was too large to be a name "
+                                         "and a stream address.");
+    }
+    size_t got = 0;
+    while (got < req->content_len) {
+        const int n = httpd_req_recv(req, body + got, req->content_len - got);
+        if (n == HTTPD_SOCK_ERR_TIMEOUT) continue;
+        if (n <= 0) return ESP_FAIL;
+        got += (size_t)n;
+    }
+    if (!portalweb_field(body, got, "name", name, sizeof(name))) name[0] = '\0';
+    const bool have_url = portalweb_field(body, got, "url", url, sizeof(url));
+    station_trim(name);
+    if (have_url) station_trim(url);
+
+    if (!have_url || !url[0]) return station_reply(req, false, "That needs a stream address.");
+    if (!station_url_writable(url)) {
+        return station_reply(req, false, "That is not a usable stream address. It has "
+                             "to start with http:// or https:// and be one "
+                             "unbroken address.");
+    }
+    if (!station_name_ok(name)) {
+        return station_reply(req, false, "That name cannot be used. Names are up to "
+                             "63 characters and cannot start with a #.");
+    }
+    ESP_LOGI(TAG, "station submitted: %.63s <%.200s>", name[0] ? name : "(unnamed)", url);
+    if (!stations_append(name, url)) {
+        return station_reply(req, false, "The station could not be saved. The card "
+                             "may be full, absent, or write-protected, or the "
+                             "list may already be full.");
+    }
+    return station_reply(req, true, "Station added.");
+}
+
 /* One reply to one socket, from its own handler. */
 static void send_one(httpd_req_t *req, const char *keep, const size_t *keep_len)
 {
@@ -255,7 +352,7 @@ static void start(void)
     cfg.max_open_sockets = REMOTE_SOCKETS;
     cfg.lru_purge_enable = true;
     cfg.stack_size = 6144;
-    cfg.max_uri_handlers = 5;
+    cfg.max_uri_handlers = 7;
     if (httpd_start(&s_srv, &cfg) != ESP_OK) {
         s_srv = NULL;
         s_retry_us = esp_timer_get_time() + REMOTE_RETRY_US;
@@ -266,6 +363,8 @@ static void start(void)
         { .uri = "/",    .method = HTTP_GET, .handler = h_page },
         { .uri = "/art", .method = HTTP_GET, .handler = h_art  },
         { .uri = "/favicon.ico", .method = HTTP_GET, .handler = h_icon },
+        { .uri = "/stations", .method = HTTP_GET,  .handler = h_stations },
+        { .uri = "/station",  .method = HTTP_POST, .handler = h_station_add },
         { .uri = "/ws",  .method = HTTP_GET, .handler = h_ws, .is_websocket = true },
     };
     for (size_t i = 0; i < sizeof(uris) / sizeof(uris[0]); i++) {
@@ -302,9 +401,12 @@ void remote_poll(bool want)
     if (!s_q || !s_mu || !s_json || !s_wave || !s_build || !s_levels) return;
     char ip[20];
     const bool net = have_ip(ip, sizeof(ip));
+    /* 5120: the portal has port 80 while it runs; see REMOTE_PORT. */
+    const bool portal = portal_running();
     if (s_srv && !want) stop("switched off");
     else if (s_srv && !net) stop("no network");
-    else if (!s_srv && want && net && esp_timer_get_time() >= s_retry_us) start();
+    else if (s_srv && portal) stop("the setup portal has port 80");
+    else if (!s_srv && want && net && !portal && esp_timer_get_time() >= s_retry_us) start();
 }
 
 bool remote_running(void) { return s_srv != NULL; }
@@ -313,7 +415,8 @@ bool remote_url(char *out, size_t out_size)
 {
     char ip[20];
     if (!out || !out_size || !have_ip(ip, sizeof(ip))) return false;
-    snprintf(out, out_size, "http://%s:%d/", ip, REMOTE_PORT);
+    if (REMOTE_PORT == 80) snprintf(out, out_size, "http://%s/", ip);
+    else                   snprintf(out, out_size, "http://%s:%d/", ip, REMOTE_PORT);
     return true;
 }
 

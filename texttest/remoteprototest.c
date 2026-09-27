@@ -122,6 +122,16 @@ int main(void)
         CHECK(remoteproto_state_json(&s, exact, n + 1) == n, "fits exactly");
     }
 
+    printf("  one string\n");
+    {
+        char out[64];
+        size_t n = remoteproto_json_str("a\"b\xff", out, sizeof(out));
+        CHECK(n > 0 && strcmp(out, "\"a\\\"b\xef\xbf\xbd\"") == 0, "%s", out);
+        CHECK(remoteproto_json_str("", out, sizeof(out)) == 2 && strcmp(out, "\"\"") == 0, "empty");
+        CHECK(remoteproto_json_str(NULL, out, sizeof(out)) == 2, "NULL is empty");
+        CHECK(remoteproto_json_str("abcdef", out, 5) == 0 && out[0] == '\0', "too small");
+    }
+
     printf("  wave JSON\n");
     {
         const uint8_t lv[4] = { 0x00, 0x0f, 0xa5, 0xff };

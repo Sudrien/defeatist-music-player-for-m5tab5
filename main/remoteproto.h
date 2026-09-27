@@ -99,6 +99,13 @@ typedef struct {
 size_t remoteproto_state_json(const remote_state_t *s, char *out, size_t cap);
 
 /*
+ * 5120: one string as a JSON string literal, quotes included, with the
+ * same escaping and UTF-8 repair as the state. Returns its length, or 0
+ * when it did not fit (worst case is 6 bytes per input byte, plus 3).
+ */
+size_t remoteproto_json_str(const char *in, char *out, size_t cap);
+
+/*
  * The envelope as JSON: {"t":"wave","gen":G,"lv":"<hex>"} with two hex
  * digits per column. Returns the length, or 0 when it did not fit.
  */

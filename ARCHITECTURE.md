@@ -14205,3 +14205,39 @@ green play arrow (#4cc05e), at 16, 32 and 48 px in one file, embedded
 with EMBED_FILES (binary -- no NUL appended, unlike the page). Made with
 Pillow from a 256 px drawing. Browsers asked for it on every page load
 and got a 404 until now.
+
+### 5120 -- The remote on port 80, and radio stations below the fold
+
+Port 80 now, taking turns with the setup portal rather than avoiding it.
+Whichever of the two is up has the port:
+
+- **No address of its own** (Wi-Fi not joined, no cable): the only way
+  in is the portal's access point, and port 80 is the captive portal,
+  as before.
+- **One or two addresses** (Wi-Fi, cable, or both): port 80 is the
+  controls, at `http://<address>/` with no port to type.
+- **While the portal runs** -- "Add a network", or the chooser's station
+  form, which is the portal in station mode -- it has port 80 and the
+  remote is stopped (`tab5_remote: down: the setup portal has port 80`);
+  remote_poll() brings it back when the portal closes. An open page
+  shows "Lost the player. Reconnecting..." until then and reconnects by
+  itself. The NET row says "Off while network setup has the page."
+
+5117 chose 8080 only so the two would never meet; turn-taking is a
+check in remote_poll(), which already runs every ui_task pass.
+
+**Radio stations, below the fold.** The first screen of the page is the
+controls, unchanged; scrolling down is the portal's station form --
+name, stream address, and the list already on the card -- which is where
+the chooser will go too. GET `/stations` is the list as JSON, POST
+`/station` takes the portal's own form fields and answers JSON for the
+page's fetch(). The handler is the portal's h_station() with the answer
+changed and nothing else: the same stationlist.h validation, the same
+stations_append(), the same sentences, so a station added from either
+page is held to the same rules. Its buffers are static rather than on
+the 6 KB httpd stack (a station_t alone is 576 bytes).
+
+remoteproto gains remoteproto_json_str() for the names, tested.
+
+The portal's station mode is left as it is: it is still how a station
+is added from the chooser with the remote switched off.

@@ -5,6 +5,7 @@
  */
 
 #include <inttypes.h>
+#include <limits.h>
 #include <string.h>
 #include <sys/stat.h>
 
@@ -429,10 +430,41 @@ size_t storage_io_fread(void *dst, size_t len, FILE *f,
     return done;
 }
 
-bool storage_io_read_at(FILE *f, long off, void *dst, size_t len,
+bool storage_io_read_at(FILE *f, int64_t off, void *dst, size_t len,
                         storage_io_class_t cls)
 {
-    if (!f || !dst) return false;
+    if (!f || !dst || off < 0) return false;
+
+    /*
+     * THE PLAYER'S ONE RANDOM-ACCESS CEILING IS THIS LINE.
+     *
+     * Every seek-then-read in the player comes through here -- the M4A
+     * and FLAC and CBR seek tables, the tag and cover readers, the
+     * duration walk -- so the file size this device can address is
+     * whatever this function can reach, and no wider type anywhere else
+     * raises it. CLAUDE.md's exFAT rule points here.
+     *
+     * fseek() takes long, which is 32 bits on this target, so the reach
+     * is LONG_MAX: 2 GB, and NOT the 4 GB a uint32_t offset would
+     * suggest. exFAT will hold a file larger than either.
+     *
+     * Refused with a line in the log rather than passed to fseek() with
+     * the top bits cut off, because a truncated offset reads the wrong
+     * bytes and calls them audio. A refusal is a track that will not
+     * play, which is a bug report; silence at the wrong offset is a
+     * decoder fault that takes a day to trace back to here.
+     *
+     * Lifting it means not going through stdio: ESP-IDF's off_t is the
+     * same long, so fseeko() buys nothing, and the 64-bit seek lives in
+     * FatFs (f_lseek takes FSIZE_t, which is 64-bit when exFAT is
+     * compiled in, and it is). That is a change to this file and this
+     * function, which is the point of saying so here.
+     */
+    if (off > (int64_t)LONG_MAX) {
+        ESP_LOGW(TAG, "read at %lld is past the %ld byte seek limit",
+                 (long long)off, LONG_MAX);
+        return false;
+    }
 
     /*
      * The seek goes inside a lease of its own rather than outside the
@@ -441,7 +473,7 @@ bool storage_io_read_at(FILE *f, long off, void *dst, size_t len,
      * lease across both would only widen the window for no reason.
      */
     storage_io_acquire(cls);
-    const bool sought = (fseek(f, off, SEEK_SET) == 0);
+    const bool sought = (fseek(f, (long)off, SEEK_SET) == 0);
     storage_io_release();
 
     if (!sought) return false;

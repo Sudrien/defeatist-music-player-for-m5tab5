@@ -250,8 +250,21 @@ size_t storage_io_fread(void *dst, size_t len, FILE *f,
  *
  * Returns true only on a full-length read, which is what covertag.c and
  * duration.c both already tested for.
+ *
+ * THE OFFSET IS 64-BIT AND THE REACH IS NOT. Every random read in the
+ * player comes through here, so this is the one place that decides how
+ * large a file the device can address, and the .c says why that is
+ * LONG_MAX -- 2 GB, below what exFAT will hold and below what a
+ * uint32_t offset elsewhere would imply. An offset past it is refused
+ * with a log line rather than truncated, because a truncated offset
+ * reads the wrong bytes and calls them audio.
+ *
+ * So a caller widening its own offsets to 64 bits gains nothing until
+ * this function stops going through stdio. It is int64_t here so that
+ * the callers can be right ahead of it, and so there is one signature
+ * to change and not thirty.
  */
-bool storage_io_read_at(FILE *f, long off, void *dst, size_t len,
+bool storage_io_read_at(FILE *f, int64_t off, void *dst, size_t len,
                         storage_io_class_t cls);
 
 /*

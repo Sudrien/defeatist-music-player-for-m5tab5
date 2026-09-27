@@ -14106,6 +14106,14 @@ void app_main(void)
 
     /* Just the expander handle; nothing is powered until
      * wifi_apply_settings() runs from the settings push below. */
+    /*
+     * BEFORE wifi_init(), and before anything joins: the JPEG engine's
+     * DMA descriptors have to come out of the DMA-capable internal heap,
+     * which is 42 KB free here and under 500 bytes once the station has
+     * an address (5145). albumart.h has the measurements.
+     */
+    albumart_init();
+
     wifi_init(s_exp2);
     portal_init(player_is_playing, player_force_pause);
 

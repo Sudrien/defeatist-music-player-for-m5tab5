@@ -14738,3 +14738,52 @@ a `_Static_assert(ARTPLACE_MAX_PM <= 500)`, verified to fire at 600, so a
 session raising the constant is stopped at compile time rather than by a
 cover drawn over the bar. Guards that cannot fire are worth keeping and
 worth labelling; a mutation surviving is not always a gap in the test.
+
+### 5145-5146 -- Covers failed to decode because the radio owns the DMA heap
+
+A 450 KB cover failed twice on the board with `no memory for jpeg decode
+txlink` -- and the allocation that failed was **128 bytes**, the smallest
+one in the picture. 5145 added three heap baselines rather than guessing;
+this is what they said.
+
+**DMA-capable internal free, by point in the boot:**
+
+    boot          42255   (largest 25600)
+    station up      475   (largest   320)
+    remote up      3259   (largest  3200)
+    first jpeg     1651   (largest  1472)
+
+The station takes essentially the whole DMA-capable heap when it joins,
+and keeps it: `RETENT_RAM` goes from 26048 bytes free to 56, `L2MEM` from
+16199 to 139. It is not a leak and it is not growth over time -- it
+happens at the join and then holds.
+
+**The HTTPS server was the obvious suspect and is innocent.** Free memory
+goes UP across it, 475 to 3259, as the handshake buffers come back. That
+is the guess 5145 existed to prevent acting on.
+
+**After the join it is a coin toss per cover.** The engine was made and
+destroyed per decode, so its 128 bytes of descriptors had to come out of
+whatever the radio left: the failing log had 663 free and 256 in the
+largest block, the next boot had 1651 and 1472 and the same cover decoded
+perfectly. Same firmware, same file, different outcome -- the worst kind
+of bug to be handed.
+
+So (5146) the engine is made once in `albumart_init()`, called from
+`app_main` **before `wifi_init()`**, and never destroyed. It takes its
+descriptors while 42 KB is free. A few hundred bytes held for the session
+buys a decode path that cannot fail for want of them.
+
+And a fallback under it: a decode with no engine makes one, and if that
+fails too it goes to `decode_stb()` -- slower, same picture, where before
+it returned no cover at all.
+
+**The software path is one function now.** It had been written out twice
+-- the progressive path (5062) and the new no-engine path -- and the
+second copy was first written as a `goto have_pixels` from above the
+hardware path. That jump would have crossed five initialisers (`pad_w`,
+`pad_h`, `want`, `largest`, `decoded`) where the existing jumps cross
+one; legal C, and safe only because `soft` keeps `have_pixels` away from
+what it skipped. `draw_in_software()` returns instead of jumping, which
+is why `-Wjump-misses-init` still reports only the two jumps that were
+already there.

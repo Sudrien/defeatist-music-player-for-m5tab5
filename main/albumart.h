@@ -105,6 +105,20 @@ uint32_t albumart_cover_hash(const void *key, size_t len);
  * so each track gets its own and a repaint of the same one keeps it.
  * NULL or "" falls back to the picture's hash. Sticky until changed.
  */
+/*
+ * Make the hardware JPEG decoder's engine, once, from app_main.
+ *
+ * MUST RUN BEFORE THE STATION JOINS. albumart.c has the measurements:
+ * the DMA-capable internal heap is 42 KB free at boot and under 500
+ * bytes once the radio has an address, so an engine made later gets its
+ * 128 bytes of descriptors by luck. Made here it cannot fail for want of
+ * them, and it is never destroyed.
+ *
+ * Safe to skip: a decode with no engine makes one, and falls back to the
+ * software decoder if that fails too. Slower, same picture.
+ */
+void albumart_init(void);
+
 void albumart_set_key(const char *key);
 
 /*

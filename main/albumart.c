@@ -934,8 +934,46 @@ static int art_int_scale(int iw, int ih, int box_w, int box_h)
 #define KEYSTONE_MIN_PM     (30)    /* per mille */
 #define KEYSTONE_MAX_PM     (80)
 
+/*
+ * THE HARDWARE JPEG ENGINE, MADE ONCE AT BOOT AND NEVER DESTROYED.
+ *
+ * It was made and destroyed per cover, and on the board a 450 KB cover
+ * failed with "no memory for jpeg decode txlink" -- 128 bytes of
+ * DMA-capable internal RAM it could not get. 5145's maps say why, and
+ * say it is not a leak: the DMA-capable heap is 42255 bytes free at
+ * boot and 475 once the station has an address. The radio takes
+ * essentially all of it, at the join, and keeps it. (The HTTPS server
+ * was the obvious suspect and is innocent -- free memory goes UP across
+ * it, from 475 to 3259, as the handshake buffers come back.)
+ *
+ * After that a 128-byte aligned allocation succeeds or fails on
+ * fragmentation alone: the failing log had 663 free and 256 in the
+ * largest block, the next boot had 1651 and 1472 and the same cover
+ * decoded. That is a coin toss per cover, which is the worst kind of
+ * bug to be told about.
+ *
+ * So it is created in albumart_init(), from app_main, while 42 KB is
+ * still free, and held. A few hundred bytes of DMA RAM spent once, for
+ * a decode path that then cannot fail for want of them.
+ */
+static jpeg_decoder_handle_t s_engine;
+
 static uint32_t s_keystone_seed;
 static uint32_t s_keystone_key;     /* 0 = none named; see albumart_set_key() */
+
+void albumart_init(void)
+{
+    if (s_engine) return;
+    const jpeg_decode_engine_cfg_t cfg = { .timeout_ms = 5000 };
+    const esp_err_t err = jpeg_new_decoder_engine(&cfg, &s_engine);
+    if (err != ESP_OK) {
+        s_engine = NULL;
+        ESP_LOGW(TAG, "no hardware jpeg engine at boot (%s); covers will "
+                 "decode in software", esp_err_to_name(err));
+        return;
+    }
+    ESP_LOGI(TAG, "hardware jpeg engine ready, kept for the session");
+}
 
 void albumart_set_key(const char *key)
 {
@@ -1180,6 +1218,43 @@ static esp_err_t blit_cover(esp_lcd_panel_handle_t panel,
     return ui_blit_art_err();
 }
 
+/*
+ * Decode with stb_image, put it on the glass, keep it. The whole of what
+ * a software-only cover needs, in one place because there are now two
+ * callers: the progressive path (5062), which no hardware here can read
+ * at all, and the no-engine path, which can read it and has nowhere to
+ * put the descriptors.
+ *
+ * Self-contained on purpose. The alternative was a second jump into
+ * have_pixels from above the hardware path, and that jump would cross
+ * five initialisers -- pad_w, pad_h, want, largest, decoded -- where the
+ * existing jumps cross one. Legal C, and safe only because `soft` keeps
+ * have_pixels away from the ones it skipped, which is precisely the kind
+ * of reasoning this file already has a comment asking not to rely on.
+ */
+static esp_err_t draw_in_software(esp_lcd_panel_handle_t panel,
+                                  int screen_w, int screen_h,
+                                  const uint8_t *jpeg, size_t jpeg_len,
+                                  uint32_t in_hash)
+{
+    uint8_t *rgb = NULL;
+    size_t rgb_size = 0;
+    int w = 0, h = 0;
+
+    const UBaseType_t prio = soft_decode_begin();            /* 5093 */
+    esp_err_t ret = decode_stb(jpeg, jpeg_len, screen_w, screen_h,
+                               &rgb, &rgb_size, &w, &h);
+    soft_decode_end(prio);
+    if (ret != ESP_OK) return ret;
+
+    ret = blit_cover(panel, screen_w, screen_h, rgb, w, h, w);
+    if (ret == ESP_OK && cover_retain(rgb, rgb_size, w, h, w, in_hash)) {
+        rgb = NULL;
+    }
+    free(rgb);
+    return ret;
+}
+
 esp_err_t albumart_draw(esp_lcd_panel_handle_t panel, int screen_w, int screen_h,
                         const uint8_t *jpeg, size_t jpeg_len)
 {
@@ -1239,20 +1314,8 @@ esp_err_t albumart_draw(esp_lcd_panel_handle_t panel, int screen_w, int screen_h
          * it at all, so stb_image is the only decoder asked. */
         ESP_LOGI(TAG, "cover is a progressive JPEG, %"PRIu32"x%"PRIu32"; "
                       "trying stb_image", sof_w, sof_h);
-        {
-            const UBaseType_t prio = soft_decode_begin();    /* 5093 */
-            ret = decode_stb(jpeg, jpeg_len, screen_w, screen_h,
-                             &rgb, &rgb_size, &soft_w, &soft_h);
-            soft_decode_end(prio);
-        }
-        if (ret != ESP_OK) return ret;
-        ret = blit_cover(panel, screen_w, screen_h, rgb, soft_w, soft_h, soft_w);
-        if (ret == ESP_OK &&
-            cover_retain(rgb, rgb_size, soft_w, soft_h, soft_w, in_hash)) {
-            rgb = NULL;
-        }
-        free(rgb);
-        return ret;
+        return draw_in_software(panel, screen_w, screen_h, jpeg, jpeg_len,
+                                in_hash);
     }
 
     /*
@@ -1269,8 +1332,28 @@ esp_err_t albumart_draw(esp_lcd_panel_handle_t panel, int screen_w, int screen_h
         heapmap_log("before the first hardware jpeg decode");
     }
 
-    const jpeg_decode_engine_cfg_t engine = { .timeout_ms = 5000 };
-    ESP_RETURN_ON_ERROR(jpeg_new_decoder_engine(&engine, &dec), TAG, "jpeg engine");
+    /*
+     * The engine made at boot (albumart_init). If it is missing -- an
+     * old caller, or boot-time creation failed -- try once here and let
+     * the software decoder have it if that fails too, rather than
+     * returning no cover at all.
+     */
+    if (!s_engine) {
+        const jpeg_decode_engine_cfg_t cfg = { .timeout_ms = 5000 };
+        if (jpeg_new_decoder_engine(&cfg, &s_engine) != ESP_OK) {
+            /*
+             * The 128 bytes of DMA-capable internal RAM the engine wants
+             * for its descriptors, which the radio has had since it
+             * joined (5145). Software is slower and produces the same
+             * picture; no cover at all is what this used to do.
+             */
+            ESP_LOGW(TAG, "no hardware jpeg engine; decoding in software");
+            s_engine = NULL;
+            return draw_in_software(panel, screen_w, screen_h, jpeg,
+                                    jpeg_len, in_hash);
+        }
+    }
+    dec = s_engine;
 
     jpeg_decode_picture_info_t info;
     ESP_GOTO_ON_ERROR(jpeg_decoder_get_info(jpeg, jpeg_len, &info), cleanup, TAG, "jpeg info");
@@ -1584,7 +1667,8 @@ cleanup:
     /* NULL when the frame was kept -- cover_retain() took it. */
     if (rgb) free(rgb);
     if (in) free(in);
-    if (dec) jpeg_del_decoder_engine(dec);
+    /* NOT deleted: it is the boot engine and it is kept for the life of
+     * the app. See albumart_init(). */
     return ret;
 }
 

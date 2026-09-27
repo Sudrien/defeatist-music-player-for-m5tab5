@@ -414,9 +414,20 @@ esp_err_t albumart_extract_at(FILE *f, storage_io_class_t cls, long base,
 
     const int ver = hdr[3];
     if (ver < 3) {
-        ESP_LOGD(TAG, "ID3v2.%d predates APIC frames", ver);
+        /*
+         * Raised from LOGD because the refusal is invisible otherwise:
+         * the player prints "no cover art in this file
+         * (ESP_ERR_NOT_SUPPORTED)" and that code covers two unrelated
+         * causes -- a picture in a format this device cannot draw
+         * (warned about below, with its MIME type) and this, a tag too
+         * old to have a picture frame at all. Reading the first as the
+         * second sends someone looking for a converter for a file that
+         * has nothing to convert.
+         */
+        ESP_LOGI(TAG, "ID3v2.%d tag: predates APIC frames, no cover to read", ver);
         return ESP_ERR_NOT_SUPPORTED;
     }
+    ESP_LOGD(TAG, "ID3v2.%d tag", ver);
     if (hdr[5] & 0x40) {
         /* Extended header: skip it. Its own size field is syncsafe in
          * v2.4 and plain in v2.3, same trap as frame sizes. */
@@ -631,7 +642,19 @@ esp_err_t id3_read_tags_at(FILE *f, long base, id3_tags_t *out)
     }
 
     const int ver = hdr[3];
-    if (ver < 3) return ESP_ERR_NOT_SUPPORTED;
+    if (ver < 3) {
+        /*
+         * Silent until now, which made the pair of symptoms look like
+         * two faults. A v2.2 tag names its frames in three characters
+         * (TT2, TP1, TAL) where v2.3 uses four (TIT2, TPE1, TALB), so
+         * this walk finds nothing it knows and the screen falls back to
+         * the filename -- at the same time as the cover read above
+         * refuses for the same reason. One cause, two messages, and
+         * neither of them used to say "old tag".
+         */
+        ESP_LOGI(TAG, "ID3v2.%d tag: frame ids are 3 bytes, not read", ver);
+        return ESP_ERR_NOT_SUPPORTED;
+    }
 
     if (hdr[5] & 0x40) {
         uint8_t ext[4];

@@ -185,7 +185,15 @@ tree and some by asking. `main/mediaindex.h` (5010) is the first code.
    relative to the volume root, so the same relative path on both is
    one entry and the SD's copy is the one shown; folders present on
    both list the union. With one volume mounted, it is the library.
-   Matching is byte-exact, so `ABBA/` and `Abba/` are two folders.
+   Matching is byte-exact, so `ABBA/` and `Abba/` are two folders --
+   and note what that does and does not mean. exFAT and FAT32 with
+   long names are both case-insensitive and case-preserving, so the
+   two cannot coexist on ONE volume and byte-exact costs nothing
+   there. Across two volumes they can, and then this lists two folders
+   where the filesystem's rule would say one. Merging them means a
+   case-folding comparison in the listing and, for the walk and
+   reconcile to agree with it, a case-folded index order: a format
+   change, and not one to make as a side effect of fixing a listing.
 4. **Record size: a path prefix, not a hash.** The merged listing needs
    both indexes in path order, which a hash key cannot give. The key is
    the first 104 bytes of the path, with the catalog offset and the

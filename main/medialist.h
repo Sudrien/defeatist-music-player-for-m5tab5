@@ -45,8 +45,25 @@ extern "C" {
  * preferred by which slot it puts it in -- SD in 0, USB in 1, per that
  * note -- and with one volume mounted it goes in 0 and slot 1 is NULL.
  *
- * Matching is byte-exact, so "ABBA/" and "Abba/" are two folders. That
- * is deliberate and it is the filesystem's own answer on exFAT.
+ * Matching is byte-exact, so "ABBA/" and "Abba/" are two entries.
+ *
+ * AND THAT IS NOT THE FILESYSTEM'S ANSWER, which an earlier version of
+ * this comment claimed. exFAT and FAT32-with-LFN are both
+ * case-insensitive and case-preserving, so WITHIN one volume the two
+ * cannot both exist and byte-exact matching costs nothing. It is ACROSS
+ * two volumes that they can -- "ABBA/" on the SD and "Abba/" on the
+ * USB stick are each legal, and this lists them as two folders where
+ * the filesystem's own rule would call them one.
+ *
+ * Left as it is, for now, and written down rather than quietly fixed:
+ * folding case to merge them means a case-folding comparison in the
+ * merge and, to be consistent, an index built in a case-folded order --
+ * which is a format change and midx_path_cmp()'s order is the one the
+ * walk, the index and reconcile all agree on. The cost of the current
+ * answer is two rows for one album on a two-card setup where the cases
+ * disagree; the cost of changing it is the index format. That trade
+ * should be made deliberately, with MEDIA-INDEX.md point 3 updated,
+ * rather than as a patch to this function.
  */
 #define MEDIALIST_VOLS  2
 

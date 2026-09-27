@@ -230,7 +230,7 @@ let dragPct = -1, volDragging = false, volSent = 0, volTimer = 0;
 
 /* ---- the connection: hello, then state as it changes ---- */
 function connect() {
-  ws = new WebSocket(`ws://${location.host}/ws`);
+  ws = new WebSocket(`${location.protocol === "https:" ? "wss" : "ws"}://${location.host}/ws`);
   ws.onopen = () => { backoff = 500; ws.send("hello"); $("gone").classList.remove("on"); };
   ws.onmessage = e => {
     let m; try { m = JSON.parse(e.data); } catch { return; }

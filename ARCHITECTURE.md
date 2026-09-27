@@ -14241,3 +14241,59 @@ remoteproto gains remoteproto_json_str() for the names, tested.
 
 The portal's station mode is left as it is: it is still how a station
 is added from the chooser with the remote switched off.
+
+### 5121 -- The remote over HTTPS, with a certificate the player makes itself
+
+The controls move to `https://<address>/` on port 443. Port 80 now only
+answers with a 301 to the same path on https://, and it is that
+redirect -- not the controls -- that steps aside while the setup portal
+runs, so the remote stays up through network setup. Nothing is served in
+the clear any more: a page that loaded over HTTP could post a password
+over HTTP, and a Wi-Fi section on this page is what this is for.
+
+**The key is made on the player, the first time the remote starts.** A
+key built into the firmware would be in every image of a public
+repository's build -- shared by every player, readable by anyone.
+certgen.c makes an ECDSA P-256 key and a self-signed certificate with
+the hardware RNG; devcert.c keeps both in NVS (`devcert`/`key`, `crt`),
+so they survive reboots and firmware updates, and erasing NVS is the
+only thing that replaces them.
+
+    subject = issuer   CN=Defeatist-XXXX, O=Defeatist Music Player
+    subjectAltName     DNS:defeatist-xxxx.local
+    valid              2026-01-01 .. 2049-12-31
+    CA:FALSE, keyUsage digitalSignature, a random 16-byte serial
+
+The name is the setup network's (portalweb_ap_name() on the radio's
+MAC, or the chip's when there is only a cable). No IP address is in it:
+DHCP moves addresses, and a certificate that followed would change the
+fingerprint, which is the thing a person is asked to recognise. The
+validity starts in 2026 and runs long so an unset or wrong clock never
+makes it "not yet valid" or "expired".
+
+**What a browser does with it.** It warns once -- nothing it trusts
+signed this -- and after the exception is accepted the page and its
+WebSocket (now wss://) are encrypted. The NET row shows the first ten
+bytes of the SHA-256 fingerprint under the address; the browser's
+warning shows the same, and comparing them is the only check that the
+certificate is the player's. `tab5_cert: made a certificate for ... in N
+ms` and `tab5_cert: SHA-256 ...` are logged.
+
+**Checked on the host.** certgen.c was built against the mbedTLS IDF
+5.5 ships (3.6.7, from the same commit) and run: OpenSSL reads the
+certificate as above, its SHA-256 fingerprint matches
+certgen_fingerprint()'s, it verifies against itself, and an OpenSSL
+s_server using it completes a TLS 1.3 handshake. remote.c was
+syntax-checked against esp_https_server.h.
+
+**Cost.** The HTTPS server's task stack is 10 KB of internal RAM (IDF's
+default for TLS), the redirect's 4 KB, against the 6 KB the plain server
+had -- 8 KB more internal while the remote is on. mbedTLS's own
+allocations already go to PSRAM (CONFIG_MBEDTLS_EXTERNAL_MEM_ALLOC).
+If internal RAM runs short with the remote on, this is the first place
+to look.
+
+**sdkconfig.defaults gains `CONFIG_ESP_HTTPS_SERVER_ENABLE=y`, and
+main/CMakeLists.txt REQUIRES esp_https_server -- rm sdkconfig before
+building.** `tab5_remote: up at https://...` is the line that says it
+took.

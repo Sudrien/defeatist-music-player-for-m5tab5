@@ -25,6 +25,7 @@
 #include "menuscroll.h"
 #include "panel.h"
 #include "settings.h"
+#include "devcert.h"         /* 5121 */
 #include "remote.h"          /* 5117 */
 #include "wifi.h"
 #include "wifistore.h"
@@ -880,7 +881,17 @@ static int draw_net(void)
         if (remote_running() && remote_url(url, sizeof(url))) {
             snprintf(url_line, sizeof(url_line), "Open %s", url);
             rn[0] = url_line;
-            rn[1] = "in a browser on the same network.";
+            /* 5121: the start of the certificate's fingerprint, to match
+             * against the browser's one-time warning. 10 of 32 bytes is
+             * what fits; it is what a person will actually compare. */
+            static char fp_line[48];
+            char fp[96];
+            if (devcert_fingerprint(fp, sizeof(fp))) {
+                snprintf(fp_line, sizeof(fp_line), "Cert %.29s...", fp);
+                rn[1] = fp_line;
+            } else {
+                rn[1] = "in a browser on the same network.";
+            }
         } else if (settings_remote_enabled() && portal_running()) {
             /* 5120: the portal has port 80 while it runs. */
             rn[0] = "Off while network setup has the page.";

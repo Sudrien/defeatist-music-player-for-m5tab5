@@ -46,14 +46,21 @@ extern "C" {
 #endif
 
 /*
- * 5120: port 80, shared with the setup portal by taking turns. The
+ * 5120: port 80, shared with the setup portal by taking turns (since
+ * 5121, the redirect to 443 is what takes the turn). The
  * portal runs only while "Add a network" (or the chooser's station form)
  * is up, and while it runs it owns port 80 and this server is down:
  * with no address of its own the player is a captive portal on its AP;
  * with one or two (Wi-Fi, cable) port 80 is the controls. 5117's reason
  * for 8080 was only to avoid that meeting.
  */
-#define REMOTE_PORT     (80)
+#define REMOTE_PORT_PLAIN (80)
+/*
+ * 5121: the controls themselves are HTTPS, with a certificate this
+ * player made for itself (devcert.h). Port 80 above is only a redirect
+ * to here, and only while the portal is not using it.
+ */
+#define REMOTE_PORT     (443)
 
 /* Once, from app_main(), before ui_task. Allocates the queue and the
  * buffers; starts nothing. */

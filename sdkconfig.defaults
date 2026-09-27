@@ -564,3 +564,10 @@ CONFIG_LWIP_TCP_RECVMBOX_SIZE=16
 # build fails on httpd_ws_* rather than running without a remote.
 # Changing this file needs `rm sdkconfig` before the next build.
 CONFIG_HTTPD_WS_SUPPORT=y
+
+# 5121: the browser remote over HTTPS (esp_https_server, with a key and
+# certificate the player makes for itself -- certgen.c, devcert.c).
+# esp_https_server builds nothing unless this is set. rm sdkconfig
+# before building; `tab5_remote: up at https://` is the line that says
+# it took.
+CONFIG_ESP_HTTPS_SERVER_ENABLE=y

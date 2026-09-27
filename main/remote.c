@@ -12,12 +12,14 @@
 
 #include "esp_heap_caps.h"
 #include "esp_http_server.h"
+#include "esp_https_server.h"
 #include "esp_log.h"
 #include "esp_timer.h"
 #include "freertos/FreeRTOS.h"
 #include "freertos/queue.h"
 #include "freertos/semphr.h"
 
+#include "devcert.h"
 #include "ethernet.h"
 #include "mediacache.h"
 #include "portal.h"
@@ -57,7 +59,8 @@ extern const uint8_t favicon_ico_end[]   asm("_binary_favicon_ico_end");
 #define REMOTE_JSON_MAX     (1024)
 #define REMOTE_WAVE_MAX     (2 * FRAMEWALK_MAX_COLUMNS + 64)
 
-static httpd_handle_t    s_srv;
+static httpd_handle_t    s_srv;         /* 5121: HTTPS, port 443 */
+static httpd_handle_t    s_plain;       /* 5121: port 80, a redirect only */
 static QueueHandle_t     s_q;
 static SemaphoreHandle_t s_mu;          /* s_json, s_wave, s_art_* */
 
@@ -344,16 +347,80 @@ static bool have_ip(char *ip, size_t n)
     return wifi_sta_ip(ip, n) || ethernet_ip(ip, n);
 }
 
-static void start(void)
+/*
+ * 5121: port 80 answers everything with a redirect to the same path on
+ * https://. Nothing else is served in the clear -- a page that loaded
+ * over HTTP could post a password over HTTP, which is the thing 5121
+ * exists to stop. The Host header is used so a name that reached the
+ * player (defeatist-xxxx.local, a router's DNS name) is kept; it is
+ * checked to be a plain host before it goes into a header.
+ */
+static esp_err_t h_redirect(httpd_req_t *req)
+{
+    char host[64] = "";
+    if (httpd_req_get_hdr_value_str(req, "Host", host, sizeof(host)) != ESP_OK) host[0] = '\0';
+    char *colon = strchr(host, ':');
+    if (colon) *colon = '\0';
+    for (const char *p = host; *p; p++) {
+        const char c = *p;
+        if (!((c >= 'a' && c <= 'z') || (c >= 'A' && c <= 'Z') ||
+              (c >= '0' && c <= '9') || c == '.' || c == '-')) { host[0] = '\0'; break; }
+    }
+    if (!host[0]) {
+        char ip[20];
+        if (!have_ip(ip, sizeof(ip))) return httpd_resp_send_404(req);
+        snprintf(host, sizeof(host), "%s", ip);
+    }
+    char loc[64 + 16 + 64];
+    const char *uri = req->uri[0] == '/' ? req->uri : "/";
+    snprintf(loc, sizeof(loc), "https://%s%.64s", host, uri);
+    httpd_resp_set_status(req, "301 Moved Permanently");
+    httpd_resp_set_hdr(req, "Location", loc);
+    return httpd_resp_send(req, NULL, 0);
+}
+
+static void plain_start(void)
 {
     httpd_config_t cfg = HTTPD_DEFAULT_CONFIG();
-    cfg.server_port = REMOTE_PORT;
-    cfg.ctrl_port = REMOTE_CTRL_PORT;
-    cfg.max_open_sockets = REMOTE_SOCKETS;
+    cfg.server_port = REMOTE_PORT_PLAIN;
+    cfg.ctrl_port = REMOTE_CTRL_PORT + 1;
+    cfg.max_open_sockets = 2;
     cfg.lru_purge_enable = true;
-    cfg.stack_size = 6144;
-    cfg.max_uri_handlers = 7;
-    if (httpd_start(&s_srv, &cfg) != ESP_OK) {
+    cfg.stack_size = 4096;
+    cfg.max_uri_handlers = 1;
+    cfg.uri_match_fn = httpd_uri_match_wildcard;
+    if (httpd_start(&s_plain, &cfg) != ESP_OK) { s_plain = NULL; return; }
+    const httpd_uri_t any = { .uri = "/*", .method = HTTP_GET, .handler = h_redirect };
+    httpd_register_uri_handler(s_plain, &any);
+}
+
+static void plain_stop(void)
+{
+    if (!s_plain) return;
+    httpd_stop(s_plain);
+    s_plain = NULL;
+}
+
+static void start(void)
+{
+    const char *crt, *key;
+    size_t crt_len, key_len;
+    if (!devcert_get(&crt, &crt_len, &key, &key_len)) {
+        s_retry_us = esp_timer_get_time() + REMOTE_RETRY_US;
+        ESP_LOGW(TAG, "no certificate; not starting");
+        return;
+    }
+    httpd_ssl_config_t cfg = HTTPD_SSL_CONFIG_DEFAULT();
+    cfg.httpd.ctrl_port = REMOTE_CTRL_PORT;
+    cfg.httpd.max_open_sockets = REMOTE_SOCKETS;
+    cfg.httpd.lru_purge_enable = true;
+    cfg.httpd.max_uri_handlers = 7;
+    cfg.port_secure = REMOTE_PORT;
+    cfg.servercert = (const uint8_t *)crt;
+    cfg.servercert_len = crt_len;
+    cfg.prvtkey_pem = (const uint8_t *)key;
+    cfg.prvtkey_len = key_len;
+    if (httpd_ssl_start(&s_srv, &cfg) != ESP_OK) {
         s_srv = NULL;
         s_retry_us = esp_timer_get_time() + REMOTE_RETRY_US;
         ESP_LOGW(TAG, "could not start on port %d; trying again in 5 s", REMOTE_PORT);
@@ -379,8 +446,9 @@ static void start(void)
 
 static void stop(const char *why)
 {
+    plain_stop();
     if (!s_srv) return;
-    httpd_stop(s_srv);
+    httpd_ssl_stop(s_srv);
     s_srv = NULL;
     ESP_LOGI(TAG, "down: %s", why);
 }
@@ -403,10 +471,17 @@ void remote_poll(bool want)
     const bool net = have_ip(ip, sizeof(ip));
     /* 5120: the portal has port 80 while it runs; see REMOTE_PORT. */
     const bool portal = portal_running();
+    /*
+     * 5121: the controls are on 443 and stay up through network setup;
+     * only the port-80 redirect steps aside for the portal, which needs
+     * that port and nothing else.
+     */
     if (s_srv && !want) stop("switched off");
     else if (s_srv && !net) stop("no network");
-    else if (s_srv && portal) stop("the setup portal has port 80");
-    else if (!s_srv && want && net && !portal && esp_timer_get_time() >= s_retry_us) start();
+    else if (!s_srv && want && net && esp_timer_get_time() >= s_retry_us) start();
+
+    if (s_srv && !portal && !s_plain) plain_start();
+    else if (s_plain && (portal || !s_srv)) plain_stop();
 }
 
 bool remote_running(void) { return s_srv != NULL; }
@@ -415,8 +490,8 @@ bool remote_url(char *out, size_t out_size)
 {
     char ip[20];
     if (!out || !out_size || !have_ip(ip, sizeof(ip))) return false;
-    if (REMOTE_PORT == 80) snprintf(out, out_size, "http://%s/", ip);
-    else                   snprintf(out, out_size, "http://%s:%d/", ip, REMOTE_PORT);
+    if (REMOTE_PORT == 443) snprintf(out, out_size, "https://%s/", ip);
+    else                    snprintf(out, out_size, "https://%s:%d/", ip, REMOTE_PORT);
     return true;
 }
 

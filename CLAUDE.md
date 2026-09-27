@@ -42,6 +42,38 @@ working" for exactly that reason. A patch that touches the file says so
 in its commit message, and its ARCHITECTURE.md entry says what line in
 the log proves the new value took.
 
+**exFAT is enabled, so a file can be larger than 4 GB.** FAT32 could
+not hold one, and a lot of code written against FAT32 quietly assumes
+it -- `tools/enable_exfat.sh` (run automatically by `cmake/exfat.cmake`)
+removes that assumption from the filesystem and not from the code. A
+type that holds a file's length, or a position inside one, is
+`int64_t`/`uint64_t`. Not `uint32_t`, and not `long`, which is 32 bits
+on this target.
+
+Two things follow that a wider variable does not fix:
+
+- **`fseek()` and `ftell()` take `long`**, so stdio itself cannot
+  address past 2 GB here whatever our own types say. A patch that
+  means to handle a file that large needs `fseeko`/`ftello` with
+  `_FILE_OFFSET_BITS=64`, or FatFs directly, and should say in its
+  commit message which it used. Widening a variable and leaving the
+  seek alone moves the failure rather than removing it, and makes it
+  look handled.
+- **A 32-bit limit on a file the player writes is a decision; on a file
+  the listener supplies it is a bug.** `cat_off` is `uint32_t` on
+  purpose -- a 4 GB catalog is not a thing that happens, and
+  `mediaindex.h` says so -- whereas a track's size or a seek position
+  in a recording is whatever someone put on the card. Know which kind
+  you are widening before you argue it is fine.
+
+Already 32-bit and known: `replaygain.h`'s `filesize`, `mp4seek.h`'s
+sizes, and every `ftell()` in `main/`. Not a list to fix in one sweep;
+a list so that finding one of them is not a discovery.
+
+(`mediaindex.h` also says "FAT32 stops a file there anyway" about the
+catalog's 4 GB. That reasoning is void now -- the conclusion still
+holds, for the reason above, but not for the one written down.)
+
 **Patches are cumulative.** Each one applies on top of what is already
 here. Do not hand back a rewritten copy of a file, and do not reissue a
 corrected version of a patch that has been pushed -- send a follow-up

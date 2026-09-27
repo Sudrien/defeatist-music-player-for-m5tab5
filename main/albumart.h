@@ -100,6 +100,14 @@ esp_err_t albumart_draw(esp_lcd_panel_handle_t panel, int screen_w, int screen_h
 uint32_t albumart_cover_hash(const void *key, size_t len);
 
 /*
+ * Name what the next albumart_show() is showing -- a track's path, a
+ * station's URL. Only the keystone uses it: the lean is seeded from this,
+ * so each track gets its own and a repaint of the same one keeps it.
+ * NULL or "" falls back to the picture's hash. Sticky until changed.
+ */
+void albumart_set_key(const char *key);
+
+/*
  * Drop the one retained decoded cover.
  *
  * For a volume disappearing: the frame itself is still valid pixels, but

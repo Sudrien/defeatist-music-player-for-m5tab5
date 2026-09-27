@@ -4780,6 +4780,7 @@ static void do_art(const char *path, uint32_t gen)
      * LCD_H_RES x UI_ART_H, which is only the portrait one. */
     int art_w, art_h;
     ui_art_band(NULL, NULL, &art_w, &art_h);
+    albumart_set_key(path);         /* the keystone leans per track */
     const esp_err_t serr = albumart_show(s_panel, art_w, art_h,
                                          jpg, jpg_len);
 
@@ -11370,6 +11371,7 @@ static void show_stream_card(stream_codec_t codec, uint32_t rate,
          * LCD_H_RES x UI_ART_H, which is only the portrait one. */
         int art_w, art_h;
         ui_art_band(NULL, NULL, &art_w, &art_h);
+        albumart_set_key(s_art_url);    /* per station: its artwork URL */
         const esp_err_t aerr = albumart_show(s_panel, art_w, art_h,
                                              s_art_img, s_art_len);
         if (aerr == ESP_OK) { s_art_decoded = true; return; }

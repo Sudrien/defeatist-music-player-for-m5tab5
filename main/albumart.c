@@ -883,9 +883,11 @@ static int art_int_scale(int iw, int ih, int box_w, int box_h)
  * behind it -- a live tilt would repaint the art band at frame rate,
  * which is the PSRAM load the cyan flash was about.
  *
- * Seeded by the cover's hash, so it is "random" per picture but stable:
- * the same album leans the same way every time, and a repaint (closing
- * the chooser, a track change within an album) does not make it jump.
+ * Seeded by the TRACK, not the picture: the caller names what is being
+ * shown with albumart_set_key() -- a file's path, a station's URL -- so
+ * every track on an album leans its own way, and a repaint of the same
+ * track (closing the chooser, a card going away) does not move it.
+ * Without a key it falls back to the cover's own hash.
  *
  * The wide edge keeps the full fitted size and only the far edge
  * shrinks, so the trapezoid always fits where the square did and no
@@ -908,6 +910,12 @@ static int art_int_scale(int iw, int ih, int box_w, int box_h)
 #define KEYSTONE_MAX_PM     (80)
 
 static uint32_t s_keystone_seed;
+static uint32_t s_keystone_key;     /* 0 = none named; see albumart_set_key() */
+
+void albumart_set_key(const char *key)
+{
+    s_keystone_key = (key && key[0]) ? albumart_cover_hash(key, strlen(key)) | 1u : 0;
+}
 
 /* a over b, alpha 0..256, RGB565 */
 static inline uint16_t mix565(uint16_t a, uint16_t b, int alpha)
@@ -1147,7 +1155,7 @@ esp_err_t albumart_draw(esp_lcd_panel_handle_t panel, int screen_w, int screen_h
      * the same on both paths.
      */
     const uint32_t in_hash = albumart_cover_hash(jpeg, jpeg_len);
-    s_keystone_seed = in_hash;
+    s_keystone_seed = s_keystone_key ? s_keystone_key : in_hash;
 
     if (s_kept && s_kept_hash == in_hash) {
         /*
@@ -1659,7 +1667,8 @@ static esp_err_t albumart_draw_png(esp_lcd_panel_handle_t panel,
     const int fbw = gfx_w();
     gfx_fill_rect(0, 0, screen_w, screen_h, UI_BG_RGB565);
 
-    s_keystone_seed = albumart_cover_hash(png, png_len);
+    s_keystone_seed = s_keystone_key ? s_keystone_key
+                                     : albumart_cover_hash(png, png_len);
 
     pngle_t *p = pngle_new();
     ESP_RETURN_ON_FALSE(p, ESP_ERR_NO_MEM, TAG, "pngle_new");

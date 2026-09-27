@@ -404,6 +404,11 @@ nothing is left half-built if the series stops.
 9. **`mpd.c`**: the listener, the task, the settings switch, the panel
    row, the socket budget decision. `status`, `currentsong`, the
    transport verbs, `setvol`.
+
+   **Done in 5158**, before steps 4-6, so the queue a client sees is one
+   entry long -- what is on screen -- until the switch-over. The socket
+   budget was 5157's, taken first as its own patch; `MPD_CLIENTS` is
+   `netbudget.h`'s number rather than a second copy of it.
 10. **`idle`**, with the per-connection latch.
 11. **MPD's queue verbs**: `add`, `addid`, `delete`, `deleteid`,
     `move`, `moveid`, `playid`, `clear`, `shuffle`, `plchanges` --

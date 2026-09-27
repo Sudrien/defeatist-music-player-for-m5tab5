@@ -27,6 +27,7 @@
 #include "settings.h"
 #include "devcert.h"         /* 5121 */
 #include "remote.h"          /* 5117 */
+#include "mpd.h"             /* 5158 */
 #include "wifi.h"
 #include "wifistore.h"
 #include "portal.h"
@@ -619,13 +620,24 @@ static int remote_y(void) { return wifi_y() + AUDIO_SWITCH_H
                                    + AUDIO_NOTE_GAP
                                    + NET_WIFI_NOTE_LINES * AUDIO_NOTE_STEP
                                    + AUDIO_GAP; }
-static int ntp_y(void)  { return remote_y() + AUDIO_SWITCH_H
+/* 5158: the MPD server, under the remote because it is the same kind of
+ * thing -- control from another device -- for a different kind of client. */
+#define NET_MPD_NOTE_LINES (3)
+static int mpd_y(void)  { return remote_y() + AUDIO_SWITCH_H
                                  + AUDIO_NOTE_GAP
                                  + NET_REMOTE_NOTE_LINES * AUDIO_NOTE_STEP
+                                 + AUDIO_GAP; }
+static int ntp_y(void)  { return mpd_y() + AUDIO_SWITCH_H
+                                 + AUDIO_NOTE_GAP
+                                 + NET_MPD_NOTE_LINES * AUDIO_NOTE_STEP
                                  + AUDIO_GAP; }
 static void remote_box(int *x, int *y, int *w, int *h)
 {
     *x = 0; *y = remote_y(); *w = gfx_w(); *h = AUDIO_SWITCH_H;
+}
+static void mpd_box(int *x, int *y, int *w, int *h)
+{
+    *x = 0; *y = mpd_y(); *w = gfx_w(); *h = AUDIO_SWITCH_H;
 }
 static void wifi_switch_box(int *x, int *y, int *w, int *h)
 {
@@ -906,6 +918,43 @@ static int draw_net(void)
         }
         rn[2] = "No password: anyone on it can use it.";
         (void)draw_note(y + bh + AUDIO_NOTE_GAP, rn, NET_REMOTE_NOTE_LINES);
+    }
+
+    /* --- MPD server (5158) ------------------------------------------ */
+    mpd_box(&x, &y, &bw, &bh);
+    gfx_fill_rect(x, y, bw, bh, C_ROW);
+    gfx_draw_text(24, y + (bh - GFX_GLYPH_H(NAME_SCALE)) / 2, "MPD server",
+                  NAME_SCALE, 400, netok ? C_TEXT : C_DISABLED);
+    {
+        const bool pref = settings_mpd_enabled();
+        const int pw = 132, ph = 56;
+        draw_state_pill(w - 24 - pw, y + (bh - ph) / 2, pw, ph,
+                        pref ? "ON" : "OFF", pref, netok, NAME_SCALE);
+    }
+    {
+        /* The remote's note, in the remote's order: what to type when it
+         * is up, what it is for when it is not, and the cost always. */
+        static char addr_line[64], who_line[48];
+        const char *mn[NET_MPD_NOTE_LINES];
+        char addr[32];
+        if (mpd_running() && mpd_address(addr, sizeof(addr))) {
+            snprintf(addr_line, sizeof(addr_line), "Connect an MPD app to %s", addr);
+            mn[0] = addr_line;
+            const int n = mpd_clients();
+            if (n == 0)      snprintf(who_line, sizeof(who_line), "No app connected.");
+            else if (n == 1) snprintf(who_line, sizeof(who_line), "1 app connected.");
+            else             snprintf(who_line, sizeof(who_line), "%d apps connected.", n);
+            mn[1] = who_line;
+        } else if (settings_mpd_enabled()) {
+            mn[0] = netok ? "Waiting for a network address."
+                          : "Needs a network: Wi-Fi or a cable.";
+            mn[1] = "Then it shows the address to use.";
+        } else {
+            mn[0] = "Play, pause, skip, seek and volume";
+            mn[1] = "from an MPD app such as MALP or mpc.";
+        }
+        mn[2] = "No password: anyone on it can use it.";
+        (void)draw_note(y + bh + AUDIO_NOTE_GAP, mn, NET_MPD_NOTE_LINES);
     }
 
     /* --- Network time ----------------------------------------------- */
@@ -1405,6 +1454,16 @@ bool panel_touch(bool down, int x, int y)
             const bool on = !settings_remote_enabled();
             settings_set_remote_enabled(on);
             ESP_LOGI(TAG, "remote control %s", on ? "on" : "off");
+            s_dirty = true;
+            return false;
+        }
+
+        /* 5158: likewise; mpd_poll() starts it when there is a network. */
+        mpd_box(&bx, &by, &bw, &bh);
+        if (y >= by && y < by + bh) {
+            const bool on = !settings_mpd_enabled();
+            settings_set_mpd_enabled(on);
+            ESP_LOGI(TAG, "mpd server %s", on ? "on" : "off");
             s_dirty = true;
             return false;
         }

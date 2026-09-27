@@ -15410,3 +15410,108 @@ runtime, so "15 during setup" is what the configuration permits and not
 something observed. If a future patch wants the real high-water mark it
 has to be instrumented, and per 5149-5152 that instrumentation should not
 be left in.
+
+
+### 5158 -- mpd.c: a server on 6600 that can do what the glass can
+
+`MPD.md` step 9: the listener, the task, the settings switch, the panel
+row. `status`, `currentsong`, `stats`, `outputs`,
+the transport (`play`, `playid`, `pause`, `stop`, `next`, `previous`,
+`seek`, `seekid`, `seekcur`), `setvol` and `volume`. Everything else in
+5153's table is ACKed `[5@0]` "not supported by this player yet" and
+listed by `notcommands`; both lists are read from the one `answered()`
+switch, so they cannot disagree with the dispatcher.
+
+**The shape is remote.c's, with one difference.** One task (6 KB,
+priority 3) owns the listener and every client and `select()`s over them.
+It never calls into the player: `ui_task` publishes a copy of `ui_state_t`
+through `mpd_publish()` beside `remote_publish()`, and drains presses
+through `mpd_take()` after `remote_take()`, last, on the same terms. The
+difference is that **a press waits for the pass that publishes it**. MPD
+is synchronous where the remote page is not -- a client told `OK` for
+`pause` that then reads `state: play` toggles again -- so the socket task
+queues the press with a sequence number and holds its `OK` until
+`mpd_publish()` has run after the take, up to a second. While the panel,
+the chooser or the sleep page is open `ui_task` skips the take, and the
+client gets its `OK` after the second and the press lands when the page
+closes, as a remote press does.
+
+**The queue is one entry long**, because step 4's switch-over is not done:
+position 0 is what is on screen, with an id that changes when the track
+does and a version that moves with it. A station keeps its id when its ICY
+title changes and moves the version, which is what MPD does for a stream
+whose tag changes, and `Title:` is the ICY title rather than the station's
+name -- MPD puts the station in `Name:`, which `mpd_song_t` has not got.
+
+**Seeks are a percent.** `UI_ACTION_SEEK` is the only seek the player
+takes, so `seek 0 83` lands on the nearest hundredth of the track: two
+seconds of a song, 36 of an hour's recording. A millisecond seek is a new
+action and a change to `request_seek()`, which is not this patch. `stop`
+is a pause, and `status` says `pause` afterwards: the switch has no stop.
+
+**Sockets: 5157's budget, read rather than restated.** `MPD_CLIENTS` is
+`NETBUDGET_MPD_CLIENTS`, and `mpd.h` includes `netbudget.h`, so this file
+cannot grow a client the census did not count without the census's
+`#error` firing. A fourth client is accepted and closed at once, so it
+fails now rather than waiting on a greeting; for that moment it holds a
+socket the census does not count, which is one of the two spare.
+
+`mpd.h` includes `sdkconfig.h` before `netbudget.h`, because that header's
+`#if` reads `CONFIG_LWIP_MAX_SOCKETS` without including it, and an unset
+macro is 0 in an `#if`: reached first from a file that had not pulled in
+`sdkconfig.h` another way, the guard would have failed a build that was
+fine. Checked on a host both ways -- `mpd.c` compiles at 24 and is refused
+through `mpd.h` at 10.
+
+Two things MPD does that this does not, deliberately. A blank or
+untokenisable line is ACKed and the connection kept, where MPD closes it:
+a reconnect here costs a socket out of a small budget. And a command list
+runs each line as it arrives rather than at `command_list_end`, so a
+client that drops mid-list has had the part it sent carried out; the
+equivalence for a client that finishes is argued in `mpdproto.h`.
+
+**Found while checking the draft, before it was ever built:** the
+handlers' result enum was `R_OK`/`R_ERR`/`R_CLOSE`, and `R_OK` is
+`<unistd.h>`'s -- which `close()` needs -- so the file would not have
+compiled. `RES_*` now. And `playlist` printed `0:Music/a.mp3` where MPD
+prints `0:file: Music/a.mp3`, key and all (`queue_print_uris()`).
+
+**Tested on a host, not a board.** `mpd.c` built unmodified against
+pthread stand-ins for the FreeRTOS queue, mutex and task and POSIX
+sockets for lwIP, under ASan and UBSan, with a fake `ui_task` running the
+real call order at 10 Hz, and driven by raw sockets and by python-mpd2:
+every verb above, each ACK path, both command-list forms including a
+failure at index 2, blank, bad and unterminated lines, a Latin-1 tag
+(repaired to U+FFFD), a station whose ICY title changes, a 3000-byte line,
+a client closing mid-list, the fourth client refused, and the switch
+turned off mid-command and back on eight times. The harness is not in
+this patch. What a host cannot say: the stack high-water mark (logged when
+the task stops), the socket count that took, and how `ui_task`'s timing
+on the board treats the one-second wait. That run was of the draft; the
+reissue below changed two includes, one `#define` and comments, and was
+compile-checked with `-Wall -Wextra` against the current headers rather
+than driven again.
+
+No `idle` yet (step 10), so ncmpcpp and MALP will not update by
+
+**This is the patch that was first written as 5157, and failed to apply.**
+It was drafted in a session that did not see `netbudget.h` land under the
+same number, so it raised the ceiling to 20 in `sdkconfig.defaults` by its
+own arithmetic while 5157 had already set 24 by a better one. Its
+`ARCHITECTURE.md` and `sdkconfig.defaults` hunks were the two that did not
+apply, and both were superseded rather than wrong in isolation; every code
+hunk applied as it was. Reissued as 5158 with the sdkconfig hunk dropped,
+the client count tied to `netbudget.h` and the entry renumbered -- the
+number collision is the 1000-series mistake again ("Two series called
+1000"), avoided here only because the second patch failed to apply
+instead of landing beside the first.
+
+**What the two censuses disagree on is worth one follow-up.** The draft
+counted a cover fetch and `esp_ping`'s raw socket, which `netbudget.h`
+does not: `radiobrowser_art_fetch()` opens its own HTTP client, and
+`ethernet.c`'s gateway check opens a raw ICMP socket for each ping.
+`netbudget.h` in turn counts SNTP, which `esp_netif_sntp` runs on lwIP's
+raw UDP API and not through the socket table. On paper that is 22 - 1 + 2
+= 23 against 24, which fits with one spare rather than two. Not changed
+here, because it is a correction to 5157's census and belongs in a patch
+of its own.

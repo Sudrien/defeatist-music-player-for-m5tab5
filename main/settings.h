@@ -284,6 +284,14 @@ bool settings_remote_enabled(void);
 void settings_set_remote_enabled(bool on);
 
 /*
+ * 5158: the MPD server on port 6600 -- see mpd.h. Off by default for the
+ * remote's reason: it takes commands from anyone on the network, with no
+ * password. Stored on the card only, like the remote's switch.
+ */
+bool settings_mpd_enabled(void);
+void settings_set_mpd_enabled(bool on);
+
+/*
  * Whether the radio is allowed to come up at all. Off by default, and
  * that default is load-bearing.
  *

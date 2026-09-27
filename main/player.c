@@ -5511,11 +5511,32 @@ static bool prefetch_ok(int floor_pct)
 
 static void prefetch_next(void)
 {
-    const char *next = playlist_peek_next(browser_order());
-    if (!next) {
+    /*
+     * Copied, not borrowed. playlist_peek_next() returns s_paths[i] and
+     * playlist_clear() frees every entry (playlist.h says the pointers
+     * do not survive a load), while everything below holds this one
+     * across storage_io_open(), covertag_read_tags(),
+     * covertag_extract_art() and sidecar_prime() -- hundreds of
+     * milliseconds of card I/O.
+     *
+     * That is safe today only because ui_task is the sole mutator and
+     * only at a user's tap. It stops being safe the moment a list can
+     * be rewritten from a socket, and the s_track_gen checks below do
+     * not cover it: they ask "has the track changed" BETWEEN the
+     * stages, and the free happens inside one.
+     *
+     * Static because this is media_task's alone and 512 bytes is not a
+     * thing to put on a stack.
+     */
+    static char next_path[512];
+
+    const char *peek = playlist_peek_next(browser_order());
+    if (!peek) {
         ESP_LOGD(TAG, "prefetch: nothing next (order/end of folder)");
         return;
     }
+    snprintf(next_path, sizeof(next_path), "%s", peek);
+    const char *const next = next_path;
 
     /*
      * No start gate here any more: media_task waits on

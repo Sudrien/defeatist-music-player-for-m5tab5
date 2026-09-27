@@ -51,8 +51,28 @@ void playlist_clear(void);
 
 int playlist_count(void);
 
-/* NULL when i is out of range. The returned pointer is owned by the
- * playlist and is invalidated by the next playlist_load_dir(). */
+/*
+ * NULL when i is out of range. The returned pointer is owned by the
+ * playlist and is invalidated by the next playlist_load_dir().
+ *
+ * EVERY POINTER OUT OF THIS FILE IS BORROWED, AND THE LOAN IS SHORT.
+ * This applies to playlist_path(), playlist_next(), playlist_prev() and
+ * playlist_peek_next() alike: what comes back is s_paths[i] itself, and
+ * playlist_clear() -- which every load begins with -- free()s it. A
+ * caller may read it, and must copy it before doing anything that can
+ * block, because what unblocks it may be the load.
+ *
+ * Every caller but one copies immediately into a request (request_track()
+ * and player_loop() both snprintf it and are done). prefetch_next() was
+ * the exception and held one across the whole tag-and-cover read; it
+ * copies now. The rule is written here rather than only there because
+ * the next caller will read the header, not that function -- the same
+ * reason NETDEC_MIN_STACK stopped living inside an xTaskCreate call.
+ *
+ * The loan is only as safe as the mutation rule, which is today "ui_task
+ * mutates, at a user's tap". A list that a socket can rewrite mid-track
+ * makes a held pointer a use-after-free rather than a stale one.
+ */
 const char *playlist_path(int i);
 
 /* Index of path in the current list, or -1. Compares whole paths, so a

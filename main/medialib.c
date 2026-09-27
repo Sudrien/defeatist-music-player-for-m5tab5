@@ -179,20 +179,33 @@ static mwalk_result_t walk(void *ctx, mwalk_fn fn, void *wctx)
  * isolation and it is paid on a background task after the run the
  * listener was waiting for has already finished.
  *
- * WHY THE OFFSETS ARE SORTED FIRST. The index is in path order and the
- * catalog is in append order, so walking the index and reading each
- * record where it points is a random seek per track -- and through a
- * 16 KB stdio buffer a 250-byte record scattered through the file
- * refills the buffer nearly every time. At 1200 tracks that is tens of
- * megabytes of reads for a 300 KB file. Sorted, the same pass reads the
- * catalog front to back.
+ * WHY THE CATALOG IS STREAMED AND NOT SEEKED INTO. The index is in path
+ * order and the catalog is in append order, so asking for each record
+ * where the index points is a seek per track. 5130 sorted the offsets
+ * to make those seeks go forwards, on the assumption that a forward
+ * seek inside a buffer that already holds the bytes is nearly free.
+ *
+ * IT IS NOT. mediacat_read_at() does fseek() and then reads
+ * MEDIACAT_LINE_MAX, and fseek() on a stdio stream discards the buffer
+ * whichever way it goes -- so every record cost a seek and a fresh
+ * 3 KB read regardless of order. Measured on the board: 1203 records in
+ * 20373 ms, about 8 MB read to produce a 300 KB file, and the sort
+ * bought exactly nothing. The reconcile's own log had said as much all
+ * along -- 103 catalog reads for 1593 ms, 15 ms each.
+ *
+ * So the catalog is read front to back in blocks and split into lines
+ * here, and the sorted offsets are MERGED against the line starts as
+ * they go by: both sides ascend, so it is one walk of each. A record is
+ * decoded only when an offset asks for it.
  *
  * The search file has no order of its own to lose by this: it is
  * scanned start to finish and nothing seeks into it (mediasearch.h), so
  * catalog order is as good as any.
  */
+#define SEARCH_BLOCK    (16 * 1024)     /* the arbiter's chunk */
 static uint32_t *s_off;             /* PSRAM: live records' catalog offsets */
 static uint32_t  s_off_cap;
+static uint8_t  *s_buf;             /* PSRAM: the catalog scan's block */
 
 static int cmp_off(const void *a, const void *b)
 {
@@ -289,8 +302,12 @@ static bool search_build(storage_id_t vol, const char *mount,
 
     qsort(s_off, live, sizeof(uint32_t), cmp_off);
 
-    /* Pass two: the catalog front to back, into the temp file. */
-    if (!mediacat_session_open(vol)) {
+    /* Pass two: the catalog front to back, merged against the offsets. */
+    char cat_path[32];
+    if (!mediacat_path(vol, cat_path, sizeof(cat_path))) return false;
+
+    FILE *in = storage_io_open(cat_path, "rb");
+    if (!in) {
         ESP_LOGW(TAG, "%s: cannot read the catalog; no search file",
                  storage_label(vol));
         return false;
@@ -298,42 +315,99 @@ static bool search_build(storage_id_t vol, const char *mount,
 
     FILE *out = storage_io_open(temp, "wb");
     if (!out) {
-        mediacat_session_close();
+        storage_io_close(in);
         ESP_LOGW(TAG, "%s: cannot write %s", storage_label(vol), temp);
+        return false;
+    }
+
+    /*
+     * A block, plus room for a line that straddles the end of one. The
+     * buffer is PSRAM for the reason every other buffer in this file is:
+     * internal RAM is what the tasks' stacks need, and the boot heap map
+     * shows two internal pools already flat out.
+     */
+    if (!s_buf) {
+        s_buf = heap_caps_malloc(SEARCH_BLOCK + MEDIACAT_LINE_MAX,
+                                 MALLOC_CAP_SPIRAM | MALLOC_CAP_8BIT);
+    }
+    if (!s_buf) {
+        storage_io_close(in);
+        storage_io_close(out);
+        ESP_LOGW(TAG, "%s: no PSRAM for the catalog scan; no search file",
+                 storage_label(vol));
         return false;
     }
 
     static mediacat_rec_t cat;          /* ~720 bytes: never a local */
     static char line[MEDIASEARCH_LINE_MAX];
-    uint32_t written = 0, skipped = 0;
-    bool ok = true;
+    uint32_t written = 0, skipped = 0, undecodable = 0;
+    uint32_t base = 0;                  /* file offset of s_buf[0] */
+    size_t   have = 0;
+    uint32_t j = 0;                     /* the next offset wanted */
+    bool ok = true, eof = false;
 
-    for (uint32_t i = 0; i < live && ok; i++) {
+    while (ok && !eof && j < live) {
         if (abort && *abort) { ok = false; break; }
 
-        if (!mediacat_session_read(s_off[i], &cat)) {
-            /* One unreadable line is not a reason to have no search at
-             * all: the index still points at it and browsing still
-             * shows it, so the track is missing from search results and
-             * nothing else. A file this happens to a lot of is a file
-             * the next reconcile rebuilds anyway. */
-            skipped++;
-            continue;
-        }
-        const int len = mediasearch_encode(&cat, s_off[i], line, sizeof(line));
-        if (len < 0) { skipped++; continue; }
+        const size_t got = storage_io_fread(s_buf + have, SEARCH_BLOCK, in, CLS);
+        have += got;
+        if (got == 0) eof = true;
 
-        storage_io_acquire(CLS);
-        ok = fwrite(line, 1, (size_t)len, out) == (size_t)len;
-        storage_io_release();
-        if (ok) written++;
+        size_t used = 0;
+        while (used < have) {
+            char *const from = (char *)s_buf + used;
+            char *const nl = memchr(from, '\n', have - used);
+            if (!nl) break;                         /* a partial line */
+
+            const uint32_t off = base + (uint32_t)used;
+            const size_t   len = (size_t)(nl - from);
+            used += len + 1;
+
+            /* Offsets that name no line start at all: the index and the
+             * catalog disagree. Counted, not fatal -- those tracks
+             * browse and do not appear in search. */
+            while (j < live && s_off[j] < off) { skipped++; j++; }
+            if (j >= live) break;
+            if (s_off[j] != off) continue;          /* a line nobody asked for */
+
+            *nl = '\0';                             /* past it either way */
+            if (!mediacat_decode(from, &cat)) {
+                undecodable++;
+            } else {
+                const int n2 = mediasearch_encode(&cat, off, line, sizeof(line));
+                if (n2 < 0) {
+                    skipped++;
+                } else {
+                    storage_io_acquire(CLS);
+                    ok = fwrite(line, 1, (size_t)n2, out) == (size_t)n2;
+                    storage_io_release();
+                    if (!ok) break;
+                    written++;
+                }
+            }
+            /* The same line asked for twice is one line. */
+            while (j < live && s_off[j] == off) j++;
+        }
+
+        if (used) {
+            memmove(s_buf, s_buf + used, have - used);
+            base += (uint32_t)used;
+            have -= used;
+        } else if (have > MEDIACAT_LINE_MAX) {
+            /* No newline in more than the longest line the catalog can
+             * hold: this is not a catalog this build wrote. */
+            ESP_LOGW(TAG, "%s: a catalog line over %d bytes; no search file",
+                     storage_label(vol), MEDIACAT_LINE_MAX);
+            ok = false;
+        }
     }
 
     storage_io_acquire(CLS);
     if (ok) ok = fflush(out) == 0;
     storage_io_release();
     storage_io_close(out);
-    mediacat_session_close();
+    storage_io_close(in);
+    skipped += undecodable;
 
     if (!ok) {
         storage_io_acquire(CLS);
@@ -363,13 +437,22 @@ static bool search_build(storage_id_t vol, const char *mount,
     }
     storage_mark_hidden(final);
 
-    ESP_LOGI(TAG, "%s: search file %u lines of %u records in %d ms%s",
-             storage_label(vol), (unsigned)written, (unsigned)n,
-             (int)((esp_timer_get_time() - t0) / 1000),
-             skipped ? " (some records unreadable)" : "");
+    /*
+     * Live and buried are named separately because the first version of
+     * this line said "1203 lines of 1204 records" and left no way to
+     * tell which of three things that was: a tombstone with no line (it
+     * was), a record whose line would not encode, or a line the scan
+     * never found. A count that cannot be read back to a cause is a
+     * count that gets investigated twice.
+     */
+    ESP_LOGI(TAG, "%s: search file %u lines -- %u live of %u records, "
+             "%u buried, %u skipped -- in %d ms",
+             storage_label(vol), (unsigned)written, (unsigned)live,
+             (unsigned)n, (unsigned)(n - live), (unsigned)skipped,
+             (int)((esp_timer_get_time() - t0) / 1000));
     if (skipped) {
-        ESP_LOGW(TAG, "%s: %u records had no line; those tracks browse but "
-                 "do not appear in search", storage_label(vol),
+        ESP_LOGW(TAG, "%s: %u live records got no line; those tracks browse "
+                 "but do not appear in search", storage_label(vol),
                  (unsigned)skipped);
     }
     return true;

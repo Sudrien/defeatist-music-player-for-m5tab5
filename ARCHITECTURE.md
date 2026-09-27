@@ -14297,3 +14297,38 @@ to look.
 main/CMakeLists.txt REQUIRES esp_https_server -- rm sdkconfig before
 building.** `tab5_remote: up at https://...` is the line that says it
 took.
+
+### 5122 -- Wi-Fi on the remote page, over the encrypted connection
+
+Below the stations, a Wi-Fi section: the network the player is on, a
+Scan button, the scanned networks (strongest first, hidden ones left to
+the "type it" field), a password, and Join. It exists only because 5121
+made the page HTTPS -- there is no plain-HTTP path to it -- and it uses
+the portal's own join, moved rather than copied:
+
+- **wifijoin.c** is portal.c's try_join() body (portalweb_join_plan()'s
+  order, PBKDF2 for the PSK attempt, wifi_join(), wifistore_save() of
+  exactly what worked) with the portal's state left behind in portal.c.
+  This is a restructure, not a change: try_join() now reads the pending
+  pair, calls wifijoin_try(), and records the result, as it did before.
+  scanned_net()'s auth switch moved with it as wifijoin_net().
+- **The remote's side** (remote.c) runs a scan or a join on a worker task
+  made for the one job (6 KB, gone afterwards), never on the httpd task,
+  which would stop answering the page and its WebSocket for the length
+  of a join. The page polls GET /wifi once a second while one runs.
+  POST /wifi/scan and /wifi/join answer with the same status object.
+  Fields and refusals are h_join()'s, in the same words.
+- **Refused while the setup portal runs**: that is the other page that
+  can join, and two joins on one radio at once is a race. Busy while a
+  scan or join is already running.
+
+**Over Wi-Fi the page warns first.** Joining a different network drops
+the connection the page came in on, so the page says so above the form,
+and the result is on the player's NET tab. Over the cable -- the socket's
+local address is compared with ethernet_ip() -- the warning is hidden and
+the page gets the answer. A failed join leaves wifi.c's worker to go
+back to the saved networks, as it does after any lost association.
+
+remote.c was syntax-checked against esp_https_server.h with its
+dependencies stubbed; wifijoin.c is portal.c's code moved. The page was
+driven headless against mocked endpoints. Not on the board.

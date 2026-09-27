@@ -15,9 +15,12 @@
 #include "esp_https_server.h"
 #include "esp_log.h"
 #include "esp_timer.h"
+#include "esp_wifi.h"          /* ESP_ERR_WIFI_PASSWORD */
 #include "freertos/FreeRTOS.h"
 #include "freertos/queue.h"
 #include "freertos/semphr.h"
+#include "freertos/task.h"
+#include "lwip/sockets.h"
 
 #include "devcert.h"
 #include "ethernet.h"
@@ -28,6 +31,8 @@
 #include "stations.h"
 #include "remoteproto.h"
 #include "waveform.h"
+#include "wifijoin.h"
+#include "wifistore.h"
 #include "wifi.h"
 
 static const char *TAG = "tab5_remote";
@@ -186,6 +191,249 @@ static esp_err_t h_art(httpd_req_t *req)
     const esp_err_t err = httpd_resp_send(req, (const char *)img, (ssize_t)len);
     free(img);
     return err;
+}
+
+/* ---- Wi-Fi (5122) ------------------------------------------------------ */
+
+/*
+ * Scanning and joining from the page. Both block for seconds -- a scan
+ * about four, a join up to thirty -- so they run on a worker task made
+ * for the one job and gone after it, never on the httpd task, which
+ * would stop answering the page (and the WebSocket) while it waited.
+ * The page polls GET /wifi for the result.
+ *
+ * The join is wifijoin_try(), the portal's own: tried before it is
+ * saved, PSK or passphrase by what the scan saw. It only runs over the
+ * encrypted connection 5121 made -- there is no plain-HTTP path to it.
+ *
+ * Refused while the setup portal runs: that is the other page that can
+ * join, and two joins on one radio at once is a race nobody can read.
+ */
+typedef enum { W_IDLE = 0, W_SCANNING, W_TRYING, W_JOINED, W_FAILED } wstate_t;
+
+#define W_SEEN_MAX  (32)
+
+static volatile wstate_t s_w_state;
+static volatile bool     s_w_busy;          /* a worker exists */
+static char              s_w_ssid[WIFISTORE_SSID_MAX + 1];
+static char              s_w_msg[160];
+static wifi_seen_t      *s_w_seen;          /* PSRAM, W_SEEN_MAX */
+static int               s_w_seen_n;
+static char              s_w_pass[WIFISTORE_SECRET_MAX + 1];
+
+static void w_set(wstate_t st, const char *msg)
+{
+    xSemaphoreTake(s_mu, portMAX_DELAY);
+    s_w_state = st;
+    snprintf(s_w_msg, sizeof(s_w_msg), "%s", msg ? msg : "");
+    xSemaphoreGive(s_mu);
+}
+
+static void w_scan(void)
+{
+    static wifi_seen_t raw[64];         /* 2.4 KB: static, not the worker's stack */
+    const int n = wifi_scan_list(raw, 64);
+    xSemaphoreTake(s_mu, portMAX_DELAY);
+    s_w_seen_n = 0;
+    for (int i = 0; i < n && s_w_seen_n < W_SEEN_MAX; i++) {
+        if (raw[i].hidden) continue;
+        bool dup = false;
+        for (int k = 0; k < s_w_seen_n; k++) {
+            if (strcmp(s_w_seen[k].ssid, raw[i].ssid) == 0) { dup = true; break; }
+        }
+        if (!dup) s_w_seen[s_w_seen_n++] = raw[i];
+    }
+    xSemaphoreGive(s_mu);
+    if (n < 0) w_set(W_IDLE, "Could not scan. Is Wi-Fi on, on the player?");
+    else       w_set(W_IDLE, "");
+}
+
+static void w_join(void)
+{
+    char ssid[sizeof(s_w_ssid)], pass[sizeof(s_w_pass)];
+    xSemaphoreTake(s_mu, portMAX_DELAY);
+    memcpy(ssid, s_w_ssid, sizeof(ssid));
+    memcpy(pass, s_w_pass, sizeof(pass));
+    memset(s_w_pass, 0, sizeof(s_w_pass));
+    portalweb_net_t net = PORTALWEB_NET_UNKNOWN;
+    for (int i = 0; i < s_w_seen_n; i++) {
+        if (strcmp(s_w_seen[i].ssid, ssid) == 0) { net = wifijoin_net(s_w_seen[i].auth); break; }
+    }
+    xSemaphoreGive(s_mu);
+
+    const esp_err_t err = wifijoin_try(TAG, ssid, pass, net);
+    memset(pass, 0, sizeof(pass));
+
+    char msg[160];
+    switch (err) {
+    case ESP_OK:
+        snprintf(msg, sizeof(msg), "Joined and saved %.32s.", ssid); break;
+    case ESP_ERR_NOT_FOUND:
+        snprintf(msg, sizeof(msg), "%.32s was not found. Is it in range?", ssid); break;
+    case ESP_ERR_WIFI_PASSWORD:
+        snprintf(msg, sizeof(msg), "%.32s refused the password.", ssid); break;
+    case ESP_ERR_TIMEOUT:
+        snprintf(msg, sizeof(msg), "%.32s did not answer.", ssid); break;
+    case ESP_ERR_INVALID_STATE:
+        snprintf(msg, sizeof(msg), "Wi-Fi is off on the player."); break;
+    default:
+        snprintf(msg, sizeof(msg), "Could not join %.32s (%s).", ssid, esp_err_to_name(err)); break;
+    }
+    w_set(err == ESP_OK ? W_JOINED : W_FAILED, msg);
+}
+
+static void w_task(void *arg)
+{
+    if ((intptr_t)arg == W_SCANNING) w_scan();
+    else                             w_join();
+    s_w_busy = false;
+    vTaskDelete(NULL);
+}
+
+static bool w_start(wstate_t job, const char *msg)
+{
+    if (s_w_busy) return false;
+    s_w_busy = true;
+    w_set(job, msg);
+    /* 6 KB: PBKDF2 and wifi_join()'s waits, nothing large -- the scan's
+     * buffer is static above. Internal RAM for as long as the job runs. */
+    if (xTaskCreate(w_task, "remote_wifi", 6144, (void *)(intptr_t)job, 3, NULL) != pdPASS) {
+        s_w_busy = false;
+        w_set(W_FAILED, "The player could not start that. Try again.");
+        return false;
+    }
+    return true;
+}
+
+/* Whether this request arrived on the cable -- the one case where a join
+ * does not cut the page off from the answer. */
+static bool on_cable(httpd_req_t *req)
+{
+    char eth[20];
+    if (!ethernet_ip(eth, sizeof(eth))) return false;
+    struct sockaddr_storage a;
+    socklen_t al = sizeof(a);
+    if (getsockname(httpd_req_to_sockfd(req), (struct sockaddr *)&a, &al) != 0) return false;
+    char mine[48] = "";
+    if (a.ss_family == AF_INET) {
+        inet_ntop(AF_INET, &((struct sockaddr_in *)&a)->sin_addr, mine, sizeof(mine));
+    } else if (a.ss_family == AF_INET6) {
+        /* IPv4-mapped (::ffff:a.b.c.d) is how an IPv4 peer arrives on a
+         * dual-stack socket. */
+        const struct sockaddr_in6 *s6 = (const struct sockaddr_in6 *)&a;
+        inet_ntop(AF_INET, &s6->sin6_addr.s6_addr[12], mine, sizeof(mine));
+    }
+    return strcmp(mine, eth) == 0;
+}
+
+static esp_err_t h_wifi(httpd_req_t *req)
+{
+    static char esc[WIFISTORE_SSID_MAX * 6 + 4];
+    static char line[WIFISTORE_SSID_MAX * 6 + 64];
+    static const char *const names[] = { "idle", "scanning", "trying", "joined", "failed" };
+
+    httpd_resp_set_type(req, "application/json");
+    httpd_resp_set_hdr(req, "Cache-Control", "no-store");
+
+    char cur[WIFISTORE_SSID_MAX + 1] = "";
+    (void)wifi_sta_ssid(cur, sizeof(cur));
+    remoteproto_json_str(cur, esc, sizeof(esc));
+    snprintf(line, sizeof(line), "{\"current\":%s,\"cable\":%s,\"setup\":%s,\"state\":\"%s\",\"msg\":",
+             esc, on_cable(req) ? "true" : "false", portal_running() ? "true" : "false",
+             names[s_w_state]);
+    httpd_resp_send_chunk(req, line, HTTPD_RESP_USE_STRLEN);
+
+    xSemaphoreTake(s_mu, portMAX_DELAY);
+    remoteproto_json_str(s_w_msg, line, sizeof(line));
+    xSemaphoreGive(s_mu);
+    httpd_resp_send_chunk(req, line, HTTPD_RESP_USE_STRLEN);
+    httpd_resp_send_chunk(req, ",\"nets\":[", HTTPD_RESP_USE_STRLEN);
+
+    for (int i = 0; ; i++) {
+        wifi_seen_t w;
+        xSemaphoreTake(s_mu, portMAX_DELAY);
+        const bool more = i < s_w_seen_n;
+        if (more) w = s_w_seen[i];
+        xSemaphoreGive(s_mu);
+        if (!more) break;
+        remoteproto_json_str(w.ssid, esc, sizeof(esc));
+        snprintf(line, sizeof(line), "%s{\"s\":%s,\"a\":\"%s\",\"r\":%d}",
+                 i ? "," : "", esc, wifi_auth_name(w.auth), w.rssi);
+        httpd_resp_send_chunk(req, line, HTTPD_RESP_USE_STRLEN);
+    }
+    httpd_resp_send_chunk(req, "]}", 2);
+    return httpd_resp_send_chunk(req, NULL, 0);
+}
+
+static esp_err_t h_wifi_scan(httpd_req_t *req)
+{
+    if (portal_running()) w_set(W_IDLE, "Network setup is running on the player; use that page.");
+    else if (!w_start(W_SCANNING, "Scanning…")) w_set(s_w_state, "Busy; try again in a moment.");
+    return h_wifi(req);
+}
+
+static esp_err_t h_wifi_join(httpd_req_t *req)
+{
+    static char body[512];
+    static char chosen[129], typed[129], ssid[129];
+    static char pass[WIFISTORE_SECRET_MAX + 1];
+
+    if (portal_running()) {
+        w_set(W_IDLE, "Network setup is running on the player; use that page.");
+        return h_wifi(req);
+    }
+    if (s_w_busy) {
+        w_set(s_w_state, "Busy; try again in a moment.");
+        return h_wifi(req);
+    }
+    if (req->content_len == 0 || req->content_len > sizeof(body)) {
+        w_set(W_FAILED, "That form was too large to be a network name and a password.");
+        return h_wifi(req);
+    }
+    size_t got = 0;
+    while (got < req->content_len) {
+        const int n = httpd_req_recv(req, body + got, req->content_len - got);
+        if (n == HTTPD_SOCK_ERR_TIMEOUT) continue;
+        if (n <= 0) { memset(body, 0, sizeof(body)); return ESP_FAIL; }
+        got += (size_t)n;
+    }
+    /* The portal's h_join() fields and checks, so the two forms refuse
+     * the same things in the same words. */
+    if (!portalweb_field(body, got, "ssid", chosen, sizeof(chosen))) chosen[0] = '\0';
+    if (!portalweb_field(body, got, "ssid_other", typed, sizeof(typed))) typed[0] = '\0';
+    snprintf(ssid, sizeof(ssid), "%s", portalweb_pick_ssid(chosen, typed));
+    const bool have_pass = portalweb_field(body, got, "pass", pass, sizeof(pass));
+    memset(body, 0, sizeof(body));
+
+    const portalweb_check_t c = (ssid[0] && have_pass) ? portalweb_check(ssid, pass)
+                              : (ssid[0] ? PORTALWEB_BAD_SECRET : PORTALWEB_BAD_SSID);
+    const char *problem =
+        c == PORTALWEB_BAD_SSID   ? "A network name is 1 to 32 characters." :
+        c == PORTALWEB_NO_SECRET  ? "Open networks are not supported yet." :
+        c == PORTALWEB_BAD_SECRET ? "A Wi-Fi password is 8 to 63 characters, or 64 hex digits." :
+        c == PORTALWEB_NON_ASCII  ? "The password has a character a Wi-Fi password cannot "
+                                    "have -- often a phone's smart punctuation. Retype it "
+                                    "with that turned off." : NULL;
+    if (problem) {
+        memset(pass, 0, sizeof(pass));
+        w_set(W_FAILED, problem);
+        return h_wifi(req);
+    }
+
+    xSemaphoreTake(s_mu, portMAX_DELAY);
+    snprintf(s_w_ssid, sizeof(s_w_ssid), "%.32s", ssid);
+    memcpy(s_w_pass, pass, sizeof(s_w_pass));
+    xSemaphoreGive(s_mu);
+    memset(pass, 0, sizeof(pass));
+
+    char msg[96];
+    snprintf(msg, sizeof(msg), "Trying %.32s…", ssid);
+    if (!w_start(W_TRYING, msg)) {
+        xSemaphoreTake(s_mu, portMAX_DELAY);
+        memset(s_w_pass, 0, sizeof(s_w_pass));
+        xSemaphoreGive(s_mu);
+    }
+    return h_wifi(req);
 }
 
 /* ---- stations (5120) --------------------------------------------------- */
@@ -414,7 +662,7 @@ static void start(void)
     cfg.httpd.ctrl_port = REMOTE_CTRL_PORT;
     cfg.httpd.max_open_sockets = REMOTE_SOCKETS;
     cfg.httpd.lru_purge_enable = true;
-    cfg.httpd.max_uri_handlers = 7;
+    cfg.httpd.max_uri_handlers = 10;
     cfg.port_secure = REMOTE_PORT;
     cfg.servercert = (const uint8_t *)crt;
     cfg.servercert_len = crt_len;
@@ -432,6 +680,9 @@ static void start(void)
         { .uri = "/favicon.ico", .method = HTTP_GET, .handler = h_icon },
         { .uri = "/stations", .method = HTTP_GET,  .handler = h_stations },
         { .uri = "/station",  .method = HTTP_POST, .handler = h_station_add },
+        { .uri = "/wifi",      .method = HTTP_GET,  .handler = h_wifi },
+        { .uri = "/wifi/scan", .method = HTTP_POST, .handler = h_wifi_scan },
+        { .uri = "/wifi/join", .method = HTTP_POST, .handler = h_wifi_join },
         { .uri = "/ws",  .method = HTTP_GET, .handler = h_ws, .is_websocket = true },
     };
     for (size_t i = 0; i < sizeof(uris) / sizeof(uris[0]); i++) {
@@ -462,11 +713,12 @@ void remote_init(void)
     s_wave = heap_caps_calloc(1, REMOTE_WAVE_MAX, MALLOC_CAP_SPIRAM | MALLOC_CAP_8BIT);
     s_build = heap_caps_calloc(1, REMOTE_WAVE_MAX, MALLOC_CAP_SPIRAM | MALLOC_CAP_8BIT);
     s_levels = heap_caps_calloc(1, FRAMEWALK_MAX_COLUMNS, MALLOC_CAP_SPIRAM | MALLOC_CAP_8BIT);
+    s_w_seen = heap_caps_calloc(W_SEEN_MAX, sizeof(wifi_seen_t), MALLOC_CAP_SPIRAM | MALLOC_CAP_8BIT);
 }
 
 void remote_poll(bool want)
 {
-    if (!s_q || !s_mu || !s_json || !s_wave || !s_build || !s_levels) return;
+    if (!s_q || !s_mu || !s_json || !s_wave || !s_build || !s_levels || !s_w_seen) return;
     char ip[20];
     const bool net = have_ip(ip, sizeof(ip));
     /* 5120: the portal has port 80 while it runs; see REMOTE_PORT. */

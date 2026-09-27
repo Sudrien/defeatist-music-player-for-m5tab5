@@ -35,6 +35,12 @@ html, body { height: auto; }
 .below .msg.bad { color: var(--fill); }
 .below ul { list-style: none; padding: 0; margin: 0; border-top: 1px solid #2a2a2a; }
 .below li { padding: .55em 0; border-bottom: 1px solid #2a2a2a; }
+.below select { font: inherit; padding: .6em .7em; border-radius: 8px;
+  border: 1px solid #444; background: #1c1c1c; color: var(--thumb); }
+.below .row { display: flex; gap: .8em; align-items: center; flex-wrap: wrap; }
+.below .ghost { background: #2a2a2a; color: var(--thumb); }
+.below .warn { color: var(--star); }
+#wifi { margin-top: 2.4em; }
 .fold { position: fixed; left: 50%; bottom: 6px; transform: translateX(-50%);
   color: var(--icon-off); font-size: 13px; pointer-events: none; transition: opacity .2s; }
 button { font: inherit; color: inherit; background: none; border: 0; padding: 0;
@@ -217,6 +223,27 @@ svg { display: block; width: 100%; height: 100%; }
   </form>
   <p id="have"></p>
   <ul id="list"></ul>
+
+  <section id="wifi">
+    <h2>Wi-Fi</h2>
+    <p id="wcur"></p>
+    <p class="warn" id="wwarn" hidden>You are reaching the player over Wi-Fi. Joining a
+      different network drops this page; the player's NET tab shows which network it
+      ended up on, and if the join fails it goes back to its saved networks within a minute.</p>
+    <form id="wf">
+      <div class="row">
+        <button type="button" class="ghost" id="wscan">Scan</button>
+        <span class="msg" id="wmsg"></span>
+      </div>
+      <label>Network<select name="ssid" id="wsel">
+        <option value="">Other or hidden network (type it below)</option></select></label>
+      <label>Or type a network name<input name="ssid_other" maxlength="32" autocomplete="off"
+        autocapitalize="none" placeholder="only if not in the list"></label>
+      <label>Password<input name="pass" type="password" maxlength="64" autocomplete="off" required></label>
+      <button id="wjoin">Join</button>
+    </form>
+    <p>Tried before it is saved. Only over this encrypted page &mdash; never in the clear.</p>
+  </section>
 </section>
 
 <script>
@@ -413,6 +440,48 @@ $("addf").addEventListener("submit", async e => {
   } catch { m.textContent = "The player did not answer."; m.className = "msg bad"; }
   b.disabled = false; loadStations();
 });
+/* ---- Wi-Fi, below the stations (5122) ---- */
+let wPoll = 0;
+function wShow(j) {
+  $("wcur").textContent = j.current ? "The player is on " + j.current + (j.cable ? ", and you are on its cable." : ".")
+                                    : (j.cable ? "The player is on its cable only." : "");
+  $("wwarn").hidden = j.cable;
+  const m = $("wmsg"); m.textContent = j.msg;
+  m.className = j.state === "failed" ? "msg bad" : "msg";
+  const busy = j.state === "scanning" || j.state === "trying" || j.setup;
+  $("wscan").disabled = busy; $("wjoin").disabled = busy;
+  const sel = $("wsel"), keep = sel.value;
+  if (j.nets.length || sel.options.length === 1) {
+    sel.length = 0;
+    for (const n of j.nets) {
+      const o = new Option(`${n.s} \u2014 ${n.a}, ${n.r} dBm`, n.s);
+      sel.add(o);
+    }
+    sel.add(new Option("Other or hidden network (type it below)", ""));
+    sel.value = keep && [...sel.options].some(o => o.value === keep) ? keep : sel.options[0].value;
+  }
+  clearTimeout(wPoll);
+  if (j.state === "scanning" || j.state === "trying") wPoll = setTimeout(wLoad, 1000);
+}
+async function wLoad() {
+  try { wShow(await (await fetch("/wifi", { cache: "no-store" })).json()); }
+  catch { clearTimeout(wPoll); wPoll = setTimeout(wLoad, 3000); }
+}
+async function wPost(path, body) {
+  try {
+    wShow(await (await fetch(path, { method: "POST", body,
+      headers: { "Content-Type": "application/x-www-form-urlencoded" } })).json());
+  } catch { $("wmsg").textContent = "The player did not answer."; }
+}
+$("wscan").onclick = () => wPost("/wifi/scan", "");
+$("wf").addEventListener("submit", e => {
+  e.preventDefault();
+  const body = new URLSearchParams(new FormData(e.target)).toString();
+  e.target.pass.value = "";
+  wPost("/wifi/join", body);
+});
+wLoad();
+
 addEventListener("scroll", () => { $("fold").style.opacity = scrollY > 40 ? 0 : 1; }, { passive: true });
 loadStations();
 

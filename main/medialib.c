@@ -16,6 +16,7 @@
 #include "esp_heap_caps.h"
 #include "esp_log.h"
 #include "esp_timer.h"
+#include "jsonpick.h"
 #include "freertos/FreeRTOS.h"
 #include "freertos/task.h"
 #include "mediacat.h"
@@ -411,9 +412,44 @@ static bool search_build(storage_id_t vol, const char *mount,
             if (s_off[j] != off) continue;          /* a line nobody asked for */
 
             *nl = '\0';                             /* past it either way */
-            if (!mediacat_decode(from, &cat)) {
+
+            /*
+             * FOUR FIELD LOOKUPS, NOT A JSON PARSE.
+             *
+             * mediacat_decode() builds a cJSON document per line, and
+             * that was the last of the time: after both passes were
+             * streamed the board still said 6614 ms against about
+             * 1600 ms for the catalog's own read, and the remaining five
+             * seconds were 1203 cJSON parses with their allocations, not
+             * I/O at all. Three rounds of this pass, three different
+             * costs, and only the first was the one I went looking for.
+             *
+             * jsonpick_string() is the tool the project already had for
+             * exactly this -- one string field out of one flat object,
+             * no allocation, no document -- and a catalog line is a flat
+             * object of scalars, which is what its contract requires. It
+             * is used as it stands: four calls for four string fields,
+             * not extended, which its header forbids in capitals.
+             *
+             * The numbers are not read, and do not need to be: the only
+             * one that matters here is deleted_at, and the index's DEAD
+             * flag already answered it -- that is what s_off was built
+             * from. If a line were a tombstone while the index called it
+             * live, the index is stale, which is already the case that
+             * says rebuild.
+             */
+            memset(&cat, 0, sizeof(cat));
+            if (!jsonpick_string(from, len, "path", cat.path,
+                                 sizeof(cat.path))) {
                 undecodable++;
             } else {
+                jsonpick_string(from, len, "title", cat.title,
+                                sizeof(cat.title));
+                jsonpick_string(from, len, "artist", cat.artist,
+                                sizeof(cat.artist));
+                jsonpick_string(from, len, "album", cat.album,
+                                sizeof(cat.album));
+
                 const int n2 = mediasearch_encode(&cat, off, line, sizeof(line));
                 if (n2 < 0) {
                     skipped++;

@@ -230,6 +230,9 @@ typedef struct {
     /* 5106: the record button's state. While true the player also puts
      * the recording's name and length where the track's text goes. */
     bool recording;
+    /* False with no card or drive to record to: the record detent is
+     * drawn as a red X instead of a red dot. */
+    bool rec_ok;
 } ui_state_t;
 
 /* What a touch produced. The player acts on these; the UI never acts. */

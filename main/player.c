@@ -7720,6 +7720,15 @@ static void ui_task(void *arg)
                 s_rec_count = (int)((left + 999999) / 1000000);
             }
         }
+        /* Nothing to record to: say so now, not after the countdown,
+         * and leave the switch on pause. */
+        if (act.kind == UI_ACTION_RECORD && !recorder_active() && !s_rec_at_us &&
+            !recorder_can_start()) {
+            ESP_LOGI(TAG, "record refused: no media");
+            player_force_pause();
+            notice_post("Cannot record", "Insert a card or a USB drive to record to.");
+            act.kind = UI_ACTION_NONE;
+        }
         if (act.kind == UI_ACTION_RECORD && !recorder_active() && !s_rec_at_us) {
             player_force_pause();
             s_rec_at_us = esp_timer_get_time() + REC_COUNTDOWN_S * 1000000LL;
@@ -8027,6 +8036,7 @@ static void ui_task(void *arg)
         st.ext_power = battery_external();
         recording_overlay(&st);         /* 5106: pos_sec was just rewritten */
         if (s_rec_count > 0) st.recording = true;   /* the knob stays on record */
+        st.rec_ok = recorder_can_start();
         ui_draw(&st);
 
         /* 50 Hz under a finger, 25 Hz while the title is travelling, 10 Hz

@@ -436,6 +436,11 @@ void recorder_stop(void)
 
 bool recorder_active(void) { return s_active; }
 
+bool recorder_can_start(void)
+{
+    return storage_present(STORAGE_SD) || storage_present(STORAGE_USB);
+}
+
 void recorder_status(recorder_status_t *out)
 {
     memset(out, 0, sizeof(*out));

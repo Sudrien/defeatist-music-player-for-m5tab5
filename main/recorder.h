@@ -54,6 +54,14 @@ bool recorder_start(char *why, size_t why_len);
 void recorder_stop(void);
 
 bool recorder_active(void);
+
+/*
+ * Is there anywhere to record to? The same volume check recorder_start()
+ * opens with, and nothing more -- no allocation, no file. For the switch,
+ * which marks the record detent unavailable and refuses the slide up
+ * front rather than after the countdown. recorder_start() still decides.
+ */
+bool recorder_can_start(void);
 void recorder_status(recorder_status_t *out);
 
 /*

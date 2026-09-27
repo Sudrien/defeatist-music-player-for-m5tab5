@@ -706,7 +706,7 @@ static void draw_play_tri(int x, int y, int h, uint16_t c)
     }
 }
 
-static void draw_play_pause(bool playing, bool recording)
+static void draw_play_pause(bool playing, bool recording, bool rec_ok)
 {
     int cx, cy;
     play_centre(&cx, &cy);
@@ -725,7 +725,19 @@ static void draw_play_pause(bool playing, bool recording)
      * red and play's arrow green, as on the knob, except where the track
      * is already that colour's neighbour and they would vanish. */
     const uint16_t hint = recording || playing ? C_BG : C_ICON_OFF;
-    if (pos != -1) gfx_fill_circle(cx - KNOB_THROW, cy, 10, recording ? C_BG : C_FILL);
+    if (pos != -1) {
+        const int rx = cx - KNOB_THROW;
+        if (rec_ok) {
+            gfx_fill_circle(rx, cy, 10, recording ? C_BG : C_FILL);
+        } else {
+            /* Nothing to record to: an X where the dot goes, drawn as
+             * two thick diagonals. */
+            for (int d = -10; d <= 10; d++) {
+                gfx_fill_rect(rx + d - 2, cy + d - 2, 5, 5, C_FILL);
+                gfx_fill_rect(rx + d - 2, cy - d - 2, 5, 5, C_FILL);
+            }
+        }
+    }
     if (pos != 0)  draw_pause_bars(cx, cy, 10, hint);
     if (pos != 1)  draw_play_tri(cx + KNOB_THROW, cy, 10, recording ? C_BG : C_PLAY_ON);
 
@@ -2159,7 +2171,7 @@ void ui_draw(const ui_state_t *st)
     draw_skip(cx, cy, false, true);
     next_centre(&cx, &cy);
     draw_skip(cx, cy, true, st->has_next);
-    draw_play_pause(st->playing, st->recording);
+    draw_play_pause(st->playing, st->recording, st->rec_ok);
 
     ui_blit_bar();
 }

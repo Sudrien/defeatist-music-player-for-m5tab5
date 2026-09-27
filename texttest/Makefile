@@ -79,6 +79,7 @@ MENUSCROLL_BIN := menuscrolltest
 # like cardtimetest.
 MEDIAINDEX_BIN := mediaindextest
 MEDIALIST_BIN := medialisttest
+MEDIASEARCH_BIN := mediasearchtest
 
 # The media walk, over a real directory tree in /tmp: the order the
 # index needs, and completeness-or-failure. Compiles the real
@@ -238,7 +239,7 @@ NETLINK_BIN := netlinktest
 # ../test_audio_files so the bytes under test are the bytes on the card.
 CUE_BIN := cuesheettest
 
-all: run-remote run run-ctrl run-wifi run-clock run-rotate run-cardtime run-mediaindex run-medialist run-mediawalk run-mediasync run-menuscroll run-fade run-tail run-portal run-old check-ui run-bright run-sleep run-sniff run-icy run-netplan run-stations run-pcmfold run-bufplan run-stbjpeg run-addrpin run-codec run-mp3 run-framewin run-streamplan run-stationnav run-radiobrowser run-levelhist run-favmatch run-netlink run-cue run-flacenc run-beam
+all: run-remote run run-ctrl run-wifi run-clock run-rotate run-cardtime run-mediaindex run-medialist run-mediasearch run-mediawalk run-mediasync run-menuscroll run-fade run-tail run-portal run-old check-ui run-bright run-sleep run-sniff run-icy run-netplan run-stations run-pcmfold run-bufplan run-stbjpeg run-addrpin run-codec run-mp3 run-framewin run-streamplan run-stationnav run-radiobrowser run-levelhist run-favmatch run-netlink run-cue run-flacenc run-beam
 
 $(BIN): $(SRCS) shim.h ../main/gfx.h ../components/ark12/ark12.h
 	$(CC) $(CFLAGS) -o $@ $(SRCS) $(LDFLAGS)
@@ -291,6 +292,13 @@ $(MEDIALIST_BIN): medialisttest.c ../main/medialist.h ../main/mediaindex.h
 
 run-medialist: $(MEDIALIST_BIN)
 	ASAN_OPTIONS=detect_leaks=1:abort_on_error=0 ./$(MEDIALIST_BIN)
+
+$(MEDIASEARCH_BIN): mediasearchtest.c ../main/mediasearch.h ../main/mediacat.h
+	$(CC) $(WARNCFLAGS) -c mediasearchtest.c -o /dev/null
+	$(CC) $(CFLAGS) -D_GNU_SOURCE -o $@ mediasearchtest.c $(LDFLAGS)
+
+run-mediasearch: $(MEDIASEARCH_BIN)
+	ASAN_OPTIONS=detect_leaks=1:abort_on_error=0 ./$(MEDIASEARCH_BIN)
 
 $(MEDIAWALK_BIN): mediawalktest.c ../main/mediawalk.c ../main/mediawalk.h ../main/mediadir.h ../main/mediaindex.h shim.c shim.h
 	$(CC) $(WARNCFLAGS) -c mediawalktest.c -o /dev/null
@@ -423,7 +431,7 @@ run-old: $(OLD_BINS)
 	done
 
 clean:
-	rm -f $(BIN) $(CTRL_BIN) $(WIFI_BIN) $(CLOCK_BIN) $(FADE_BIN) $(TAIL_BIN) $(PORTAL_BIN) $(REMOTE_BIN) $(OLD_BINS) $(BRIGHT_BIN) $(SLEEP_BIN) $(SNIFF_BIN) $(ICY_BIN) $(NETPLAN_BIN) $(STATION_BIN) $(BUFPLAN_BIN) $(CODEC_BIN) $(MP3_BIN) $(FRAMEWIN_BIN) $(STREAMPLAN_BIN) $(STATIONNAV_BIN) $(RADIOBROWSER_BIN) $(LEVELHIST_BIN) $(SGAIN_BIN) $(JSONPICK_BIN) $(FAVMATCH_BIN) $(FLACENC_BIN) $(BEAM_BIN) $(NETLINK_BIN) $(CUE_BIN) $(ROTATE_BIN) $(CARDTIME_BIN) $(MEDIAINDEX_BIN) $(MEDIALIST_BIN) $(MEDIAWALK_BIN) $(MEDIASYNC_BIN) $(MENUSCROLL_BIN) $(STBJPEG_BIN) $(ADDRPIN_BIN)
+	rm -f $(BIN) $(CTRL_BIN) $(WIFI_BIN) $(CLOCK_BIN) $(FADE_BIN) $(TAIL_BIN) $(PORTAL_BIN) $(REMOTE_BIN) $(OLD_BINS) $(BRIGHT_BIN) $(SLEEP_BIN) $(SNIFF_BIN) $(ICY_BIN) $(NETPLAN_BIN) $(STATION_BIN) $(BUFPLAN_BIN) $(CODEC_BIN) $(MP3_BIN) $(FRAMEWIN_BIN) $(STREAMPLAN_BIN) $(STATIONNAV_BIN) $(RADIOBROWSER_BIN) $(LEVELHIST_BIN) $(SGAIN_BIN) $(JSONPICK_BIN) $(FAVMATCH_BIN) $(FLACENC_BIN) $(BEAM_BIN) $(NETLINK_BIN) $(CUE_BIN) $(ROTATE_BIN) $(CARDTIME_BIN) $(MEDIAINDEX_BIN) $(MEDIALIST_BIN) $(MEDIASEARCH_BIN) $(MEDIAWALK_BIN) $(MEDIASYNC_BIN) $(MENUSCROLL_BIN) $(STBJPEG_BIN) $(ADDRPIN_BIN)
 	rm -rf $(BIN).dSYM $(CTRL_BIN).dSYM $(WIFI_BIN).dSYM $(CLOCK_BIN).dSYM $(FADE_BIN).dSYM $(TAIL_BIN).dSYM $(PORTAL_BIN).dSYM
 	rm -rf $(addsuffix .dSYM,$(OLD_BINS))
 
@@ -559,4 +567,4 @@ check-ui:
 		$(CC) $(WARNCFLAGS) -c $$f -o /dev/null || exit 1; \
 	done
 
-.PHONY: all run-pcmfold run run-ctrl run-wifi run-clock run-rotate run-cardtime run-mediaindex run-medialist run-mediawalk run-mediasync run-menuscroll run-fade run-tail run-portal run-old check-ui run-bright run-sleep run-sniff run-icy run-netplan run-stations run-pcmfold run-bufplan run-stbjpeg run-addrpin run-codec run-mp3 run-framewin run-streamplan run-stationnav run-radiobrowser run-levelhist run-favmatch run-netlink run-cue run-flacenc run-beam clean
+.PHONY: all run-pcmfold run run-ctrl run-wifi run-clock run-rotate run-cardtime run-mediaindex run-medialist run-mediasearch run-mediawalk run-mediasync run-menuscroll run-fade run-tail run-portal run-old check-ui run-bright run-sleep run-sniff run-icy run-netplan run-stations run-pcmfold run-bufplan run-stbjpeg run-addrpin run-codec run-mp3 run-framewin run-streamplan run-stationnav run-radiobrowser run-levelhist run-favmatch run-netlink run-cue run-flacenc run-beam clean

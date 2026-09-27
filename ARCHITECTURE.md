@@ -15226,3 +15226,99 @@ while `remote_state_t` carries whole seconds, so a caller filling one from
 the other multiplies by 1000 and the decimals are zeros: honest, and
 fixable only by widening the snapshot and the `ui_task` pass that fills
 it, which is not this patch.
+
+### 5156 -- The four modes, and the one MPD setting this device has not got
+
+`MPD.md` step 7, taken before step 9 because step 9 needs a board and this
+does not, and because 5155's `status` has four mode booleans that nothing
+fills. `mpdmode.h`/`.c`: one enum of four states (`playlist.h:23-28`,
+cycled by the button at `browser.c:1410`) against MPD's four independent
+booleans, which is sixteen. Written as an indexed table rather than nested
+conditions, which is what MPD.md asked for.
+
+**One direction is exact and the other is not, and the exact one is the
+surprise.** All four orders have an exact MPD equivalent, so nothing a
+listener can set on the glass is unsayable to a client. It is the reverse
+-- eight combinations of random/repeat/single onto four orders -- that
+loses, in four rows.
+
+**The missing state that matters is repeat-all**: `repeat 1` without
+`single`, "start the folder again when it ends". It is probably the most
+commonly set option in any MPD client and this device has no such mode --
+`PLAY_ORDER_ALL` stops at the end of the folder. `ALL` is the closest and
+is not exact. Named explicitly because "we support repeat" is what anyone
+assumes from a `repeat` flag existing at all, and because the flag will be
+there in `status` either way.
+
+**`consume` is a loss on top of any of the eight**, including the four
+that are otherwise exact, and it is different in kind: it removes each
+track from the queue as it plays, so it changes the list rather than the
+walk over it. Reported 0 always. It becomes implementable when the queue
+is what plays (step 4's second half) and not before. It is a field here
+rather than an omission so that there is one place to change on that day.
+
+**Two rows look exact and are not**, which is the sort of thing a mapping
+gets wrong in the direction of optimism. Random with `single` set means
+the next track is never chosen automatically, so a random ORDER never gets
+used -- but MPD's `next` would still pick randomly where
+`PLAY_ORDER_ONE`'s goes to the following track (`playlist.h:125`: ONE maps
+to ALL for the skip button, because a press is not the end of a track). The
+difference survives in the one place a listener would notice it.
+
+**What `status` reports after a client asks for something unrepresentable
+is what the device will actually do**, via `mpdmode_normalise()`. A client
+that sends `repeat 1` sees its toggle spring back to 0.
+
+That is the decision in this patch and it was not obvious. The
+alternative is storing the four flags as given and reporting them back,
+which keeps clients' toggles where the user put them -- and makes `repeat`
+read 1 while the player stops at the end of the folder. That is a field
+that is confidently wrong, which is exactly what 5155 refused to do with
+`Last-Modified`, for the same reason. A toggle that springs back is
+unpleasant and true: it tells a listener the device cannot do that, which
+is something they can act on. Neither option is nice; only one of them
+lies. Refusing with an `ACK` was the third option and is worse than both,
+because no MPD client expects `repeat 1` to fail.
+
+**Normalising is idempotent, and that is a property with a real failure
+behind it.** A client reads `status`, sees flags, and may send them
+straight back. If normalising twice differed from once, a client echoing
+what it read would walk the setting somewhere new on every round -- a mode
+that drifts while nobody touches it, which on a device looks like the
+player changing its mind. The suite checks it over all sixteen states,
+along with two stronger claims: a normalised state is always exact, and it
+is always some order's own flags.
+
+The `exact` flag is written down per row rather than computed, and the
+test checks the two agree across all sixteen -- a row whose claim
+disagrees with the round trip is a table someone edited halfway, which is
+the failure a hand-written table actually has.
+
+`_Static_assert`s pin the four enum values, because the forward table is
+indexed by the enum: adding a fifth order or reordering these four fails
+the build instead of reading the wrong row.
+
+`texttest/mpdmodetest.c` as `run-mpdmode`: 125 checks, both passes clean.
+The sixteen reverse cases are spelled out one at a time with the behaviour
+named in a comment rather than generated from the same indexing the
+implementation uses -- deliberately more typing, because a test that
+reads the table back proves the table equals itself.
+
+**Mutation-checked**, nine deliberate bugs, all nine caught:
+
+| mutation | result |
+| --- | --- |
+| ONE and REPEAT_ONE swapped in the forward table | 4 failures |
+| SHUFFLE reports repeat instead of random | 12 failures |
+| repeat-all mapped to REPEAT_ONE | 2 failures |
+| repeat-all claimed exact | 2 failures |
+| consume is not treated as a loss | 8 failures |
+| rev_index: repeat and single bits swapped | 21 failures |
+| an out-of-range order gives ONE, not the default | 2 failures |
+| normalise returns what it was given | 36 failures |
+| random+single loses to ALL instead of ONE | 2 failures |
+
+Nothing calls this yet, like `mpdqueue` and `mpduri` before it. The
+consumer is `status` on one side and, on the other, whatever sets
+`browser.c`'s `s_order` from a socket -- which is the shared mutation path
+of step 5 and does not exist.

@@ -370,6 +370,16 @@ nothing is left half-built if the series stops.
    `consume` mapping, written down as a table with the states that have
    no analogue named explicitly. Needed by MPD; the remote page can
    show them too, since it already has the order control.
+
+   **Done in 5156**, out of order -- it needs no board and `status` had
+   four booleans nothing filled. What came out of it: the four orders are
+   each EXACT in MPD's flags, so the glass loses nothing on the way out;
+   the reverse loses in four of eight rows; **repeat-all has no analogue**
+   and is the setting a client is most likely to reach for; and `consume`
+   is a loss on top of any row, being a change to the queue rather than
+   to the walk over it. `status` reports what the device will actually do
+   rather than what was asked for, so an unrepresentable toggle springs
+   back -- the argument is in `ARCHITECTURE.md`.
 8. **`mpdproto.c` and `mpdprototest`**: grammar, quoting, command lists,
    `OK`/`ACK`, and the serialisers, with nothing on a socket. `run-mpd`
    into `all:` and `.PHONY`, the binary into `clean`, both the

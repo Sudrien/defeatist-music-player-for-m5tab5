@@ -235,31 +235,34 @@ static const char *TAG = "tab5_mp3";
  * first.
  */
 /*
- * 5149: walking it down, one step, the way the note above says to. 70 is
- * the rate this panel is KNOWN to hold; 60 is the next line of the table
- * and has never been on the glass.
+ * 60 MHz WAS TRIED AND THE PANEL STROBES AT IT (5150). Back to 70.
  *
- * IF THE SCREEN IS BLACK AFTER FLASHING THIS, that is the answer, not a
- * fault: the ST7121 locks its timing generator to the incoming VSYNC and
- * stops driving the glass below its lock range rather than degrading, so
- * there is no error anywhere -- esp_lcd_panel_init() returns ESP_OK and
- * the log runs clean to the last line. The serial log still works, and
- * the line panel_init() now prints says which rate was tried. Put this
- * back to 70 and reflash.
+ * This is the measurement the note above asked for, and it corrects the
+ * note's model rather than filling in its table. The reasoning there was
+ * that the ST7121 either holds lock or stops driving the glass -- 70
+ * held, 29 blanked, so the floor was somewhere between and the job was
+ * to find which step blanked first.
  *
- * What it buys if it holds: 105 MB/s of scanout becomes 90, which is the
- * fetch that underruns when USB-ECM and esp_hosted DMA collide with it
- * (see the AXI QoS note below). What it costs: 57.3 Hz becomes 49.1, and
- * whether that shows on a drag or a fade is a thing to look at rather
- * than calculate.
+ * It is not a cliff. At 60 MHz -- 49.0 Hz, measured and logged by
+ * panel_init() -- the panel drives, the UI is up and touch works, and
+ * the picture visibly strobes and flutters. So between the rate that
+ * holds and the rate that blanks there is a band where the timing
+ * generator tracks the incoming VSYNC and hunts. A rate in that band
+ * reports nothing, boots clean, and is unusable.
  *
- * DSI_LANE_RATE_MBPS is deliberately NOT changed with it. 60 MHz needs
- * 480 Mbps a lane and 700 is more margin than the ~20% Espressif
- * suggests, but the lane rate only has to be enough, the panel's lock
- * range is about frame rate and not lane rate, and moving two things at
- * once makes a black screen ambiguous.
+ * Which means the ladder cannot be walked by looking for a black screen:
+ * the first bad step is not black, it is worse than what came before in
+ * a way only an eye catches. 65 is untried and would be 53.1 Hz and
+ * 98 MB/s -- a 7% saving on the fetch, for a step that may well flutter
+ * too, since 60 does.
+ *
+ * NOT WORTH MORE STEPS AT PRESENT. What the whole ladder was for is the
+ * DSI underrun, and that is one frame once or twice a session
+ * (ARCHITECTURE calls it a non-bug). A screen that flutters all the time
+ * to avoid a frame that tears twice an hour is a bad trade, and 70 is
+ * the only rate this panel is known to hold cleanly.
  */
-#define DPI_CLOCK_MHZ           (60)
+#define DPI_CLOCK_MHZ           (70)
 
 /*
  * DSI bridge underruns, counted in the ISR.

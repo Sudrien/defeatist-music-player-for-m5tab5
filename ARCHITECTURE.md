@@ -14824,38 +14824,3 @@ and the two radio-browser failures either side of it -- an mbedtls
 handshake returning -0x0050 and a getaddrinfo returning 202 -- cleared
 on their own, with the click report succeeding two seconds afterwards.
 Transient, on two different mirrors, and not obviously the player's.
-
-### 5149-5150 -- The refresh ladder has a band in it, not a cliff
-
-The note above `DPI_CLOCK_MHZ` had said since the 0500s how to find the
-panel's real refresh floor -- walk down a step at a time, reflash at
-each, and watch for the black screen that means the ST7121 has dropped
-out of lock. 5149 took the first step, 70 -> 60 MHz, and added a line to
-`panel_init()` that prints what the rate actually came out as, computed
-from the timing the peripheral was handed:
-
-    DPI 60 MHz: 802 x 1524 total, 49.0 Hz, 90 MB/s of scanout
-
-**The panel did not blank. It strobes.** The UI comes up, touch works,
-the log is clean, and the picture visibly flutters. So the model in the
-note was wrong in a way worth recording: between the rate that holds and
-the rate that blanks there is a BAND where the timing generator tracks
-the incoming VSYNC and hunts, and a rate inside it boots clean and is
-unusable.
-
-That changes how the ladder would have to be walked. The first bad step
-is not black -- it is worse than the step before in a way only an eye
-catches, with nothing in any log to say so. 65 MHz is untried; it would
-be 53.1 Hz and 98 MB/s, a 7% saving on the fetch, and 60 fluttering is
-reason to expect it might too.
-
-**Reverted to 70 and not pursued.** The whole ladder exists for the DSI
-underrun, which is one frame once or twice a session and already
-classified as a non-bug. A screen that flutters continuously to avoid a
-frame that tears twice an hour is the wrong trade. 70 MHz, 57.2 Hz,
-105 MB/s is the only rate this panel is known to hold cleanly.
-
-The timing line stays. It costs nothing, it is computed from the config
-rather than from the table in the comment -- so the two cannot drift
-apart -- and it is the only evidence available if anybody tries this
-again.

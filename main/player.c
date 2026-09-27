@@ -234,34 +234,6 @@ static const char *TAG = "tab5_mp3";
  * and shrinking that carries no risk of anything going dark. Do that
  * first.
  */
-/*
- * 60 MHz WAS TRIED AND THE PANEL STROBES AT IT (5150). Back to 70.
- *
- * This is the measurement the note above asked for, and it corrects the
- * note's model rather than filling in its table. The reasoning there was
- * that the ST7121 either holds lock or stops driving the glass -- 70
- * held, 29 blanked, so the floor was somewhere between and the job was
- * to find which step blanked first.
- *
- * It is not a cliff. At 60 MHz -- 49.0 Hz, measured and logged by
- * panel_init() -- the panel drives, the UI is up and touch works, and
- * the picture visibly strobes and flutters. So between the rate that
- * holds and the rate that blanks there is a band where the timing
- * generator tracks the incoming VSYNC and hunts. A rate in that band
- * reports nothing, boots clean, and is unusable.
- *
- * Which means the ladder cannot be walked by looking for a black screen:
- * the first bad step is not black, it is worse than what came before in
- * a way only an eye catches. 65 is untried and would be 53.1 Hz and
- * 98 MB/s -- a 7% saving on the fetch, for a step that may well flutter
- * too, since 60 does.
- *
- * NOT WORTH MORE STEPS AT PRESENT. What the whole ladder was for is the
- * DSI underrun, and that is one frame once or twice a session
- * (ARCHITECTURE calls it a non-bug). A screen that flutters all the time
- * to avoid a frame that tears twice an hour is a bad trade, and 70 is
- * the only rate this panel is known to hold cleanly.
- */
 #define DPI_CLOCK_MHZ           (70)
 
 /*
@@ -1078,32 +1050,6 @@ static esp_err_t panel_init(void)
     ESP_RETURN_ON_ERROR(esp_lcd_panel_reset(s_panel), TAG, "reset");
     ESP_RETURN_ON_ERROR(esp_lcd_panel_init(s_panel), TAG, "init");
     ESP_RETURN_ON_ERROR(esp_lcd_panel_disp_on_off(s_panel, true), TAG, "disp on");
-    /*
-     * What the rate above actually came out as, computed from the same
-     * timing the peripheral was given rather than from the table in the
-     * comment -- a table and a config that disagree is how a walk down
-     * this ladder would end up measuring the wrong thing. It is also the
-     * only evidence available when the answer is a black screen.
-     */
-    {
-        const uint32_t htot = (uint32_t)dpi.video_timing.h_size +
-                              dpi.video_timing.hsync_pulse_width +
-                              dpi.video_timing.hsync_back_porch +
-                              dpi.video_timing.hsync_front_porch;
-        const uint32_t vtot = (uint32_t)dpi.video_timing.v_size +
-                              dpi.video_timing.vsync_pulse_width +
-                              dpi.video_timing.vsync_back_porch +
-                              dpi.video_timing.vsync_front_porch;
-        const uint64_t total = (uint64_t)htot * vtot;
-        const uint64_t hz10  = ((uint64_t)DPI_CLOCK_MHZ * 1000000ull * 10) / total;
-        const uint64_t bps   = ((uint64_t)LCD_H_RES * LCD_V_RES * 2ull *
-                                (uint64_t)DPI_CLOCK_MHZ * 1000000ull) / total;
-        ESP_LOGI(TAG, "DPI %d MHz: %u x %u total, %u.%u Hz, %u MB/s of scanout",
-                 DPI_CLOCK_MHZ, (unsigned)htot, (unsigned)vtot,
-                 (unsigned)(hz10 / 10), (unsigned)(hz10 % 10),
-                 (unsigned)(bps / 1000000));
-    }
-
     ESP_LOGI(TAG, "ST7121 initialised (%dx%d)", LCD_H_RES, LCD_V_RES);
     return ESP_OK;
 }

@@ -203,9 +203,30 @@ static mwalk_result_t walk(void *ctx, mwalk_fn fn, void *wctx)
  * catalog order is as good as any.
  */
 #define SEARCH_BLOCK    (16 * 1024)     /* the arbiter's chunk */
+_Static_assert(SEARCH_BLOCK % MIDX_REC_SIZE == 0,
+               "the index pass reads whole records out of a block");
 static uint32_t *s_off;             /* PSRAM: live records' catalog offsets */
 static uint32_t  s_off_cap;
 static uint8_t  *s_buf;             /* PSRAM: the catalog scan's block */
+
+/*
+ * The block both passes read through. SEARCH_BLOCK is the arbiter's
+ * chunk and an exact multiple of MIDX_REC_SIZE (128 records), so the
+ * index pass never has a record split across two blocks; the catalog
+ * pass carries a partial line and needs the extra MEDIACAT_LINE_MAX.
+ *
+ * PSRAM for the reason every other buffer in this file is: internal RAM
+ * is what the tasks' stacks need, and the boot heap map has two
+ * internal pools flat out already.
+ */
+static bool search_buf(void)
+{
+    if (!s_buf) {
+        s_buf = heap_caps_malloc(SEARCH_BLOCK + MEDIACAT_LINE_MAX,
+                                 MALLOC_CAP_SPIRAM | MALLOC_CAP_8BIT);
+    }
+    return s_buf != NULL;
+}
 
 static int cmp_off(const void *a, const void *b)
 {
@@ -272,33 +293,70 @@ static bool search_build(storage_id_t vol, const char *mount,
         }
     }
 
-    /* Pass one: the live records' offsets, out of the index. */
-    uint32_t live = 0;
-    for (uint32_t i = 0; i < n; i++) {
+    if (!search_buf()) {
+        storage_io_close(ix);
+        ESP_LOGW(TAG, "%s: no PSRAM for the index scan; no search file",
+                 storage_label(vol));
+        return false;
+    }
+
+    /*
+     * Pass one: the live records' offsets, out of the index -- READ
+     * SEQUENTIALLY, for the reason pass two is.
+     *
+     * 5131 fixed the catalog and left this alone, and the board showed
+     * exactly what that was worth: 20373 ms became 8252 ms, when one
+     * sequential read of the catalog costs about 1600 ms. The missing
+     * six seconds were here. A storage_io_read_at() per record is an
+     * fseek() per record, and fseek() discards the stdio buffer, so
+     * 1204 records meant 1204 seeks to fetch 128 bytes each -- the same
+     * mistake in the other pass.
+     *
+     * The index is fixed-width and this walks it in order, so there is
+     * nothing to seek for: whole blocks, and the records come out of
+     * them.
+     */
+    storage_io_acquire(CLS);
+    const bool rewound = fseek(ix, 0, SEEK_SET) == 0;
+    storage_io_release();
+    if (!rewound) {
+        storage_io_close(ix);
+        return false;
+    }
+
+    uint32_t live = 0, seen = 0;
+    bool bad = false;
+
+    while (seen < n && !bad) {
         if (abort && *abort) {
             storage_io_close(ix);
             ESP_LOGI(TAG, "%s: search file abandoned", storage_label(vol));
             return false;
         }
-        uint8_t raw[MIDX_REC_SIZE];
-        if (!storage_io_read_at(ix, (long)i * MIDX_REC_SIZE, raw,
-                                sizeof(raw), CLS)) {
-            ESP_LOGW(TAG, "%s: index read failed at record %u",
-                     storage_label(vol), (unsigned)i);
-            storage_io_close(ix);
-            return false;
+
+        const size_t got = storage_io_fread(s_buf, SEARCH_BLOCK, ix, CLS);
+        const uint32_t recs = (uint32_t)(got / MIDX_REC_SIZE);
+        if (recs == 0) {
+            ESP_LOGW(TAG, "%s: the index ended after %u of %u records",
+                     storage_label(vol), (unsigned)seen, (unsigned)n);
+            bad = true;
+            break;
         }
-        midx_rec_t rec;
-        if (!midx_rec_unpack(raw, &rec)) {
-            ESP_LOGW(TAG, "%s: record %u is not a record; no search file",
-                     storage_label(vol), (unsigned)i);
-            storage_io_close(ix);
-            return false;
+
+        for (uint32_t k = 0; k < recs && seen < n; k++, seen++) {
+            midx_rec_t rec;
+            if (!midx_rec_unpack(s_buf + (size_t)k * MIDX_REC_SIZE, &rec)) {
+                ESP_LOGW(TAG, "%s: record %u is not a record; no search file",
+                         storage_label(vol), (unsigned)seen);
+                bad = true;
+                break;
+            }
+            if (rec.flags & MIDX_F_DEAD) continue;  /* no line for the dead */
+            s_off[live++] = rec.cat_off;
         }
-        if (rec.flags & MIDX_F_DEAD) continue;      /* no line for the dead */
-        s_off[live++] = rec.cat_off;
     }
     storage_io_close(ix);
+    if (bad) return false;
 
     qsort(s_off, live, sizeof(uint32_t), cmp_off);
 
@@ -317,24 +375,6 @@ static bool search_build(storage_id_t vol, const char *mount,
     if (!out) {
         storage_io_close(in);
         ESP_LOGW(TAG, "%s: cannot write %s", storage_label(vol), temp);
-        return false;
-    }
-
-    /*
-     * A block, plus room for a line that straddles the end of one. The
-     * buffer is PSRAM for the reason every other buffer in this file is:
-     * internal RAM is what the tasks' stacks need, and the boot heap map
-     * shows two internal pools already flat out.
-     */
-    if (!s_buf) {
-        s_buf = heap_caps_malloc(SEARCH_BLOCK + MEDIACAT_LINE_MAX,
-                                 MALLOC_CAP_SPIRAM | MALLOC_CAP_8BIT);
-    }
-    if (!s_buf) {
-        storage_io_close(in);
-        storage_io_close(out);
-        ESP_LOGW(TAG, "%s: no PSRAM for the catalog scan; no search file",
-                 storage_label(vol));
         return false;
     }
 

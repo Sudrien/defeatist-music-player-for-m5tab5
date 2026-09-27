@@ -1,0 +1,339 @@
+# MPD support
+
+A plan, not a description. Nothing here is built. `ARCHITECTURE.md` is
+for code that exists, `MEDIA-INDEX.md` is the library this leans on, and
+this is the reasoning behind serving the MPD protocol so that the
+decisions already argued out do not have to be argued again.
+
+The target is **full queue semantics** -- a control client that can
+`add`, `delete`, `move`, `playid`, and see song ids and positions, not
+just browse and press play. That decision is what makes this expensive,
+and most of what follows is the consequence of it.
+
+
+## The one hard problem, stated first
+
+**MPD's queue and `playlist.c` are not the same object, and cannot be
+made into the same object by adding functions to `playlist.c`.**
+
+What is there now (`playlist.h:2-8`) is a *folder*: `playlist_load_dir()`
+reads one directory, filters it by `storage_is_hidden()`,
+`decoder_supports()` and `cuedir_hides()`, expands cue sheets, and
+`qsort`s the result. There is no append, no insert, no remove, no move.
+Order is a function of the directory's contents, not a thing anyone
+chose. `PLAYLIST_MAX` is 1024 pointers in PSRAM; the strings themselves
+are `strdup()` into internal heap.
+
+What MPD asks for is a *list someone built*: arbitrary tracks from
+anywhere on either volume, in an order the client set, each with a
+stable id that survives a move, plus `random`, `repeat`, `single` and
+`consume` as four independent flags.
+
+Three specific collisions, in the order they will bite:
+
+**Order is derived, so it cannot be edited.** Every `playlist_load_dir()`
+re-sorts (`playlist.c:117`). An MPD `move 3 0` has to survive the next
+thing that touches the list, and today nothing survives a load.
+
+**The four modes are one enum.** `play_order_t` (`playlist.h:23-28`) is
+`ONE | ALL | SHUFFLE | REPEAT_ONE`, and it lives in `browser.c`, read
+through `browser_order()`. MPD has four booleans, which is sixteen
+states; the enum covers four of them. `consume` has no analogue at all
+and changes the queue rather than the traversal. This mapping is lossy
+in both directions and the mapping table is a thing to write down, not
+to improvise per command.
+
+**The playlist hands out pointers it later frees.** `playlist_path()`
+admits the invalidation (`playlist.h:54-56`), and `playlist_peek_next()`
+(`playlist.c:158-169`) returns a raw `s_paths[i]` that `prefetch_next()`
+(`player.c:5512`) then carries across `storage_io_open()`,
+`covertag_extract_art()` and `sidecar_prime()` -- hundreds of
+milliseconds of card I/O. `playlist_clear()` (`playlist.c:37`) `free()`s
+every entry. Today that is safe only because the sole mutator is
+`ui_task` at rare user events. A queue a client can rewrite over TCP
+while a track is playing turns it into a use-after-free, and the
+`s_track_gen` checks (`player.c:5530, 5556, 5602`) do not help: they sit
+*between* stages, not during a read.
+
+**There is no lock.** Not a mutex, not a critical section, nowhere in
+`playlist.c`. And the "only ui_task mutates" rule is already bent:
+`playlist_next()` is called on `media_task` at `player.c:13626` and
+`playlist_peek_next()` on `media_task` at `player.c:5514`.
+
+So the queue is a new module with its own storage and its own ownership
+rule. `playlist.c` stays what it is -- the chooser's folder -- and the
+two are bridged, not merged. Which way that bridge runs is the next
+section.
+
+
+## The queue: one list, two producers
+
+The proposal is `mpdqueue.c`, a list of entries
+
+    { char *path;  uint32_t id;  }
+
+in PSRAM, holding **the same 1024 ceiling** as `PLAYLIST_MAX` for now
+(the reasons the existing number is 1024 have not changed: PSRAM is
+already carrying the 256 KB netstream ring, the framebuffer, two
+~142 KB cover entries and the decoders' scratch -- `MEDIA-INDEX.md`,
+"Memory"). Ids are a monotonic `uint32_t` never reused within a boot,
+which is what MPD means by a song id.
+
+**And `playlist.c` becomes a view of it, not a peer.** This is the
+decision to argue about, so here is the argument.
+
+The alternative -- two lists, one for the glass and one for the
+protocol, with "which is playing" arbitrated somewhere -- was
+considered and rejected. It means two sources of truth for the next
+track, and `player_loop()` at `player.c:13626` has exactly one line
+that decides what plays next. Two lists means that line grows a mode
+flag, and every one of the three rings (`ARCHITECTURE.md`, 1201/1204/
+1210 -- the three places that each assumed the decode was one track
+ahead) has to be re-reasoned for both. That is the shape of bug the
+1200 series was spent on.
+
+So: **a folder tap fills the queue.** `BROWSER_PLAY_FILE` and
+`BROWSER_PLAY_FOLDER` (`player.c:7248-7275`) come to mean "replace the
+queue with this folder, set current". The user-visible behaviour of the
+glass does not change -- tapping a folder still plays that folder, in
+that order, from the top -- but the thing being filled is the queue, and
+an MPD client watching `idle playlist` sees it happen. `playlist.c`'s
+internal array is then read *from* the queue rather than from `readdir`,
+or, more likely, `playlist.c`'s array simply becomes the queue's array
+and the file shrinks to the sort-and-filter half of what it does now.
+
+**Entries are never freed while they may be read.** The pointer problem
+above is solved by the queue owning its strings for the life of the
+boot, or by copying rather than borrowing at the two places that
+currently borrow (`playlist_peek_next()` into `prefetch_next()`, and
+`playlist_path()` into `request_track()`). Copying is the smaller
+change and 512 bytes on a heap allocation is not the expensive part of
+prefetch; it should be done *before* anything can mutate the queue from
+a socket, as its own patch, and it stands on its own merits even if
+MPD is never finished.
+
+**Ownership: ui_task mutates, everyone else asks.** The established
+pattern is `remote.c`'s: a `SemaphoreHandle_t s_mu` (`remote.c:880`)
+guarding a one-slot request (`remote.c:565-567, 746-751, 670-681`),
+drained by `ui_task` at the top of its pass (`player.c:7004-7043`), plus
+an `xQueueSend(..., 0)` for presses that is dropped when full
+(`remote.c:757`). The MPD server task copies it exactly and **never
+calls `playlist_*` or `request_track()` itself**.
+
+But a one-slot mailbox is wrong for a queue. `add` three hundred times
+is three hundred requests, and dropping them silently -- which is what
+the transport queue does -- would be a client's queue quietly losing
+tracks. Two consequences:
+
+- the mutation request carries a **whole command**, not a keystroke, and
+  a `command_list_begin`/`command_list_end` block arrives as one;
+- the server task **waits for the request to be serviced** before
+  answering `OK`, because MPD is synchronous: a client that gets `OK`
+  from `add` and then `playlistinfo` expects to see the track. A
+  `xQueueSend` with a real timeout, and an `xSemaphoreTake` on a
+  completion, rather than fire-and-forget.
+
+That is a blocking call on a socket task, which is fine there and would
+not be on `media_task`.
+
+
+## What the protocol layer looks like
+
+`mpdproto.c` -- pure C, no ESP-IDF includes, host-testable -- and
+`mpd.c`, the socket and the task. Split for the reason `remoteproto.c`
+is split from `remote.c` (`remoteproto.h:8-12`), and so that the
+grammar can be fuzzed and mutation-checked the way `texttest/README.md`
+requires.
+
+**In `mpdproto.c`:** the greeting, argument tokenising (MPD quotes with
+`"` and escapes with `\`, which `remoteproto.c`'s "one verb, one word"
+parser does not do), the command table, `OK`/`ACK` framing with the five
+`ACK` error codes, command lists (`command_list_begin` and
+`command_list_ok_begin`, which differ in whether each sub-command gets
+its own `list_OK`), and the `key: value\n` serialisers for `status`,
+`currentsong`, `playlistinfo` and `lsinfo`.
+
+**Reused verbatim: `remoteproto_path_ok()`** (`remoteproto.c:38-67`). It
+is pure, it is already host-tested, and every MPD verb that names a
+thing on a card -- `add`, `addid`, `load`, `lsinfo`, `listall`, `find`
+with a `file` term -- needs exactly its rules. It should be called from
+`mpdproto.c` rather than reimplemented, and the texttest rule for the
+MPD binary links both files.
+
+**Not reused: the JSON.** `remoteproto_state_json()` emits a browser's
+object; MPD wants lines. But `remote_state_t` (`remoteproto.h:96-119`)
+already carries every field `status` and `currentsong` need -- state,
+volume, elapsed, duration, title, artist, album, path -- filled once per
+`ui_task` pass at `player.c:8070-8085`. The right move is to export that
+snapshot (a `remote_state_snapshot()`, or have `remote_publish()` hand
+the filled struct to an `mpd_publish()` beside it) so there is one
+place the player's state is read, not two.
+
+**The UTF-8 repair in `put_str()` (`remoteproto.c:162-190`) is needed
+here too.** A browser closes a WebSocket carrying invalid UTF-8; an MPD
+client will not close the connection but will show mojibake or, in some
+clients, drop the response. Latin-1 ID3 tags off a card produce exactly
+this. Same function, different escaping.
+
+### The version to claim
+
+The greeting is `OK MPD <version>`, and clients gate features on it.
+Claiming a high version and then `ACK`ing half of what it implies is
+worse than claiming a low one: a client that believes in `albumart` and
+`readpicture` will ask. The number to claim is the lowest that covers
+the verb list actually implemented, decided when the list is final, and
+written in one place with a comment saying which verb forced it.
+
+### Ports, sockets, and the switch
+
+Port 6600 collides with nothing. The 80/443 dance
+(`remote.c:906-907`) is specific to the captive portal wanting port 80
+(`portal.c:615-621`); MPD needs no part of it. The listener comes up on
+the same edges as the remote -- `want && have_ip()`, polled from
+`ui_task` (`player.c:7001`) -- behind its own settings switch copying
+`settings_remote_enabled()` exactly (`settings.c:383-390`, three places:
+the read, the key-parse and the write), off by default, card not NVS.
+
+**Socket budget is the real constraint.** `CONFIG_LWIP_MAX_SOCKETS` is
+not set in `sdkconfig.defaults`, so it is IDF's default of **10**.
+Already spoken for: portal httpd 4, portal DNS 1, remote HTTPS 4, remote
+plain 2 -- eleven if everything were up, which is *why* the plain server
+yields. An MPD listener plus clients comes out of the same ten. Either
+budget hard (listener + 2 clients, refusing the third with a close) or
+raise the limit -- and raising it touches `sdkconfig.defaults`, which
+per `CLAUDE.md` means `rm sdkconfig` before the next build, a note in
+the commit message, and a line in the log that proves the new value
+took.
+
+The task: 4-6 KB, the portal/remote precedent (`portal.c:902`,
+`remote.c:306`), priority 3. It must never call `netdec_open()` --
+`NETDEC_MIN_STACK` is 24576 (`netdec.h:150`) and `netdec_open()`
+measures its caller and refuses, which is the right failure but not one
+to design into.
+
+
+## `idle` is not optional, and it is where this gets subtle
+
+`idle` is how every modern client avoids polling: the client sends
+`idle`, the server says nothing until something changes, then names the
+changed subsystems and the client re-reads. Getting it wrong makes MALP
+and ncmpcpp feel broken in a way that looks like a network fault.
+
+Three things follow:
+
+- **An idling client holds a socket open indefinitely**, which is the
+  other half of the socket budget above.
+- **Events must be latched per connection, not broadcast.** A change
+  that happens between a client's `OK` and its next `idle` must still be
+  delivered on that `idle`; a client that misses a `playlist` event
+  shows a stale queue forever. Each connection carries a bitmask of
+  pending subsystems, set by the publisher, cleared when reported.
+- **`noidle` must be answerable while the connection is blocked**, which
+  means the read is the thing that wakes, not a sleep.
+
+Subsystems this device can actually raise: `player`, `mixer`,
+`playlist`, `options`, `update` (the reindex, `medialib_busy()`,
+`medialib.h:95`), `database` (a completed reindex), and `output`. The
+publisher is `remote_publish()`'s neighbour: it already computes "has
+anything changed" once per `ui_task` pass with the position-slip rules
+(`remote.c:977-993`), and that same diff feeds the idle mask.
+
+
+## The library side: what MPD asks that the index already answers
+
+`MEDIA-INDEX.md` settled the storage and 5010-5019 built it: the catalog
+`.defeatist.cat` (`mediacat.h`), the fixed-width path-ordered index
+`.defeatist.ix2` with `midx_seek()` / `midx_find()` / `midx_child()`
+(`mediaindex.h:494, 519, 538`), the walk, reconcile, and a reindex on
+mount.
+
+What is **not** built is a query layer above it. There is no function
+that answers "list this directory, both volumes merged, SD preferred" --
+which is `lsinfo`, and which `MEDIA-INDEX.md` already decided the shape
+of (point 3, "Two volumes: one merged library, SD preferred"). That
+layer is the prerequisite for `lsinfo`, `listall`, `listallinfo` and
+`playlistinfo`'s tag fields, and it is useful to the web UI on its own.
+
+And the **search file does not exist** (`MEDIA-INDEX.md` point 2: one
+plain line per track, lowercased tags and the catalog offset, scanned
+without a JSON parser, rebuilt from the catalog like the index). MPD's
+`search` and `find` are whole-card questions and `MEDIA-INDEX.md`'s own
+closing paragraph says the index is justified by search and not by
+browsing. So the search file is not a nicety here; it is the thing the
+index was built for.
+
+`listallinfo` is deprecated upstream and should be answered but not
+optimised for. `lsinfo` being per-directory is the saving grace already
+noted.
+
+
+## The staging
+
+Numbers from **5124** (5123 is the last; check `git log` and the series
+heading at the end of `ARCHITECTURE.md` before taking one, per
+`CLAUDE.md` -- the 1000 series was restarted once by a session that did
+not look). Each of these is a patch or a small run of them, and the
+order is chosen so that every step is independently justifiable and
+nothing is left half-built if the series stops.
+
+1. **Copy, do not borrow, at the two prefetch/request sites.** Removes
+   the use-after-free that a mutable queue would otherwise create, and
+   is correct on its own merits today. No MPD in it at all.
+2. **The query layer over the index**: merged two-volume directory
+   listing and single-path lookup, SD preferred, in the order
+   `midx_path_cmp()` defines (not `strcmp`, and not the chooser's
+   folders-first order -- `MEDIA-INDEX.md`, "The order is not strcmp").
+   Host-testable against a synthetic index.
+3. **The search file**, derived and rebuilt beside `.ix2`, with the
+   version-in-the-name rule (`medialib.h`, `MEDIALIB_OLD_INDEX_NAMES`).
+4. **`mpdqueue.c`**: the queue with ids, and `playlist.c` reduced to a
+   view of it. The glass behaves identically; nothing listens on a
+   socket yet. This is the largest and riskiest patch in the series and
+   probably wants to be two -- the queue, then the switch-over -- with
+   the commit message saying plainly that restructuring was the smallest
+   correct change (`CLAUDE.md`).
+5. **The four modes.** The `play_order_t` ↔ `random`/`repeat`/`single`/
+   `consume` mapping, written down as a table with the states that have
+   no analogue named explicitly.
+6. **`mpdproto.c` and `mpdprototest`**: grammar, quoting, command lists,
+   `OK`/`ACK`, and the serialisers, with nothing on a socket. `run-mpd`
+   into `all:` and `.PHONY`, the binary into `clean`, both the
+   warnings-only `-O2 -Werror` pass and the sanitiser pass
+   (`texttest/Makefile:30-37, 394-399`), and the test written
+   independently of the implementation rather than sharing its
+   assumptions.
+7. **`mpd.c`**: the listener, the task, the settings switch, the panel
+   row, the socket budget decision. `status`, `currentsong`, the
+   transport verbs, `setvol`.
+8. **`idle`**, with the per-connection latch.
+9. **The queue verbs**: `add`, `addid`, `delete`, `deleteid`, `move`,
+   `moveid`, `playid`, `clear`, `shuffle`, `plchanges`.
+10. **Browsing and search**: `lsinfo`, `listall`, `find`, `search`,
+    `list`.
+11. **Stored playlists**, if at all: `load`, `save`, `listplaylists`.
+    The device has `starred.m3u` (1207-1209) and `stations.m3u`, so the
+    format is not new, but this is the first thing on the list that is
+    optional.
+
+Nothing here has been on hardware, nothing has been built, and steps 1
+and 2 are worth doing whatever happens to the rest.
+
+
+## What would make this not worth building
+
+Worth writing down, as `MEDIA-INDEX.md` did. **Full queue semantics is
+the expensive half, and it is the half the device may not want.** This
+is a player with a screen, and the screen's model is "a folder is what
+plays". A queue a phone can reorder is a second model of what is
+playing, and steps 1, 4 and 5 above exist entirely to make the two
+models one.
+
+If, on picking this up, the answer to "what do you actually do with
+it" is "see what is playing and skip a track from the sofa", then
+steps 4, 5, 9 and 11 come out, `playlist.c` is left alone, the queue
+verbs are `ACK`ed as unsupported, and what remains is steps 2, 6, 7, 8
+and 10 -- a browse-and-control MPD server that is perhaps a third of
+the work and carries none of the use-after-free risk.
+
+That question is worth asking again before step 4, which is the point
+of no return.

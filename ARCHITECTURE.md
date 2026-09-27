@@ -14185,3 +14185,15 @@ artwork (the cover is served for files only). remote.c was
 syntax-checked against ESP-IDF 5.5's esp_http_server.h with
 -Wall -Wextra -Werror; the page was driven headless in Chromium against a
 fake socket at 390x844, 844x390 and 1400x900. Not on the board.
+
+### 5118 -- The remote starts from the panel it is switched on in
+
+On the board 5117's switch did nothing: `remote control on`, the
+address arrived two seconds later, and no `tab5_remote: up at` line
+ever followed, so the note never showed an address. remote_poll() sat
+beside remote_publish() at the bottom of ui_task's loop, and the panel,
+the chooser and the sleep page each `continue` before reaching it -- so
+a switch that lives on the panel could not start the server until the
+panel was closed. It runs at the top of every pass now. remote_publish()
+stays where the ui_state_t is built; a page open while the panel is up
+keeps the last state until it closes.

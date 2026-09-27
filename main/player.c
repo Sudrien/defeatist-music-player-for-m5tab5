@@ -6990,6 +6990,15 @@ static void ui_task(void *arg)
         const bool bdown = touch_get(&bx, &by);
 
         sleep_timer_tick();
+        /*
+         * 5118: the remote's start and stop, every pass. It was beside
+         * remote_publish() at the bottom, which the panel, the chooser
+         * and the sleep page all `continue` before reaching -- so the
+         * switch, which is ON the panel, could not start the server
+         * until the panel was closed, and its note never showed the
+         * address it was waiting for.
+         */
+        remote_poll(settings_remote_enabled());
         /* The media index on mount. Here because this loop runs whether
          * or not anything is playing; see medialib.h. */
         medialib_poll();
@@ -8046,7 +8055,6 @@ static void ui_task(void *arg)
          * told, so the two cannot disagree. Before ui_draw(), which
          * returns early with the screen off -- a remote is most useful
          * exactly then. */
-        remote_poll(settings_remote_enabled());
         remote_publish(&st, s_shown_path, s_rec_count);
         ui_draw(&st);
 

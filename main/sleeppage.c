@@ -8,6 +8,7 @@
 #include "esp_log.h"
 #include "gfx.h"
 #include "menuscroll.h"
+#include "screendim.h"
 #include "settings.h"
 #include "sleeptimer.h"
 
@@ -169,12 +170,30 @@ static void rotation_box(int *x, int *y, int *w, int *h)
     *h = OPTION_H;
 }
 
-static void timer_box(int *x, int *y, int *w, int *h)
+/*
+ * Dim sits with the screen rows and above the timer, which is the
+ * grouping rotation_box()'s note already states: what the screen is
+ * doing, then what the music is about to stop doing. It is last of the
+ * three because it is the one a listener sets once.
+ */
+#define DIM_NOTE_LINES  (2)
+
+static void dim_box(int *x, int *y, int *w, int *h)
 {
     int rx, ry, rw, rh;
     rotation_box(&rx, &ry, &rw, &rh);
     *x = 0;
     *y = ry + rh + NOTE_GAP + ROT_NOTE_LINES * NOTE_STEP + GAP;
+    *w = gfx_w();
+    *h = OPTION_H;
+}
+
+static void timer_box(int *x, int *y, int *w, int *h)
+{
+    int dx, dy, dw, dh;
+    dim_box(&dx, &dy, &dw, &dh);
+    *x = 0;
+    *y = dy + dh + NOTE_GAP + DIM_NOTE_LINES * NOTE_STEP + GAP;
     *w = gfx_w();
     *h = SLIDER_H;
 }
@@ -298,6 +317,39 @@ void sleeppage_draw(void)
             "the cable is at the wrong end.",
         };
         gfx_draw_text(24, y + bh + NOTE_GAP, note[0], LABEL_SCALE, w - 48, C_DIM);
+    }
+
+    /* --- Dim screen -------------------------------------------------- */
+    dim_box(&x, &y, &bw, &bh);
+    {
+        const int step = settings_dim_step();
+        gfx_fill_rect(x, y, bw, bh, C_ROW);
+        gfx_draw_text(24, y + (bh - GFX_GLYPH_H(NAME_SCALE)) / 2, "Dim screen",
+                      NAME_SCALE, 400, C_TEXT);
+
+        /* Rotation's pill, same size and place, so the two line up. Lit
+         * for any interval and dark for Never, which is the same rule as
+         * the row above: lit means "not as it shipped". */
+        const int pw = 132, ph = 56;
+        const int px = w - 24 - pw, py = y + (bh - ph) / 2;
+        const char *text = screendim_label(step);
+        gfx_fill_rect(px, py, pw, ph, step ? C_ON : C_BTN);
+        const int tw = gfx_text_w(text, NAME_SCALE);
+        gfx_draw_text(px + (pw - tw) / 2, py + (ph - GFX_GLYPH_H(NAME_SCALE)) / 2,
+                      text, NAME_SCALE, pw - 8, step ? C_BG : C_DIM);
+    }
+    {
+        /* Two lines, and the second is the one worth the room: somebody
+         * will read "dim" as a screen-saving measure against burn-in,
+         * which an LCD does not have. */
+        static const char *const note[] = {
+            "After this long without a touch the screen drops to half "
+            "brightness. Any touch puts it back.",
+            "For backlight life and battery. This panel cannot burn in.",
+        };
+        gfx_draw_text(24, y + bh + NOTE_GAP, note[0], LABEL_SCALE, w - 48, C_DIM);
+        gfx_draw_text(24, y + bh + NOTE_GAP + NOTE_STEP, note[1],
+                      LABEL_SCALE, w - 48, C_FAINT);
     }
 
     /* --- Sleep timer ----------------------------------------------- */
@@ -535,6 +587,23 @@ sleeppage_result_t sleeppage_touch(bool down, int x, int y)
         ESP_LOGI(TAG, "rotation: %d", want * 90);
         s_dirty = true;
         return SLEEPPAGE_FLIP;
+    }
+
+    /* Whole row, and before the Screen row for rotation_box()'s reason:
+     * the Screen row's test is the one that turns the backlight off, and
+     * a row that fell through to it would be a misplaced tap with a
+     * consequence. */
+    dim_box(&bx, &by, &bw, &bh);
+    if (y >= by && y < by + bh) {
+        /* Five positions, so it cycles: Never, 15 s, 30 s, 1 min, 2 min
+         * and round. Never is in the cycle rather than being a separate
+         * off switch, because it is one of the five choices and not a
+         * different kind of thing. */
+        const int want = (settings_dim_step() + 1) % (SCREENDIM_STEPS + 1);
+        settings_set_dim_step((uint8_t)want);
+        ESP_LOGI(TAG, "dim screen: %s", screendim_label(want));
+        s_dirty = true;
+        return SLEEPPAGE_DIM;
     }
 
     /* Whole row, not a pill, for panel.c's reason: a row is the target a

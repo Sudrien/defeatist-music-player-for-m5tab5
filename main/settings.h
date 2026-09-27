@@ -179,6 +179,23 @@ uint8_t settings_brightness(void);
 void settings_set_brightness(uint8_t pct);
 
 /*
+ * How long the screen waits before dimming itself, as a step in
+ * screendim.h's table: 0 never, 1..SCREENDIM_STEPS the intervals, and
+ * SCREENDIM_DEFAULT_STEP (30 s) if no record says otherwise.
+ *
+ * A step rather than a second count, for the reason brightness is a
+ * slider position rather than a duty: the five choices are the setting,
+ * and a saved number that is not one of them is not silently rounded
+ * into the nearest (screendim_step_for_seconds() reads it as Never).
+ *
+ * NOT ABOUT BURN-IN -- this is an LCD and a static picture leaves no
+ * pattern. It is backlight hours and battery. screendim.h has the whole
+ * argument.
+ */
+uint8_t settings_dim_step(void);
+void settings_set_dim_step(uint8_t step);
+
+/*
  * Whether the screen is upside down -- portrait, rotated 180 degrees.
  *
  * PORTRAIT ONLY, AND ON PURPOSE.

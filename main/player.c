@@ -98,6 +98,7 @@
 #include "portal.h"
 #include "sleeppage.h"
 #include "brightness.h"
+#include "screendim.h"
 #include "sleeptimer.h"
 #include "wifistore.h"
 #include "waveform.h"
@@ -831,10 +832,42 @@ static esp_err_t backlight_set_counts(uint32_t duty)
 #define SCREEN_FADE_MS       (800)
 #define SCREEN_FADE_FRAME_MS (16)
 
+/*
+ * The idle dim (screendim.h). ui_task owns both: `s_last_input_us` is
+ * bumped by any touch, and `s_dimmed` is what the brightness path below
+ * reads instead of a second copy of the rule.
+ *
+ * NOT A BURN-IN MEASURE. The panel is an LCD -- this file drives a PWM
+ * backlight through ledc, which is what an OLED has none of -- so a
+ * static picture ages every pixel through one lamp and leaves no
+ * pattern. This is backlight hours and battery.
+ *
+ * `s_last_input_us` starts at 0, which screendim_due() reads as "nothing
+ * has been touched yet" and refuses to dim on. That is deliberate: zero
+ * as a timestamp would otherwise dim the screen 30 s after power-on with
+ * nobody in the room, and the boot screen is the one thing somebody
+ * watching a first flash is looking at.
+ */
+static int64_t s_last_input_us;
+static bool    s_dimmed;
+
+/*
+ * The brightness to drive, which is the setting's unless the screen is
+ * dimmed. ONE FUNCTION rather than the check at each of the three places
+ * that reads the setting -- the duty, the filter and the fade's start --
+ * because a dim applied to two of the three is a screen at one
+ * brightness with another one's filter over it.
+ */
+static int effective_brightness(void)
+{
+    const int pct = settings_brightness();
+    return s_dimmed ? screendim_level(pct, SETTINGS_BRIGHTNESS_MIN) : pct;
+}
+
 /* Where the backlight goes when the screen is on. ui_task only. */
 static int screen_on_duty(void)
 {
-    return brightness_map(settings_brightness()).duty_pct;
+    return brightness_map(effective_brightness()).duty_pct;
 }
 
 /*
@@ -845,7 +878,7 @@ static int screen_on_duty(void)
  */
 static void screen_apply_filter(void)
 {
-    const int f = brightness_map(settings_brightness()).filter;
+    const int f = brightness_map(effective_brightness()).filter;
     if (f == gfx_filter()) return;
     gfx_set_filter(f);
     gfx_blit(0, gfx_h());
@@ -882,7 +915,10 @@ static void log_brightness(void)
 
 static void screen_fade_out(int ms)
 {
-    const brightness_t start = brightness_map(settings_brightness());
+    /* From where the screen actually is, which is the dimmed level when
+     * the fade follows an idle dim -- starting the fade at the setting
+     * would brighten the screen for a frame on the way out. */
+    const brightness_t start = brightness_map(effective_brightness());
     const uint32_t duty0 = (uint32_t)((LCD_LEDC_DUTY_MAX * start.duty_pct) / 100);
     const uint32_t floor_counts =
         (uint32_t)((LCD_LEDC_DUTY_MAX * BRIGHTNESS_FLOOR_PCT) / 100);
@@ -7010,6 +7046,20 @@ static void ui_task(void *arg)
         int bx = 0, by = 0;
         const bool bdown = touch_get(&bx, &by);
 
+        /*
+         * Any touch is the wake, and it is taken here because this is the
+         * one place the panel is read -- before the page handlers, which
+         * can swallow it (touch_swallow()), and before the dim check
+         * below, so a touch in the same pass as the deadline wakes rather
+         * than dims.
+         *
+         * The touch still does whatever it was going to do. A first tap
+         * that only woke the screen would be a tap the listener has to
+         * make twice, and at half brightness the screen is readable --
+         * this is a dim, not a blank.
+         */
+        if (bdown) s_last_input_us = esp_timer_get_time();
+
         sleep_timer_tick();
         /*
          * 5118: the remote's start and stop, every pass. It was beside
@@ -7067,6 +7117,31 @@ static void ui_task(void *arg)
         {
             char rh[40], rb[96];
             if (recorder_take_notice(rh, sizeof(rh), rb, sizeof(rb))) notice_post(rh, rb);
+        }
+
+        /*
+         * The idle dim. Both edges, once a pass, and the work is left to
+         * the brightness path below by setting its flag -- so the dim
+         * goes through the same duty write, the same filter and the same
+         * "only if it changed" test as a slider drag, rather than a
+         * second way to set the backlight.
+         */
+        {
+            const bool want = screendim_due(esp_timer_get_time(),
+                                            s_last_input_us,
+                                            screendim_seconds(settings_dim_step()));
+            if (want != s_dimmed) {
+                s_dimmed = want;
+                s_brightness_pending = true;
+                if (want) {
+                    ESP_LOGI(TAG, "screen dimmed to %d%% after %s untouched",
+                             effective_brightness(),
+                             screendim_label(settings_dim_step()));
+                } else {
+                    ESP_LOGI(TAG, "screen back up to %d%%",
+                             effective_brightness());
+                }
+            }
         }
 
         /* Every track start sets this, so it only writes and logs when
@@ -7210,6 +7285,22 @@ static void ui_task(void *arg)
                 sleeppage_draw();
             } else if (r == SLEEPPAGE_BRIGHTNESS_DONE) {
                 log_brightness();
+            } else if (r == SLEEPPAGE_DIM) {
+                /*
+                 * The page redraws to show the new interval, which is the
+                 * confirmation. The countdown is not restarted here: the
+                 * tap already did that at touch_get(), where every touch
+                 * does, so there is one place that knows what counts as
+                 * activity.
+                 *
+                 * Shortening the interval to something already elapsed is
+                 * handled by the check at the top of the next pass, which
+                 * will dim -- correctly, because the listener has just
+                 * said 15 s and has not touched the glass for 20. The tap
+                 * itself is the touch that stops that happening
+                 * immediately.
+                 */
+                sleeppage_draw();
             } else if (r == SLEEPPAGE_FLIP) {
                 /*
                  * The page stays open and redraws itself, which is the

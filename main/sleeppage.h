@@ -42,6 +42,11 @@ typedef enum {
                                already drawn OFF; the caller fades the
                                backlight, so the switch is seen to move,
                                then closes the page */
+    SLEEPPAGE_DIM,          /* the Dim row was tapped; settings_dim_step()
+                               is the new step. The caller restarts its
+                               idle countdown from now and puts the
+                               brightness back, because a tap on this row
+                               is a touch like any other */
     SLEEPPAGE_FLIP,         /* the Rotation switch was tapped;
                                settings_screen_rotation() is already the
                                new value, one quarter turn on from the

@@ -14787,3 +14787,40 @@ one; legal C, and safe only because `soft` keeps `have_pixels` away from
 what it skipped. `draw_in_software()` returns instead of jumping, which
 is why `-Wjump-misses-init` still reports only the two jumps that were
 already there.
+
+### 5147 -- The cable and the radio, measured: neither wants the DMA heap
+
+5146 left the scarcity in place and only took the JPEG engine out of the
+lottery, so the question was which subsystem hits it next. A cable and a
+station were the candidates. Both were run; the six baselines:
+
+                       DMA free  largest   int free   int min-ever
+    boot                  41867    25600      81427          65616
+    first jpeg              387      304      37283          35656
+    station up              151       72      26539          22372
+    remote up                19        0      15083          13436
+    ethernet up              19        0      20951           8624
+    station playing          19        0      12359           1812
+
+**Neither needs DMA-capable internal RAM.** The cable comes up with the
+figure unchanged at 19 free and a largest block of 0 -- the ECM driver's
+buffers are in PSRAM, as the boot line has always said -- and a station
+plays through at 96-103% of the bitrate it needs with the same 19 bytes
+untouched. So 5146's 388 bytes taken at boot are, for now, the whole of
+what this device needs from that heap after the radio has had it, and
+nothing else is on the coin toss.
+
+**The tight number moved, though, and it is no longer the DMA heap.**
+Ordinary internal free reaches a minimum of 1812 bytes while a stream
+starts -- TLS, the decoder and the netif all at once -- against 13436 at
+the server's start and 65616 at boot. That is the figure to watch now.
+The artwork path already watches it in its own way: "artwork requested
+61 ms after first sound (326 kbit/s of 319); DMA 19 free (largest 0)".
+
+Not a fault of this build, and recorded so it is not rediscovered: the
+USB errors in that log are the drive being pulled to make room for the
+adapter (VBUS off, then a 0bda:8152 enumerating twenty seconds later),
+and the two radio-browser failures either side of it -- an mbedtls
+handshake returning -0x0050 and a getaddrinfo returning 202 -- cleared
+on their own, with the click report succeeding two seconds afterwards.
+Transient, on two different mirrors, and not obviously the player's.

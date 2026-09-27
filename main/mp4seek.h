@@ -125,8 +125,24 @@ typedef struct {
     uint64_t duration;          /* in timescale units */
 
     uint32_t count;             /* samples */
-    uint32_t *offset;           /* byte offset of each */
-    uint32_t *size;             /* bytes */
+    /*
+     * 64-BIT BECAUSE exFAT HOLDS FILES PAST 4 GB. MP4 says so itself:
+     * co64 exists precisely because stco's 32-bit offsets ran out, and
+     * a file with co64 was refused outright here until this was
+     * widened -- on the reasoning, written in mp4seek.c, that "a FAT
+     * volume cannot hold a file this large". exFAT does, so the
+     * reasoning went and the refusal with it.
+     *
+     * Eight bytes a sample rather than four. At 1024 samples a frame
+     * and 44.1 kHz that is about 165 KB an hour of audio, in PSRAM,
+     * which is where the sample table already lives.
+     *
+     * The effective ceiling is still storage_io_read_at()'s, which is
+     * lower than this -- see its header. This is 64-bit so the table is
+     * right, not because the whole path is.
+     */
+    int64_t *offset;            /* byte offset of each */
+    uint32_t *size;             /* bytes -- a sample, never a file */
 
     /* time-to-sample, kept as the table states it rather than expanded:
      * it is nearly always one entry saying "every sample is 1024". */
@@ -135,7 +151,7 @@ typedef struct {
     int       stts_n;
 
     uint32_t cur;               /* next sample to hand out */
-    long     pos;               /* where the file handle is, so a
+    int64_t  pos;               /* where the file handle is, so a
                                  * contiguous run costs no seeks */
 } mp4_t;
 

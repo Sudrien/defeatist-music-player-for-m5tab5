@@ -10,6 +10,7 @@
  */
 
 #include <inttypes.h>
+#include <limits.h>
 #include <stdlib.h>
 #include <string.h>
 
@@ -24,7 +25,7 @@
 
 static const char *TAG = "tab5_mp4sk";
 
-static bool read_at(FILE *f, long off, void *buf, size_t len)
+static bool read_at(FILE *f, int64_t off, void *buf, size_t len)
 {
     if (off < 0) return false;
     return storage_io_read_at(f, off, buf, len, STORAGE_IO_PLAYBACK);
@@ -227,7 +228,7 @@ static bool build_tables(FILE *f, long stbl, long stbl_end, mp4_t *m,
     }
 
     m->count = count;
-    m->offset = big_alloc((size_t)count * sizeof(uint32_t));
+    m->offset = big_alloc((size_t)count * sizeof(int64_t));
     m->size = big_alloc((size_t)count * sizeof(uint32_t));
     if (!m->offset || !m->size) TFAIL("no memory for the sample table");
 
@@ -262,7 +263,7 @@ static bool build_tables(FILE *f, long stbl, long stbl_end, mp4_t *m,
         TFAIL("chunk offset box is too short for the count it states");
     }
 
-    uint32_t *chunk_off = big_alloc((size_t)chunks * sizeof(uint32_t));
+    int64_t *chunk_off = big_alloc((size_t)chunks * sizeof(int64_t));
     if (!chunk_off) TFAIL("no memory for the chunk offsets");
     bool ok = true;
     {
@@ -278,15 +279,22 @@ static bool build_tables(FILE *f, long stbl, long stbl_end, mp4_t *m,
             }
             for (uint32_t i = 0; i < n; i++) {
                 const uint64_t v = co64 ? be64(buf + 8 * i) : be32(buf + 4 * i);
-                /* A FAT volume cannot hold a file this large, and a
-                 * truncated offset is a read of the wrong bytes rather
-                 * than a failure. */
-                if (v > UINT32_MAX) {
-                    *why = "a chunk offset is past 4 GB";
+                /*
+                 * co64 says what it says and it is kept. The 4 GB
+                 * refusal that stood here was justified by FAT32's file
+                 * size limit, which exFAT does not share.
+                 *
+                 * INT64_MAX is still checked, because the offset is
+                 * signed from here on and a negative one would seek
+                 * backwards through every bound below. Only a
+                 * malformed file reaches it.
+                 */
+                if (v > (uint64_t)INT64_MAX) {
+                    *why = "a chunk offset is not a position in a file";
                     ok = false;
                     break;
                 }
-                chunk_off[done + i] = (uint32_t)v;
+                chunk_off[done + i] = (int64_t)v;
             }
             done += n;
         }
@@ -723,11 +731,11 @@ size_t mp4_read(FILE *f, mp4_t *m, uint8_t *dst, size_t cap)
     /* How many contiguous samples fit, headers included. */
     uint32_t n = 0;
     size_t payload = 0;
-    long expect = (long)m->offset[m->cur];
+    int64_t expect = m->offset[m->cur];
     while (m->cur + n < m->count) {
         const uint32_t sz = m->size[m->cur + n];
         if (!sz || sz > 0x20000) break;
-        if ((long)m->offset[m->cur + n] != expect) break;   /* a gap */
+        if (m->offset[m->cur + n] != expect) break;         /* a gap */
         if (payload + sz + (size_t)(n + 1) * ADTS_HDR > cap) break;
         payload += sz;
         expect += sz;
@@ -735,9 +743,15 @@ size_t mp4_read(FILE *f, mp4_t *m, uint8_t *dst, size_t cap)
     }
     if (!n) return 0;
 
-    const long at = (long)m->offset[m->cur];
+    const int64_t at = m->offset[m->cur];
     if (m->pos != at) {
-        if (fseek(f, at, SEEK_SET) != 0) return 0;
+        /* Not storage_io_read_at(): the read that follows is a whole
+         * contiguous run and is done separately. The range check is the
+         * same one, and for the same reason -- a truncated offset reads
+         * the wrong bytes and calls them audio. */
+        if (at > (int64_t)LONG_MAX || fseek(f, (long)at, SEEK_SET) != 0) {
+            return 0;
+        }
         m->pos = at;
     }
 
@@ -749,7 +763,7 @@ size_t mp4_read(FILE *f, mp4_t *m, uint8_t *dst, size_t cap)
         m->pos = -1;
         return 0;
     }
-    m->pos += (long)payload;
+    m->pos += (int64_t)payload;
 
     size_t src = head, out = 0;
     for (uint32_t i = 0; i < n; i++) {

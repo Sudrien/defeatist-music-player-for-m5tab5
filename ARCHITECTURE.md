@@ -14686,3 +14686,55 @@ mistake is available to every session: grepping a compiler's output for
 added to it were extracted into a standalone unit with stubs and
 exercised instead -- dim at 31 s, off at 61 s, both in one pass with the
 dim logged first, and the page open dimming but never going off.
+
+### 5144 -- The cover sits off centre too, seeded like the lean
+
+The keystone (0900s, refined at 5xxx "art: keystone seeded per track")
+leans the sleeve; this puts it down somewhere other than dead centre, so
+a cover reads as a print propped up rather than a bitmap laid out. Drawn
+once when the picture is placed, like the lean, and never animated.
+
+**One axis, and it is the one the band leaves spare.** The fit makes the
+picture fill its box in one direction exactly, so the room is on the
+other: in portrait the art band is wider than it is tall and a square
+cover leaves room at the sides; in landscape it is a 560-wide column and
+the room is above and below. "Horizontal in portrait, vertical in
+landscape" is therefore not a rule `artplace.h` knows -- it falls out of
+taking whichever axis has the slack, and stays right if the bands are
+reshaped.
+
+Both axes can have room at once, but only through `art_int_scale()`'s
+whole-pixel enlargement of a small picture. The larger slack wins there
+rather than both being nudged: two offsets read as a picture dropped in a
+corner, one reads as a print set down a little off centre.
+
+**Seeded from `s_keystone_seed`**, so it is per TRACK exactly as the lean
+is -- every track on an album sits its own way and a repaint of the same
+track (closing the chooser, a card going away) puts it back where it was.
+A different multiplier from the lean's, because a cover that always
+leaned left AND sat left would look like one mistake rather than two
+independent choices.
+
+`ARTPLACE_MAX_PM` is 400 per mille of the slack either side of centre, so
+the cover lands between 10% and 90% of the way across the spare room and
+is never flush against an edge -- flush stops looking casual and starts
+looking like a layout fault, the same reasoning that caps the keystone at
+8%.
+
+**Extracted into a pure header rather than left in albumart.c**, which
+cannot be host-compiled: the placement is arithmetic with two callers,
+and the two callers had the same two lines of centring copied, which is
+exactly how one of them would have kept the offset and the other not.
+111700 checks over both band shapes, a spread of cover sizes and many
+seeds, the load-bearing one being that the placed rectangle never leaves
+its box -- a cover one pixel outside writes into the transport bar.
+
+**Three planted bugs survived that suite, and the suite was right.**
+Removing either clamp, and removing the small-slack early-out, are all
+dead code at 400 per mille: the centred origin is slack/2 and the shift
+is at most 0.4 * slack, so the result cannot leave [0, slack] and `m <= 0`
+already covers a slack of 1 or 2. What actually holds the property is now
+a `_Static_assert(ARTPLACE_MAX_PM <= 500)`, verified to fire at 600, so a
+session raising the constant is stopped at compile time rather than by a
+cover drawn over the bar. Guards that cannot fire are worth keeping and
+worth labelling; a mutation surviving is not always a gap in the test.

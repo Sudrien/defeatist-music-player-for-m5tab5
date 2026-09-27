@@ -29,6 +29,7 @@
 #include "stbjpeg.h"  /* 5062: stb_image, the last JPEG decoder */
 
 #include "albumart.h"
+#include "artplace.h"
 #include "storage_io.h"
 #include "gfx.h"
 #include "ui.h"      /* ui_blit_art(): the artwork is a band in portrait
@@ -940,6 +941,29 @@ void albumart_set_key(const char *key)
     s_keystone_key = (key && key[0]) ? albumart_cover_hash(key, strlen(key)) | 1u : 0;
 }
 
+/*
+ * And where the cover sits in its box: artplace.h, which has the whole
+ * argument. Kept there rather than here so it is pure and testable --
+ * albumart.c cannot be host-compiled, and the placement is arithmetic
+ * with two callers and an off-by-one's worth of room to be wrong in.
+ *
+ * Seeded from s_keystone_seed, so the offset is per track exactly as the
+ * lean is, and a repaint of the same track does not move it.
+ */
+static void art_place(int box_w, int box_h, int cw, int ch, int *dx, int *dy)
+{
+    const artplace_t p = artplace(box_w, box_h, cw, ch, s_keystone_seed);
+    *dx = p.dx;
+    *dy = p.dy;
+    if (p.shift) {
+        ESP_LOGI(TAG, "cover offset %d px %s of centre (%d spare)",
+                 p.shift < 0 ? -p.shift : p.shift,
+                 p.horizontal ? (p.shift < 0 ? "left" : "right")
+                              : (p.shift < 0 ? "up" : "down"),
+                 p.slack);
+    }
+}
+
 /* a over b, alpha 0..256, RGB565 */
 static inline uint16_t mix565(uint16_t a, uint16_t b, int alpha)
 {
@@ -1087,7 +1111,8 @@ static esp_err_t blit_cover(esp_lcd_panel_handle_t panel,
     const uint32_t xstep = (uint32_t)(((uint64_t)iw << 16) / (uint32_t)cw);
     const uint32_t ystep = (uint32_t)(((uint64_t)ih << 16) / (uint32_t)ch);
 
-    const int dx = (screen_w - cw) / 2, dy = (screen_h - ch) / 2;
+    int dx, dy;
+    art_place(screen_w, screen_h, cw, ch, &dx, &dy);
 
     if (kint) {
         ESP_LOGI(TAG, "cover enlarged %dx to %dx%d", kint, cw, ch);
@@ -1632,8 +1657,7 @@ static void png_on_init(pngle_t *pngle, uint32_t w, uint32_t h)
         c->ch = (int)h * kint;
     }
 
-    c->dx = (c->screen_w - c->cw) / 2;
-    c->dy = (c->screen_h - c->ch) / 2;
+    art_place(c->screen_w, c->screen_h, c->cw, c->ch, &c->dx, &c->dy);
 
     ESP_LOGI(TAG, "cover is %"PRIu32"x%"PRIu32" (png)", w, h);
     if (kint) {

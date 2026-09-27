@@ -5918,7 +5918,25 @@ static void media_task(void *arg)
         if (strcmp(path, s_walked_path) != 0) {
             if (sidecar_prime(path)) {
                 const framewalk_t *hit = mediacache_walk(path);
-                if (hit) {
+                if (hit && !s_decoding) {
+                    /*
+                     * Loaded, not playing -- a resume at boot. There is
+                     * no decode loop to take the handoff (see
+                     * s_wave_shown), so draw it here, and give the bar
+                     * the length the envelope already knows so the
+                     * clocks and the shape show at 0:00. can_seek stays
+                     * false: there is nothing to seek in until play.
+                     * track_change_begin() finds it shown and keeps it.
+                     */
+                    memcpy(&s_walk, hit, sizeof(s_walk));
+                    wave_show(&s_walk, path);
+                    s_pos_sec     = 0;
+                    s_len_sec     = hit->sec;
+                    s_can_seek    = false;
+                    s_stats_valid = hit->sec > 0;
+                    ESP_LOGI(TAG, "envelope shown while paused: %d columns, %" PRIu32 "s",
+                             hit->columns, hit->sec);
+                } else if (hit) {
                     memcpy(&s_walk, hit, sizeof(s_walk));
                     snprintf(s_wave_path, sizeof(s_wave_path), "%s", path);
                     s_wave_ready = true;
@@ -11140,8 +11158,21 @@ static void restore_last_track(void)
         }
 
         snprintf(s_path, sizeof(s_path), "%s", last);
+        /*
+         * Loaded is paused. s_playing starts true so the first track
+         * plays without a press, but a resumed track is not playing
+         * until somebody says so, and the switch reads s_playing -- it
+         * showed play over silence. The play press still starts the
+         * track: with nothing decoding it goes to request_track(),
+         * which sets s_playing itself.
+         *
+         * Once, from player_loop() while nothing is decoding. ui_task
+         * is up by now, but a press landing in the same instant would
+         * only be a play that has to be pressed again.
+         */
+        s_playing = false;
         load_track_visuals(s_path);
-        ESP_LOGI(TAG, "ready to resume %s", s_path);
+        ESP_LOGI(TAG, "ready to resume %s (paused)", s_path);
 
         /*
          * The chooser came up at boot with nothing mounted, so it has

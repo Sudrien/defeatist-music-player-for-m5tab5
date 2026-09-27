@@ -6687,8 +6687,43 @@ static void service_clock_ab(void)
 static void service_clock_ab(void) { }
 #endif
 
+/*
+ * The count before a recording starts.
+ *
+ * ui_task owns the clock and the start; this is only what the card
+ * says, 3..1, or 0 for no countdown. The card itself is drawn here in
+ * service_notices(), because that is the task that owns the artwork
+ * band and every other card.
+ */
+#define REC_COUNTDOWN_S     (3)
+static volatile int s_rec_count;
+static int s_rec_card_n;
+
 static void service_notices(void)
 {
+    /*
+     * First, over the portal and the battery: somebody just slid the
+     * switch and is waiting for the room to go live. Nothing else needs
+     * the card for three seconds.
+     */
+    const int rc = s_rec_count;
+    if (rc > 0) {
+        if (rc != s_rec_card_n || !ui_notice_active()) {
+            static char head[24];
+            snprintf(head, sizeof(head), "Recording in %d", rc);
+            const char *lines[1] = { "slide or tap to cancel" };
+            ui_show_notice(head, lines, 1, false);
+            s_rec_card_n = rc;
+        }
+        return;
+    }
+    if (s_rec_card_n) {
+        s_rec_card_n = 0;
+        ui_notice_clear();
+        s_repaint_art = true;
+        /* no return: whatever else is due can take the square now */
+    }
+
     portal_state_t ps;
     const bool running = portal_running();
     portal_state(&ps);
@@ -7571,6 +7606,7 @@ static void ui_task(void *arg)
 
         const bool down = bdown;
         recording_overlay(&st);         /* 5106: before the touch, see there */
+        if (s_rec_count > 0) st.recording = true;   /* so a tap reads as leaving record */
         ui_action_t act = ui_touch(&st, down, bx, by);
 
         /*
@@ -7635,6 +7671,44 @@ static void ui_task(void *arg)
          * for either of the others stops the recording; pause is then
          * done, and play is the old toggle taken from paused.
          */
+        /*
+         * The record countdown. RECORD arms it and pauses at once, so
+         * the room is quiet while it counts; pause or play (a tap or a
+         * slide) disarms it. When it runs out the recording starts,
+         * as the RECORD case used to do immediately.
+         */
+        static int64_t s_rec_at_us;
+        if (s_rec_at_us &&
+            (act.kind == UI_ACTION_PAUSE || act.kind == UI_ACTION_PLAY ||
+             act.kind == UI_ACTION_PLAY_PAUSE)) {
+            ESP_LOGI(TAG, "record countdown cancelled");
+            s_rec_at_us = 0;
+            s_rec_count = 0;
+            if (act.kind != UI_ACTION_PLAY) act.kind = UI_ACTION_NONE;
+        }
+        if (s_rec_at_us) {
+            const int64_t left = s_rec_at_us - esp_timer_get_time();
+            if (left <= 0) {
+                s_rec_at_us = 0;
+                s_rec_count = 0;
+                player_force_pause();
+                char why[96];
+                if (!recorder_start(why, sizeof(why))) {
+                    ESP_LOGW(TAG, "record refused: %s", why);
+                    notice_post("Cannot record", why);
+                }
+            } else {
+                s_rec_count = (int)((left + 999999) / 1000000);
+            }
+        }
+        if (act.kind == UI_ACTION_RECORD && !recorder_active() && !s_rec_at_us) {
+            player_force_pause();
+            s_rec_at_us = esp_timer_get_time() + REC_COUNTDOWN_S * 1000000LL;
+            s_rec_count = REC_COUNTDOWN_S;
+            ESP_LOGI(TAG, "record countdown: %d s", REC_COUNTDOWN_S);
+        }
+        if (act.kind == UI_ACTION_RECORD) act.kind = UI_ACTION_NONE;
+
         /*
          * recorder_stop() only asks: the writer finishes the file and
          * drops s_active some passes later, and until then the I2S port
@@ -7896,19 +7970,8 @@ static void ui_task(void *arg)
             break;
 
         case UI_ACTION_RECORD:
-            /* The switch's record detent. Start pauses playback first,
-             * so the writer has let go of the output before audio_out_capture_begin() takes
-             * it; the pass above keeps it paused from then on. */
-            if (recorder_active()) {
-                /* Already there: the record detent is a state, not a toggle. */
-            } else {
-                player_force_pause();
-                char why[96];
-                if (!recorder_start(why, sizeof(why))) {
-                    ESP_LOGW(TAG, "record refused: %s", why);
-                    notice_post("Cannot record", why);
-                }
-            }
+            /* Consumed above: it arms the countdown, which starts the
+             * recorder when it runs out. */
             break;
 
         case UI_ACTION_SCREEN_OFF:
@@ -7944,6 +8007,7 @@ static void ui_task(void *arg)
         st.battery_charging = battery_charging();
         st.ext_power = battery_external();
         recording_overlay(&st);         /* 5106: pos_sec was just rewritten */
+        if (s_rec_count > 0) st.recording = true;   /* the knob stays on record */
         ui_draw(&st);
 
         /* 50 Hz under a finger, 25 Hz while the title is travelling, 10 Hz

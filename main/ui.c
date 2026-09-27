@@ -583,35 +583,36 @@ static void next_centre(int *cx, int *cy)
  * to clear and nothing to argue: four centres, evenly spaced across the
  * content box, inset by the icon's half-width so no glyph overhangs.
  *
- * Pitch works out at (672 - 52) / 4 = 155 px with five (5106; it was
- * 206 with four), and every box is the same distance from its
- * neighbours, which is the thing the eye actually checks. Padded hit
- * boxes are 2 * (ICON_HALF + HIT_PAD_X) = 80 wide, so 75 px of pitch is
- * nobody's.
+ * Spaced evenly, gaps included: the space before the first icon and
+ * after the last is the same as the space between any two, where it
+ * used to put the end icons flush with the content edges. With four
+ * that is (672 - 4 * 52) / 5 = 92.8 px of air each: a pitch of 145,
+ * which leaves 93 between icons and 92 at the ends. Rounded, not
+ * floored -- 144 gave 92 and 94, and the layout test said so.
+ * Padded hit boxes are 2 * (ICON_HALF + HIT_PAD_X) = 80 wide, so 64 px
+ * of pitch is nobody's.
  */
 static void aux_centre(int idx, int *cx, int *cy)
 {
-    const int x0 = bar_x0() + ICON_HALF;
-    const int span = (bar_x1() - ICON_HALF) - x0;
-
     /*
-     * The pitch is computed once and multiplied, rather than
-     * interpolating each centre across the span.
+     * In pitch terms: n icons of width w in a box of width W want n+1
+     * equal gaps, so the pitch is (W + w) / (n + 1) and the first centre
+     * is one pitch in from the box's left edge minus half an icon... which
+     * simplifies to: centre i sits at x0 + (W + w) * (i + 1) / (n + 1) - w / 2.
      *
-     * Interpolating -- x0 + span*idx/3 -- truncates differently at each
-     * index: a 620 px span gives gaps of 206, 207, 207, so the row is
-     * a pixel out of true in two places. Nobody sees one pixel, but the
-     * whole point of this row is that the spacing is equal, and a
-     * comment claiming equal spacing over code that computes unequal
-     * spacing is the kind of thing that stays wrong for years.
-     *
-     * So: an exact pitch, and the remainder spent on the leading margin
-     * so the group stays centred in the box.
+     * Computed as one exact pitch and multiplied, not interpolated, for
+     * the reason the row has always had: interpolation truncates
+     * differently at each index and the gaps come out a pixel unequal.
+     * The remainder goes to the two ends equally so the group stays
+     * centred.
      */
-    const int pitch = span / (AUX_COUNT - 1);
-    const int lead = (span - pitch * (AUX_COUNT - 1)) / 2;
+    const int w = 2 * ICON_HALF;
+    const int box = bar_x1() - bar_x0();
+    const int pitch = (box + w + (AUX_COUNT + 1) / 2) / (AUX_COUNT + 1);  /* rounded */
+    const int used = pitch * (AUX_COUNT - 1);
+    const int lead = (box - used) / 2;
 
-    *cx = x0 + lead + pitch * idx;
+    *cx = bar_x0() + lead + pitch * idx;
     *cy = s_bar_top + AUX_Y;
 }
 

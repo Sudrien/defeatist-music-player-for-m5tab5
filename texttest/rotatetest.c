@@ -217,14 +217,22 @@ int main(void)
         CHECK(x1 - x0 == 672, "rot%d: content is %d wide, not 672", rot * 90, x1 - x0);
 
         const int ih = 26;
-        const int g0 = x0 + ih, span = (x1 - ih) - g0;
         const int naux = 4;
-        const int apitch = span / (naux - 1), lead = (span - apitch * (naux - 1)) / 2;
+        /* Space-evenly: pitch (W + w) / (n + 1), group centred. */
+        const int apitch = ((x1 - x0) + 2 * ih + (naux + 1) / 2) / (naux + 1);
+        const int lead = ((x1 - x0) - apitch * (naux - 1)) / 2;
+        const int g0 = x0;
         int prev = 0, pitch = 0;
         for (int i = 0; i < naux; i++) {
             const int cx = g0 + lead + apitch * i;
             CHECK(cx - ih >= x0 && cx + ih <= x1,
                   "rot%d: aux icon %d overhangs the content box", rot * 90, i);
+            if (i == 0) {
+                /* The end gaps match the inner ones, to a pixel. */
+                const int edge = (cx - ih) - x0, inner = apitch - 2 * ih;
+                CHECK(edge - inner <= 1 && inner - edge <= 1,
+                      "rot%d: aux end gap %d vs inner gap %d", rot * 90, edge, inner);
+            }
             if (i == 1) pitch = cx - prev;
             /* ui.c's in_box() pads by HIT_PAD_X (14) each side, so the
              * hit boxes are 2 * (26 + 14) = 80 wide and must not touch. */

@@ -191,18 +191,35 @@ requires.
 
 **In `mpdproto.c`:** the greeting, argument tokenising (MPD quotes with
 `"` and escapes with `\`, which `remoteproto.c`'s "one verb, one word"
-parser does not do), the command table, `OK`/`ACK` framing with the five
+parser does not do), the command table, `OK`/`ACK` framing with the
 `ACK` error codes, command lists (`command_list_begin` and
 `command_list_ok_begin`, which differ in whether each sub-command gets
 its own `list_OK`), and the `key: value\n` serialisers for `status`,
 `currentsong`, `playlistinfo` and `lsinfo`.
 
-**Reused verbatim: `remoteproto_path_ok()`** (`remoteproto.c:38-67`). It
-is pure, it is already host-tested, and every MPD verb that names a
-thing on a card -- `add`, `addid`, `load`, `lsinfo`, `listall`, `find`
-with a `file` term -- needs exactly its rules. It should be called from
-`mpdproto.c` rather than reimplemented, and the texttest rule for the
-MPD binary links both files.
+**There are twelve `ACK` codes, not five.** This file said five until
+5153 built the thing and read `src/protocol/Ack.hxx`: five is the low
+block, and the high block -- `NO_EXIST`, `PLAYLIST_MAX`, `SYSTEM`,
+`PLAYLIST_LOAD`, `UPDATE_ALREADY`, `PLAYER_SYNC`, `EXIST` -- is the one a
+queue and a card actually raise. Corrected here rather than only in
+`ARCHITECTURE.md`, because the wrong number in a plan gets built.
+
+**`remoteproto_path_ok()` cannot be reused verbatim, and 5153 is where
+that turned out.** The intent stands -- it is pure, host-tested, and
+every MPD verb that names a thing on a card needs rules of this kind --
+but it requires an ABSOLUTE VFS path under a mounted volume (`/sd/...`
+or `/usb/...`) and **an MPD URI is relative to one music root**, because
+MPD has one library where this device has two volumes. A client sends
+back whatever `lsinfo` handed it, so the two agree only under a mapping,
+and choosing that mapping is `MEDIA-INDEX.md`'s merged-library question
+(point 3, SD preferred) asked again at the protocol edge: whether `/sd`
+and `/usb` are visible as top-level directories, or whether the merge is
+total and a URI names a track without saying which card it is on.
+
+That decision belongs with `lsinfo` in step 12, made once and written
+down, not improvised inside a tokeniser -- so the reuse is a wrapper
+over `remoteproto_path_ok()` that maps first, and the texttest rule links
+both files at that point and not before.
 
 **Not reused: the JSON.** `remoteproto_state_json()` emits a browser's
 object; MPD wants lines. But `remote_state_t` (`remoteproto.h:96-119`)

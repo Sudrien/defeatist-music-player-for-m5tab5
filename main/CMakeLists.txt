@@ -4,7 +4,7 @@ idf_component_register(
        "wifistore.c" "wifi.c" "browser.c" "panel.c" "duration.c" "cbrseek.c" "flacseek.c" "oggseek.c" "tsseek.c" "mp4seek.c" "waveform.c" "replaygain.c" "loudness.c"
          "portal.c" "portalweb.c" "dnsreply.c"
          "sleeppage.c" "streamprobe.c" "netstream.c" "netdec.c" "stations.c" "favorites.c" "starred.c" "streamgain.c" "radiobrowser.c" "bench.c" "ethernet.c" "cuedir.c" "cardtime.c" "mediacat.c" "mediawalk.c" "mediasync.c" "medialib.c" "mediadir.c" "rateconv.c" "polyrsp.c" "radiokeep.c" "icoimg.c" "hostedwrap.c" "heapmap.c" "flacenc.c" "recorder.c" "beam.c"
-         "mpdqueue.c" "remote.c" "remoteproto.c" "certgen.c" "devcert.c" "wifijoin.c"
+         "mpdqueue.c" "mpdproto.c" "remote.c" "remoteproto.c" "certgen.c" "devcert.c" "wifijoin.c"
     INCLUDE_DIRS "."
     EMBED_TXTFILES "remote.html"
     EMBED_FILES "favicon.ico"

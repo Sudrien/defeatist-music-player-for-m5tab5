@@ -14901,3 +14901,120 @@ datasheet line 203 lists "Supports low frame rate mode", and section
 7.3.2 gives Vertical Frequency as Min --, Typ 60, Max -- Hz, i.e. no
 published range at all. If the rate is to come down, that mode is the
 documented way, not the DPI clock.
+
+### 5153 -- mpdproto: the grammar, transcribed rather than remembered
+
+`MPD.md` step 8, first half: the greeting, the tokeniser, the command
+table with its arities, `OK`/`ACK` framing and the command-list state
+machine. Nothing on a socket, no response bodies -- `status`,
+`currentsong`, `playlistinfo` and `lsinfo` are serialisers over player
+state and come next -- and no verb does anything yet. This file answers
+"is that a command, and what are its arguments".
+
+**The method is the finding.** Every rule here was read out of MPD's
+source rather than recalled, and four of them came back different from
+what the plan or a reasonable guess said. That is a high rate for a
+protocol that feels familiar, and it is the argument for doing the
+remaining MPD patches the same way:
+
+- **`MPD.md` says "the five `ACK` error codes". There are twelve**, in
+  two ranges (`src/protocol/Ack.hxx`). The five are the low block --
+  `NOT_LIST`, `ARG`, `PASSWORD`, `PERMISSION`, `UNKNOWN` -- and the high
+  block is the one a queue and a card raise: `NO_EXIST` for a path that
+  is not there, `PLAYLIST_MAX` for a queue at `MPDQ_MAX`. A client reads
+  the number, so a wrong one is a client reporting the wrong fault. All
+  twelve are named; the unused ones cost a line of enum each.
+- **A tokeniser failure is `ACK_ERROR_UNKNOWN`, not `ACK_ERROR_ARG`**,
+  which reads backwards for something that is plainly a syntax error and
+  is what MPD sends: a bad verb goes through
+  `r.Error(ACK_ERROR_UNKNOWN, e.what())` and a bad argument through the
+  generic handler to the same code. `ACK_ERROR_ARG` means the two things
+  it means there -- "Too many arguments" and an arity mismatch -- and
+  nothing else. Guessing this the obvious way round makes a client report
+  a bad argument on a line that never parsed.
+- **MPD has an argv ceiling too**, which the first draft of this file
+  claimed it did not: `COMMAND_ARGV_MAX = 2 + TAG_NUM_OF_ITEM_TYPES * 2`.
+  The bound is a function of how many tags are searchable, because the
+  widest line in the protocol is a `find`/`search` with a TYPE VALUE pair
+  per tag plus a trailing `window 0:10`. So `MPDPROTO_MAX_ARGS` is
+  written as that formula over this device's four searchable fields --
+  title, artist, album, path, the ones the search file carries
+  (5129-5138) -- and comes out at ten, which
+  `search Artist a Album b Title c file d window 0:10` exactly fills.
+  A round number would have been wrong in a way nothing would have shown
+  until the tag list grew.
+- **`'` is not a quote character.** MPD's `NextParam()` opens a string
+  only on `"`, and `'` is excluded from the unquoted alphabet, so `don't`
+  is "Invalid unquoted character" rather than an unterminated string. The
+  documentation's mention of single quotes is about filter expressions
+  inside an already-quoted argument, which is a different parser. Reading
+  the prose and not the tokeniser would have produced a lenient parse
+  that accepts lines MPD rejects -- the direction that looks fine until a
+  client relies on it.
+
+Two rules that are easy to get wrong in the other direction, and are
+tested for that reason: the backslash in a quoted argument escapes
+**whatever follows**, so `"a\nb"` is the letter n and not a newline, which
+is the mistake a C programmer makes by reflex; and separators are bytes
+`0x01..0x20`, so a tab separates and a trailing `\r` from a CRLF client is
+stripped rather than becoming the last byte of a path -- which would make
+every path from such a client not exist, and would look like a card fault.
+
+**The version claimed is 0.20.0, in one place, with what forces it.**
+`idle` is 0.14, `single` and `consume` are 0.15, and `status`'s `duration`
+line is 0.20. The ceiling is the interesting half: 0.21 is deliberately
+not claimed, because `albumart` arrives with it and a client that believes
+in `albumart` will ask, and so does the filter-expression form of
+`find`/`search` as against the `find TYPE VALUE` form step 12 plans. Two
+of the test's cases are `albumart` and `readpicture` being answered
+`unknown command`, so the claim and the refusals cannot drift apart
+silently.
+
+**One bug, and it made errors silent rather than malformed.** The `ACK`
+builder replaces bytes below 0x20 with spaces, because a newline in a
+message ends the response early and leaves the rest to be read as the next
+one -- a client desynchronised for the life of the connection, from a path
+off a card. The first version then wrote the terminating newline *through
+that same function*, which turned it into a space, failed the builder's
+own "does this end in a newline" check, and returned 0. So every error on
+the connection came back as no `ACK` at all. The check caught it
+immediately; what is worth keeping is the shape -- a sanitiser applied to
+its own terminator -- because the failure is not a corrupt message but an
+absent one, and absent is the harder of the two to notice on a board.
+
+`texttest/mpdprototest.c`, wired in as `run-mpdproto`: 40333 checks, both
+the warnings-only `-O2 -Werror` pass and the sanitiser pass, written from
+MPD's rules rather than from this implementation as
+`texttest/README.md` requires. Most of the count is the last section,
+which is not a corpus with expected answers -- there is nothing to expect
+-- but 40000 random lines over the alphabet that matters (quotes,
+backslashes, separators, the apostrophe that is neither, high bytes)
+asserting only that no input crashes the walks and that a result is
+self-consistent either way.
+
+**Mutation-checked**, nine deliberate bugs, each confirmed caught:
+
+| mutation | result |
+| --- | --- |
+| apostrophe allowed as an unquoted character | 2 failures |
+| backslash escape dropped in a quoted argument | 3 failures |
+| no whitespace required after the closing quote | 2 failures |
+| only a space separates, not a tab or a CR | 4 failures |
+| the too-many-arguments check removed | 2 failures |
+| `ACK` message not sanitised | 3 failures |
+| unknown command fills `{current_command}` | 4 failures |
+| verb may start with a digit or underscore | 2 failures |
+| argv ceiling off by one | ASan: stack overflow |
+
+**What is deferred, and why it is not an oversight.** `MPD.md` says
+`remoteproto_path_ok()` is reused verbatim here and that the texttest rule
+links both files. It cannot be, yet: that function requires an absolute
+VFS path under a mounted volume -- `/sd/...` or `/usb/...` -- and an MPD
+URI is **relative to one music root**, because MPD has one library where
+this device has two volumes. A client sends back whatever `lsinfo`
+handed it, so the rules match only under a mapping, and what that mapping
+is is the same question `MEDIA-INDEX.md` answered for the merged listing
+(point 3, SD preferred) asked again at the protocol edge. It belongs with
+`lsinfo` in step 12, decided once and written down, not improvised inside
+a tokeniser. `MPD.md` has been corrected to say so rather than left
+promising a reuse that would reject every real client's path.

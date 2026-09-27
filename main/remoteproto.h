@@ -135,6 +135,22 @@ size_t remoteproto_state_json(const remote_state_t *s, char *out, size_t cap);
 size_t remoteproto_json_str(const char *in, char *out, size_t cap);
 
 /*
+ * The length of the valid UTF-8 sequence at `s` (1..4), or 0 when it is
+ * not one -- overlongs, surrogates and anything past U+10FFFF are not.
+ *
+ * 5155: exported rather than left static because mpdproto.c needs the
+ * same judgement for a different repair. MPD.md predicted this ("the
+ * UTF-8 repair in put_str() is needed here too ... Same function,
+ * different escaping"): a browser CLOSES a WebSocket carrying invalid
+ * UTF-8, and an MPD client instead shows mojibake or drops the response,
+ * so both surfaces have to replace a bad byte and only the escaping
+ * differs. A second copy of this function is the alternative, and the
+ * parts that are easy to get wrong -- the overlong and surrogate tests --
+ * are exactly the parts a copy would drift on.
+ */
+size_t remoteproto_utf8_len(const unsigned char *s, size_t left);
+
+/*
  * The envelope as JSON: {"t":"wave","gen":G,"lv":"<hex>"} with two hex
  * digits per column. Returns the length, or 0 when it did not fit.
  */

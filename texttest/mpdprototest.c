@@ -23,6 +23,10 @@
 #include <string.h>
 
 #include "../main/mpdproto.h"
+/* For MPDURI_MAX: the worst-case song line has to hold a maximum uri,
+ * and tying the case to that constant keeps it testing the real worst
+ * case if the index's path limit ever moves. */
+#include "../main/mpduri.h"
 
 static int checks, failures;
 
@@ -539,6 +543,317 @@ int main(void)
                 }
             }
             free(l);
+        }
+    }
+
+    /* ---- one key: value line ---------------------------------------- */
+    {
+        char b[256];
+        size_t n;
+
+        n = mpdproto_kv("Artist", "The Fall", b, sizeof(b));
+        CHECK(n == strlen(b) && strcmp(b, "Artist: The Fall\n") == 0,
+              "kv is [%s]", b);
+        /* An empty value is a line with nothing after the space: the
+         * caller decides whether to emit it, not this function. */
+        CHECK(mpdproto_kv("Album", "", b, sizeof(b)) && strcmp(b, "Album: \n") == 0,
+              "an empty value gave [%s]", b);
+
+        /*
+         * A NEWLINE IN A VALUE WOULD END THE LINE and the rest would be
+         * read as another key -- a tag containing "\nOK\n" would end the
+         * whole response early, which is the ACK builder's fault in a
+         * different place. Replaced with a space, not escaped: MPD's
+         * format has no escape, a value runs to the newline.
+         */
+        n = mpdproto_kv("Title", "one\ntwo", b, sizeof(b));
+        CHECK(n && strcmp(b, "Title: one two\n") == 0,
+              "a newline survived a value: [%s]", b);
+        n = mpdproto_kv("Title", "x\nOK\n", b, sizeof(b));
+        CHECK(n && strcmp(b, "Title: x OK \n") == 0, "value framing: [%s]", b);
+        CHECK(strstr(b, "\nOK") == NULL, "a value framed a fake OK");
+        n = mpdproto_kv("Title", "a\tb\rc\x01\x7F", b, sizeof(b));
+        CHECK(n && strcmp(b, "Title: a b c  \n") == 0,
+              "control bytes survived: [%s]", b);
+
+        /*
+         * Valid UTF-8 passes through untouched; invalid UTF-8 becomes
+         * U+FFFD. A Latin-1 ID3 tag is invalid UTF-8 and 5127 found this
+         * device has plenty of them, and an MPD client shows mojibake for
+         * it or drops the response.
+         */
+        n = mpdproto_kv("Artist", "Caf\xC3\xA9", b, sizeof(b));
+        CHECK(n && strcmp(b, "Artist: Caf\xC3\xA9\n") == 0,
+              "valid UTF-8 was altered: [%s]", b);
+        n = mpdproto_kv("Artist", "Caf\xE9", b, sizeof(b));   /* Latin-1 e-acute */
+        CHECK(n && strcmp(b, "Artist: Caf\xEF\xBF\xBD\n") == 0,
+              "a Latin-1 byte was not repaired: [%s]", b);
+        /* The cases remoteproto_utf8_len() exists to get right, which a
+         * second copy of it would have drifted on. */
+        n = mpdproto_kv("A", "\xC0\xAF", b, sizeof(b));           /* overlong */
+        CHECK(n && strcmp(b, "A: \xEF\xBF\xBD\xEF\xBF\xBD\n") == 0,
+              "an overlong passed: [%s]", b);
+        n = mpdproto_kv("A", "\xED\xA0\x80", b, sizeof(b));       /* surrogate */
+        CHECK(n && strcmp(b, "A: \xEF\xBF\xBD\xEF\xBF\xBD\xEF\xBF\xBD\n") == 0,
+              "a surrogate passed: [%s]", b);
+        n = mpdproto_kv("A", "\xE2\x82", b, sizeof(b));           /* truncated */
+        CHECK(n && strcmp(b, "A: \xEF\xBF\xBD\xEF\xBF\xBD\n") == 0,
+              "a truncated sequence passed: [%s]", b);
+
+        /* Refusal rather than a half line. */
+        CHECK(mpdproto_kv("Artist", "The Fall", b, 17) == 0 && b[0] == '\0',
+              "kv truncated into 17 bytes");
+        CHECK(mpdproto_kv("Artist", "The Fall", b, 18) == 17,
+              "kv did not fit its exact size");
+    }
+
+    /* ---- one song --------------------------------------------------- */
+    {
+        char b[MPDPROTO_SONG_MAX];
+        mpd_song_t s;
+
+        /* A queue entry: everything known. MPD's order is file first,
+         * then tags, then Time/duration, then Pos/Id -- and both Time and
+         * duration are sent, with MPD's capitalisation. */
+        memset(&s, 0, sizeof(s));
+        s.uri = "Artist/Album/01 Song.flac";
+        s.title = "Song"; s.artist = "Artist"; s.album = "Album";
+        s.duration_ms = 245678;
+        s.pos = 3; s.id = 17;
+        CHECK(mpdproto_song(&s, b, sizeof(b)) &&
+              strcmp(b,
+                     "file: Artist/Album/01 Song.flac\n"
+                     "Title: Song\n"
+                     "Artist: Artist\n"
+                     "Album: Album\n"
+                     "Time: 246\n"
+                     "duration: 245.678\n"
+                     "Pos: 3\n"
+                     "Id: 17\n") == 0, "song is [%s]", b);
+
+        /*
+         * A LIBRARY FILE HAS NO LENGTH AND NO POSITION. The catalog holds
+         * no duration (mediacat.h), and a file in the library is not at a
+         * position in the queue, so lsinfo emits neither -- absent, not
+         * zero, because a client shows "Time: 0" as a zero-length track.
+         */
+        memset(&s, 0, sizeof(s));
+        s.uri = "Artist/Album/01 Song.flac";
+        s.title = "Song";
+        s.duration_ms = -1;
+        s.pos = -1;
+        CHECK(mpdproto_song(&s, b, sizeof(b)) &&
+              strcmp(b, "file: Artist/Album/01 Song.flac\n"
+                        "Title: Song\n") == 0, "an lsinfo song is [%s]", b);
+
+        /* An absent tag is absent, not an empty line: a client shows an
+         * empty Artist as an artist named "", where a missing one falls
+         * back to the filename. */
+        memset(&s, 0, sizeof(s));
+        s.uri = "a.flac"; s.artist = ""; s.title = NULL;
+        s.duration_ms = -1; s.pos = -1;
+        CHECK(mpdproto_song(&s, b, sizeof(b)) && strcmp(b, "file: a.flac\n") == 0,
+              "empty tags were emitted: [%s]", b);
+
+        /* Time rounds rather than truncates, as MPD's RoundS() does. */
+        memset(&s, 0, sizeof(s));
+        s.uri = "a.flac"; s.pos = -1;
+        s.duration_ms = 12600;
+        CHECK(mpdproto_song(&s, b, sizeof(b)) &&
+              strstr(b, "Time: 13\n") && strstr(b, "duration: 12.600\n"),
+              "12.6s gave [%s]", b);
+        s.duration_ms = 12400;
+        CHECK(mpdproto_song(&s, b, sizeof(b)) && strstr(b, "Time: 12\n"),
+              "12.4s gave [%s]", b);
+        /* Sub-second and exact-second, where the "%.3f" of an integer has
+         * to keep its zeros or a client parses a different number. */
+        s.duration_ms = 500;
+        CHECK(mpdproto_song(&s, b, sizeof(b)) && strstr(b, "duration: 0.500\n"),
+              "half a second gave [%s]", b);
+        s.duration_ms = 7000;
+        CHECK(mpdproto_song(&s, b, sizeof(b)) && strstr(b, "duration: 7.000\n"),
+              "seven seconds gave [%s]", b);
+        s.duration_ms = 61001;
+        CHECK(mpdproto_song(&s, b, sizeof(b)) && strstr(b, "duration: 61.001\n"),
+              "61.001s gave [%s]", b);
+
+        /* Pos 0 is a position and must not be read as "none"; only a
+         * negative omits it. */
+        memset(&s, 0, sizeof(s));
+        s.uri = "a.flac"; s.duration_ms = -1; s.pos = 0; s.id = 1;
+        CHECK(mpdproto_song(&s, b, sizeof(b)) &&
+              strstr(b, "Pos: 0\n") && strstr(b, "Id: 1\n"),
+              "position zero was dropped: [%s]", b);
+
+        /* No uri is no song. */
+        memset(&s, 0, sizeof(s));
+        s.duration_ms = -1; s.pos = -1;
+        CHECK(mpdproto_song(&s, b, sizeof(b)) == 0, "a song with no uri was emitted");
+        CHECK(mpdproto_song(NULL, b, sizeof(b)) == 0, "NULL was emitted");
+
+        /*
+         * The ceiling has to hold the worst case, or a legal track at the
+         * far end of a card is unlistable and nothing says why: a maximum
+         * uri and three maximum tags of bytes that each treble under the
+         * repair.
+         */
+        {
+            static char uri[MPDURI_MAX + 1];
+            static char tag[65];
+            memset(uri, 'a', sizeof(uri) - 1); uri[sizeof(uri) - 1] = '\0';
+            memset(tag, '\xE9', sizeof(tag) - 1); tag[sizeof(tag) - 1] = '\0';
+            memset(&s, 0, sizeof(s));
+            s.uri = uri; s.title = tag; s.artist = tag; s.album = tag;
+            s.duration_ms = 3599999; s.pos = 1023; s.id = 4294967295u;
+            const size_t n = mpdproto_song(&s, b, sizeof(b));
+            CHECK(n > 0, "the worst-case song did not fit MPDPROTO_SONG_MAX");
+            CHECK(n < MPDPROTO_SONG_MAX, "the worst-case song exactly filled the buffer");
+        }
+    }
+
+    /* ---- a directory ----------------------------------------------- */
+    {
+        char b[MPDPROTO_SONG_MAX];
+        CHECK(mpdproto_directory("Artist/Album", b, sizeof(b)) &&
+              strcmp(b, "directory: Artist/Album\n") == 0, "directory is [%s]", b);
+        CHECK(mpdproto_directory(NULL, b, sizeof(b)) == 0, "NULL was a directory");
+    }
+
+    /* ---- status ----------------------------------------------------- */
+    {
+        char b[MPDPROTO_STATUS_MAX];
+        mpd_status_t s;
+
+        /*
+         * Stopped. NO TIME FIELDS AT ALL: a stopped player has no elapsed
+         * time, and reporting 0 puts a client's progress bar at the start
+         * of a track it is not playing, which reads as paused.
+         */
+        memset(&s, 0, sizeof(s));
+        s.state = MPD_STATE_STOP;
+        s.volume = 40;
+        s.playlist_version = 1;
+        s.playlist_length = 0;
+        s.song = -1; s.next_song = -1;
+        s.elapsed_ms = -1; s.duration_ms = -1; s.bitrate = -1;
+        CHECK(mpdproto_status(&s, b, sizeof(b)) &&
+              strcmp(b,
+                     "volume: 40\n"
+                     "repeat: 0\n"
+                     "random: 0\n"
+                     "single: 0\n"
+                     "consume: 0\n"
+                     "playlist: 1\n"
+                     "playlistlength: 0\n"
+                     "state: stop\n") == 0, "stopped status is [%s]", b);
+        CHECK(strstr(b, "elapsed") == NULL && strstr(b, "time:") == NULL,
+              "a stopped player reported a time: [%s]", b);
+
+        /* Playing, everything known. MPD's field order, and nextsong
+         * last, which is where MPD puts it. */
+        memset(&s, 0, sizeof(s));
+        s.state = MPD_STATE_PLAY;
+        s.volume = 100;
+        s.repeat = true; s.random = false; s.single = true; s.consume = false;
+        s.playlist_version = 9; s.playlist_length = 12;
+        s.song = 3; s.songid = 44;
+        s.next_song = 4; s.next_songid = 45;
+        s.elapsed_ms = 12345; s.duration_ms = 245678;
+        s.bitrate = 992;
+        s.sample_rate = 44100; s.bits = 16; s.channels = 2;
+        CHECK(mpdproto_status(&s, b, sizeof(b)) &&
+              strcmp(b,
+                     "volume: 100\n"
+                     "repeat: 1\n"
+                     "random: 0\n"
+                     "single: 1\n"
+                     "consume: 0\n"
+                     "playlist: 9\n"
+                     "playlistlength: 12\n"
+                     "state: play\n"
+                     "song: 3\n"
+                     "songid: 44\n"
+                     "time: 12:246\n"
+                     "elapsed: 12.345\n"
+                     "duration: 245.678\n"
+                     "bitrate: 992\n"
+                     "audio: 44100:16:2\n"
+                     "nextsong: 4\n"
+                     "nextsongid: 45\n") == 0, "playing status is [%s]", b);
+
+        s.state = MPD_STATE_PAUSE;
+        CHECK(mpdproto_status(&s, b, sizeof(b)) && strstr(b, "state: pause\n"),
+              "paused status is [%s]", b);
+        /* A paused player still has an elapsed time; only a stopped one
+         * does not. */
+        CHECK(strstr(b, "elapsed: 12.345\n") != NULL,
+              "a paused player lost its elapsed time");
+
+        /* Unknown volume is omitted, which is what MPD does rather than
+         * reporting 0 -- a client showing a slider at zero for "unknown"
+         * is a client that will set it there. */
+        memset(&s, 0, sizeof(s));
+        s.state = MPD_STATE_STOP; s.volume = -1;
+        s.song = -1; s.next_song = -1;
+        s.elapsed_ms = -1; s.duration_ms = -1; s.bitrate = -1;
+        CHECK(mpdproto_status(&s, b, sizeof(b)) && strstr(b, "volume") == NULL,
+              "an unknown volume was reported: [%s]", b);
+        /* Volume 0 is a volume, not "unknown". */
+        s.volume = 0;
+        CHECK(mpdproto_status(&s, b, sizeof(b)) && strstr(b, "volume: 0\n"),
+              "volume zero was dropped: [%s]", b);
+
+        /* Song 0 is a song. */
+        s.song = 0; s.songid = 7;
+        CHECK(mpdproto_status(&s, b, sizeof(b)) &&
+              strstr(b, "song: 0\n") && strstr(b, "songid: 7\n"),
+              "song zero was dropped: [%s]", b);
+
+        /* A playing track of unknown length: time's total is 0 and there
+         * is no duration line, which is how a stream reports. */
+        memset(&s, 0, sizeof(s));
+        s.state = MPD_STATE_PLAY; s.volume = 50;
+        s.song = 0; s.next_song = -1;
+        s.elapsed_ms = 5000; s.duration_ms = -1; s.bitrate = 128;
+        CHECK(mpdproto_status(&s, b, sizeof(b)) &&
+              strstr(b, "time: 5:0\n") && strstr(b, "duration") == NULL,
+              "an unknown length gave [%s]", b);
+
+        /* The reindex, and an error, both omitted when absent. */
+        memset(&s, 0, sizeof(s));
+        s.state = MPD_STATE_STOP; s.volume = -1;
+        s.song = -1; s.next_song = -1;
+        s.elapsed_ms = -1; s.duration_ms = -1; s.bitrate = -1;
+        s.updating_db = 3; s.error = "something broke";
+        CHECK(mpdproto_status(&s, b, sizeof(b)) &&
+              strstr(b, "updating_db: 3\n") && strstr(b, "error: something broke\n"),
+              "status with a job and an error is [%s]", b);
+        /* And an error is a value like any other, so it cannot frame. */
+        s.error = "broke\nOK\n";
+        CHECK(mpdproto_status(&s, b, sizeof(b)) &&
+              strstr(b, "error: broke OK \n") && strstr(b, "\nOK\n") == NULL,
+              "an error framed a fake OK: [%s]", b);
+
+        /* Fields this device does not have are absent rather than zero:
+         * a field reporting 0 for a missing feature is a claim. */
+        CHECK(strstr(b, "mixrampdb") == NULL && strstr(b, "xfade") == NULL &&
+              strstr(b, "partition") == NULL, "status claimed a feature: [%s]", b);
+
+        CHECK(mpdproto_status(NULL, b, sizeof(b)) == 0, "NULL was a status");
+
+        /* Refusal rather than a status with a line missing from the
+         * middle, which is worse than none: `over` is sticky. */
+        memset(&s, 0, sizeof(s));
+        s.state = MPD_STATE_PLAY; s.volume = 100;
+        s.song = 3; s.songid = 44; s.next_song = 4; s.next_songid = 45;
+        s.elapsed_ms = 12345; s.duration_ms = 245678; s.bitrate = 992;
+        s.sample_rate = 44100; s.bits = 16; s.channels = 2;
+        const size_t full = mpdproto_status(&s, b, sizeof(b));
+        CHECK(full > 0, "the fullest status did not fit MPDPROTO_STATUS_MAX");
+        for (size_t cap = 1; cap < full + 1; cap++) {
+            char t[MPDPROTO_STATUS_MAX];
+            CHECK(mpdproto_status(&s, t, cap) == 0 && t[0] == '\0',
+                  "status fitted %zu of %zu bytes", cap, full);
         }
     }
 

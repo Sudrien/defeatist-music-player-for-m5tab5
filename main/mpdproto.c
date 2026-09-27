@@ -8,6 +8,8 @@
 #include <stdio.h>
 #include <string.h>
 
+#include "remoteproto.h"     /* remoteproto_utf8_len(), for the value repair */
+
 /* ---- the character classes ----------------------------------------- */
 
 /*
@@ -492,4 +494,252 @@ size_t mpdproto_ack_cmd(const mpd_cmd_t *c, int list_num, char *out, size_t cap)
         return mpdproto_ack(c->ack, list_num, c->err_cmd, err, out, cap);
 
     return mpdproto_ack(c->ack, list_num, c->err_cmd, text, out, cap);
+}
+
+/* ---- response bodies ----------------------------------------------- */
+
+/*
+ * An append buffer that refuses rather than truncates, like
+ * remoteproto.c's. Once something did not fit, `over` is set and
+ * w_done() returns 0 and empties the buffer, so a caller never sees a
+ * response with a line missing from the middle -- which would be worse
+ * than no response, because a client would act on it.
+ *
+ * The early-out on `over` in w_raw() is NOT OBSERVABLE through the
+ * public surface, and is marked rather than removed for the same reason
+ * as mpduri.c's leading-slash check: every w_raw() tests capacity for
+ * itself, so a later short write cannot overflow anything, and w_done()
+ * returns 0 either way once the flag is set. A mutation that deletes the
+ * early-out is one the suite cannot catch. What it buys is that the
+ * buffer stops being written after the first refusal, so a caller
+ * reading it in a debugger sees where the response stopped rather than a
+ * response with a hole in it.
+ */
+typedef struct {
+    char  *p;
+    size_t cap, n;
+    bool   over;
+} wbuf_t;
+
+static void w_raw(wbuf_t *b, const char *s, size_t len)
+{
+    if (b->over) return;
+    if (b->n + len + 1 > b->cap) { b->over = true; return; }
+    memcpy(b->p + b->n, s, len);
+    b->n += len;
+    b->p[b->n] = '\0';
+}
+
+static void w_str(wbuf_t *b, const char *s) { w_raw(b, s, strlen(s)); }
+
+/*
+ * One value, repaired.
+ *
+ * Two separate faults, and a value off a card can carry both at once:
+ * invalid UTF-8, which an MPD client shows as mojibake or drops the
+ * response over, and a byte below 0x20, which would END THIS LINE and
+ * make the remainder look like another key. So a bad byte becomes U+FFFD
+ * and a control byte becomes a space, and neither is escaped, because
+ * MPD's format has no escape -- a value runs to the newline.
+ */
+static void w_value(wbuf_t *b, const char *s)
+{
+    if (!s) return;
+    const unsigned char *u = (const unsigned char *)s;
+    size_t left = strlen(s);
+    while (left && !b->over) {
+        const unsigned char c = *u;
+        if (c < 0x20 || c == 0x7F) {
+            w_raw(b, " ", 1);
+            u++; left--;
+        } else {
+            const size_t n = remoteproto_utf8_len(u, left);
+            if (n) {
+                w_raw(b, (const char *)u, n);
+                u += n; left -= n;
+            } else {
+                w_raw(b, "\xEF\xBF\xBD", 3);     /* U+FFFD */
+                u++; left--;
+            }
+        }
+    }
+}
+
+static void w_kv(wbuf_t *b, const char *key, const char *value)
+{
+    w_str(b, key);
+    w_raw(b, ": ", 2);
+    w_value(b, value);
+    w_raw(b, "\n", 1);
+}
+
+/* A tag that is absent is absent: see the header on why an empty line is
+ * not the same thing to a client. */
+static void w_tag(wbuf_t *b, const char *key, const char *value)
+{
+    if (value && value[0]) w_kv(b, key, value);
+}
+
+static void w_num(wbuf_t *b, const char *key, long long v)
+{
+    char t[24];
+    const int n = snprintf(t, sizeof(t), "%lld", (long long)v);
+    if (n <= 0 || (size_t)n >= sizeof(t)) { b->over = true; return; }
+    w_str(b, key);
+    w_raw(b, ": ", 2);
+    w_raw(b, t, (size_t)n);
+    w_raw(b, "\n", 1);
+}
+
+/*
+ * Milliseconds as MPD's seconds-with-three-decimals. Written from the
+ * integer rather than through a double and "%.3f": the value arrives as
+ * an integer count of milliseconds, and passing it through a float to get
+ * a fixed three decimals back is a rounding step that can only lose.
+ */
+static void w_ms(wbuf_t *b, const char *key, int32_t ms)
+{
+    if (ms < 0) return;
+    char t[32];
+    const int n = snprintf(t, sizeof(t), "%ld.%03ld",
+                           (long)(ms / 1000), (long)(ms % 1000));
+    if (n <= 0 || (size_t)n >= sizeof(t)) { b->over = true; return; }
+    w_str(b, key);
+    w_raw(b, ": ", 2);
+    w_raw(b, t, (size_t)n);
+    w_raw(b, "\n", 1);
+}
+
+/* Whole seconds, MPD's rounding and not truncation: at 12.6 s elapsed,
+ * `time` says 13. Integer arithmetic, so a negative never reaches here. */
+static long ms_round_s(int32_t ms)
+{
+    return (long)((ms + 500) / 1000);
+}
+
+static size_t w_done(wbuf_t *b)
+{
+    if (b->over) { if (b->cap) b->p[0] = '\0'; return 0; }
+    return b->n;
+}
+
+size_t mpdproto_kv(const char *key, const char *value, char *out, size_t cap)
+{
+    if (!key || !out || cap == 0) return 0;
+    wbuf_t b = { out, cap, 0, false };
+    out[0] = '\0';
+    w_kv(&b, key, value);
+    return w_done(&b);
+}
+
+size_t mpdproto_directory(const char *uri, char *out, size_t cap)
+{
+    if (!uri || !out || cap == 0) return 0;
+    wbuf_t b = { out, cap, 0, false };
+    out[0] = '\0';
+    w_kv(&b, "directory", uri);
+    return w_done(&b);
+}
+
+size_t mpdproto_song(const mpd_song_t *s, char *out, size_t cap)
+{
+    if (!s || !s->uri || !out || cap == 0) return 0;
+    wbuf_t b = { out, cap, 0, false };
+    out[0] = '\0';
+
+    /* file: first. MPD's readers key on it to start a new song, so a tag
+     * emitted before it belongs to the previous one. */
+    w_kv(&b, "file", s->uri);
+
+    w_tag(&b, "Title",  s->title);
+    w_tag(&b, "Artist", s->artist);
+    w_tag(&b, "Album",  s->album);
+
+    /* Both forms, as MPD sends both: `Time` is whole seconds for old
+     * clients, `duration` is the fractional one modern clients read. Note
+     * the capitalisation is MPD's and is not a typo -- Time, duration. */
+    if (s->duration_ms >= 0) {
+        w_num(&b, "Time", ms_round_s(s->duration_ms));
+        w_ms(&b, "duration", s->duration_ms);
+    }
+
+    if (s->pos >= 0) {
+        w_num(&b, "Pos", s->pos);
+        w_num(&b, "Id", (long long)s->id);
+    }
+
+    return w_done(&b);
+}
+
+size_t mpdproto_status(const mpd_status_t *s, char *out, size_t cap)
+{
+    if (!s || !out || cap == 0) return 0;
+    wbuf_t b = { out, cap, 0, false };
+    out[0] = '\0';
+
+    if (s->volume >= 0) w_num(&b, "volume", s->volume);
+
+    w_num(&b, "repeat",  s->repeat  ? 1 : 0);
+    w_num(&b, "random",  s->random  ? 1 : 0);
+    w_num(&b, "single",  s->single  ? 1 : 0);
+    w_num(&b, "consume", s->consume ? 1 : 0);
+    w_num(&b, "playlist", (long long)s->playlist_version);
+    w_num(&b, "playlistlength", s->playlist_length);
+
+    const char *st = "stop";
+    if (s->state == MPD_STATE_PLAY)  st = "play";
+    if (s->state == MPD_STATE_PAUSE) st = "pause";
+    w_kv(&b, "state", st);
+
+    if (s->song >= 0) {
+        w_num(&b, "song", s->song);
+        w_num(&b, "songid", (long long)s->songid);
+    }
+
+    /*
+     * Only when not stopped, as MPD does. A stopped player has no elapsed
+     * time, and reporting 0 puts a client's progress bar at the start of
+     * a track it is not playing -- which looks like a paused player.
+     */
+    if (s->state != MPD_STATE_STOP) {
+        const int32_t el = s->elapsed_ms < 0 ? 0 : s->elapsed_ms;
+        char t[48];
+        const int n = snprintf(t, sizeof(t), "%ld:%ld", ms_round_s(el),
+                               s->duration_ms < 0 ? 0L : ms_round_s(s->duration_ms));
+        if (n > 0 && (size_t)n < sizeof(t)) {
+            w_str(&b, "time");
+            w_raw(&b, ": ", 2);
+            w_raw(&b, t, (size_t)n);
+            w_raw(&b, "\n", 1);
+        } else {
+            b.over = true;
+        }
+        w_ms(&b, "elapsed", el);
+        if (s->duration_ms >= 0) w_ms(&b, "duration", s->duration_ms);
+        if (s->bitrate >= 0) w_num(&b, "bitrate", s->bitrate);
+        if (s->sample_rate > 0) {
+            char a[48];
+            const int m = snprintf(a, sizeof(a), "%d:%d:%d",
+                                   s->sample_rate, s->bits, s->channels);
+            if (m > 0 && (size_t)m < sizeof(a)) {
+                w_str(&b, "audio");
+                w_raw(&b, ": ", 2);
+                w_raw(&b, a, (size_t)m);
+                w_raw(&b, "\n", 1);
+            } else {
+                b.over = true;
+            }
+        }
+    }
+
+    if (s->updating_db) w_num(&b, "updating_db", (long long)s->updating_db);
+    if (s->error && s->error[0]) w_kv(&b, "error", s->error);
+
+    /* Last, which is where MPD puts it. */
+    if (s->next_song >= 0) {
+        w_num(&b, "nextsong", s->next_song);
+        w_num(&b, "nextsongid", (long long)s->next_songid);
+    }
+
+    return w_done(&b);
 }

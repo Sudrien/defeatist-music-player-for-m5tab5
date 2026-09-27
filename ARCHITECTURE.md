@@ -15107,3 +15107,122 @@ subsumed: it states the rule that matters most at the top where a reader
 looks, and `remoteproto_path_ok()` has the mirror-image line in the same
 place. A check that cannot fire is worth keeping only if it is labelled as
 documentation, which is what the comment now does.
+
+### 5155 -- The serialisers, and the three fields this device cannot honestly fill
+
+`MPD.md` step 8's second half: `key: value\n` bodies for `status` and for
+one song, which is what `currentsong`, `playlistinfo` and `lsinfo` are all
+made of. Still nothing on a socket. Field names, formats and order were
+read out of `src/command/PlayerCommands.cxx` and `src/SongPrint.cxx`
+rather than recalled, which is now the third time that has paid.
+
+**Both `Time` and `duration` are sent, and the capitalisation is not a
+typo.** MPD emits `Time: <whole seconds>` for old clients and
+`duration: <seconds.mmm>` for modern ones, capital T and lower-case d, and
+`status` does the same with `time: <elapsed>:<total>` and
+`elapsed: <seconds.mmm>`. Rounding, not truncation: at 12.6 s elapsed
+`time` says 13.
+
+**Milliseconds are formatted with integer arithmetic**, `%ld.%03ld`, not
+by dividing into a double and asking for three decimals. The value arrives
+as an integer count; a round trip through a float can only lose, and the
+`%03` is what keeps `0.500` from printing as `0.5` and `7.000` from
+printing as `7.0` -- both of which parse as a different number of
+milliseconds to a client. Two of the cases in the suite exist for exactly
+that, and the mutation that drops the zero-padding is caught.
+
+**Three fields are absent on purpose, and the reasons are different.**
+
+- **`Time`/`duration` on anything listed out of the index.** The catalog
+  holds path, mtime, size, title, artist and album (`mediacat.h`) and no
+  track length, so a queue or a listing cannot state one. The visible cost
+  is a client's queue with no times in it. The alternative is opening and
+  probing every file a listing names, which is the thing the index exists
+  to avoid -- 5129-5138 spent four patches getting a whole-card pass down
+  to 1040 ms and a probe per track would undo it.
+- **`Last-Modified`, which the catalog COULD supply and must not.** MPD
+  defines the field as UTC. FAT32 and exFAT store a local time with no
+  zone, and `cardtime.h` describes these very timestamps as "real
+  wall-clock readings taken by a machine that knew the time" -- which is
+  the problem, because this device does not know which zone that machine
+  was in, so every rendering is wrong by up to a day. That file also notes
+  bad tools producing dates in 2107. A field that is confidently wrong is
+  worse than one a client reads as unknown, so it is not sent.
+- **`mixrampdb`, `xfade`, `partition`, `lastloadedplaylist`.** MPD sends
+  the first two always and this device has neither; the last two are 0.22
+  and 0.24 and `MPDPROTO_VERSION` claims 0.20. MPD's own `status` is
+  documented as reporting fields "as applicable", so an absent field reads
+  as unknown -- whereas a field reporting 0 for a feature that does not
+  exist is a claim.
+
+**An absent tag is absent, not empty.** A client shows `Artist: ` as an
+artist named "" and an absent Artist as a fallback to the filename, so the
+two are not interchangeable -- and the same applies to `volume`, `song`
+and `Pos`, where 0 is a real value and only a negative means "none". Four
+of the mutations are exactly this off-by-one (`> 0` for `>= 0`) in four
+places, and each is caught by one check, which is the argument for having
+written the zero cases down rather than trusting the obvious.
+
+**No time fields at all while stopped**, as MPD does. Reporting
+`elapsed: 0.000` on a stopped player puts a client's progress bar at the
+start of a track it is not playing, which reads as paused rather than as
+stopped. A PAUSED player does keep its elapsed time; the suite checks both
+halves, because the natural implementation of "hide the time when not
+playing" hides it when paused too.
+
+**`remoteproto_utf8_len()` is exported rather than copied**, which is
+MPD.md's prediction arriving by a different route. That file said the
+texttest rule for the MPD binary would link `remoteproto.c`, for
+`remoteproto_path_ok()`; it now does, for the UTF-8 repair instead --
+`path_ok` ended up behind `mpduri.h` in 5154. A browser CLOSES a WebSocket
+carrying invalid UTF-8 and an MPD client instead shows mojibake or drops
+the response, so both surfaces must replace a bad byte and only the
+escaping differs. The parts worth not duplicating are the overlong and
+surrogate tests, which are where a second copy would drift; the suite
+checks an overlong, a surrogate and a truncated sequence through the MPD
+path for that reason.
+
+**And a value is repaired twice, not once.** Invalid UTF-8 becomes U+FFFD,
+and bytes below 0x20 become spaces -- because a newline in a tag ENDS THE
+LINE and everything after it is read as another key, so a tag containing
+`"\nOK\n"` would end the response early. That is the ACK builder's bug
+from 5153 in a second place, found by looking for it rather than by
+hitting it.
+
+`run-mpdproto` is 40594 checks now, both passes clean. **Mutation-checked**,
+twelve deliberate bugs, eleven caught:
+
+| mutation | result |
+| --- | --- |
+| UTF-8 repair removed from a value | 4 failures |
+| control bytes not replaced in a value | 5 failures |
+| an empty tag is emitted | 2 failures |
+| `Time` truncates instead of rounding | 3 failures |
+| time fields emitted while stopped | 2 failures |
+| volume 0 treated as unknown | 1 failure |
+| position 0 treated as no position | 1 failure |
+| song 0 treated as no song | 1 failure |
+| milliseconds lose their leading zeros | 2 failures |
+| an unknown duration reported as zero | 1 failure |
+| the overflow flag is not sticky | **not caught** |
+
+The one not caught is another non-observable guard, like 5154's: every
+append tests capacity for itself, so a write after a refusal cannot
+overflow anything, and the response is emptied and reported as 0 either
+way. Marked in the source rather than removed, because it stops the buffer
+being written past the first refusal and that is worth having in a
+debugger. Two of these in two patches is a pattern worth naming -- a
+defensive early-out whose effect is entirely inside the function is not
+testable from outside it, and the honest options are to label it or to
+delete it, not to write a test that pretends to cover it.
+
+**What step 8 does not include, and step 9 will need.** Nothing here reads
+player state: `mpd_status_t` and `mpd_song_t` are filled by the caller.
+The four mode booleans are step 7's mapping arriving as four fields, kept
+out of the formatter on purpose -- the lossy `play_order_t` table is a
+thing to write down once, and burying it in a serialiser is how it gets
+improvised per command. And `elapsed_ms`/`duration_ms` are milliseconds
+while `remote_state_t` carries whole seconds, so a caller filling one from
+the other multiplies by 1000 and the decimals are zeros: honest, and
+fixable only by widening the snapshot and the `ui_task` pass that fills
+it, which is not this patch.

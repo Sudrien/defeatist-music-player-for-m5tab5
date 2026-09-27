@@ -83,10 +83,10 @@ MEDIASEARCH_BIN := mediasearchtest
 MPDQUEUE_BIN := mpdqueuetest
 
 # The MPD protocol grammar: tokeniser, command table, OK/ACK, command
-# lists. Its own binary and its own main(), like the others. It links
-# mpdproto.c alone for now; MPD.md's reuse of remoteproto_path_ok() waits
-# on the URI question in that file's own note, and adds remoteproto.c
-# here when it is answered.
+# lists, and the status/song serialisers. It links remoteproto.c for
+# remoteproto_utf8_len(), which 5155 exported rather than copy: MPD.md
+# predicted both files would be linked here, for path_ok() rather than
+# for the UTF-8 repair, and the prediction came true the other way round.
 MPDPROTO_BIN := mpdprototest
 
 # An MPD URI is an index path, and which volume holds it. Links
@@ -322,9 +322,9 @@ $(MPDQUEUE_BIN): mpdqueuetest.c ../main/mpdqueue.c ../main/mpdqueue.h
 run-mpdqueue: $(MPDQUEUE_BIN)
 	ASAN_OPTIONS=detect_leaks=1:abort_on_error=0 ./$(MPDQUEUE_BIN)
 
-$(MPDPROTO_BIN): mpdprototest.c ../main/mpdproto.c ../main/mpdproto.h
+$(MPDPROTO_BIN): mpdprototest.c ../main/mpdproto.c ../main/mpdproto.h ../main/remoteproto.c
 	$(CC) $(WARNCFLAGS) -c ../main/mpdproto.c -o /dev/null
-	$(CC) $(CFLAGS) -o $@ mpdprototest.c ../main/mpdproto.c $(LDFLAGS)
+	$(CC) $(CFLAGS) -o $@ mpdprototest.c ../main/mpdproto.c ../main/remoteproto.c $(LDFLAGS)
 
 run-mpdproto: $(MPDPROTO_BIN)
 	ASAN_OPTIONS=detect_leaks=1:abort_on_error=0 ./$(MPDPROTO_BIN)

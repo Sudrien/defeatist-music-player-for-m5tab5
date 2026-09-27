@@ -138,8 +138,11 @@ static void putf(buf_t *b, const char *fmt, long long v)
 /*
  * Length of the valid UTF-8 sequence at s (1..4), or 0 when it is not
  * one. Overlongs, surrogates and anything past U+10FFFF are invalid.
+ *
+ * 5155: exported, for the reason remoteproto.h gives. The local name
+ * stays as a wrapper so the two call sites below read as they did.
  */
-static size_t utf8_len(const unsigned char *s, size_t left)
+size_t remoteproto_utf8_len(const unsigned char *s, size_t left)
 {
     const unsigned char c = s[0];
     if (c < 0x80) return 1;
@@ -157,6 +160,11 @@ static size_t utf8_len(const unsigned char *s, size_t left)
     if ((n == 2 && cp < 0x80) || (n == 3 && cp < 0x800) || (n == 4 && cp < 0x10000)) return 0;
     if (cp > 0x10FFFF || (cp >= 0xD800 && cp <= 0xDFFF)) return 0;
     return n;
+}
+
+static size_t utf8_len(const unsigned char *s, size_t left)
+{
+    return remoteproto_utf8_len(s, left);
 }
 
 static void put_str(buf_t *b, const char *s)

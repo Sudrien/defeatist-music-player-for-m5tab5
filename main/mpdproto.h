@@ -357,6 +357,157 @@ size_t mpdproto_ack(mpd_ack_t code, int list_num, const char *cmd,
 size_t mpdproto_ack_cmd(const mpd_cmd_t *c, int list_num,
                         char *out, size_t cap);
 
+/* ---- response bodies ----------------------------------------------- */
+
+/*
+ * MPD's responses are `key: value\n` lines, and the values are the
+ * problem: a tag off a card is arbitrary bytes.
+ *
+ * EVERY VALUE IS REPAIRED, two ways, and neither is optional:
+ *
+ *   - Invalid UTF-8 becomes U+FFFD, through remoteproto_utf8_len(). A
+ *     Latin-1 ID3 tag is invalid UTF-8 and this device has plenty (5127
+ *     found v2.2 files); an MPD client shows mojibake for it or, in some
+ *     clients, drops the response.
+ *   - Bytes below 0x20 and 0x7F become spaces, because a newline in a
+ *     value ENDS THE LINE and the rest is read as another key -- a tag
+ *     containing "\nOK\n" would end the whole response early. Same
+ *     reasoning as the ACK builder, same failure if it is missed.
+ *
+ * A key is never repaired: every key here is a literal in this file.
+ *
+ * So a value can grow -- three bytes out for one bad byte in -- which is
+ * what the size ceilings below account for.
+ */
+size_t mpdproto_kv(const char *key, const char *value, char *out, size_t cap);
+
+/*
+ * One song's line group: `file:` first, tags, then Time/duration, then
+ * Pos/Id -- MPD's order (src/SongPrint.cxx, src/queue/Print.cxx).
+ *
+ * An empty or NULL tag is OMITTED rather than sent empty, which is MPD's
+ * behaviour and matters: a client shows an empty Artist line as an artist
+ * named "", where an absent one falls back to the filename.
+ *
+ * WHAT THIS DEVICE CANNOT FILL, and why the fields are absent rather than
+ * zeroed:
+ *
+ *   - `Time`/`duration` need a track length, and THE CATALOG DOES NOT
+ *     HOLD ONE (`mediacat.h`: path, mtime, size, title, artist, album).
+ *     So `duration_ms` is negative for anything listed out of the index
+ *     and only the playing track knows its own length. The visible cost
+ *     is a client's queue with no track times in it; the alternative is
+ *     opening and probing every file a listing names, which is the thing
+ *     the index exists to avoid.
+ *   - `Last-Modified` is NOT EMITTED even though `mtime` is in the
+ *     catalog. MPD defines the field as UTC, and FAT32/exFAT store a
+ *     local time with no zone -- `cardtime.h` calls these "real
+ *     wall-clock readings taken by a machine that knew the time", which
+ *     is precisely the problem: this device does not know which zone that
+ *     machine was in, so every rendering is wrong by up to a day. That
+ *     file also notes bad tools producing dates in 2107. A field that is
+ *     confidently wrong is worse than one a client treats as unknown.
+ *   - Track, Genre, Date and the rest of MPD's tag set are not in the
+ *     catalog at all. Adding one is a catalog format change, not a line
+ *     here.
+ *
+ * `pos` negative omits Pos and Id, which is what a `lsinfo` entry wants
+ * -- a file in the library is not at a position in the queue. `currentsong`
+ * and `playlistinfo` both pass a position, so both use this function and
+ * there is no separate serialiser for them.
+ */
+typedef struct {
+    const char *uri;            /* the file: line; required */
+    const char *title;
+    const char *artist;
+    const char *album;
+    int32_t     duration_ms;    /* <0 unknown: Time and duration omitted */
+    int32_t     pos;            /* <0: no Pos/Id */
+    uint32_t    id;
+} mpd_song_t;
+
+/*
+ * The ceiling for one song's lines: a 506-byte uri, three 64-byte tags
+ * that can each treble under the UTF-8 repair, and the numbers. 1536
+ * rounds up from about 1200. A caller writing a long `playlistinfo`
+ * flushes per entry rather than buffering the whole answer, which is why
+ * this is per-song and not a response size.
+ */
+#define MPDPROTO_SONG_MAX   (1536)
+
+/* `directory: <uri>`, the other thing `lsinfo` emits. */
+size_t mpdproto_directory(const char *uri, char *out, size_t cap);
+
+size_t mpdproto_song(const mpd_song_t *s, char *out, size_t cap);
+
+typedef enum {
+    MPD_STATE_STOP = 0,
+    MPD_STATE_PLAY,
+    MPD_STATE_PAUSE,
+} mpd_state_t;
+
+/*
+ * What `status` reports.
+ *
+ * THE FOUR MODES ARE FOUR BOOLEANS HERE and are supplied by the caller,
+ * not derived. MPD.md step 7 owns the `play_order_t` mapping -- one enum
+ * of four states against sixteen -- and it is not done; this struct is
+ * where the answer arrives when it is. Keeping the mapping out of the
+ * serialiser is the point: the lossy part is a table someone has to write
+ * down, and burying it in a formatter is how it gets improvised per
+ * command instead.
+ *
+ * At MPDPROTO_VERSION (0.20) `single` and `consume` are `0` or `1`. Newer
+ * MPD also emits `oneshot` for both -- `single oneshot` is 0.21 and
+ * `consume oneshot` is 0.24 -- so the booleans are correct for what is
+ * claimed and would need widening to a tri-state alongside the greeting.
+ *
+ * WHAT IS DELIBERATELY NOT REPORTED, because this device has none of it
+ * and MPD's own status is documented as "as applicable": `partition`
+ * (0.22), `lastloadedplaylist` (0.24), `mixrampdb`, `mixrampdelay` and
+ * `xfade`. An absent field is read as unknown; a field reporting 0 for a
+ * feature that does not exist is a claim.
+ *
+ * ELAPSED AND DURATION ARE MILLISECONDS HERE and MPD emits them to three
+ * decimals, but `remote_state_t` carries whole seconds (`pos_sec`,
+ * `len_sec`), so a caller filling this from that snapshot multiplies by
+ * 1000 and the decimals are zeros. That is honest rather than fixed: the
+ * precision has to come from the player, and widening the snapshot is a
+ * change to remoteproto.h and the ui_task pass that fills it, which is
+ * not this patch. A client interpolates between polls anyway.
+ */
+typedef struct {
+    mpd_state_t state;
+    int         volume;             /* <0: omitted, MPD's "unknown" */
+    bool        repeat, random, single, consume;
+    uint32_t    playlist_version;   /* mpdq_version() */
+    int         playlist_length;    /* mpdq_count() */
+    int         song;               /* <0: song and songid omitted */
+    uint32_t    songid;
+    int         next_song;          /* <0: nextsong and nextsongid omitted */
+    uint32_t    next_songid;
+    int32_t     elapsed_ms;         /* <0 unknown; ignored when stopped */
+    int32_t     duration_ms;        /* <0 unknown */
+    int         bitrate;            /* <0: omitted */
+    int         sample_rate;        /* 0: the audio: line is omitted */
+    int         bits, channels;
+    unsigned    updating_db;        /* 0: omitted. medialib_busy()'s job id */
+    const char *error;              /* NULL or "": omitted */
+} mpd_status_t;
+
+#define MPDPROTO_STATUS_MAX (512)
+
+/*
+ * `status`, in MPD's field order (src/command/PlayerCommands.cxx) --
+ * which no client depends on, and which is copied anyway because it costs
+ * nothing and makes the two readable side by side.
+ *
+ * The time fields are emitted only when not stopped, as MPD does: a
+ * stopped player has no elapsed time, and reporting 0 for it makes a
+ * client draw a progress bar at the start of a track it is not playing.
+ */
+size_t mpdproto_status(const mpd_status_t *s, char *out, size_t cap);
+
 #ifdef __cplusplus
 }
 #endif

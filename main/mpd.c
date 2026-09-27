@@ -108,6 +108,33 @@ static const char *TAG = "tab5_mpd";
 #define MPD_STACK           (6144)
 #define MPD_PRIO            (3)
 
+/*
+ * 5159: THE STACK IS IN PSRAM, allocated once in mpd_init() and reused
+ * for every start. The first board run of 5158 showed internal free fall
+ * about 6.8 KB across the switch being turned on -- 31903 to 25131, with
+ * nothing else starting in between -- which is this stack plus the TCB
+ * that xTaskCreate() takes from internal RAM. Internal RAM is the heap
+ * this device runs out of (5147: "the figure to watch now"), and the same
+ * run bottomed out at 1532 bytes once the remote came up as well.
+ *
+ * Static creation, not xTaskCreateWithCaps(): a WithCaps task that
+ * deletes itself makes IDF spawn a helper task FROM INTERNAL RAM to free
+ * it, and abort()s if that allocation fails -- a panic on the switch
+ * being turned off, in exactly the condition this change is for. A static
+ * task frees nothing when it is deleted, so turning the switch off
+ * allocates nothing. The TCB is .bss, a few hundred bytes paid at boot
+ * whether the switch is on or not; the 6 KB is PSRAM.
+ *
+ * Safe in PSRAM because this task never runs with the cache disabled: it
+ * does sockets and formatting and never writes flash (that is ui_task's,
+ * through settings). IDF refuses an external stack unless this option is
+ * set -- default y on the P4 -- so a build without it fails here rather
+ * than asserting in xTaskCreateStatic() on the board.
+ */
+#if !CONFIG_FREERTOS_TASK_CREATE_ALLOW_EXT_MEM
+#error "mpd.c puts its task stack in PSRAM and needs CONFIG_FREERTOS_TASK_CREATE_ALLOW_EXT_MEM=y"
+#endif
+
 /* How often the task looks up from select() to see whether it has been
  * asked to stop, and to time clients out. */
 #define MPD_SELECT_MS       (250)
@@ -202,7 +229,11 @@ static size_t             s_out_len;
 static char              *s_body;           /* MPD_BODY_MAX, PSRAM */
 static char              *s_text;           /* MPD_TEXT_MAX, PSRAM */
 
+/* Non-NULL while a task exists or has not yet been seen to be deleted;
+ * only mpd_poll() writes it (5159). */
 static TaskHandle_t       s_task;
+static StaticTask_t       s_tcb;            /* 5159: internal .bss */
+static StackType_t       *s_stack;          /* 5159: MPD_STACK, PSRAM */
 static volatile bool      s_stop;
 static volatile bool      s_listening;
 static volatile int       s_nclients;
@@ -1009,7 +1040,9 @@ out:
     s_listening = false;
     ESP_LOGI(TAG, "down; stack high-water %u of %d bytes free",
              (unsigned)uxTaskGetStackHighWaterMark(NULL), MPD_STACK);
-    s_task = NULL;
+    /* s_task is not cleared here (5159): mpd_poll() clears it once the
+     * task is seen to be deleted, because until then its stack is still
+     * in use and must not be handed to a new one. */
     vTaskDelete(NULL);
 }
 
@@ -1027,7 +1060,9 @@ void mpd_init(void)
     s_out  = heap_caps_malloc(MPD_OUT_MAX, ps);
     s_body = heap_caps_malloc(MPD_BODY_MAX, ps);
     s_text = heap_caps_malloc(MPD_TEXT_MAX, ps);
-    bool ok = s_q && s_mu && s_pub && s_next && s_view && s_out && s_body && s_text;
+    s_stack = heap_caps_malloc(MPD_STACK, ps);  /* 5159 */
+    bool ok = s_q && s_mu && s_pub && s_next && s_view && s_out && s_body && s_text &&
+              s_stack;
     for (int i = 0; i < MPD_CLIENTS; i++) {
         s_conn[i].fd = -1;
         s_conn[i].in = heap_caps_malloc(MPDPROTO_LINE_MAX, ps);
@@ -1048,7 +1083,8 @@ void mpd_init(void)
 
 static bool ready(void)
 {
-    if (!s_q || !s_mu || !s_pub || !s_next || !s_view || !s_out || !s_body || !s_text) return false;
+    if (!s_q || !s_mu || !s_pub || !s_next || !s_view || !s_out || !s_body || !s_text ||
+        !s_stack) return false;
     for (int i = 0; i < MPD_CLIENTS; i++) if (!s_conn[i].in) return false;
     return true;
 }
@@ -1058,6 +1094,18 @@ void mpd_poll(bool want)
     if (!ready()) return;
     char ip[20];
     const bool net = have_ip(ip, sizeof(ip));
+
+    /*
+     * 5159: a task that has exited -- stopped, or failed to bind -- is let
+     * go only once FreeRTOS says it is deleted, because its stack is the
+     * one the next task will be given. eTaskGetState() is safe on the
+     * handle afterwards: it is &s_tcb, which is ours and never freed, and
+     * a TCB on the termination list or on none reads as eDeleted. The
+     * handle is only ever written here, so the old race -- a task that
+     * failed to bind clearing it before xTaskCreate() had returned it --
+     * cannot happen any more.
+     */
+    if (s_task && eTaskGetState(s_task) == eDeleted) s_task = NULL;
 
     if (s_task) {
         if (!want || !net) {
@@ -1069,15 +1117,8 @@ void mpd_poll(bool want)
     if (!want || !net || esp_timer_get_time() < s_retry_us) return;
 
     s_stop = false;
-    /*
-     * The handle is written by xTaskCreate() itself, before the task is
-     * put on a ready list. Assigning it here afterwards would race a task
-     * that fails to bind and clears s_task on its way out -- on two cores
-     * it can do that before this line runs -- leaving a handle to a
-     * deleted task and a server that never starts again.
-     */
-    if (xTaskCreate(mpd_task, "mpd", MPD_STACK, NULL, MPD_PRIO, &s_task) != pdPASS) {
-        s_task = NULL;
+    s_task = xTaskCreateStatic(mpd_task, "mpd", MPD_STACK, NULL, MPD_PRIO, s_stack, &s_tcb);
+    if (!s_task) {
         ESP_LOGW(TAG, "could not create the task; trying again in 5 s");
         s_retry_us = esp_timer_get_time() + MPD_RETRY_US;
     }

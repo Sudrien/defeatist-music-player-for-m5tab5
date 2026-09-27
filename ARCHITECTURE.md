@@ -15515,3 +15515,80 @@ raw UDP API and not through the socket table. On paper that is 22 - 1 + 2
 = 23 against 24, which fits with one spare rather than two. Not changed
 here, because it is a correction to 5157's census and belongs in a patch
 of its own.
+
+### 5159 -- mpd: the task's stack in PSRAM, after the first board run
+
+5158's first run on the board (v0.4.0-180, cable and Wi-Fi both up, a
+station playing) confirmed two things and showed a third.
+
+**Confirmed:** the server comes up when switched on, and the ceiling took
+-- `tab5_mpd: listening on port 6600: 3 clients, lwIP has 24 sockets`,
+which is 5157's value arriving on a board and not only past its `#error`.
+**Not yet shown:** anything a client does. No client connected in that
+log, so every verb is still host-tested only.
+
+**Shown:** what the task costs, and where. netstream's periodic line
+carries `internal free`, and the two readings either side of the tap that
+turned the server on are the only ones with nothing else starting between
+them:
+
+    25729   internal free 31903
+    27663   tab5_panel: mpd server on
+    27770   tab5_mpd: listening on port 6600 ...
+    30776   internal free 25131
+
+About 6.8 KB: the 6144-byte stack and the TCB, both taken from internal
+RAM by `xTaskCreate()`. Against 5147's table that is the wrong heap to
+spend -- "ordinary internal free ... is the figure to watch now" -- and the
+same run showed why: the remote's HTTPS server came up eight seconds
+later, the heap map read `internal free 10391`, and its `min-ever` was
+**1532**. 5147 recorded 15083 free at the same point without MPD (the
+order differed; there the remote came up before the stream). Nothing
+failed. The margin that was left is smaller than the stack MPD had just
+taken.
+
+**So the stack is PSRAM now**, allocated once in `mpd_init()` and handed
+to `xTaskCreateStatic()` on every start, with a `StaticTask_t` in `.bss`.
+Internal RAM pays the TCB -- a few hundred bytes, at boot, whether the
+switch is on or not -- and nothing when it is turned on.
+
+**Not `xTaskCreateWithCaps()`, which is the obvious call and has a trap
+in exactly this condition.** A WithCaps task that deletes itself --
+which this one does, on a stop or a failed bind -- cannot free its own
+stack, so IDF creates a temporary helper task to do it
+(`vTaskDeleteWithCaps()`, `esp_additions/idf_additions.c`), with a stack
+from internal RAM, and `abort()`s if that allocation fails. On a heap
+that has been seen at 1532 bytes, that is a panic when the switch is
+turned off. A static task frees nothing on deletion, so stopping
+allocates nothing.
+
+**The price is that the stack is reused, so a new task must not be given
+it while the old one is still on it.** `mpd_task()` no longer clears
+`s_task` on its way out; `mpd_poll()` clears it once `eTaskGetState()`
+says `eDeleted`, and only then starts another. That also removes the race
+5158's comment worked around -- a task that failed to bind clearing the
+handle before `xTaskCreate()` had returned it -- because the handle now
+has one writer. The state read is safe after deletion because the handle
+is `&s_tcb`, which is never freed, and FreeRTOS reports a TCB on the
+termination list or on no list as `eDeleted`.
+
+**PSRAM is safe for this stack** because the task never runs with the
+cache disabled: it does sockets and formatting, and flash is written by
+`ui_task` through settings. IDF refuses an external stack
+(`configASSERT(portVALID_STACK_MEM(...))` in `xTaskCreateStatic()`)
+unless `CONFIG_FREERTOS_TASK_CREATE_ALLOW_EXT_MEM` is set. That is default
+y on the P4 and `sdkconfig.defaults` does not touch it, and `mpd.c`
+`#error`s without it, so a build that loses it fails at compile time
+rather than asserting on the board. Read out of IDF v5.5.1's source; the
+board runs v5.5.5.
+
+**What the next run should show:** the same pair of netstream readings
+either side of `mpd server on` within a few hundred bytes of each other,
+instead of 6.8 KB apart, and the `down; stack high-water` line when the
+switch is turned off -- which is also the first time this task's stack
+use will have been measured, and it says whether 6144 was right.
+
+Compile-checked with `-Wall -Wextra` against the current headers, with
+and without the option. The start/stop/restart sequence was not driven
+on a host; it is the part to watch on the board (switch off, wait for
+`down;`, switch on, repeatedly).

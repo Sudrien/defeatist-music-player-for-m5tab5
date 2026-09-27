@@ -287,6 +287,14 @@ typedef struct {
     int value;
 } ui_action_t;
 
+/*
+ * The screen's background, shared with albumart.c so the margin around a
+ * cover that does not fill its square is the same grey as the controls
+ * beside it. It used to be cleared to 0 -- pure black against the bar's
+ * 0x11 -- and the seam showed.
+ */
+#define UI_BG_RGB565    RGB(0x11, 0x11, 0x11)
+
 esp_err_t ui_init(esp_lcd_panel_handle_t panel, int w, int h);
 
 /* Blank the area above the bar.

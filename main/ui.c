@@ -24,7 +24,7 @@ static const char *TAG = "tab5_ui";
 /* RGB() and every drawing primitive now live in gfx.c, so the chooser can
  * use the same ones. Nothing here changed except the names. */
 
-#define C_BG        RGB(0x11, 0x11, 0x11)
+#define C_BG        UI_BG_RGB565   /* ui.h: albumart.c paints it too */
 #define C_TRACK     RGB(0x3A, 0x3A, 0x3A)   /* unplayed / unfilled */
 #define C_FILL      RGB(0xD1, 0x3B, 0x2C)   /* played / set volume */
 #define C_THUMB     RGB(0xFF, 0xFF, 0xFF)

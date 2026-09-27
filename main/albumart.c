@@ -939,7 +939,7 @@ static esp_err_t blit_cover(esp_lcd_panel_handle_t panel,
     ESP_RETURN_ON_ERROR(fb ? ESP_OK : ESP_ERR_INVALID_STATE,
                         TAG, "no shadow buffer");
 
-    /* Black out, then place the crop, then copy the band up once.
+    /* Clear to the UI's background, then place the crop, then copy the band up once.
      *
      * screen_h is the height of the artwork area, not of the panel: the
      * caller passes the space above the transport bar. Clearing the full
@@ -955,9 +955,7 @@ static esp_err_t blit_cover(esp_lcd_panel_handle_t panel,
      * fbw is the stride, screen_w is the region -- they are different
      * numbers and every write below uses the right one. */
     const int fbw = gfx_w();
-    for (int y = 0; y < screen_h; y++) {
-        memset(&fb[(size_t)y * fbw], 0, (size_t)screen_w * 2);
-    }
+    gfx_fill_rect(0, 0, screen_w, screen_h, UI_BG_RGB565);
     const uint16_t *src = (const uint16_t *)rgb;
     for (int y = 0; y < ch; y++) {
         uint32_t syf = (uint32_t)y * ystep;
@@ -1523,9 +1521,7 @@ static esp_err_t albumart_draw_png(esp_lcd_panel_handle_t panel,
     uint16_t *fb = gfx_fb();
     ESP_RETURN_ON_FALSE(fb, ESP_ERR_INVALID_STATE, TAG, "no shadow buffer");
     const int fbw = gfx_w();
-    for (int y = 0; y < screen_h; y++) {
-        memset(&fb[(size_t)y * fbw], 0, (size_t)screen_w * 2);
-    }
+    gfx_fill_rect(0, 0, screen_w, screen_h, UI_BG_RGB565);
 
     pngle_t *p = pngle_new();
     ESP_RETURN_ON_FALSE(p, ESP_ERR_NO_MEM, TAG, "pngle_new");

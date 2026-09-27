@@ -25,6 +25,7 @@
 #include "menuscroll.h"
 #include "panel.h"
 #include "settings.h"
+#include "remote.h"          /* 5117 */
 #include "wifi.h"
 #include "wifistore.h"
 #include "portal.h"
@@ -608,11 +609,23 @@ static int draw_note(int y, const char *const *lines, int count)
 #define NET_WIFI_NOTE_LINES (3)
 #define NET_NTP_NOTE_LINES  (3)
 
+/* 5117: the browser remote, under Wi-Fi because it is what Wi-Fi is on
+ * for, and above everything that is about the network itself. */
+#define NET_REMOTE_NOTE_LINES (3)
+
 static int wifi_y(void) { return list_top(); }
-static int ntp_y(void)  { return wifi_y() + AUDIO_SWITCH_H
+static int remote_y(void) { return wifi_y() + AUDIO_SWITCH_H
+                                   + AUDIO_NOTE_GAP
+                                   + NET_WIFI_NOTE_LINES * AUDIO_NOTE_STEP
+                                   + AUDIO_GAP; }
+static int ntp_y(void)  { return remote_y() + AUDIO_SWITCH_H
                                  + AUDIO_NOTE_GAP
-                                 + NET_WIFI_NOTE_LINES * AUDIO_NOTE_STEP
+                                 + NET_REMOTE_NOTE_LINES * AUDIO_NOTE_STEP
                                  + AUDIO_GAP; }
+static void remote_box(int *x, int *y, int *w, int *h)
+{
+    *x = 0; *y = remote_y(); *w = gfx_w(); *h = AUDIO_SWITCH_H;
+}
 static void wifi_switch_box(int *x, int *y, int *w, int *h)
 {
     *x = 0; *y = wifi_y(); *w = gfx_w(); *h = AUDIO_SWITCH_H;
@@ -843,6 +856,42 @@ static int draw_net(void)
         "it, and the radio draws power while on.",
     };
     draw_note(y + bh + AUDIO_NOTE_GAP, wifi_note, NET_WIFI_NOTE_LINES);
+
+    /* --- Remote control (5117) -------------------------------------- */
+    remote_box(&x, &y, &bw, &bh);
+    gfx_fill_rect(x, y, bw, bh, C_ROW);
+    gfx_draw_text(24, y + (bh - GFX_GLYPH_H(NAME_SCALE)) / 2, "Remote control",
+                  NAME_SCALE, 400, netok ? C_TEXT : C_DISABLED);
+    {
+        const bool pref = settings_remote_enabled();
+        const int pw = 132, ph = 56;
+        draw_state_pill(w - 24 - pw, y + (bh - ph) / 2, pw, ph,
+                        pref ? "ON" : "OFF", pref, netok, NAME_SCALE);
+    }
+    {
+        /*
+         * The address when it is up, because that is the one thing the
+         * person who switched it on needs next; and the cost, always,
+         * because it is the reason to switch it off again.
+         */
+        static char url_line[64];
+        const char *rn[NET_REMOTE_NOTE_LINES];
+        char url[48];
+        if (remote_running() && remote_url(url, sizeof(url))) {
+            snprintf(url_line, sizeof(url_line), "Open %s", url);
+            rn[0] = url_line;
+            rn[1] = "in a browser on the same network.";
+        } else if (settings_remote_enabled()) {
+            rn[0] = netok ? "Waiting for a network address."
+                          : "Needs a network: Wi-Fi or a cable.";
+            rn[1] = "Then it shows the address to open.";
+        } else {
+            rn[0] = "Play, pause, skip, seek and volume";
+            rn[1] = "from a browser on the same network.";
+        }
+        rn[2] = "No password: anyone on it can use it.";
+        (void)draw_note(y + bh + AUDIO_NOTE_GAP, rn, NET_REMOTE_NOTE_LINES);
+    }
 
     /* --- Network time ----------------------------------------------- */
     ntp_switch_box(&x, &y, &bw, &bh);
@@ -1330,6 +1379,17 @@ bool panel_touch(bool down, int x, int y)
             /* Posts and returns. Doing the work here would block
              * ui_task, and this is the only writer of the framebuffer. */
             wifi_request_apply();
+            s_dirty = true;
+            return false;
+        }
+
+        /* 5117: tappable without a network, like the row below and for
+         * the same reason; remote_poll() starts it when there is one. */
+        remote_box(&bx, &by, &bw, &bh);
+        if (y >= by && y < by + bh) {
+            const bool on = !settings_remote_enabled();
+            settings_set_remote_enabled(on);
+            ESP_LOGI(TAG, "remote control %s", on ? "on" : "off");
             s_dirty = true;
             return false;
         }

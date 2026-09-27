@@ -29,6 +29,7 @@ static const char *TAG = "tab5_wave";
 static uint8_t s_level[FRAMEWALK_MAX_COLUMNS];
 static int     s_columns;
 static int     s_lo, s_hi;
+static volatile uint32_t s_gen;     /* 5117: bumped by every set */
 
 static inline int level_at(int i, int n)
 {
@@ -74,6 +75,7 @@ static void span(const framewalk_t *w, int *lo, int *hi)
 
 void waveform_set(const framewalk_t *w)
 {
+    s_gen++;
     if (!w || !w->has_levels || w->columns <= 0) {
         s_columns = 0;
         return;
@@ -91,6 +93,23 @@ void waveform_set(const framewalk_t *w)
 bool waveform_ready(void)
 {
     return s_columns > 0;
+}
+
+uint32_t waveform_gen(void) { return s_gen; }
+
+int waveform_levels(uint8_t *out, int max)
+{
+    const int n = s_columns < max ? s_columns : max;
+    const int span_ = s_hi > s_lo ? s_hi - s_lo : 1;
+    for (int i = 0; i < n; i++) {
+        const int v = s_level[i];
+        /* The same floor the bar draws from; 0 stays 0 (see span()). */
+        int r = v == 0 ? 0 : ((v - s_lo) * 255) / span_;
+        if (r < 0) r = 0;
+        if (r > 255) r = 255;
+        out[i] = (uint8_t)r;
+    }
+    return n < 0 ? 0 : n;
 }
 
 

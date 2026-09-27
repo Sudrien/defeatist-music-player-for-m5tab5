@@ -55,6 +55,17 @@ void waveform_set(const framewalk_t *w);
 bool waveform_ready(void);
 
 /*
+ * 5117: for the browser remote. The generation changes on every
+ * waveform_set(), so a reader can tell a new envelope from the one it
+ * already sent. The levels are the ones the bar draws: rescaled to the
+ * track's own range (see span() in waveform.c), 0..255, 0 for silence.
+ * Returns how many columns were written. Read from ui_task, as the bar
+ * is.
+ */
+uint32_t waveform_gen(void);
+int waveform_levels(uint8_t *out, int max);
+
+/*
  * Draw the envelope standing on base_y, growing upward, spanning
  * x0..x1 (exclusive), at most `height` tall.
  *

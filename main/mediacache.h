@@ -123,6 +123,14 @@ void mediacache_init(void);
 const uint8_t *mediacache_art(const char *path, size_t *len);
 
 /*
+ * 5117: the same cover, COPIED under the lock into PSRAM, for a task
+ * that is not media_task -- the browser remote's /art handler. The
+ * caller frees it with free(). NULL when absent or out of memory. Does
+ * not change the entry's place in the LRU.
+ */
+uint8_t *mediacache_art_dup(const char *path, size_t *len);
+
+/*
  * Store a cover. The cache TAKES OWNERSHIP of img and will free() it.
  *
  * img must come from the ordinary heap, because that is what

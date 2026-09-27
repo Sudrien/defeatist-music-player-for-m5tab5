@@ -115,6 +115,10 @@ TAIL_BIN := tailplantest
 # code that reads bytes from anyone in radio range.
 PORTAL_BIN := portalwebtest
 
+# 5117: the browser remote's commands and state JSON -- commands from
+# anyone on the network, strings from any tag on a card.
+REMOTE_BIN := remoteprototest
+
 # Fourteen older checks, written alongside the patches they cover and
 # never added here, so nothing ran them after the session that wrote
 # them. Each has its own main() and reports "all passed" or "FAILURES",
@@ -233,7 +237,7 @@ NETLINK_BIN := netlinktest
 # ../test_audio_files so the bytes under test are the bytes on the card.
 CUE_BIN := cuesheettest
 
-all: run run-ctrl run-wifi run-clock run-rotate run-cardtime run-mediaindex run-mediawalk run-mediasync run-menuscroll run-fade run-tail run-portal run-old check-ui run-bright run-sleep run-sniff run-icy run-netplan run-stations run-pcmfold run-bufplan run-stbjpeg run-addrpin run-codec run-mp3 run-framewin run-streamplan run-stationnav run-radiobrowser run-levelhist run-favmatch run-netlink run-cue run-flacenc run-beam
+all: run-remote run run-ctrl run-wifi run-clock run-rotate run-cardtime run-mediaindex run-mediawalk run-mediasync run-menuscroll run-fade run-tail run-portal run-old check-ui run-bright run-sleep run-sniff run-icy run-netplan run-stations run-pcmfold run-bufplan run-stbjpeg run-addrpin run-codec run-mp3 run-framewin run-streamplan run-stationnav run-radiobrowser run-levelhist run-favmatch run-netlink run-cue run-flacenc run-beam
 
 $(BIN): $(SRCS) shim.h ../main/gfx.h ../components/ark12/ark12.h
 	$(CC) $(CFLAGS) -o $@ $(SRCS) $(LDFLAGS)
@@ -387,6 +391,13 @@ $(PORTAL_BIN): portalwebtest.c ../main/portalweb.c ../main/portalweb.h ../main/d
 run-portal: $(PORTAL_BIN)
 	ASAN_OPTIONS=detect_leaks=1:abort_on_error=0 ./$(PORTAL_BIN)
 
+$(REMOTE_BIN): remoteprototest.c ../main/remoteproto.c ../main/remoteproto.h
+	$(CC) $(WARNCFLAGS) -c ../main/remoteproto.c -o /dev/null
+	$(CC) $(CFLAGS) -o $@ remoteprototest.c ../main/remoteproto.c $(LDFLAGS)
+
+run-remote: $(REMOTE_BIN)
+	ASAN_OPTIONS=detect_leaks=1:abort_on_error=0 ./$(REMOTE_BIN)
+
 $(OLD_STANDALONE): %: %.c
 	$(CC) $(WARNCFLAGS) -c $< -o /dev/null
 	$(CC) $(CFLAGS) -D_GNU_SOURCE -pthread -o $@ $< $(LDFLAGS) -pthread
@@ -404,7 +415,7 @@ run-old: $(OLD_BINS)
 	done
 
 clean:
-	rm -f $(BIN) $(CTRL_BIN) $(WIFI_BIN) $(CLOCK_BIN) $(FADE_BIN) $(TAIL_BIN) $(PORTAL_BIN) $(OLD_BINS) $(BRIGHT_BIN) $(SLEEP_BIN) $(SNIFF_BIN) $(ICY_BIN) $(NETPLAN_BIN) $(STATION_BIN) $(BUFPLAN_BIN) $(CODEC_BIN) $(MP3_BIN) $(FRAMEWIN_BIN) $(STREAMPLAN_BIN) $(STATIONNAV_BIN) $(RADIOBROWSER_BIN) $(LEVELHIST_BIN) $(SGAIN_BIN) $(JSONPICK_BIN) $(FAVMATCH_BIN) $(FLACENC_BIN) $(BEAM_BIN) $(NETLINK_BIN) $(CUE_BIN) $(ROTATE_BIN) $(CARDTIME_BIN) $(MEDIAINDEX_BIN) $(MEDIAWALK_BIN) $(MEDIASYNC_BIN) $(MENUSCROLL_BIN) $(STBJPEG_BIN) $(ADDRPIN_BIN)
+	rm -f $(BIN) $(CTRL_BIN) $(WIFI_BIN) $(CLOCK_BIN) $(FADE_BIN) $(TAIL_BIN) $(PORTAL_BIN) $(REMOTE_BIN) $(OLD_BINS) $(BRIGHT_BIN) $(SLEEP_BIN) $(SNIFF_BIN) $(ICY_BIN) $(NETPLAN_BIN) $(STATION_BIN) $(BUFPLAN_BIN) $(CODEC_BIN) $(MP3_BIN) $(FRAMEWIN_BIN) $(STREAMPLAN_BIN) $(STATIONNAV_BIN) $(RADIOBROWSER_BIN) $(LEVELHIST_BIN) $(SGAIN_BIN) $(JSONPICK_BIN) $(FAVMATCH_BIN) $(FLACENC_BIN) $(BEAM_BIN) $(NETLINK_BIN) $(CUE_BIN) $(ROTATE_BIN) $(CARDTIME_BIN) $(MEDIAINDEX_BIN) $(MEDIAWALK_BIN) $(MEDIASYNC_BIN) $(MENUSCROLL_BIN) $(STBJPEG_BIN) $(ADDRPIN_BIN)
 	rm -rf $(BIN).dSYM $(CTRL_BIN).dSYM $(WIFI_BIN).dSYM $(CLOCK_BIN).dSYM $(FADE_BIN).dSYM $(TAIL_BIN).dSYM $(PORTAL_BIN).dSYM
 	rm -rf $(addsuffix .dSYM,$(OLD_BINS))
 

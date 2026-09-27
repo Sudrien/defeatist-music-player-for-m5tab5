@@ -159,7 +159,8 @@ static bool        s_prefs_nvs_known;
  * carries "screen_rotation":N as well as the old boolean, which is 21
  * more bytes. Both are written on purpose -- see the comment by fl. */
 /* And from 504 for "mic_stereo" (5109): 19 more bytes of key and value. */
-#define SETTINGS_MAX_LINE       (524)
+/* And from 524 for "remote" (5117): 16 more. */
+#define SETTINGS_MAX_LINE       (540)
 
 /*
  * The file is append-only, and this is where it stops growing.
@@ -201,6 +202,7 @@ static bool       s_crossfade_album;
  * the README asks for mono by default, and it is the one aimed at whoever
  * is in front of the screen. */
 static bool       s_mic_stereo;
+static bool       s_remote;           /* 5117: see settings.h */
 static uint8_t    s_brightness = SETTINGS_BRIGHTNESS_DEFAULT;
 /* Right way up. A player that has never been told otherwise is the one
  * on the desk in front of whoever flashed it. */
@@ -377,6 +379,16 @@ void settings_set_screen_rotation(int quarter_turns)
 }
 
 bool settings_mic_stereo(void) { return s_mic_stereo; }
+
+bool settings_remote_enabled(void) { return s_remote; }
+
+void settings_set_remote_enabled(bool on)
+{
+    if (on == s_remote) return;
+    s_remote = on;
+    s_dirty = true;
+    s_dirty_since = xTaskGetTickCount();
+}
 
 void settings_set_mic_stereo(bool on)
 {
@@ -855,6 +867,12 @@ static bool parse_line(char *line, storage_id_t id, bool take_settings,
             any = true;
         }
 
+        const cJSON *rm = cJSON_GetObjectItemCaseSensitive(root, "remote");
+        if (take_settings && cJSON_IsBool(rm)) {
+            s_remote = cJSON_IsTrue(rm);
+            any = true;
+        }
+
         const cJSON *wf = cJSON_GetObjectItemCaseSensitive(root, "wifi");
         if (take_settings && cJSON_IsBool(wf)) {
             s_wifi_enabled = cJSON_IsTrue(wf);
@@ -962,6 +980,10 @@ static bool parse_line(char *line, storage_id_t id, bool take_settings,
     }
     if (strcmp(key, "mic_stereo") == 0) {
         s_mic_stereo = !(strcmp(val, "0") == 0 || strcasecmp(val, "false") == 0);
+        return true;
+    }
+    if (strcmp(key, "remote") == 0) {
+        s_remote = !(strcmp(val, "0") == 0 || strcasecmp(val, "false") == 0);
         return true;
     }
     if (strcmp(key, "replaygain") == 0) {
@@ -1092,6 +1114,7 @@ static int record_line(storage_id_t id, char *out, size_t out_len)
     const char *const rg = s_rg_enabled ? "true" : "false";
     const char *const xa = s_crossfade_album ? "true" : "false";
     const char *const ms = s_mic_stereo ? "true" : "false";
+    const char *const rc = s_remote ? "true" : "false";
     /* Both keys. screen_flipped is what an older build reads, and it
      * can only say upright or over -- a quarter turn is written as
      * upright there, because landing on its side is worse than landing
@@ -1130,11 +1153,11 @@ static int record_line(storage_id_t id, char *out, size_t out_len)
                             "\"screen_rotation\":%u," \
                             "\"wifi\":%s,\"ntp\":%s," \
                             "\"ntp_epoch\":%s,\"ntp_boot_us\":%s," \
-                            "\"mic_stereo\":%s"
+                            "\"mic_stereo\":%s,\"remote\":%s"
 #define SETTINGS_FIELDS_ARGS s_volume, rg, (unsigned)s_crossfade_sec, xa, \
                              (unsigned)s_brightness, fl, \
                              (unsigned)s_screen_rot, \
-                             wf, np, nte, ntb, ms
+                             wf, np, nte, ntb, ms, rc
 
     if (id >= STORAGE_COUNT || !s_track[id][0]) {
         return snprintf(out, out_len, "{" SETTINGS_FIELDS_FMT "}\n",

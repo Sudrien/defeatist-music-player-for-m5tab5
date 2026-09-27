@@ -207,6 +207,22 @@ const uint8_t *mediacache_art(const char *path, size_t *len)
     return p;
 }
 
+uint8_t *mediacache_art_dup(const char *path, size_t *len)
+{
+    lock();
+    entry_t *e = find(path);
+    if (!e || !e->art || !e->art->len) { unlock(); return NULL; }
+    /* Not touch(e): a browser asking for the cover is not a reason to
+     * keep it over the previous or next track's. */
+    uint8_t *p = heap_caps_malloc(e->art->len, MALLOC_CAP_SPIRAM | MALLOC_CAP_8BIT);
+    if (p) {
+        memcpy(p, e->art->data, e->art->len);
+        if (len) *len = e->art->len;
+    }
+    unlock();
+    return p;
+}
+
 /*
  * An entry already holding these exact bytes, or NULL.
  *

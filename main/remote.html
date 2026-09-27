@@ -1,0 +1,355 @@
+<!doctype html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width,initial-scale=1,viewport-fit=cover">
+<meta name="theme-color" content="#111111">
+<title>Defeatist</title>
+<style>
+/* The device's own palette, from ui.c. */
+:root {
+  --bg: #111; --track: #3a3a3a; --fill: #d13b2c; --thumb: #fff;
+  --icon: #ccc; --icon-off: #555; --album: #888; --star: #e8b32c;
+  --play: #4cc05e; --wave-future: #6e6e6e;
+}
+* { box-sizing: border-box; }
+html, body { margin: 0; height: 100%; background: var(--bg); color: var(--thumb);
+  font: 16px/1.2 system-ui, -apple-system, "Segoe UI", sans-serif;
+  -webkit-tap-highlight-color: transparent; user-select: none; }
+body { display: grid; place-items: center; overflow: hidden; }
+button { font: inherit; color: inherit; background: none; border: 0; padding: 0;
+  cursor: pointer; touch-action: manipulation; }
+
+/* The stage: 720p at most, scaled to fit, laid out as the device is.
+   The orientation query picks which of the two. */
+.stage { display: grid; container-type: size; background: var(--bg); position: relative; }
+@media (orientation: portrait) {
+  .stage { width: min(720px, 100vw, 100dvh * 9 / 16); aspect-ratio: 9 / 16;
+    grid-template: "art" minmax(0, 560fr) "bar" minmax(0, 720fr) / minmax(0, 1fr); }
+}
+@media (orientation: landscape) {
+  .stage { height: min(720px, 100dvh, 100vw * 9 / 16); aspect-ratio: 16 / 9;
+    grid-template: "art bar" minmax(0, 1fr) / minmax(0, 560fr) minmax(0, 720fr); }
+}
+
+.art { grid-area: art; display: grid; place-items: center; overflow: hidden;
+  container-type: size; perspective: 1400px; }
+.art img { width: 100%; height: 100%; object-fit: contain; opacity: 0;
+  transition: opacity .25s; }
+.art img.on { opacity: 1; }
+
+/* The control square: ui.c's rows in its own pixels (720 in all), as fr. */
+.bar { grid-area: bar; container-type: size; display: grid;
+  /* minmax(0, ...) throughout: a bare fr track has an auto minimum and
+     grows to fit its content, which is how an unsized icon took the page. */
+  grid-template-columns: minmax(0, 24fr) minmax(0, 672fr) minmax(0, 24fr);
+  grid-template-rows: minmax(0, 44fr) minmax(0, 60fr) minmax(0, 56fr) minmax(0, 52fr)
+    minmax(0, 46fr) minmax(0, 42fr) minmax(0, 46fr) minmax(0, 92fr) minmax(0, 36fr)
+    minmax(0, 52fr) minmax(0, 71fr) minmax(0, 52fr) minmax(0, 71fr);
+  grid-template-areas:
+    ". .         ."
+    ". envelope  ."
+    ". clocks    ."
+    ". title     ."
+    ". album     ."
+    ". artist    ."
+    ". .         ."
+    ". transport ."
+    ". .         ."
+    ". aux       ."
+    ". .         ."
+    ". volume    ."
+    ". .         .";
+  /* The stage's units, not the square's -- an element's own cq units
+     name its ancestor. The square's side is the stage's short one. */
+  font-size: max(14px, calc(26 / 720 * min(100cqw, 100cqh))); }
+
+.bar > * { min-width: 0; min-height: 0; }
+svg { display: block; width: 100%; height: 100%; }
+.envelope { grid-area: envelope; position: relative; touch-action: none; cursor: pointer; }
+.envelope canvas { width: 100%; height: 100%; display: block; }
+
+.clocks { grid-area: clocks; display: grid; grid-template-columns: auto 1fr auto;
+  align-items: start; font-variant-numeric: tabular-nums; font-size: 1.15em; padding-top: .2em; }
+.clocks :last-child { grid-column: 3; }
+
+.title, .album, .artist { align-self: center; white-space: nowrap; overflow: hidden;
+  text-overflow: ellipsis; min-width: 0; }
+.title  { grid-area: title; font-size: 1.35em; font-weight: 600; }
+.album  { grid-area: album; color: var(--album); }
+.artist { grid-area: artist; color: var(--icon); }
+
+/* prev | switch | next: skip glyphs at +/-230 around the 330 px switch. */
+.transport { grid-area: transport; display: grid;
+  grid-template-columns: minmax(0, 1fr) minmax(0, 70fr) minmax(0, 25fr) minmax(0, 330fr)
+    minmax(0, 25fr) minmax(0, 70fr) minmax(0, 1fr);
+  grid-template-areas: ". prev . switch . next .";
+  align-items: stretch; }
+.transport .prev { grid-area: prev; }
+.transport .next { grid-area: next; }
+.skip svg { width: 100%; height: 100%; }
+.skip:disabled { opacity: .35; cursor: default; }
+
+/* The switch. The track is thinner than the knob, which overhangs it.
+   Record | pause | play; here record is shown, not chosen. */
+.switch { grid-area: switch; position: relative; container-type: size; }
+.switch .trk { position: absolute; left: calc(17 / 330 * 100%); right: calc(17 / 330 * 100%);
+  top: calc(18 / 92 * 100%); bottom: calc(18 / 92 * 100%);
+  border-radius: 999px; background: var(--track); transition: background .15s; }
+.switch[data-s="play"] .trk { background: var(--play); }
+.switch[data-s="rec"]  .trk { background: var(--fill); }
+.switch .knob { position: absolute; top: 0; bottom: 0; aspect-ratio: 1;
+  left: calc(120 / 330 * 100%); border-radius: 50%; background: var(--thumb);
+  transition: left .18s ease-out; display: grid; place-items: center; }
+.switch[data-s="play"] .knob { left: calc(240 / 330 * 100%); }
+.switch[data-s="rec"]  .knob { left: 0; }
+.switch .knob svg { width: 46%; height: 46%; }
+.hint { position: absolute; top: 50%; width: calc(20 / 330 * 100%); aspect-ratio: 1;
+  transform: translate(-50%, -50%); pointer-events: none; }
+.hint.rec   { left: calc(45 / 330 * 100%); }
+.hint.pause { left: 50%; }
+.hint.play  { left: calc(285 / 330 * 100%); }
+.switch[data-s="rec"] .hint.rec, .switch[data-s="pause"] .hint.pause,
+.switch[data-s="play"] .hint.play { visibility: hidden; }
+
+.aux { grid-area: aux; display: grid; grid-auto-flow: column;
+  grid-auto-columns: calc(52 / 720 * 100cqw); justify-content: space-evenly;
+  align-items: stretch; }
+.aux button svg { width: 100%; height: 100%; }
+.aux button[hidden] { display: block; visibility: hidden; }
+
+.volume { grid-area: volume; display: grid;
+  grid-template-columns: calc(52 / 720 * 100cqw) minmax(0, 1fr) calc(51 / 720 * 100cqw);
+  column-gap: calc(71 / 720 * 100cqw); align-items: center; }
+.volume input { width: 100%; accent-color: var(--fill); }
+.batt { font-size: .8em; color: var(--icon); text-align: right; font-variant-numeric: tabular-nums; }
+
+/* Cards over the art, as the device shows them. */
+.card { position: absolute; left: 50%; top: 20%; transform: translateX(-50%);
+  background: #222; border: 2px solid #444; border-radius: 12px; padding: 1em 1.4em;
+  text-align: center; min-width: 50%; font-size: max(16px, 3.2cqw); display: none; }
+.card.on { display: block; }
+.card b { display: block; font-size: 1.4em; margin-bottom: .3em; }
+
+.gone { position: absolute; inset: 0; display: none; place-items: center;
+  background: #111c; color: var(--album); font-size: max(16px, 3cqw); text-align: center; }
+.gone.on { display: grid; }
+</style>
+</head>
+<body>
+<main class="stage" id="stage">
+  <div class="art"><img id="art" alt=""></div>
+
+  <div class="bar">
+    <div class="envelope" id="env"><canvas id="wave"></canvas></div>
+    <div class="clocks"><span id="el">--:--</span><span id="rm">--:--</span></div>
+    <div class="title" id="title"></div>
+    <div class="album" id="album"></div>
+    <div class="artist" id="artist"></div>
+
+    <div class="transport">
+      <button class="skip prev" id="prev" aria-label="Previous">
+        <svg viewBox="0 0 70 92"><rect x="10" y="24" width="8" height="44" fill="var(--icon)"/>
+          <path d="M60 24 L22 46 L60 68Z" fill="var(--icon)"/></svg></button>
+      <button class="switch" id="sw" data-s="pause" aria-label="Play or pause">
+        <span class="trk"></span>
+        <svg class="hint rec" id="hrec" viewBox="0 0 20 20"><circle cx="10" cy="10" r="10" fill="var(--fill)"/></svg>
+        <svg class="hint pause" viewBox="0 0 20 20"><rect x="2" y="0" width="5" height="20" fill="var(--icon-off)"/><rect x="13" y="0" width="5" height="20" fill="var(--icon-off)"/></svg>
+        <svg class="hint play" viewBox="0 0 20 20"><path d="M3 0 L20 10 L3 20Z" fill="var(--play)"/></svg>
+        <span class="knob"><svg id="kg" viewBox="0 0 40 40"></svg></span>
+      </button>
+      <button class="skip next" id="next" aria-label="Next">
+        <svg viewBox="0 0 70 92"><path d="M10 24 L48 46 L10 68Z" fill="var(--icon)"/>
+          <rect x="52" y="24" width="8" height="44" fill="var(--icon)"/></svg></button>
+    </div>
+
+    <div class="aux">
+      <button id="star" aria-label="Star" hidden>
+        <svg viewBox="0 0 52 52"><path id="starp" d="M26 3l6.9 14 15.4 2.2-11.1 10.9 2.6 15.3L26 38.2l-13.8 7.2 2.6-15.3L3.7 19.2 19.1 17z"
+          fill="none" stroke="var(--thumb)" stroke-width="3"/></svg></button>
+    </div>
+
+    <div class="volume">
+      <svg viewBox="0 0 52 52" aria-hidden="true"><path d="M6 19h10l12-10v34L16 33H6z" fill="var(--icon)"/>
+        <path d="M34 17q8 9 0 18M39 11q14 15 0 30" fill="none" stroke="var(--icon)" stroke-width="3"/></svg>
+      <input id="vol" type="range" min="0" max="100" value="50" aria-label="Volume">
+      <div class="batt" id="batt"></div>
+    </div>
+  </div>
+
+  <div class="card" id="card"><b id="cardh"></b><span id="cardb"></span></div>
+  <div class="gone on" id="gone">Connecting to the player…</div>
+</main>
+
+<script>
+"use strict";
+const $ = id => document.getElementById(id);
+let S = null;               // the last state
+let at = 0;                 // performance.now() when S.pos was true
+let wave = new Uint8Array(0), waveGen = -1;
+let ws = null, backoff = 500;
+let dragPct = -1, volDragging = false, volSent = 0, volTimer = 0;
+
+/* ---- the connection: hello, then state as it changes ---- */
+function connect() {
+  ws = new WebSocket(`ws://${location.host}/ws`);
+  ws.onopen = () => { backoff = 500; ws.send("hello"); $("gone").classList.remove("on"); };
+  ws.onmessage = e => {
+    let m; try { m = JSON.parse(e.data); } catch { return; }
+    if (m.t === "state") onState(m); else if (m.t === "wave") onWave(m);
+  };
+  ws.onclose = () => {
+    $("gone").textContent = "Lost the player. Reconnecting…";
+    $("gone").classList.add("on");
+    setTimeout(connect, backoff); backoff = Math.min(backoff * 2, 8000);
+  };
+}
+function send(s) { if (ws && ws.readyState === 1) ws.send(s); }
+
+/* ---- state ---- */
+function onState(m) {
+  const prevArt = S && S.art;
+  S = m; at = performance.now();
+  $("title").textContent = m.title;
+  $("album").textContent = m.album;
+  $("artist").textContent = m.artist;
+  $("next").disabled = !m.next;
+
+  // The switch: recording or counting down shows record, whatever the tap
+  // would do; the page cannot start one.
+  const sw = $("sw");
+  sw.dataset.s = (m.rec || m.count > 0) ? "rec" : m.playing ? "play" : "pause";
+  knobGlyph(sw.dataset.s);
+  $("hrec").innerHTML = m.recok
+    ? '<circle cx="10" cy="10" r="10" fill="var(--fill)"/>'
+    : '<path d="M2 2L18 18M18 2L2 18" stroke="var(--fill)" stroke-width="5"/>';
+
+  // Star: hidden, off, on, folder -- ui.h's order.
+  const star = $("star"), sp = $("starp");
+  star.hidden = m.fav === 0;
+  sp.setAttribute("fill", m.fav === 2 ? "var(--star)" : "none");
+  sp.setAttribute("stroke", m.fav === 1 ? "var(--thumb)" : "var(--star)");
+  sp.setAttribute("stroke-width", m.fav === 3 ? "6" : "3");
+
+  if (!volDragging) $("vol").value = m.vol;
+  $("vol").style.opacity = m.muted ? .45 : 1;
+  $("batt").textContent = m.batt < 0 ? "" : (m.chg ? "⚡" : "") + m.batt + "%";
+
+  if (m.art !== prevArt) setArt(m.art);
+
+  const card = $("card");
+  if (m.count > 0) { $("cardh").textContent = "Recording in " + m.count; $("cardb").textContent = "on the player"; card.classList.add("on"); }
+  else if (m.rec) { $("cardh").textContent = "Recording"; $("cardb").textContent = "stop it on the player, or tap here"; card.classList.add("on"); }
+  else card.classList.remove("on");
+
+  draw();
+}
+
+function onWave(m) {
+  waveGen = m.gen;
+  const n = m.lv.length / 2; wave = new Uint8Array(n);
+  for (let i = 0; i < n; i++) wave[i] = parseInt(m.lv.substr(i * 2, 2), 16);
+  draw();
+}
+
+/* ---- the cover, with the device's keystone as a CSS transform ---- */
+function setArt(k) {
+  const img = $("art");
+  img.classList.remove("on");
+  if (!k) { img.removeAttribute("src"); return; }
+  const h = parseInt(k, 16) >>> 0;
+  const lean = 2 + (h % 4);                        // 2..5 degrees, stable per cover
+  const ax = (h >> 31) & 1 ? "X" : "Y", sg = (h >> 30) & 1 ? 1 : -1;
+  img.style.transform = `rotate${ax}(${sg * lean}deg)`;
+  img.onload = () => img.classList.add("on");
+  img.src = "/art?k=" + k;
+}
+
+function knobGlyph(s) {
+  $("kg").innerHTML =
+    s === "rec"   ? '<circle cx="20" cy="20" r="16" fill="var(--fill)"/>' :
+    s === "pause" ? '<rect x="6" y="0" width="10" height="40" fill="var(--bg)"/><rect x="24" y="0" width="10" height="40" fill="var(--bg)"/>' :
+                    '<path d="M8 0 L38 20 L8 40Z" fill="var(--play)"/>';
+}
+
+/* ---- position, counted here between updates ---- */
+function posNow() {
+  if (!S || !S.valid) return 0;
+  const p = S.playing ? S.pos + (performance.now() - at) / 1000 : S.pos;
+  return S.len ? Math.min(p, S.len) : p;
+}
+function fmt(s) { s = Math.floor(s); return Math.floor(s / 60) + ":" + String(s % 60).padStart(2, "0"); }
+
+function draw() {
+  const c = $("wave"), r = c.getBoundingClientRect(), dpr = devicePixelRatio || 1;
+  const w = Math.round(r.width * dpr), h = Math.round(r.height * dpr);
+  if (c.width !== w || c.height !== h) { c.width = w; c.height = h; }
+  const g = c.getContext("2d"); g.clearRect(0, 0, w, h);
+  if (!S) return;
+  const len = S.valid ? S.len : 0, p = posNow();
+  const pct = dragPct >= 0 ? dragPct / 100 : len ? p / len : 0;
+  const split = Math.round(w * pct), base = h - 2 * dpr;
+
+  if (wave.length && len) {
+    for (let x = 0; x < w; x++) {
+      const v = wave[Math.min(wave.length - 1, Math.floor(x * wave.length / w))];
+      const bh = Math.max(2 * dpr, v / 255 * (base - 2 * dpr));
+      g.fillStyle = x < split ? "#d13b2c" : "#6e6e6e";
+      g.fillRect(x, base - bh, 1, bh);
+    }
+  } else {
+    g.fillStyle = "#3a3a3a"; g.fillRect(0, base - 3 * dpr, w, 3 * dpr);
+    g.fillStyle = "#d13b2c"; g.fillRect(0, base - 6 * dpr, split, 6 * dpr);
+  }
+  if (len) { g.fillStyle = S.seek ? "#fff" : "#6e6e6e"; g.fillRect(split - dpr, 0, 2 * dpr, base); }
+
+  $("el").textContent = S.valid ? fmt(dragPct >= 0 ? len * dragPct / 100 : p) : "--:--";
+  $("rm").textContent = S.valid && len ? "-" + fmt(len - (dragPct >= 0 ? len * dragPct / 100 : p)) : "--:--";
+}
+setInterval(draw, 250);
+addEventListener("resize", draw);
+
+/* ---- presses ---- */
+$("prev").onclick = () => send("prev");
+$("next").onclick = () => send("next");
+$("star").onclick = () => send("star");
+
+// The switch: a tap swaps pause and play; from record it pauses -- which
+// stops the recording on the player, as a tap there does.
+$("sw").onclick = () => {
+  if (!S) return;
+  const s = $("sw").dataset.s;
+  send(s === "pause" ? "play" : "pause");
+};
+$("card").onclick = () => { if (S && (S.rec || S.count > 0)) send("pause"); };
+
+// Volume: live, but no faster than the player's own drag.
+$("vol").addEventListener("input", e => {
+  const v = e.target.value, now = performance.now();
+  volDragging = true;
+  if (now - volSent > 120) { send("vol " + v); volSent = now; }
+  clearTimeout(volTimer);
+  volTimer = setTimeout(() => { send("vol " + v); volDragging = false; }, 150);
+});
+
+// Seek: previewed under the finger, sent once on release, as on the glass.
+const env = $("env");
+function pctAt(e) { const r = env.getBoundingClientRect(); return Math.max(0, Math.min(100, Math.round((e.clientX - r.left) / r.width * 100))); }
+env.addEventListener("pointerdown", e => {
+  if (!S || !S.seek) return;
+  env.setPointerCapture(e.pointerId); dragPct = pctAt(e); draw();
+});
+env.addEventListener("pointermove", e => { if (dragPct >= 0) { dragPct = pctAt(e); draw(); } });
+env.addEventListener("pointerup", () => {
+  if (dragPct < 0) return;
+  send("seek " + dragPct);
+  if (S && S.len) { S.pos = S.len * dragPct / 100; at = performance.now(); }
+  dragPct = -1; draw();
+});
+env.addEventListener("pointercancel", () => { dragPct = -1; draw(); });
+
+knobGlyph("pause");
+connect();
+</script>
+</body>
+</html>

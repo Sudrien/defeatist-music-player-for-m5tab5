@@ -112,6 +112,7 @@
 #include "streamgain.h"
 #include "streamplan.h"
 #include "recorder.h"
+#include "remote.h"          /* 5117 */
 
 static const char *TAG = "tab5_mp3";
 
@@ -7645,6 +7646,10 @@ static void ui_task(void *arg)
             act.value = s_hid_value;
             s_hid_action = -1;
         }
+        /* 5117: and a press from a browser, on the same terms and after
+         * both -- the glass and a key in the hand come first. Not gated
+         * on screen_off either, for the reason above. */
+        if (act.kind == UI_ACTION_NONE) (void)remote_take(&act);
 
         /*
          * One line per press, at the point they are dispatched rather
@@ -8037,6 +8042,12 @@ static void ui_task(void *arg)
         recording_overlay(&st);         /* 5106: pos_sec was just rewritten */
         if (s_rec_count > 0) st.recording = true;   /* the knob stays on record */
         st.rec_ok = recorder_can_start();
+        /* 5117: what the panel is about to draw is what the browser is
+         * told, so the two cannot disagree. Before ui_draw(), which
+         * returns early with the screen off -- a remote is most useful
+         * exactly then. */
+        remote_poll(settings_remote_enabled());
+        remote_publish(&st, s_shown_path, s_rec_count);
         ui_draw(&st);
 
         /* 50 Hz under a finger, 25 Hz while the title is travelling, 10 Hz
@@ -13985,6 +13996,7 @@ void app_main(void)
      * on it too now, and that reaches opendir()/readdir() through FatFs
      * and carries a couple of 512-byte path buffers on the way -- so the
      * old size overflowed on the first folder with a long name in it. */
+    remote_init();                  /* 5117: before the task that polls it */
     xTaskCreate(ui_task, "ui", 8192, NULL, 4, NULL);
 
     /*

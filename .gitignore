@@ -34,6 +34,7 @@
 # forgot the extension on. `make clean` removes these; the list is
 # here so a tree that has been built still reads as clean.
 texttest/texttest
+texttest/remoteprototest
 texttest/brightnesstest
 texttest/bufferplantest
 texttest/cachetest

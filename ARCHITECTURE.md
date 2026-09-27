@@ -14114,3 +14114,74 @@ boots):
 
 Compiled at -O2 -Werror against ESP-IDF 5.5.1 headers. Not on the
 board.
+
+### 5117 -- A remote control in a browser
+
+NET has a new switch under Wi-Fi, **Remote control**, off by default.
+On, and with an address (Wi-Fi or a cable), the player serves a
+single-page app at `http://<address>:8080/` and the row's note says so.
+The page is the transport bar again: the cover, the envelope with the
+position on it, the clocks, title/album/artist, prev, the switch, next,
+the star, the volume and the battery. Portrait or landscape by the
+browser's own shape, the device's two layouts, capped at 720p and scaled
+down to fit -- CSS grid throughout, with ui.c's row and column pixels as
+`fr` tracks, so the page and the glass are the same drawing.
+
+**It is a third input, not a second player.** Presses arrive over a
+WebSocket as one short line of ASCII (`play`, `pause`, `next`, `prev`,
+`star`, `vol N`, `seek N`), are parsed by remoteproto.c, queued, and
+taken by ui_task beside `s_hid_action` -- after the touch panel and the
+HID keys, and only when neither produced anything that pass. So a press
+from a phone goes through the same switch as one on the glass, with the
+same rules (a tap on the switch swaps pause and play; from record it
+means pause and stops the recording). The state goes out the same way:
+remote_publish() is handed the ui_state_t that ui_draw() is about to
+draw, before it -- ui_draw() returns early with the screen off, and a
+remote is most useful exactly then.
+
+**It cannot record.** There is no command for it. A recording is the
+voice of whoever is in the room with the player, and the person holding
+the phone may not be in that room. The page shows a recording, and its
+countdown, and can stop one; it cannot start one.
+
+**It renders nothing on the device.** The cover goes out as the file
+carried it (`/art?k=<hash>`, copied out of the media cache under its
+lock by the new mediacache_art_dup(), and cached by the browser forever
+under that key); the envelope as its levels, once per envelope
+(waveform_gen()/waveform_levels(), the same rescaled levels the bar
+draws); the clock as a position and a playing flag, which the page counts
+itself. A state is sent when anything but the position changes, when the
+position slips more than 2 s from what the page will have counted, and
+every 10 s otherwise. The keystone is a CSS rotateX/Y from the same hash.
+
+**Port 8080, not 80**, and its own httpd instance with control port
+32770: it never meets the setup portal, which keeps 80 because a phone
+on its access point is sent there by the captive-portal check. The two
+can run at once. Four sockets, LRU purge, a 6 KB server stack; every
+buffer it keeps (last state, last envelope, scratch) is in PSRAM. Sends
+to open sockets happen on the httpd task via httpd_queue_work(), the
+only task that may write to them.
+
+**No password.** Anyone on the network the player is on can use it; the
+row's third note line says so permanently.
+
+- remoteproto.c/.h: the commands and the JSON, pure. Strings are made
+  valid UTF-8 on the way out (a browser drops a WebSocket that sends it
+  invalid UTF-8, and a Latin-1 tag is that). texttest/remoteprototest.c
+  runs it under ASan/UBSan, including every undersized buffer.
+- remote.c/.h, remote.html (EMBED_TXTFILES).
+- settings: `"remote"`, card-only like the audio settings.
+- panel.c: the row. player.c: remote_init(), remote_take(),
+  remote_poll()/remote_publish().
+
+**sdkconfig.defaults gains `CONFIG_HTTPD_WS_SUPPORT=y` -- `rm sdkconfig`
+before building.** Without it the build fails on httpd_ws_*, so a stale
+sdkconfig does not fail quietly. On the board, `tab5_remote: up at
+http://...:8080/` is the line that says the server started, and
+`page connected (socket N)` the one that says the WebSocket did.
+
+Not yet: the chooser, cards other than the recording, and stations'
+artwork (the cover is served for files only). remote.c was
+syntax-checked against ESP-IDF 5.5's esp_http_server.h with
+-Wall -Wextra -Werror; the page was driven headless in Chromium against a
+fake socket at 390x844, 844x390 and 1400x900. Not on the board.

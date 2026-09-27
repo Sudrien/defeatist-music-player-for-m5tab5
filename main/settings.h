@@ -246,6 +246,15 @@ bool settings_mic_stereo(void);
 void settings_set_mic_stereo(bool on);
 
 /*
+ * 5117: the browser remote -- see remote.h. Off by default: it is a web
+ * server with no password on whatever network the player is on. Stored
+ * on the card only, like the audio settings; a card-less radio starts
+ * with it off.
+ */
+bool settings_remote_enabled(void);
+void settings_set_remote_enabled(bool on);
+
+/*
  * Whether the radio is allowed to come up at all. Off by default, and
  * that default is load-bearing.
  *

@@ -10110,6 +10110,12 @@ static track_end_t play_file(const char *path)
              * once when nothing is asked. */
             service_favorite_toggle();
             service_star_toggle();
+            /* And the cards. A recording starts from paused, so its
+             * countdown -- and the "recorded to" card after it -- were
+             * posted while this was the only loop running, and neither
+             * appeared. Only while paused: playing, the loop comes
+             * back to the top often enough to do it there. */
+            if (!s_playing) service_notices();
             const size_t sent = xStreamBufferSend(s_pcm, src, remain,
                                                   pdMS_TO_TICKS(SEND_SLICE_MS));
             src += sent;

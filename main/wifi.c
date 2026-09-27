@@ -28,6 +28,7 @@
 #include "ethernet.h"
 #include <time.h>
 #include "wifi.h"
+#include "heapmap.h"
 #include "wifistore.h"
 #include "portal.h"
 #include "streamprobe.h"
@@ -412,6 +413,12 @@ static void on_event(void *arg, esp_event_base_t base, int32_t id, void *data)
     } else if (base == IP_EVENT && id == IP_EVENT_STA_GOT_IP) {
         const ip_event_got_ip_t *e = data;
         if (e) ESP_LOGI(TAG, "address " IPSTR, IP2STR(&e->ip_info.ip));
+        /* A baseline with the radio up and the stack carrying an
+         * address, for the same reason boot has one: the DMA-capable
+         * internal heap is where the JPEG engine's descriptors have to
+         * come from, and something between boot and the first large
+         * cover takes 41 KB of it. */
+        heapmap_log("station up");
         s_connected = true;
         if (s_join_bits) xEventGroupSetBits(s_join_bits, JOIN_GOT_IP);
         /* The one call site NTP was waiting for. sntp_start() checks the

@@ -30,6 +30,7 @@
 
 #include "albumart.h"
 #include "artplace.h"
+#include "heapmap.h"
 #include "storage_io.h"
 #include "gfx.h"
 #include "ui.h"      /* ui_blit_art(): the artwork is a band in portrait
@@ -1252,6 +1253,20 @@ esp_err_t albumart_draw(esp_lcd_panel_handle_t panel, int screen_w, int screen_h
         }
         free(rgb);
         return ret;
+    }
+
+    /*
+     * The last baseline, and the one that matters: the engine's DMA
+     * descriptors are the allocation that failed on the board, so a map
+     * taken immediately before the FIRST attempt says what was holding
+     * the DMA-capable internal heap at the moment it was needed. Once
+     * only -- a map per cover would be noise, and the first is the one
+     * that can be compared with boot.
+     */
+    static bool mapped;
+    if (!mapped) {
+        mapped = true;
+        heapmap_log("before the first hardware jpeg decode");
     }
 
     const jpeg_decode_engine_cfg_t engine = { .timeout_ms = 5000 };

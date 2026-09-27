@@ -3,6 +3,7 @@
  *
  * SPDX-License-Identifier: MIT
  */
+#include "heapmap.h"
 #include "remote.h"
 
 #include <dirent.h>
@@ -859,6 +860,10 @@ static void start(void)
     }
     char url[48];
     if (remote_url(url, sizeof(url))) ESP_LOGI(TAG, "up at %s", url);
+    /* The third baseline. TLS is the biggest single consumer of internal
+     * RAM this device starts, and it starts late, so a map here separates
+     * what the server costs from what the radio did. */
+    heapmap_log("remote up");
     /* Everything is new to whoever connects next. */
     memset(&s_last, 0xFF, sizeof(s_last));
     s_wave_gen = UINT32_MAX;

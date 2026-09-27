@@ -151,8 +151,8 @@ static const char *TAG = "tab5_ui";
  *   4  title
  *   5  album
  *   6  artist
- *   7  prev, play/pause, next
- *   8  folder, gear, star, sleep, record -- five on one pitch (5106)
+ *   7  prev, the record/pause/play switch, next
+ *   8  folder, gear, star, sleep -- four on one pitch
  *   9  output icon, volume, battery
  */
 #define BAR_PAD     (24)    /* square edge to content, both sides */
@@ -163,7 +163,7 @@ static const char *TAG = "tab5_ui";
 #define ARTIST_Y    (278)   /* row 6 */
 #define ROW_Y       (392)   /* row 7, transport centres */
 #define AUX_Y       (500)   /* row 8, the five icons' centres */
-#define AUX_COUNT   (5)     /* 5106: the record button made it five */
+#define AUX_COUNT   (4)     /* record moved onto the transport switch */
 #define VOL_Y       (623)   /* row 9 */
 /*
  * The art overlay's inset. NOT the bar's -- the bar's text starts at
@@ -195,7 +195,25 @@ static const char *TAG = "tab5_ui";
  * rather than a border. Wider than the 92 px disc it replaces, which is
  * what moved prev and next out to +/-132.
  */
-#define PILL_W      (168)
+/*
+ * Three positions now, not two: record, pause, play, left to right.
+ *
+ * Record lived on row 8 as a fifth icon (5106), but it is not an aux
+ * function -- it is the third thing the audio path can be doing, and
+ * it excludes the other two: a recording holds playback paused because
+ * the microphones have the I2S port. A switch with a detent per state
+ * says that exactly, where a separate button let the screen show a
+ * paused toggle and a lit record icon as if they were independent.
+ *
+ * Pause is the middle detent because it is the neutral one: going from
+ * play to record passes through it, which is what the player does
+ * anyway. Trough colour follows the knob -- green playing, red
+ * recording (the colour every recorder uses), grey paused.
+ *
+ * 240 wide gives the knob two 73 px throws, close to the old single
+ * 76 px throw. Each third of the pill is its own tap target.
+ */
+#define PILL_W      (240)
 #define PILL_H      (92)
 #define KNOB_R      (45)
 /* BTN_R, the disc's radius, is gone with the disc. Its last user was the
@@ -218,7 +236,11 @@ static const char *TAG = "tab5_ui";
  * 150 leaves 3 px. The glyph's outer edge is then 185 from the centre,
  * well inside the content box's 336.
  */
-#define SKIP_DX     (150)
+/*
+ * 186 since the pill went to three positions: 120 + 14 + 35 + 14 = 183
+ * is the floor, and 3 px of clearance is what 150 had.
+ */
+#define SKIP_DX     (186)
 
 /*
  * The two blocks that flank the volume groove, declared up here because
@@ -341,6 +363,8 @@ const char *ui_action_name(ui_action_kind_t k)
     case UI_ACTION_FAVORITE:    return "star (favourite)";
     case UI_ACTION_DISMISS_NOTICE: return "notice dismissed";
     case UI_ACTION_RECORD:      return "record";
+    case UI_ACTION_PLAY:        return "play";
+    case UI_ACTION_PAUSE:       return "pause";
     case UI_ACTION_SCREEN_ON:   return "wake";
     case UI_ACTION_PREV:        return "prev";
     case UI_ACTION_PREV_AGAIN:  return "prev x2";
@@ -572,7 +596,6 @@ static void folder_centre(int *cx, int *cy) { aux_centre(0, cx, cy); }
 static void gear_centre(int *cx, int *cy)   { aux_centre(1, cx, cy); }
 static void star_centre(int *cx, int *cy)   { aux_centre(2, cx, cy); }
 static void moon_centre(int *cx, int *cy)   { aux_centre(3, cx, cy); }
-static void rec_centre(int *cx, int *cy)    { aux_centre(4, cx, cy); }
 
 /*
  * Row 3, both clocks, in one place because they are laid out against
@@ -630,31 +653,48 @@ static void draw_slider_c(int x0, int x1, int y, int pct, uint16_t fill)
     gfx_fill_circle(split, y, THUMB_R, C_THUMB);
 }
 
-static void draw_play_pause(bool playing)
+/* The knob's three detents, as offsets from the pill's centre. */
+#define KNOB_THROW  (PILL_W / 2 - KNOB_R - 2)
+
+static void draw_pause_bars(int x, int y, int h, uint16_t c)
+{
+    gfx_fill_rect(x - (h * 3) / 4, y - h, h / 2, 2 * h, c);
+    gfx_fill_rect(x + h / 4, y - h, h / 2, 2 * h, c);
+}
+
+static void draw_play_tri(int x, int y, int h, uint16_t c)
+{
+    /* Nudged right so it looks centred rather than measuring centred. */
+    const int w = (h * 17) / 10;
+    for (int dy = -h; dy <= h; dy++) {
+        const int a = dy < 0 ? -dy : dy;
+        gfx_fill_rect(x - w / 3, y + dy, w - (a * w) / h, 1, c);
+    }
+}
+
+static void draw_play_pause(bool playing, bool recording)
 {
     int cx, cy;
     play_centre(&cx, &cy);
 
-    /* Trough, then knob, then the glyph in it -- see PILL_W's note for
-     * why this is a switch and not a button. */
-    fill_rrect(cx - PILL_W / 2, cy - PILL_H / 2, PILL_W, PILL_H, PILL_H / 2,
-               playing ? C_PLAY_ON : C_FILL);
+    const int pos = recording ? -1 : (playing ? 1 : 0);
+    const uint16_t trough = recording ? C_FILL : (playing ? C_PLAY_ON : C_TRACK);
 
-    const int kx = cx + (playing ? 1 : -1) * (PILL_W / 2 - KNOB_R - 1);
+    fill_rrect(cx - PILL_W / 2, cy - PILL_H / 2, PILL_W, PILL_H, PILL_H / 2, trough);
+
+    /* The other two detents, marked small in the trough so the switch
+     * says what it can do and not only what it is doing. */
+    const uint16_t hint = recording || playing ? C_BG : C_ICON_OFF;
+    if (pos != -1) gfx_fill_circle(cx - KNOB_THROW, cy, 10, recording ? C_BG : C_FILL);
+    if (pos != 0)  draw_pause_bars(cx, cy, 10, hint);
+    if (pos != 1)  draw_play_tri(cx + KNOB_THROW, cy, 10, hint);
+
+    const int kx = cx + pos * KNOB_THROW;
     gfx_fill_circle(kx, cy, KNOB_R, C_THUMB);
 
-    if (playing) {
-        /* Play: a triangle, nudged right so it looks centred rather than
-         * measuring centred. */
-        for (int dy = -20; dy <= 20; dy++) {
-            const int a = dy < 0 ? -dy : dy;
-            gfx_fill_rect(kx - 11, cy + dy, 34 - (a * 34) / 20, 1, C_BG);
-        }
-    } else {
-        /* Pause: two bars. */
-        gfx_fill_rect(kx - 15, cy - 20, 10, 40, C_BG);
-        gfx_fill_rect(kx + 5, cy - 20, 10, 40, C_BG);
-    }
+    if (pos == -1)     gfx_fill_circle(kx, cy, 18, C_FILL);
+    else if (pos == 0) draw_pause_bars(kx, cy, 20, C_BG);
+    else               draw_play_tri(kx, cy, 20, C_BG);
 }
 
 /*
@@ -791,26 +831,6 @@ static void draw_moon(void)
     moon_centre(&cx, &cy);
     gfx_fill_circle(cx, cy, ICON_HALF, C_ICON);
     gfx_fill_circle(cx + 13, cy - 10, ICON_HALF, C_BG); /* bite out the crescent */
-}
-
-/*
- * Record (5106). Idle: a red dot in a ring, the mark every recorder
- * uses. Recording: a solid red disc with a white stop square in it --
- * the icon says what the device is doing, and the square says what a
- * tap does about it, as the play toggle does.
- */
-static void draw_rec(bool recording)
-{
-    int cx, cy;
-    rec_centre(&cx, &cy);
-    if (recording) {
-        gfx_fill_circle(cx, cy, ICON_HALF, C_FILL);
-        gfx_fill_rect(cx - 9, cy - 9, 18, 18, C_ICON);
-    } else {
-        gfx_fill_circle(cx, cy, ICON_HALF, C_ICON);
-        gfx_fill_circle(cx, cy, ICON_HALF - 4, C_BG);
-        gfx_fill_circle(cx, cy, ICON_HALF - 11, C_FILL);
-    }
 }
 
 /* A speaker is a small rectangle (the body) with a cone flaring out to the
@@ -2079,7 +2099,6 @@ void ui_draw(const ui_state_t *st)
     draw_gear();
     draw_star_btn(st->fav);
     draw_moon();
-    draw_rec(st->recording);
 
     int cx, cy;
     /* Prev is never greyed: it always does something -- restart the
@@ -2090,7 +2109,7 @@ void ui_draw(const ui_state_t *st)
     draw_skip(cx, cy, false, true);
     next_centre(&cx, &cy);
     draw_skip(cx, cy, true, st->has_next);
-    draw_play_pause(st->playing);
+    draw_play_pause(st->playing, st->recording);
 
     ui_blit_bar();
 }
@@ -2195,7 +2214,13 @@ ui_action_t ui_touch(const ui_state_t *st, bool down, int x, int y)
     play_centre(&cx, &cy);
     if (x >= cx - PILL_W / 2 - HIT_PAD_X && x <= cx + PILL_W / 2 + HIT_PAD_X &&
         y >= cy - PILL_H / 2 - HIT_PAD_Y && y <= cy + PILL_H / 2 + HIT_PAD_Y) {
-        act.kind = UI_ACTION_PLAY_PAUSE;
+        /* Thirds, not a toggle: each detent is its own target, so a
+         * tap says which state is wanted and never depends on which
+         * one the player thinks it is in. */
+        const int third = PILL_W / 6;
+        act.kind = x < cx - third ? UI_ACTION_RECORD
+                 : x > cx + third ? UI_ACTION_PLAY
+                 :                  UI_ACTION_PAUSE;
         return act;
     }
 
@@ -2258,12 +2283,6 @@ ui_action_t ui_touch(const ui_state_t *st, bool down, int x, int y)
     moon_centre(&cx, &cy);
     if (in_box(x, y, cx, cy, ICON_HALF)) {
         act.kind = UI_ACTION_SCREEN_OFF;
-        return act;
-    }
-
-    rec_centre(&cx, &cy);
-    if (in_box(x, y, cx, cy, ICON_HALF)) {
-        act.kind = UI_ACTION_RECORD;
         return act;
     }
 

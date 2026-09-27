@@ -54,6 +54,7 @@
 #include "driver/usb_serial_jtag.h"      /* 5082: the console TX buffer */
 #include "driver/usb_serial_jtag_vfs.h"
 #include "esp_lcd_mipi_dsi.h"
+#include "hal/axi_icm_ll.h"
 #include "esp_lcd_panel_io.h"
 #include "esp_lcd_panel_ops.h"
 #include "esp_lcd_st7121.h"
@@ -912,6 +913,42 @@ static void screen_fade_out(int ms)
              frames, reblits, (int)((esp_timer_get_time() - t0) / 1000));
 }
 
+/*
+ * Give the DPI scanout first claim on the AXI interconnect.
+ *
+ * Every earlier lever here was on the demand side (pixel clock, blit
+ * banding, keeping SDMMC DMA out of PSRAM) or the supply side (PSRAM
+ * speed, L2 geometry). None of them touched arbitration, and that is the
+ * one that decides who waits when two masters want PSRAM in the same
+ * cycle. IDF never programs it: every master's AXI QoS reset value is 0,
+ * so the ICM round-robins, and the DPI's DW-GDMA channel -- the one
+ * master that cannot wait -- queues behind the cache (CPU PNG decode,
+ * memcpy into the shadow buffer), DMA2D (gfx_blit) and the aggregate CPU
+ * port (USB host, EMAC, SDMMC/SDIO DMA into PSRAM) on equal terms.
+ *
+ * The two underruns in the netstream capture landed with nothing on the
+ * UI side happening: that is background DMA from USB-ECM and esp_hosted
+ * packet buffers, both in PSRAM, colliding with scanout. Bandwidth is
+ * nowhere near exhausted (105 MB/s of scanout against a 200 MHz x16 bus);
+ * what is missing is priority.
+ *
+ * Higher QoS wins arbitration. DW-GDMA is raised on both master ports,
+ * since which port the DPI channel lands on is the driver's choice, and
+ * only on reads -- scanout never writes. Everything else stays at 0, so
+ * nothing is starved: the DPI only asks for 1 KB-ish bursts when the
+ * bridge FIFO drops under its threshold, and otherwise gets out of the
+ * way. Nothing else in this firmware uses DW-GDMA.
+ */
+#define DPI_AXI_READ_QOS        (15)
+
+static void dpi_axi_priority(void)
+{
+    axi_icm_ll_set_dw_gdma_qos_arbiter_prio(0, 0, DPI_AXI_READ_QOS);
+    axi_icm_ll_set_dw_gdma_qos_arbiter_prio(1, 0, DPI_AXI_READ_QOS);
+    ESP_LOGI(TAG, "AXI QoS: DW-GDMA read %d, cache/CPU/DMA2D 0",
+             DPI_AXI_READ_QOS);
+}
+
 static esp_err_t panel_init(void)
 {
     esp_ldo_channel_handle_t phy_ldo = NULL;
@@ -972,6 +1009,7 @@ static esp_err_t panel_init(void)
 #if ESP_IDF_VERSION >= ESP_IDF_VERSION_VAL(6, 0, 0)
     ESP_RETURN_ON_ERROR(esp_lcd_dpi_panel_enable_dma2d(s_panel), TAG, "dma2d");
 #endif
+    dpi_axi_priority();
     ESP_RETURN_ON_ERROR(esp_lcd_panel_reset(s_panel), TAG, "reset");
     ESP_RETURN_ON_ERROR(esp_lcd_panel_init(s_panel), TAG, "init");
     ESP_RETURN_ON_ERROR(esp_lcd_panel_disp_on_off(s_panel, true), TAG, "disp on");
@@ -7571,8 +7609,9 @@ static void ui_task(void *arg)
          * back before it lets anything through. A volume press sets its
          * own level below, so it only needs the flag dropped. */
         if (s_sleep_restore &&
-            (act.kind == UI_ACTION_PLAY_PAUSE || act.kind == UI_ACTION_VOLUME)) {
-            if (act.kind == UI_ACTION_PLAY_PAUSE) {
+            (act.kind == UI_ACTION_PLAY_PAUSE || act.kind == UI_ACTION_PLAY ||
+             act.kind == UI_ACTION_VOLUME)) {
+            if (act.kind != UI_ACTION_VOLUME) {
                 audio_out_set_volume((uint8_t)s_volume);
                 /* Logged because on hardware nothing said it had happened,
                  * and "did the sound come back" was the one question the
@@ -7591,6 +7630,41 @@ static void ui_task(void *arg)
             }
         }
 
+        /*
+         * The switch's detents are requests for a state. Leaving record
+         * for either of the others stops the recording; pause is then
+         * done, and play is the old toggle taken from paused.
+         */
+        /*
+         * recorder_stop() only asks: the writer finishes the file and
+         * drops s_active some passes later, and until then the I2S port
+         * is still the microphones'. So play from record is remembered
+         * and replayed here once it has let go.
+         */
+        static bool s_play_after_rec;
+        if (act.kind == UI_ACTION_PAUSE || act.kind == UI_ACTION_RECORD) {
+            s_play_after_rec = false;
+        } else if (act.kind == UI_ACTION_NONE && s_play_after_rec &&
+                   !recorder_active()) {
+            s_play_after_rec = false;
+            act.kind = UI_ACTION_PLAY;
+        }
+
+        if (act.kind == UI_ACTION_PLAY || act.kind == UI_ACTION_PAUSE) {
+            if (recorder_active()) {
+                recorder_stop();
+                if (act.kind == UI_ACTION_PLAY) s_play_after_rec = true;
+                act.kind = UI_ACTION_NONE;
+            } else if (act.kind == UI_ACTION_PAUSE) {
+                if (s_playing) { s_playing = false; s_pause_epoch++; }
+                act.kind = UI_ACTION_NONE;
+            } else if (s_playing && s_decoding) {
+                act.kind = UI_ACTION_NONE;
+            } else {
+                act.kind = UI_ACTION_PLAY_PAUSE;
+            }
+        }
+
         switch (act.kind) {
         case UI_ACTION_PLAY_PAUSE:
             /*
@@ -7603,7 +7677,8 @@ static void ui_task(void *arg)
                 player_force_pause();
                 break;
             }
-            /* 5106: the same for a recording; its stop is the red square. */
+            /* 5106: the same for a recording; the HID key does not stop
+             * one -- the switch's pause or play detent does. */
             if (recorder_active()) {
                 ESP_LOGI(TAG, "play refused: recording");
                 break;
@@ -7821,11 +7896,11 @@ static void ui_task(void *arg)
             break;
 
         case UI_ACTION_RECORD:
-            /* 5106. Start pauses playback first, so the writer has let
-             * go of the output before audio_out_capture_begin() takes
+            /* The switch's record detent. Start pauses playback first,
+             * so the writer has let go of the output before audio_out_capture_begin() takes
              * it; the pass above keeps it paused from then on. */
             if (recorder_active()) {
-                recorder_stop();
+                /* Already there: the record detent is a state, not a toggle. */
             } else {
                 player_force_pause();
                 char why[96];

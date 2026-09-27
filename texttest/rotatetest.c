@@ -211,14 +211,14 @@ int main(void)
                   rot * 90, k_rows[i].name, y, bar_top, bar_top + UI_SQUARE);
         }
 
-        /* The content box, and the five aux icons on one pitch (5106:
-         * the record button made it five). */
+        /* The content box, and the four aux icons on one pitch (record
+         * moved onto the transport switch). */
         const int x0 = bar_x + BAR_PAD, x1 = bar_x + UI_SQUARE - BAR_PAD;
         CHECK(x1 - x0 == 672, "rot%d: content is %d wide, not 672", rot * 90, x1 - x0);
 
         const int ih = 26;
         const int g0 = x0 + ih, span = (x1 - ih) - g0;
-        const int naux = 5;
+        const int naux = 4;
         const int apitch = span / (naux - 1), lead = (span - apitch * (naux - 1)) / 2;
         int prev = 0, pitch = 0;
         for (int i = 0; i < naux; i++) {
@@ -297,10 +297,11 @@ int main(void)
         /*
          * The transport: the pill and the skip glyphs must not touch,
          * including their padded hit boxes. This is the clearance that
-         * moving from a 92 px disc to a 168 px pill ate into.
+         * moving from a 92 px disc to a 168 px pill, and then to the
+         * 240 px three-way switch, ate into.
          */
         const int cx = bar_x + UI_SQUARE / 2;
-        const int pill_half = 168 / 2, hit_pad_x = 14, skip_half = 35, skip_dx = 150;
+        const int pill_half = 240 / 2, hit_pad_x = 14, skip_half = 35, skip_dx = 186;
         const int pill_edge = cx + pill_half + hit_pad_x;
         const int next_edge = cx + skip_dx - skip_half - hit_pad_x;
         CHECK(next_edge > pill_edge - 1,

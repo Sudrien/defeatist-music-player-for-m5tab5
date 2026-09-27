@@ -266,9 +266,15 @@ typedef enum {
      * uncovering the cover and ui.c does not own that.
      */
     UI_ACTION_DISMISS_NOTICE,
-    /* 5106: the record button, row 8's fifth icon. Start or stop; the
-     * player decides which from recorder_active(), not from the icon. */
+    /*
+     * The transport switch's three detents. Each is a request for a
+     * state, not a toggle: RECORD while recording and PLAY while playing
+     * change nothing. UI_ACTION_PLAY_PAUSE stays for the HID media key,
+     * which really is a toggle.
+     */
     UI_ACTION_RECORD,
+    UI_ACTION_PLAY,
+    UI_ACTION_PAUSE,
 } ui_action_kind_t;
 
 /* Name of an action, for logging. Never NULL. Lives beside the enum so a

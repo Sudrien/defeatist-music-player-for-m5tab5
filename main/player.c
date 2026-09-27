@@ -6999,6 +6999,37 @@ static void ui_task(void *arg)
          * address it was waiting for.
          */
         remote_poll(settings_remote_enabled());
+        /*
+         * 5123: a file or folder chosen on the remote's page, handled as
+         * the device's chooser handles BROWSER_PLAY_FILE and _FOLDER
+         * below -- the folder becomes the list -- less the chooser's own
+         * closing, since it was not the chooser. Here, at the top, so a
+         * choice lands whatever screen the device is showing.
+         */
+        {
+            static char rpath[512];
+            bool folder = false;
+            if (remote_take_open(rpath, sizeof(rpath), &folder)) {
+                ESP_LOGI(TAG, "remote: %s %s", folder ? "play folder" : "open", rpath);
+                if (folder) {
+                    if (playlist_load_dir(rpath) == ESP_OK && playlist_count() > 0) {
+                        playlist_set_current(0);
+                        request_track(playlist_path(0));
+                    } else {
+                        ESP_LOGW(TAG, "nothing playable in %s", rpath);
+                    }
+                } else {
+                    static char dir[512];
+                    snprintf(dir, sizeof(dir), "%s", rpath);
+                    char *slash = strrchr(dir, '/');
+                    if (slash && slash != dir) *slash = '\0';
+                    if (playlist_load_dir(dir) == ESP_OK) {
+                        playlist_set_current(playlist_index_of(rpath));
+                    }
+                    request_track(rpath);
+                }
+            }
+        }
         /* The media index on mount. Here because this loop runs whether
          * or not anything is playing; see medialib.h. */
         medialib_poll();

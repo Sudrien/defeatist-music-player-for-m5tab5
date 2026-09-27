@@ -35,11 +35,44 @@ static bool verb_num(const char *msg, size_t len, const char *verb, int *out)
     return true;
 }
 
+bool remoteproto_path_ok(const char *p, size_t len)
+{
+    if (!p || len == 0 || len >= REMOTEPROTO_PATH_MAX || p[0] != '/') return false;
+    if (len == 1) return true;                              /* "/" */
+    for (size_t i = 0; i < len; i++) {
+        const unsigned char c = (unsigned char)p[i];
+        if (c < 0x20 || c == 0x7F || c == '\\') return false;
+    }
+    if (p[len - 1] == '/') return false;
+    /* The volume. */
+    static const char *const vols[] = { "/sd", "/usb" };
+    bool vol = false;
+    for (size_t i = 0; i < 2; i++) {
+        const size_t n = strlen(vols[i]);
+        if (len >= n && memcmp(p, vols[i], n) == 0 && (len == n || p[n] == '/')) vol = true;
+    }
+    if (!vol) return false;
+    /* Every segment: not empty, not "." or "..". */
+    size_t s = 1;
+    while (s <= len) {
+        size_t e = s;
+        while (e < len && p[e] != '/') e++;
+        const size_t sl = e - s;
+        if (sl == 0) return false;
+        if (sl == 1 && p[s] == '.') return false;
+        if (sl == 2 && p[s] == '.' && p[s + 1] == '.') return false;
+        s = e + 1;
+    }
+    return true;
+}
+
 bool remoteproto_parse(const char *msg, size_t len, remote_cmd_t *out)
 {
     if (!out) return false;
     out->kind = REMOTE_CMD_NONE;
     out->value = 0;
+    out->path = NULL;
+    out->path_len = 0;
     if (!msg || len == 0 || len > REMOTEPROTO_CMD_MAX) return false;
 
     static const struct { const char *w; remote_cmd_kind_t k; } plain[] = {
@@ -49,6 +82,25 @@ bool remoteproto_parse(const char *msg, size_t len, remote_cmd_t *out)
     };
     for (size_t i = 0; i < sizeof(plain) / sizeof(plain[0]); i++) {
         if (word_is(msg, len, plain[i].w)) { out->kind = plain[i].k; return true; }
+    }
+
+    /* 5123: the path verbs. The verb, one space, then a path that
+     * passes remoteproto_path_ok() -- "ls" alone is not "ls /". */
+    static const struct { const char *w; remote_cmd_kind_t k; } paths[] = {
+        { "ls", REMOTE_CMD_LS }, { "open", REMOTE_CMD_OPEN }, { "playdir", REMOTE_CMD_PLAYDIR },
+    };
+    for (size_t i = 0; i < sizeof(paths) / sizeof(paths[0]); i++) {
+        const size_t n = strlen(paths[i].w);
+        if (len > n + 1 && memcmp(msg, paths[i].w, n) == 0 && msg[n] == ' ' &&
+            remoteproto_path_ok(msg + n + 1, len - n - 1) &&
+            /* Only a listing may name the root; there is nothing there
+             * to play. */
+            (paths[i].k == REMOTE_CMD_LS || len - n - 1 > 1)) {
+            out->kind = paths[i].k;
+            out->path = msg + n + 1;
+            out->path_len = len - n - 1;
+            return true;
+        }
     }
 
     int v;
@@ -168,6 +220,7 @@ size_t remoteproto_state_json(const remote_state_t *s, char *out, size_t cap)
     key(&b, "artist", false);   put_str(&b, s->artist);
     key(&b, "album", false);    put_str(&b, s->album);
     key(&b, "art", false);      put_str(&b, s->art);
+    key(&b, "path", false);     put_str(&b, s->path);
     key(&b, "pos", false);      putf(&b, "%lld", (long long)s->pos_sec);
     key(&b, "len", false);      putf(&b, "%lld", (long long)s->len_sec);
     key(&b, "valid", false);    put_bool(&b, s->stats_valid);

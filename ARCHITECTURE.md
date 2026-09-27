@@ -14332,3 +14332,48 @@ back to the saved networks, as it does after any lost association.
 remote.c was syntax-checked against esp_https_server.h with its
 dependencies stubbed; wifijoin.c is portal.c's code moved. The page was
 driven headless against mocked endpoints. Not on the board.
+
+### 5123 -- The file chooser on the remote page, over the WebSocket
+
+First below the fold now: **Files** -- a breadcrumb from "Volumes" down,
+the folder's rows, the playing file (or the folder it is in) in red, and
+a Play button on each folder. The aux row's folder icon is a link to it
+(`#files`), and like the device's folder button it opens on the playing
+track's folder. Tapping a file plays it with its folder as the list;
+Play on a folder plays it from the top. Stations and Wi-Fi follow.
+
+**The device's chooser, asked over the socket.** Three new commands, the
+first that name something on a card:
+
+    ls PATH         answered with one or more {"t":"ls"} frames
+    open PATH       BROWSER_PLAY_FILE: the folder becomes the list
+    playdir PATH    BROWSER_PLAY_FOLDER: from the top
+
+Over the WebSocket rather than a GET because it is already open, and a
+new HTTPS connection here is a TLS handshake measured at 0.8 s. The
+listing uses the chooser's filters (storage_is_hidden(),
+decoder_supports(), the cue view from cuedir) and its order (folders
+first, then case-insensitive), so the page and the glass show the same
+rows; it is read on the httpd task, into PSRAM, and sent in frames of
+about 24 KB, each carrying its offset and the total. Names go out whole
+-- they are what gets opened -- and the page does browser.c's
+shared-prefix elision itself, with the same rules. `open` and `playdir`
+land in a one-slot mailbox that ui_task empties at the top of every pass
+(so a choice lands whatever the device is showing) and handles as the
+chooser's two cases do, less the chooser's own closing.
+
+**Paths are checked before anything touches a filesystem.**
+remoteproto_path_ok() accepts "/" (the volumes, for `ls` only) and
+"/sd" or "/usb" and below, and refuses "..", ".", empty segments, a
+trailing slash, backslashes, control bytes and anything 512 bytes or
+longer. remoteprototest covers it and the three verbs. REMOTEPROTO_CMD_MAX
+grew to 520 to carry a path; the WebSocket's receive buffer went static
+with it, off the httpd stack.
+
+The state gains `path` (the shown file), so the page can mark the
+playing row; REMOTE_JSON_MAX is 4 KB to hold it escaped, and the scratch
+buffer is now sized for the larger of the state and the envelope.
+
+Not yet: the Radio tab (stations, favourites, the directory), stars on
+rows, and search. Syntax-checked against the IDF headers with the rest
+stubbed; the page driven headless with a fake socket. Not on the board.

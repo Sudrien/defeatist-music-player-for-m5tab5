@@ -16,6 +16,14 @@
  *     play | pause | next | prev | star
  *     vol N            N in 0..100
  *     seek N           N in 0..100, a percentage of the track
+ *     ls PATH          list a folder ("/" lists the volumes)      5123
+ *     open PATH        play a file; its folder becomes the list   5123
+ *     playdir PATH     play a folder from the top                 5123
+ *
+ * PATH is a VFS path under a mounted volume -- "/sd/..." or "/usb/..." --
+ * and nothing else: see remoteproto_path_ok(). It is the first thing the
+ * page sends that names something on the card, so it is checked here,
+ * where it is tested, before remote.c goes near a filesystem.
  *
  * Nothing else is accepted, and nothing here can start a recording: a
  * recording is someone's voice in the room the player is in, and the
@@ -44,15 +52,35 @@ typedef enum {
     REMOTE_CMD_STAR,
     REMOTE_CMD_VOLUME,      /* value 0..100 */
     REMOTE_CMD_SEEK,        /* value 0..100 */
+    REMOTE_CMD_LS,          /* 5123: path */
+    REMOTE_CMD_OPEN,        /* 5123: path */
+    REMOTE_CMD_PLAYDIR,     /* 5123: path */
 } remote_cmd_kind_t;
+
+/* A path command's path: the longest a VFS path here can be. */
+#define REMOTEPROTO_PATH_MAX    (512)
 
 typedef struct {
     remote_cmd_kind_t kind;
     int value;
+    /* For LS, OPEN and PLAYDIR: into the caller's message, NOT
+     * terminated -- path_len is the truth. NULL otherwise. */
+    const char *path;
+    size_t      path_len;
 } remote_cmd_t;
 
-/* The longest command worth reading. Anything longer is not one. */
-#define REMOTEPROTO_CMD_MAX     (16)
+/* The longest command worth reading: a verb, a space and a path.
+ * Anything longer is not one. */
+#define REMOTEPROTO_CMD_MAX     (8 + REMOTEPROTO_PATH_MAX)
+
+/*
+ * Whether `p` (not terminated; `len` bytes) is a path the remote may
+ * name: "/" (the volumes), or "/sd" or "/usb" and anything under them,
+ * with no ".." or "." segment, no empty segment ("//"), no trailing
+ * slash but the root's, no control bytes and nothing past
+ * REMOTEPROTO_PATH_MAX - 1. Pure; says nothing about whether it exists.
+ */
+bool remoteproto_path_ok(const char *p, size_t len);
 
 /*
  * Parse one command. `msg` need not be terminated. False, with `out`
@@ -71,6 +99,7 @@ typedef struct {
     char     artist[96];
     char     album[96];
     char     art[12];       /* the cover's key for /art, "" for none */
+    char     path[512];     /* 5123: the shown file, for the page's list */
     uint32_t pos_sec;
     uint32_t len_sec;       /* 0 unknown */
     bool     stats_valid;   /* pos/len describe this track */

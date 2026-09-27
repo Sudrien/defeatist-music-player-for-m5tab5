@@ -141,7 +141,21 @@ svg { display: block; width: 100%; height: 100%; }
 .aux { grid-area: aux; display: grid; grid-auto-flow: column;
   grid-auto-columns: calc(52 / 720 * 100cqw); justify-content: space-evenly;
   align-items: stretch; }
-.aux button svg { width: 100%; height: 100%; }
+.aux button svg, .aux a svg { width: 100%; height: 100%; }
+.aux a { display: block; }
+/* 5123: the file chooser, first below the fold. */
+.files { max-width: 720px; margin: 0 auto; padding: 24px 24px 0; }
+.files h2 { font-size: 1.3em; margin: 0 0 .5em; }
+.crumbs { display: flex; flex-wrap: wrap; gap: .2em .4em; margin-bottom: .6em; color: var(--album); }
+.crumbs button { color: var(--icon); text-decoration: underline; text-underline-offset: 3px; }
+.flist { list-style: none; padding: 0; margin: 0; border-top: 1px solid #2a2a2a; }
+.flist li { display: flex; align-items: center; gap: .6em; border-bottom: 1px solid #2a2a2a; }
+.flist li > button.row { flex: 1; text-align: left; padding: .7em 0; min-width: 0;
+  white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }
+.flist li.dir > button.row::before { content: "\1F4C1\FE0E  "; color: var(--icon); }
+.flist li.now > button.row { color: var(--fill); font-weight: 600; }
+.flist .pd { padding: .4em .7em; border-radius: 999px; background: #2a2a2a; font-size: .85em; }
+.files .msg { color: var(--album); min-height: 1.4em; }
 .aux button[hidden] { display: block; visibility: hidden; }
 
 .volume { grid-area: volume; display: grid;
@@ -191,6 +205,9 @@ svg { display: block; width: 100%; height: 100%; }
     </div>
 
     <div class="aux">
+      <!-- 5123: the folder is a link to the chooser below the fold. -->
+      <a href="#files" id="folder" aria-label="Files">
+        <svg viewBox="0 0 52 52"><path d="M4 12h16l5 6h23v26H4z" fill="var(--icon)"/></svg></a>
       <button id="star" aria-label="Star" hidden>
         <svg viewBox="0 0 52 52"><path id="starp" d="M26 3l6.9 14 15.4 2.2-11.1 10.9 2.6 15.3L26 38.2l-13.8 7.2 2.6-15.3L3.7 19.2 19.1 17z"
           fill="none" stroke="var(--thumb)" stroke-width="3"/></svg></button>
@@ -208,7 +225,14 @@ svg { display: block; width: 100%; height: 100%; }
   <div class="gone on" id="gone">Connecting to the player…</div>
 </main>
 </div>
-<div class="fold" id="fold">&#9662; stations</div>
+<div class="fold" id="fold">&#9662; stations<#9662; files</div>
+
+<section class="files" id="files">
+  <h2>Files</h2>
+  <div class="crumbs" id="crumbs"></div>
+  <div class="msg" id="fmsg"></div>
+  <ul class="flist" id="flist"></ul>
+</section>
 
 <section class="below" id="stations">
   <h2>Radio stations</h2>
@@ -262,6 +286,7 @@ function connect() {
   ws.onmessage = e => {
     let m; try { m = JSON.parse(e.data); } catch { return; }
     if (m.t === "state") onState(m); else if (m.t === "wave") onWave(m);
+    else if (m.t === "ls") onList(m);
   };
   ws.onclose = () => {
     $("gone").textContent = "Lost the player. Reconnecting…";
@@ -301,6 +326,10 @@ function onState(m) {
   $("batt").textContent = m.batt < 0 ? "" : (m.chg ? "⚡" : "") + m.batt + "%";
 
   if (m.art !== prevArt) setArt(m.art);
+  // 5123: the file list starts on the playing folder, and follows the
+  // playing row as tracks change.
+  if (!fPath && !fWant) listDir(m.path ? parentOf(m.path) : "/");
+  else if (fPath && fRows.length) renderFiles();
 
   const card = $("card");
   if (m.count > 0) { $("cardh").textContent = "Recording in " + m.count; $("cardb").textContent = "on the player"; card.classList.add("on"); }
@@ -414,6 +443,73 @@ env.addEventListener("pointerup", () => {
 env.addEventListener("pointercancel", () => { dragPct = -1; draw(); });
 
 knobGlyph("pause");
+/* ---- files, below the fold (5123) ----
+   The device's chooser, over the socket: "ls PATH" answers with one or
+   more {t:"ls"} frames; "open PATH" plays a file with its folder as the
+   list, "playdir PATH" a folder from the top. */
+let fPath = "", fRows = [], fWant = "";
+function parentOf(p) { const i = p.lastIndexOf("/"); return i > 0 ? p.slice(0, i) : "/"; }
+function joinPath(d, n) { return d === "/" ? "/" + n : d + "/" + n; }
+function listDir(p) {
+  if (!ws || ws.readyState !== 1) return;
+  fWant = p; fRows = [];
+  $("fmsg").textContent = "Reading…";
+  ws.send("ls " + p);
+}
+// The chooser's shared-prefix elision (browser.c find_common_prefix()),
+// done here: names arrive whole, because whole is what gets opened.
+function sharedPrefix(rows) {
+  const files = rows.filter(r => !r.d && !r.l).map(r => r.n);
+  if (files.length < 2) return 0;
+  let lcp = files[0].length;
+  for (const n of files) { let k = 0; while (k < lcp && n[k] === files[0][k]) k++; lcp = k; if (lcp < 8) return 0; }
+  while (lcp > 0 && !"_-. ".includes(files[0][lcp - 1])) lcp--;
+  if (lcp < 8 || files.some(n => n.length - lcp < 4)) return 0;
+  return lcp;
+}
+function onList(m) {
+  if (m.path !== fWant) return;
+  if (m.error) { $("fmsg").textContent = m.error; return; }
+  if (m.from === 0) fRows = [];
+  fRows.push(...m.rows);
+  if (!m.done) return;
+  fPath = m.path;
+  $("fmsg").textContent = fRows.length ? "" : "Nothing playable here.";
+  renderFiles();
+}
+function renderFiles() {
+  const cr = $("crumbs"); cr.textContent = "";
+  const parts = fPath === "/" ? [] : fPath.slice(1).split("/");
+  const top = document.createElement("button"); top.textContent = "Volumes"; top.onclick = () => listDir("/");
+  cr.appendChild(top);
+  parts.forEach((p, i) => {
+    cr.appendChild(document.createTextNode("/"));
+    const b = document.createElement("button"); b.textContent = p;
+    const to = "/" + parts.slice(0, i + 1).join("/");
+    b.onclick = () => listDir(to); cr.appendChild(b);
+  });
+  const cut = sharedPrefix(fRows), ul = $("flist"); ul.textContent = "";
+  for (const r of fRows) {
+    const full = joinPath(fPath, r.n), li = document.createElement("li");
+    if (r.d) li.className = "dir";
+    if (S && S.path && (S.path === full || (r.d && S.path.startsWith(full + "/")))) li.classList.add("now");
+    const b = document.createElement("button"); b.className = "row";
+    b.textContent = r.l || (fPath === "/" ? r.n.toUpperCase() : (!r.d && cut ? r.n.slice(cut) : r.n));
+    b.onclick = () => r.d ? listDir(full) : ws.send("open " + full);
+    li.appendChild(b);
+    if (r.d && fPath !== "/") {
+      const pd = document.createElement("button"); pd.className = "pd"; pd.textContent = "▶ Play";
+      pd.onclick = () => ws.send("playdir " + full); li.appendChild(pd);
+    }
+    ul.appendChild(li);
+  }
+}
+// The folder link opens the list on the playing track's folder, as the
+// device's folder button does.
+$("folder").addEventListener("click", () => {
+  if (S && S.path) listDir(parentOf(S.path)); else if (!fPath) listDir("/");
+});
+
 /* ---- stations, below the fold (5120) ---- */
 async function loadStations() {
   try {

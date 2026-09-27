@@ -89,6 +89,15 @@ void remote_publish(const ui_state_t *st, const char *art_path, int rec_count);
  * when there is none. */
 bool remote_take(ui_action_t *out);
 
+/*
+ * 5123: a file or folder chosen on the page, as the device's chooser
+ * would have produced it -- `folder` false is BROWSER_PLAY_FILE, true is
+ * BROWSER_PLAY_FOLDER. The path passed remoteproto_path_ok() but may no
+ * longer exist; the player finds out the way the chooser would. False
+ * when there is none.
+ */
+bool remote_take_open(char *path, size_t size, bool *folder);
+
 #ifdef __cplusplus
 }
 #endif

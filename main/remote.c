@@ -5,7 +5,9 @@
  */
 #include "remote.h"
 
+#include <dirent.h>
 #include <inttypes.h>
+#include <strings.h>
 #include <stdio.h>
 #include <stdlib.h>
 #include <string.h>
@@ -22,6 +24,8 @@
 #include "freertos/task.h"
 #include "lwip/sockets.h"
 
+#include "cuedir.h"
+#include "decoder.h"
 #include "devcert.h"
 #include "ethernet.h"
 #include "mediacache.h"
@@ -29,6 +33,8 @@
 #include "portalweb.h"
 #include "stationlist.h"
 #include "stations.h"
+#include "storage.h"
+#include "storage_io.h"
 #include "remoteproto.h"
 #include "waveform.h"
 #include "wifijoin.h"
@@ -61,7 +67,7 @@ extern const uint8_t favicon_ico_end[]   asm("_binary_favicon_ico_end");
 /* After a failed start, how long before trying again. */
 #define REMOTE_RETRY_US     (5 * 1000000LL)
 
-#define REMOTE_JSON_MAX     (1024)
+#define REMOTE_JSON_MAX     (4096)   /* 5123: a 512-byte path, escaped */
 #define REMOTE_WAVE_MAX     (2 * FRAMEWALK_MAX_COLUMNS + 64)
 
 static httpd_handle_t    s_srv;         /* 5121: HTTPS, port 443 */
@@ -86,7 +92,7 @@ static uint32_t       s_wave_gen = UINT32_MAX;
 static int64_t        s_retry_us;
 /* PSRAM, from remote_init(): 3 KB of scratch is 3 KB of internal RAM
  * the httpd task's stack would rather have. */
-static char          *s_build;          /* REMOTE_WAVE_MAX, the larger */
+static char          *s_build;          /* the larger of REMOTE_WAVE_MAX and _JSON_MAX */
 static uint8_t       *s_levels;         /* FRAMEWALK_MAX_COLUMNS */
 
 /* ---- sending ----------------------------------------------------------- */
@@ -529,6 +535,152 @@ static esp_err_t h_station_add(httpd_req_t *req)
     return station_reply(req, true, "Station added.");
 }
 
+/* ---- the file chooser (5123) ------------------------------------------ */
+
+/*
+ * A folder, listed the way the device's chooser lists it -- same
+ * filters, same cue view, same order -- and sent to the one page that
+ * asked, over its WebSocket. The WebSocket rather than a GET: it is
+ * already open, and on this device a new HTTPS connection is a TLS
+ * handshake measured at 0.8 s. The shared-prefix elision the chooser
+ * does is the page's job; the names go out whole, as they are opened.
+ *
+ * Read on the httpd task, which the page is waiting on anyway; a
+ * listing is a readdir and, for a folder with cue sheets, the sheets.
+ * Everything it holds is PSRAM and freed before it returns.
+ *
+ * Sent in frames of about 24 KB, each a complete JSON object with its
+ * rows' offset, so a 512-entry folder of long names is several frames
+ * rather than one allocation sized for the worst case.
+ */
+#define LS_MAX_ROWS     (512)       /* the chooser's MAX_ENTRIES */
+#define LS_FRAME        (24 * 1024)
+
+typedef struct {
+    char *name;
+    char *label;        /* a cue track's title, or NULL */
+    bool  dir;
+} ls_row_t;
+
+static char  s_open_path[REMOTEPROTO_PATH_MAX];
+static bool  s_open_folder;
+static volatile bool s_open_pending;
+
+static int ls_cmp(const void *a, const void *b)
+{
+    const ls_row_t *x = a, *y = b;
+    if (x->dir != y->dir) return x->dir ? -1 : 1;
+    return strcasecmp(x->name, y->name);
+}
+
+static char *ps_strdup(const char *s)
+{
+    const size_t n = strlen(s) + 1;
+    char *p = heap_caps_malloc(n, MALLOC_CAP_SPIRAM | MALLOC_CAP_8BIT);
+    if (p) memcpy(p, s, n);
+    return p;
+}
+
+static void ws_send_text(httpd_req_t *req, const char *s, size_t len)
+{
+    httpd_ws_frame_t f = {
+        .final = true, .type = HTTPD_WS_TYPE_TEXT,
+        .payload = (uint8_t *)s, .len = len,
+    };
+    (void)httpd_ws_send_frame(req, &f);
+}
+
+static void send_listing(httpd_req_t *req, const char *p, size_t plen)
+{
+    static char path[REMOTEPROTO_PATH_MAX];
+    static char esc[REMOTEPROTO_PATH_MAX * 6 + 4];
+    static char esc2[256 * 6 + 4];
+    memcpy(path, p, plen);
+    path[plen] = '\0';
+    remoteproto_json_str(path, esc, sizeof(esc));
+
+    ls_row_t *rows = heap_caps_calloc(LS_MAX_ROWS, sizeof(*rows), MALLOC_CAP_SPIRAM | MALLOC_CAP_8BIT);
+    char *out = heap_caps_malloc(LS_FRAME + 2048, MALLOC_CAP_SPIRAM | MALLOC_CAP_8BIT);
+    int n = 0;
+    const char *error = NULL;
+
+    if (!rows || !out) {
+        error = "The player is out of memory for that.";
+    } else if (strcmp(path, "/") == 0) {
+        /* The volumes, as folders. */
+        if (storage_present(STORAGE_SD))  { rows[n].name = ps_strdup("sd");  rows[n++].dir = true; }
+        if (storage_present(STORAGE_USB)) { rows[n].name = ps_strdup("usb"); rows[n++].dir = true; }
+    } else {
+        DIR *d = opendir(path);
+        if (!d) {
+            error = "That folder could not be opened.";
+        } else {
+            cuedir_t *cues = cuedir_load(path, STORAGE_IO_BACKGROUND);
+            struct dirent *e;
+            while ((e = readdir(d)) != NULL && n < LS_MAX_ROWS) {
+                const bool dir = (e->d_type == DT_DIR);
+                if (storage_is_hidden(e->d_name)) continue;
+                if (!dir && !decoder_supports(e->d_name)) continue;
+                if (!dir && cuedir_hides(cues, e->d_name)) continue;
+                if (!(rows[n].name = ps_strdup(e->d_name))) break;
+                rows[n++].dir = dir;
+            }
+            closedir(d);
+            for (int i = 0; i < cuedir_count(cues) && n < LS_MAX_ROWS; i++) {
+                if (!(rows[n].name = ps_strdup(cuedir_name(cues, i)))) break;
+                rows[n].label = ps_strdup(cuedir_label(cues, i));
+                rows[n++].dir = false;
+            }
+            cuedir_free(cues);
+            qsort(rows, (size_t)n, sizeof(*rows), ls_cmp);
+        }
+    }
+
+    if (error || !out) {
+        char msg[REMOTEPROTO_PATH_MAX * 6 + 160];
+        const int m = snprintf(msg, sizeof(msg), "{\"t\":\"ls\",\"path\":%s,\"error\":\"%s\"}",
+                               esc, error ? error : "The player is out of memory for that.");
+        ws_send_text(req, msg, (size_t)m);
+    } else {
+        int i = 0;
+        do {
+            const int from = i;
+            size_t len = (size_t)snprintf(out, LS_FRAME, "{\"t\":\"ls\",\"path\":%s,\"from\":%d,"
+                                          "\"total\":%d,\"rows\":[", esc, from, n);
+            for (; i < n && len < LS_FRAME; i++) {
+                if (!remoteproto_json_str(rows[i].name, esc2, sizeof(esc2))) continue;
+                len += (size_t)snprintf(out + len, LS_FRAME + 2048 - len, "%s{\"n\":%s,\"d\":%d",
+                                        i > from ? "," : "", esc2, rows[i].dir ? 1 : 0);
+                if (rows[i].label && remoteproto_json_str(rows[i].label, esc2, sizeof(esc2))) {
+                    len += (size_t)snprintf(out + len, LS_FRAME + 2048 - len, ",\"l\":%s", esc2);
+                }
+                out[len++] = '}';
+            }
+            len += (size_t)snprintf(out + len, LS_FRAME + 2048 - len, "],\"done\":%s}",
+                                    i >= n ? "true" : "false");
+            ws_send_text(req, out, len);
+        } while (i < n);
+    }
+
+    for (int k = 0; rows && k < n; k++) { free(rows[k].name); free(rows[k].label); }
+    free(rows);
+    free(out);
+}
+
+bool remote_take_open(char *path, size_t size, bool *folder)
+{
+    if (!s_open_pending || !s_mu) return false;
+    xSemaphoreTake(s_mu, portMAX_DELAY);
+    const bool had = s_open_pending;
+    if (had) {
+        snprintf(path, size, "%s", s_open_path);
+        if (folder) *folder = s_open_folder;
+        s_open_pending = false;
+    }
+    xSemaphoreGive(s_mu);
+    return had;
+}
+
 /* One reply to one socket, from its own handler. */
 static void send_one(httpd_req_t *req, const char *keep, const size_t *keep_len)
 {
@@ -567,7 +719,9 @@ static esp_err_t h_ws(httpd_req_t *req)
      */
     if (f.type != HTTPD_WS_TYPE_TEXT || f.len > REMOTEPROTO_CMD_MAX) return ESP_FAIL;
 
-    uint8_t buf[REMOTEPROTO_CMD_MAX + 1];
+    /* Static: up to 520 bytes since 5123's path commands, and this is
+     * the httpd task's stack. One handler runs at a time on that task. */
+    static uint8_t buf[REMOTEPROTO_CMD_MAX + 1];
     f.payload = buf;
     err = httpd_ws_recv_frame(req, &f, f.len);
     if (err != ESP_OK) return err;
@@ -580,6 +734,21 @@ static esp_err_t h_ws(httpd_req_t *req)
     if (c.kind == REMOTE_CMD_HELLO) {
         send_one(req, s_json, &s_json_len);
         send_one(req, s_wave, &s_wave_len);
+        return ESP_OK;
+    }
+    if (c.kind == REMOTE_CMD_LS) {
+        send_listing(req, c.path, c.path_len);
+        return ESP_OK;
+    }
+    if (c.kind == REMOTE_CMD_OPEN || c.kind == REMOTE_CMD_PLAYDIR) {
+        /* One slot: a second choice before ui_task took the first
+         * replaces it, as a second tap on the chooser would. */
+        xSemaphoreTake(s_mu, portMAX_DELAY);
+        memcpy(s_open_path, c.path, c.path_len);
+        s_open_path[c.path_len] = '\0';
+        s_open_folder = c.kind == REMOTE_CMD_PLAYDIR;
+        s_open_pending = true;
+        xSemaphoreGive(s_mu);
         return ESP_OK;
     }
     /* Dropped rather than waited for when full: eight presses queued in
@@ -711,7 +880,9 @@ void remote_init(void)
     s_mu = xSemaphoreCreateMutex();
     s_json = heap_caps_calloc(1, REMOTE_JSON_MAX, MALLOC_CAP_SPIRAM | MALLOC_CAP_8BIT);
     s_wave = heap_caps_calloc(1, REMOTE_WAVE_MAX, MALLOC_CAP_SPIRAM | MALLOC_CAP_8BIT);
-    s_build = heap_caps_calloc(1, REMOTE_WAVE_MAX, MALLOC_CAP_SPIRAM | MALLOC_CAP_8BIT);
+    /* The larger of the two things built in it. */
+    s_build = heap_caps_calloc(1, REMOTE_WAVE_MAX > REMOTE_JSON_MAX ? REMOTE_WAVE_MAX : REMOTE_JSON_MAX,
+                               MALLOC_CAP_SPIRAM | MALLOC_CAP_8BIT);
     s_levels = heap_caps_calloc(1, FRAMEWALK_MAX_COLUMNS, MALLOC_CAP_SPIRAM | MALLOC_CAP_8BIT);
     s_w_seen = heap_caps_calloc(W_SEEN_MAX, sizeof(wifi_seen_t), MALLOC_CAP_SPIRAM | MALLOC_CAP_8BIT);
 }
@@ -786,6 +957,7 @@ void remote_publish(const ui_state_t *st, const char *art_path, int rec_count)
     copy_str(c->artist, sizeof(c->artist), st->artist);
     copy_str(c->album, sizeof(c->album), st->album);
     memcpy(c->art, key, sizeof(c->art));
+    copy_str(c->path, sizeof(c->path), art_path);
     c->pos_sec = st->pos_sec;
     c->len_sec = st->len_sec;
     c->stats_valid = st->stats_valid;

@@ -93,6 +93,7 @@ int main(void)
         snprintf(s.artist, sizeof(s.artist), "Piotr Musia\xc5\x82");      /* valid */
         snprintf(s.album, sizeof(s.album), "Caf\xe9 \xff\xc0\xaf end");   /* Latin-1, overlong */
         snprintf(s.art, sizeof(s.art), "897bf3d9");
+        snprintf(s.path, sizeof(s.path), "/usb/a/b.mp3");
         s.pos_sec = 35; s.len_sec = 255; s.stats_valid = true; s.playing = true;
         s.volume = 74; s.fav = 2; s.batt_pct = -1; s.wave = 3;
 
@@ -120,6 +121,45 @@ int main(void)
         CHECK(partial == 0, "%d undersized buffers produced output", partial);
         char exact[1024];
         CHECK(remoteproto_state_json(&s, exact, n + 1) == n, "fits exactly");
+    }
+
+    printf("  paths\n");
+    {
+        static const char *const good[] = {
+            "/", "/sd", "/usb", "/sd/Music", "/usb/B\xc3\xb4a - Twilight/01 Duvet.mp3",
+            "/sd/a/b/c.flac", "/sd/.hidden/x", "/sd/..x", "/sd/x..",
+        };
+        for (size_t i = 0; i < sizeof(good) / sizeof(good[0]); i++) {
+            CHECK(remoteproto_path_ok(good[i], strlen(good[i])), "refused %s", good[i]);
+        }
+        static const char *const bad[] = {
+            "", "sd", "sd/x", "/etc", "/sdx", "/usbx/a", "/sd/", "/sd//x", "/sd/./x",
+            "/sd/../usb", "/sd/a/..", "/sd/a/.", "//sd", "/sd\\x", "/sd/a\nb",
+            "/usb/a\x7f", "/data/x", "/spiffs",
+        };
+        for (size_t i = 0; i < sizeof(bad) / sizeof(bad[0]); i++) {
+            CHECK(!remoteproto_path_ok(bad[i], strlen(bad[i])), "accepted %s", bad[i]);
+        }
+        static char longp[REMOTEPROTO_PATH_MAX + 8];
+        memset(longp, 'a', sizeof(longp));
+        memcpy(longp, "/sd/", 4);
+        CHECK(remoteproto_path_ok(longp, REMOTEPROTO_PATH_MAX - 1), "longest");
+        CHECK(!remoteproto_path_ok(longp, REMOTEPROTO_PATH_MAX), "one past");
+
+        remote_cmd_t c = parse("ls /");
+        CHECK(c.kind == REMOTE_CMD_LS && c.path_len == 1 && c.path[0] == '/', "ls /");
+        c = parse("open /usb/a b/c.mp3");
+        CHECK(c.kind == REMOTE_CMD_OPEN && c.path_len == 14 && memcmp(c.path, "/usb/a b/c.mp3", 14) == 0,
+              "open with a space");
+        c = parse("playdir /sd/Album");
+        CHECK(c.kind == REMOTE_CMD_PLAYDIR, "playdir");
+        static const char *const badc[] = { "ls", "ls ", "ls  /sd", "open /", "xls /sd",
+                                            "open /sd/../etc", "playdir sd", "ls /sd/" };
+        for (size_t i = 0; i < sizeof(badc) / sizeof(badc[0]); i++) {
+            remote_cmd_t k;
+            CHECK(!remoteproto_parse(badc[i], strlen(badc[i]), &k) && k.kind == REMOTE_CMD_NONE,
+                  "\"%s\" accepted", badc[i]);
+        }
     }
 
     printf("  one string\n");

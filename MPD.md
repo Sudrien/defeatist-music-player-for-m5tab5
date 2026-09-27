@@ -204,22 +204,29 @@ block, and the high block -- `NO_EXIST`, `PLAYLIST_MAX`, `SYSTEM`,
 queue and a card actually raise. Corrected here rather than only in
 `ARCHITECTURE.md`, because the wrong number in a plan gets built.
 
-**`remoteproto_path_ok()` cannot be reused verbatim, and 5153 is where
-that turned out.** The intent stands -- it is pure, host-tested, and
-every MPD verb that names a thing on a card needs rules of this kind --
-but it requires an ABSOLUTE VFS path under a mounted volume (`/sd/...`
-or `/usb/...`) and **an MPD URI is relative to one music root**, because
-MPD has one library where this device has two volumes. A client sends
-back whatever `lsinfo` handed it, so the two agree only under a mapping,
-and choosing that mapping is `MEDIA-INDEX.md`'s merged-library question
-(point 3, SD preferred) asked again at the protocol edge: whether `/sd`
-and `/usb` are visible as top-level directories, or whether the merge is
-total and a URI names a track without saying which card it is on.
+**`remoteproto_path_ok()` is reused after a mapping, not verbatim.** It
+requires an ABSOLUTE VFS path under a mounted volume (`/sd/...` or
+`/usb/...`) and **an MPD URI is relative to one library root**, so the
+two agree only once something has bridged them. `mpduri.h` (5154) is
+that bridge, and the reuse happens on the mapped path before anything
+touches a filesystem.
 
-That decision belongs with `lsinfo` in step 12, made once and written
-down, not improvised inside a tokeniser -- so the reuse is a wrapper
-over `remoteproto_path_ok()` that maps first, and the texttest rule links
-both files at that point and not before.
+**A URI is an index path, unchanged**, and this was never an open
+question -- 5153 wrongly recorded it as one. `mediaindex.h:10-16` says
+paths are relative to the volume root *because* SD and USB are shown to
+MPD as one library, SD preferred, and that the part below the mount is
+the only thing by which a track on one volume can be recognised as the
+same track on the other. The index format was chosen for this, and
+`medialist.h` merges on exactly that key. So: no volume in a URI, no
+leading slash.
+
+The cost, which is MEDIA-INDEX.md point 3's and not a new one: a
+relative path on both volumes resolves to the SD copy and the USB copy
+has no URI at all. And a consequence worth knowing before writing
+`lsinfo`: **a directory URI is never mapped to a VFS path.** Listing is
+an index operation -- `medialist_open()` takes the relative directory
+and opens nothing -- so only a file being played forces a volume to be
+chosen.
 
 **Not reused: the JSON.** `remoteproto_state_json()` emits a browser's
 object; MPD wants lines. But `remote_state_t` (`remoteproto.h:96-119`)

@@ -15018,3 +15018,92 @@ is is the same question `MEDIA-INDEX.md` answered for the merged listing
 `lsinfo` in step 12, decided once and written down, not improvised inside
 a tokeniser. `MPD.md` has been corrected to say so rather than left
 promising a reuse that would reject every real client's path.
+
+### 5154 -- mpduri: an MPD URI is an index path, and the question was already answered
+
+5153 left the URI mapping open and called it a decision for step 12: an
+MPD URI is relative to one music root, `remoteproto_path_ok()` wants an
+absolute path under a mount, and something has to bridge them. **It was
+not open.** `mediaindex.h:10-16`, written in 5010-5019:
+
+    PATHS are relative to the volume root, with no leading slash --
+    "Artist/Album/01 Song.flac" ... Relative because SD and USB are shown
+    to MPD as one library (SD preferred), and the only way
+    `Artist/x.flac` on one volume can be recognised as `Artist/x.flac` on
+    the other is by the part below the mount point.
+
+The index format was chosen *because* MPD shows one merged library. So a
+URI is an index path unchanged -- no volume in it, no leading slash -- and
+`medialist.h` already merges on exactly that key. The alternative that
+looked reasonable for a while, "sd" and "usb" as two top-level
+directories, is what the remote page's chooser shows at "/"
+(`remote.c:610`) and would contradict the stated reason the index paths
+are relative, as well as making one album on two cards two albums to a
+client.
+
+**Worth recording as a method failure and not just a conclusion.** The
+answer was one paragraph of a header this work already depends on, and it
+was reached instead by reasoning from the protocol -- which produced a
+defensible case for the wrong option, complete with an argument from
+`remote.c:610` that is true and irrelevant. The cost of reading the file
+first is a minute. The check that caught it was mechanical: the layer this
+was about to be built on top of said what it was for.
+
+**What the merge costs, and it is a real loss.** A relative path present
+on both volumes resolves to the SD copy, and the USB copy has no URI at
+all -- a client cannot ask for it, because there is nothing to ask with.
+That is not new here: `medialist.h` already shows the preferred volume's
+copy and hides the other, per MEDIA-INDEX.md point 3. MPD inherits a
+deliberate decision rather than adding one, which is the only reason it is
+acceptable.
+
+**A directory URI is never mapped to a VFS path**, which the first draft
+got wrong by having one function for both. Listing is an INDEX operation
+-- `medialist_open()` takes the relative directory and reads records,
+opening nothing -- so `lsinfo` needs no mount and no volume, and only a
+file being opened forces a volume to be chosen. `mpduri_to_vfs()` is
+documented as files-only for that reason.
+
+**And a tombstone is not a file.** Resolution skips dead records, so a
+track deleted from the SD still resolves to the USB copy. That is the one
+direction the shadowing rule usefully runs in, and returning the SD path
+would hand the player something to open that is not on the card -- a
+decoder fault a long way from its cause, which is 5134's argument about
+refusing a bad offset rather than truncating one.
+
+MPD.md's reuse of `remoteproto_path_ok()` happens here, on the path
+*after* the mapping rather than before it, which is the form that works.
+The texttest rule links both files, as MPD.md always said it would.
+
+`texttest/mpduritest.c`, wired in as `run-mpduri`: 80095 checks, both
+passes clean, against medialisttest.c's synthetic volume rather than a
+second copy of that fixture. Most of the count is the round trip --
+`mpduri_from_vfs()` must never emit something `mpduri_ok()` would refuse,
+because the player publishes a URI in `currentsong` that a client sends
+straight back in a `playid`, so the two directions failing to agree is a
+file that cannot be replayed from the thing that just played it.
+
+**Mutation-checked**, ten deliberate bugs, nine caught:
+
+| mutation | result |
+| --- | --- |
+| USB preferred over SD (slot order reversed) | 1 failure |
+| a tombstone counts as found | 1 failure |
+| `".."` segment accepted | 6 failures |
+| empty segment accepted | 2 failures |
+| the root accepted as a file uri | 1754 failures |
+| from_vfs does not require a slash after the mount | ASan: overflow |
+| `mpduri_dir()` omits the trailing slash | 3 failures |
+| backslash allowed in a uri | 2 failures |
+| the uri length ceiling removed | 1 failure |
+| a leading slash accepted in a uri | **not caught** |
+
+**The one not caught is a redundant line, not a hole in the suite**, and
+that distinction is why it is written down rather than fixed. A leading
+'/' makes the first segment empty, which the segment walk refuses anyway,
+so deleting the explicit check changes no answer for any input -- there is
+no case that could catch it. The line stays, marked in the source as
+subsumed: it states the rule that matters most at the top where a reader
+looks, and `remoteproto_path_ok()` has the mirror-image line in the same
+place. A check that cannot fire is worth keeping only if it is labelled as
+documentation, which is what the comment now does.

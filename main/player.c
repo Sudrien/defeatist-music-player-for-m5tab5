@@ -10428,6 +10428,40 @@ static track_end_t play_file(const char *path)
         blocks++;
     }
 
+    /*
+     * A pulled drive can look like the end of the file.
+     *
+     * The media-gone check above runs on storage_present(), which goes
+     * false when the storage task gets round to detaching the volume --
+     * and on USB that was measured at 0.9 s AFTER the first failed read.
+     * In that window the decoder saw its reads fail, reported no more
+     * frames, and the track was taken as finished: the ring played out
+     * in full with no fade, and the player ran through three more tracks
+     * that "played nothing" before stopping.
+     *
+     * So a track that ends well short of its own length, on a volume,
+     * waits a moment for the volume to say whether it is still there.
+     * A file that is simply shorter than its header claims pays up to
+     * MEDIA_GONE_WAIT_MS once; a normal end, within two seconds of the
+     * length, pays nothing.
+     */
+#define MEDIA_GONE_WAIT_MS  (2000)
+    if (why == TRACK_ENDED && vol < STORAGE_COUNT && len_sec > 0 && cur_rate > 0 &&
+        frames_out / cur_rate + 2 < len_sec) {
+        const TickType_t t0 = xTaskGetTickCount();
+        while (storage_present(vol) &&
+               xTaskGetTickCount() - t0 < pdMS_TO_TICKS(MEDIA_GONE_WAIT_MS)) {
+            vTaskDelay(pdMS_TO_TICKS(20));
+        }
+        if (!storage_present(vol)) {
+            ESP_LOGW(TAG, "media removed; the early end at %" PRIu64 " of %" PRIu32
+                          " s was the drive going, not the file ending",
+                     frames_out / cur_rate, len_sec);
+            why = TRACK_MEDIA_GONE;
+            notice_post("Media removed", "playback stopped");
+        }
+    }
+
     if (s_pcm) {
         /* Interrupted rather than finished: what is queued is the old
          * track, and playing 0.37 s of it after the new one was chosen

@@ -869,6 +869,139 @@ static int art_int_scale(int iw, int ih, int box_w, int box_h)
     return k >= 2 ? k : 0;
 }
 
+/* ------------------------------------------------------------------ */
+/* Keystone                                                            */
+/* ------------------------------------------------------------------ */
+
+/*
+ * A slight lean on every cover, as if the sleeve were a print propped on
+ * a shelf rather than a flat bitmap.
+ *
+ * Drawn once, when the cover is placed, and never animated: the cost is
+ * one resample of the placed rectangle on a load that already takes
+ * 100-250 ms, and nothing at all while music plays. There is no sensor
+ * behind it -- a live tilt would repaint the art band at frame rate,
+ * which is the PSRAM load the cyan flash was about.
+ *
+ * Seeded by the cover's hash, so it is "random" per picture but stable:
+ * the same album leans the same way every time, and a repaint (closing
+ * the chooser, a track change within an album) does not make it jump.
+ *
+ * The wide edge keeps the full fitted size and only the far edge
+ * shrinks, so the trapezoid always fits where the square did and no
+ * cover gets smaller to make room.
+ *
+ * One axis per cover: either the top or bottom edge recedes (each ROW
+ * is narrower), or the left or right edge does (each COLUMN is shorter).
+ * No depth foreshortening along the other axis -- at these angles it is
+ * under a pixel per hundred and nobody can see it.
+ *
+ * ART_KEYSTONE 0 turns it off.
+ */
+#ifndef ART_KEYSTONE
+#define ART_KEYSTONE        1
+#endif
+/* The far edge's shrink, as a fraction of the near one: 3..8 percent,
+ * which reads as roughly 2..5 degrees of lean. More starts to look like
+ * a rendering fault instead of a photograph. */
+#define KEYSTONE_MIN_PM     (30)    /* per mille */
+#define KEYSTONE_MAX_PM     (80)
+
+static uint32_t s_keystone_seed;
+
+/* a over b, alpha 0..256, RGB565 */
+static inline uint16_t mix565(uint16_t a, uint16_t b, int alpha)
+{
+    const int ia = 256 - alpha;
+    const int r = (((a >> 11) & 0x1F) * alpha + ((b >> 11) & 0x1F) * ia) >> 8;
+    const int g = (((a >> 5) & 0x3F) * alpha + ((b >> 5) & 0x3F) * ia) >> 8;
+    const int bl = ((a & 0x1F) * alpha + (b & 0x1F) * ia) >> 8;
+    return (uint16_t)((r << 11) | (g << 5) | bl);
+}
+
+/*
+ * Resample one line of n pixels into a narrower centred span of the same
+ * line: `in` is a copy, `out` is the framebuffer. `shrink_q16` is the
+ * span's width as a 16.16 fraction of n. The two cut edges are blended
+ * into the background by their coverage, so the slant is not a stair.
+ * `step` is the distance between pixels in both buffers (1 for a row,
+ * the stride for a column).
+ */
+static void keystone_line(const uint16_t *in, uint16_t *out, int n,
+                          size_t in_step, size_t out_step, uint32_t shrink_q16)
+{
+    const uint16_t bg = UI_BG_RGB565;
+    /* span in 16.16 output pixels, and where it starts */
+    const int64_t span = ((int64_t)n * shrink_q16);
+    const int64_t lo = (((int64_t)n << 16) - span) / 2;
+    const int64_t hi = lo + span;
+    /* source step per output pixel: n / span */
+    const uint32_t step = (uint32_t)((((int64_t)n) << 32) / (span ? span : 1));
+
+    for (int i = 0; i < n; i++) {
+        const int64_t p0 = (int64_t)i << 16, p1 = p0 + 65536;
+        uint16_t *o = &out[(size_t)i * out_step];
+        if (p1 <= lo || p0 >= hi) { *o = bg; continue; }
+        /* the source pixel under this output pixel's centre */
+        const int64_t c = p0 + 32768 - lo;
+        int sx = (int)((c * step) >> 32);
+        if (sx < 0) sx = 0;
+        if (sx >= n) sx = n - 1;
+        const uint16_t v = in[(size_t)sx * in_step];
+        /* coverage of this pixel by the span, 0..65536 */
+        const int64_t a0 = p0 > lo ? p0 : lo, a1 = p1 < hi ? p1 : hi;
+        const int cov = (int)(a1 - a0);
+        *o = cov >= 65536 ? v : mix565(v, bg, cov >> 8);
+    }
+}
+
+static void keystone_apply(uint16_t *fb, int fbw, int dx, int dy, int cw, int ch)
+{
+#if ART_KEYSTONE
+    if (cw < 16 || ch < 16) return;
+
+    const uint32_t h = s_keystone_seed * 2654435761u;   /* spread the bits */
+    const bool rows = (h >> 31) & 1;     /* top/bottom recedes vs left/right */
+    const bool flip = (h >> 30) & 1;     /* which of the two */
+    const int  pm = KEYSTONE_MIN_PM +
+                    (int)((h >> 8) % (KEYSTONE_MAX_PM - KEYSTONE_MIN_PM + 1));
+    const uint32_t k_q16 = (uint32_t)(((uint64_t)pm << 16) / 1000);
+
+    uint16_t *tmp = heap_caps_malloc((size_t)cw * ch * 2,
+                                     MALLOC_CAP_SPIRAM | MALLOC_CAP_8BIT);
+    if (!tmp) {
+        ESP_LOGW(TAG, "keystone: no room for %dx%d; drawn flat", cw, ch);
+        return;
+    }
+    for (int y = 0; y < ch; y++) {
+        memcpy(&tmp[(size_t)y * cw], &fb[(size_t)(dy + y) * fbw + dx], (size_t)cw * 2);
+    }
+
+    /* Lines run along the receding edge's direction; `t` goes 0 at the
+     * near edge to 1 at the far one. */
+    const int lines = rows ? ch : cw;
+    for (int l = 0; l < lines; l++) {
+        const int from_far = flip ? l : (lines - 1 - l);
+        const uint32_t t_q16 = (uint32_t)(((uint64_t)(lines - 1 - from_far) << 16) / (lines - 1));
+        const uint32_t shrink = 65536u - (uint32_t)(((uint64_t)k_q16 * t_q16) >> 16);
+        if (rows) {
+            keystone_line(&tmp[(size_t)l * cw], &fb[(size_t)(dy + l) * fbw + dx],
+                          cw, 1, 1, shrink);
+        } else {
+            keystone_line(&tmp[l], &fb[(size_t)dy * fbw + dx + l],
+                          ch, (size_t)cw, (size_t)fbw, shrink);
+        }
+    }
+    heap_caps_free(tmp);
+
+    ESP_LOGI(TAG, "keystone: %s edge %d.%d%% narrower",
+             rows ? (flip ? "top" : "bottom") : (flip ? "left" : "right"),
+             pm / 10, pm % 10);
+#else
+    (void)fb; (void)fbw; (void)dx; (void)dy; (void)cw; (void)ch;
+#endif
+}
+
 static esp_err_t blit_cover(esp_lcd_panel_handle_t panel,
                             int screen_w, int screen_h,
                             const uint8_t *rgb, int iw, int ih, int stride)
@@ -981,6 +1114,8 @@ static esp_err_t blit_cover(esp_lcd_panel_handle_t panel,
             }
         }
     }
+    keystone_apply(fb, fbw, dx, dy, cw, ch);
+
     /* ui_blit_art_err() knows whether the artwork is a band or a column;
      * this does not, and the difference is the whole screen. The _err
      * form because a cover that did not reach the glass must not be
@@ -1012,6 +1147,7 @@ esp_err_t albumart_draw(esp_lcd_panel_handle_t panel, int screen_w, int screen_h
      * the same on both paths.
      */
     const uint32_t in_hash = albumart_cover_hash(jpeg, jpeg_len);
+    s_keystone_seed = in_hash;
 
     if (s_kept && s_kept_hash == in_hash) {
         /*
@@ -1523,6 +1659,8 @@ static esp_err_t albumart_draw_png(esp_lcd_panel_handle_t panel,
     const int fbw = gfx_w();
     gfx_fill_rect(0, 0, screen_w, screen_h, UI_BG_RGB565);
 
+    s_keystone_seed = albumart_cover_hash(png, png_len);
+
     pngle_t *p = pngle_new();
     ESP_RETURN_ON_FALSE(p, ESP_ERR_NO_MEM, TAG, "pngle_new");
 
@@ -1566,6 +1704,7 @@ static esp_err_t albumart_draw_png(esp_lcd_panel_handle_t panel,
     pngle_destroy(p);
 
     if (ret == ESP_OK) {
+        keystone_apply(fb, fbw, ctx.dx, ctx.dy, ctx.cw, ctx.ch);
         /* One copy, once, when the whole image is decoded -- rather than
          * the panel showing the picture arrive scanline by scanline. */
         ret = ui_blit_art_err();

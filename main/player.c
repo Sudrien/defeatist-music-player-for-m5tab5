@@ -11177,6 +11177,13 @@ static void restore_last_track(void)
          * only be a play that has to be pressed again.
          */
         s_playing = false;
+        /*
+         * And it is the track on screen, which is what s_shown_path
+         * means -- normally track_commit() says so when the first frame
+         * is heard, and nothing is heard until play. Left empty, the
+         * star read "no track" and hid itself for the whole pause.
+         */
+        snprintf(s_shown_path, sizeof(s_shown_path), "%s", s_path);
         load_track_visuals(s_path);
         ESP_LOGI(TAG, "ready to resume %s (paused)", s_path);
 

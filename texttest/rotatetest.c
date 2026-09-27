@@ -298,10 +298,10 @@ int main(void)
          * The transport: the pill and the skip glyphs must not touch,
          * including their padded hit boxes. This is the clearance that
          * moving from a 92 px disc to a 168 px pill, and then to the
-         * 240 px three-way switch, ate into.
+         * 330 px three-way switch (knob throw +/-120), ate into.
          */
         const int cx = bar_x + UI_SQUARE / 2;
-        const int pill_half = 240 / 2, hit_pad_x = 14, skip_half = 35, skip_dx = 186;
+        const int pill_half = 120 + 45, hit_pad_x = 14, skip_half = 35, skip_dx = 230;
         const int pill_edge = cx + pill_half + hit_pad_x;
         const int next_edge = cx + skip_dx - skip_half - hit_pad_x;
         CHECK(next_edge > pill_edge - 1,

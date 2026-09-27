@@ -220,9 +220,21 @@ static const char *TAG = "tab5_ui";
  * 240 wide gives the knob two 73 px throws, close to the old single
  * 76 px throw.
  */
-#define PILL_W      (240)
-#define PILL_H      (92)
+/*
+ * Since then: the track is thinner than the knob, so the knob overhangs
+ * it top and bottom like a physical slide switch, and the throw went
+ * from 73 px to 120 so a slide is a deliberate movement. The ends of
+ * the track are semicircles centred on the outer detents.
+ *
+ * PILL_W/PILL_H are the whole control's extent -- the knob at either
+ * end -- which is what the hit box and the row's spacing care about.
+ */
+#define SW_THROW    (120)                       /* centre to an outer detent */
+#define SW_TRACK_H  (56)
+#define SW_TRACK_W  (2 * SW_THROW + SW_TRACK_H)
 #define KNOB_R      (45)
+#define PILL_W      (2 * (SW_THROW + KNOB_R))   /* 330 */
+#define PILL_H      (2 * KNOB_R)
 /* BTN_R, the disc's radius, is gone with the disc. Its last user was the
  * hit test, which is the pill's own box now -- see ui_touch(). */
 
@@ -244,10 +256,11 @@ static const char *TAG = "tab5_ui";
  * well inside the content box's 336.
  */
 /*
- * 186 since the pill went to three positions: 120 + 14 + 35 + 14 = 183
- * is the floor, and 3 px of clearance is what 150 had.
+ * 230 since the switch's knob travels +/-120: 165 + 14 + 35 + 14 = 228
+ * is the floor, and 2 px of clearance keeps the old margin. The glyph's
+ * outer edge is then 265 from the centre, inside the content box's 336.
  */
-#define SKIP_DX     (186)
+#define SKIP_DX     (230)
 
 /*
  * The two blocks that flank the volume groove, declared up here because
@@ -664,7 +677,7 @@ static void draw_slider_c(int x0, int x1, int y, int pct, uint16_t fill)
 }
 
 /* The knob's three detents, as offsets from the pill's centre. */
-#define KNOB_THROW  (PILL_W / 2 - KNOB_R - 2)
+#define KNOB_THROW  (SW_THROW)
 /* Less movement than this on release is a tap, not a slide. */
 #define SW_SLIDE_MIN (24)
 
@@ -700,14 +713,20 @@ static void draw_play_pause(bool playing, bool recording)
     const int pos = recording ? -1 : (playing ? 1 : 0);
     const uint16_t trough = recording ? C_FILL : (playing ? C_PLAY_ON : C_TRACK);
 
-    fill_rrect(cx - PILL_W / 2, cy - PILL_H / 2, PILL_W, PILL_H, PILL_H / 2, trough);
+    /* The knob overhangs the track, so the band it sweeps is cleared
+     * first -- the track alone would not cover where it was. */
+    gfx_fill_rect(cx - PILL_W / 2, cy - PILL_H / 2, PILL_W, PILL_H, C_BG);
+    fill_rrect(cx - SW_TRACK_W / 2, cy - SW_TRACK_H / 2, SW_TRACK_W, SW_TRACK_H,
+               SW_TRACK_H / 2, trough);
 
-    /* The other two detents, marked small in the trough so the switch
-     * says what it can do and not only what it is doing. */
+    /* The other two detents, marked small in the track so the switch
+     * says what it can do and not only what it is doing. Record's dot is
+     * red and play's arrow green, as on the knob, except where the track
+     * is already that colour's neighbour and they would vanish. */
     const uint16_t hint = recording || playing ? C_BG : C_ICON_OFF;
     if (pos != -1) gfx_fill_circle(cx - KNOB_THROW, cy, 10, recording ? C_BG : C_FILL);
     if (pos != 0)  draw_pause_bars(cx, cy, 10, hint);
-    if (pos != 1)  draw_play_tri(cx + KNOB_THROW, cy, 10, hint);
+    if (pos != 1)  draw_play_tri(cx + KNOB_THROW, cy, 10, recording ? C_BG : C_PLAY_ON);
 
     /* Under a finger the knob follows it, and the glyph shows the
      * detent it would land on if let go now. */
@@ -721,11 +740,10 @@ static void draw_play_pause(bool playing, bool recording)
         shown = sw_detent(off);
     }
     gfx_fill_circle(kx, cy, KNOB_R, C_THUMB);
-    const int pos_drawn = shown;
 
-    if (pos_drawn == -1)     gfx_fill_circle(kx, cy, 18, C_FILL);
-    else if (pos_drawn == 0) draw_pause_bars(kx, cy, 20, C_BG);
-    else               draw_play_tri(kx, cy, 20, C_BG);
+    if (shown == -1)     gfx_fill_circle(kx, cy, 18, C_FILL);
+    else if (shown == 0) draw_pause_bars(kx, cy, 20, C_BG);
+    else                 draw_play_tri(kx, cy, 20, C_PLAY_ON);
 }
 
 /*
@@ -2258,7 +2276,7 @@ ui_action_t ui_touch(const ui_state_t *st, bool down, int x, int y)
      * The toggle's box is the PILL, not the disc it replaced.
      *
      * in_box() takes one half-extent because every other control on
-     * this row is square; the pill is 240x92 and a BTN_R box would be a
+     * this row is square; the switch is 330x90 and a BTN_R box would be a
      * 92 px target inside a 168 px control -- the 38 px either end that
      * look pressable would not be. Written out rather than adding a
      * rectangular in_box() for one caller.

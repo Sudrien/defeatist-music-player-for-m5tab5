@@ -47,6 +47,11 @@ typedef enum {
                                idle countdown from now and puts the
                                brightness back, because a tap on this row
                                is a touch like any other */
+    SLEEPPAGE_OFF_AFTER,    /* the Screen off row was tapped;
+                               settings_off_step() is the new step. Not
+                               the same as SLEEPPAGE_SCREEN_OFF, which
+                               turns the backlight off NOW -- this only
+                               changes how long the wait is */
     SLEEPPAGE_FLIP,         /* the Rotation switch was tapped;
                                settings_screen_rotation() is already the
                                new value, one quarter turn on from the

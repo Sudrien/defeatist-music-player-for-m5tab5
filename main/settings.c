@@ -86,13 +86,18 @@ static const char *TAG = "tab5_settings";
  */
 #define PREFS_NVS_KEY     "prefs"
 /*
+ * 3: off_step joined it, one patch after dim_step. Two resets in two
+ * patches, and still not worth a migration: four scalar fields, all of
+ * which the card's record carries as well, so what a reset costs is one
+ * boot's worth of them on a device with no card.
+ *
  * 2: dim_step joined the blob. A version this build does not know is
  * discarded rather than migrated, so the first boot after the change
  * starts from the defaults and then takes the card's record -- which
  * carries volume, brightness and rotation too, so what is actually lost
  * is one boot's worth of them on a device with no card.
  */
-#define PREFS_NVS_VERSION (2)
+#define PREFS_NVS_VERSION (3)
 
 typedef struct {
     uint8_t version;
@@ -101,6 +106,7 @@ typedef struct {
     uint8_t screen_rot;
     uint8_t ntp;
     uint8_t dim_step;
+    uint8_t off_step;
 } prefs_nvs_t;
 
 static prefs_nvs_t s_prefs_nvs;         /* what NVS holds, when known */
@@ -223,6 +229,7 @@ static uint8_t    s_brightness = SETTINGS_BRIGHTNESS_DEFAULT;
  */
 static uint8_t    s_screen_rot;
 static uint8_t    s_dim_step = SCREENDIM_DEFAULT_STEP;
+static uint8_t    s_off_step = SCREENOFF_DEFAULT_STEP;
 
 /* Off. The radio does not come up because a firmware update happened.
  * See settings_wifi_enabled(). */
@@ -325,10 +332,11 @@ static void prefs_nvs_load(void)
     if (p.screen_rot <= 3) s_screen_rot = p.screen_rot;
     s_ntp_enabled = p.ntp != 0;
     if (p.dim_step <= SCREENDIM_STEPS) s_dim_step = p.dim_step;
+    if (p.off_step <= SCREENOFF_STEPS) s_off_step = p.off_step;
     ESP_LOGI(TAG, "from flash: volume=%u, brightness=%u, rotation=%u, ntp=%s, "
-             "dim=%s",
+             "dim=%s, off=%s",
              p.volume, p.brightness, p.screen_rot, p.ntp ? "on" : "off",
-             screendim_label(s_dim_step));
+             screendim_label(s_dim_step), screenoff_label(s_off_step));
 }
 
 static void prefs_nvs_sync(void)
@@ -340,6 +348,7 @@ static void prefs_nvs_sync(void)
         .screen_rot = s_screen_rot,
         .ntp = s_ntp_enabled ? 1 : 0,
         .dim_step = s_dim_step,
+        .off_step = s_off_step,
     };
     if (s_prefs_nvs_known && memcmp(&p, &s_prefs_nvs, sizeof(p)) == 0) return;
 
@@ -365,6 +374,17 @@ void settings_set_crossfade_sec(uint8_t sec)
     if (sec > SETTINGS_CROSSFADE_MAX) sec = SETTINGS_CROSSFADE_MAX;
     if (sec == s_crossfade_sec) return;
     s_crossfade_sec = sec;
+    s_dirty = true;
+    s_dirty_since = xTaskGetTickCount();
+}
+
+uint8_t settings_off_step(void) { return s_off_step; }
+
+void settings_set_off_step(uint8_t step)
+{
+    if (step > SCREENOFF_STEPS) step = 0;       /* not ours: Never */
+    if (step == s_off_step) return;
+    s_off_step = step;
     s_dirty = true;
     s_dirty_since = xTaskGetTickCount();
 }
@@ -848,6 +868,13 @@ static bool parse_line(char *line, storage_id_t id, bool take_settings,
             any = true;
         }
 
+        const cJSON *of = cJSON_GetObjectItemCaseSensitive(root, "off_step");
+        if (take_settings && cJSON_IsNumber(of)) {
+            const int v = of->valueint;
+            s_off_step = (v >= 0 && v <= SCREENOFF_STEPS) ? (uint8_t)v : 0;
+            any = true;
+        }
+
         const cJSON *dm = cJSON_GetObjectItemCaseSensitive(root, "dim_step");
         if (take_settings && cJSON_IsNumber(dm)) {
             const int v = dm->valueint;
@@ -987,6 +1014,11 @@ static bool parse_line(char *line, storage_id_t id, bool take_settings,
         if (v < 0) v = 0;
         if (v > SETTINGS_CROSSFADE_MAX) v = SETTINGS_CROSSFADE_MAX;
         s_crossfade_sec = (uint8_t)v;
+        return true;
+    }
+    if (strcmp(key, "off_step") == 0) {
+        const int v = atoi(val);
+        s_off_step = (v >= 0 && v <= SCREENOFF_STEPS) ? (uint8_t)v : 0;
         return true;
     }
     if (strcmp(key, "dim_step") == 0) {
@@ -1187,6 +1219,7 @@ static int record_line(storage_id_t id, char *out, size_t out_len)
 #define SETTINGS_FIELDS_FMT "\"volume\":%u,\"replaygain\":%s," \
                             "\"crossfade\":%u,\"crossfade_album\":%s," \
                             "\"brightness\":%u,\"dim_step\":%u," \
+                            "\"off_step\":%u," \
                             "\"screen_flipped\":%s," \
                             "\"screen_rotation\":%u," \
                             "\"wifi\":%s,\"ntp\":%s," \
@@ -1194,7 +1227,8 @@ static int record_line(storage_id_t id, char *out, size_t out_len)
                             "\"mic_stereo\":%s,\"remote\":%s"
 #define SETTINGS_FIELDS_ARGS s_volume, rg, (unsigned)s_crossfade_sec, xa, \
                              (unsigned)s_brightness, \
-                             (unsigned)s_dim_step, fl, \
+                             (unsigned)s_dim_step, \
+                             (unsigned)s_off_step, fl, \
                              (unsigned)s_screen_rot, \
                              wf, np, nte, ntb, ms, rc
 

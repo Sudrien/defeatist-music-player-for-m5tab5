@@ -188,12 +188,24 @@ static void dim_box(int *x, int *y, int *w, int *h)
     *h = OPTION_H;
 }
 
-static void timer_box(int *x, int *y, int *w, int *h)
+#define OFF_NOTE_LINES  (2)
+
+static void off_box(int *x, int *y, int *w, int *h)
 {
     int dx, dy, dw, dh;
     dim_box(&dx, &dy, &dw, &dh);
     *x = 0;
     *y = dy + dh + NOTE_GAP + DIM_NOTE_LINES * NOTE_STEP + GAP;
+    *w = gfx_w();
+    *h = OPTION_H;
+}
+
+static void timer_box(int *x, int *y, int *w, int *h)
+{
+    int dx, dy, dw, dh;
+    off_box(&dx, &dy, &dw, &dh);
+    *x = 0;
+    *y = dy + dh + NOTE_GAP + OFF_NOTE_LINES * NOTE_STEP + GAP;
     *w = gfx_w();
     *h = SLIDER_H;
 }
@@ -346,6 +358,36 @@ void sleeppage_draw(void)
             "After this long without a touch the screen drops to half "
             "brightness. Any touch puts it back.",
             "For backlight life and battery. This panel cannot burn in.",
+        };
+        gfx_draw_text(24, y + bh + NOTE_GAP, note[0], LABEL_SCALE, w - 48, C_DIM);
+        gfx_draw_text(24, y + bh + NOTE_GAP + NOTE_STEP, note[1],
+                      LABEL_SCALE, w - 48, C_FAINT);
+    }
+
+    /* --- Screen off after -------------------------------------------- */
+    off_box(&x, &y, &bw, &bh);
+    {
+        const int step = settings_off_step();
+        gfx_fill_rect(x, y, bw, bh, C_ROW);
+        gfx_draw_text(24, y + (bh - GFX_GLYPH_H(NAME_SCALE)) / 2, "Screen off",
+                      NAME_SCALE, 400, C_TEXT);
+
+        const int pw = 132, ph = 56;
+        const int px = w - 24 - pw, py = y + (bh - ph) / 2;
+        const char *text = screenoff_label(step);
+        gfx_fill_rect(px, py, pw, ph, step ? C_ON : C_BTN);
+        const int tw = gfx_text_w(text, NAME_SCALE);
+        gfx_draw_text(px + (pw - tw) / 2, py + (ph - GFX_GLYPH_H(NAME_SCALE)) / 2,
+                      text, NAME_SCALE, pw - 8, step ? C_BG : C_DIM);
+    }
+    {
+        /* The second line is the one that matters: this is the switch
+         * above it, on a timer, and a tap brings it back. Somebody who
+         * reads "screen off" as "device off" will not try touching it. */
+        static const char *const note[] = {
+            "Longer than the dim, and the backlight goes out altogether. "
+            "Never while this page is open.",
+            "A tap anywhere brings it back, and does not press anything.",
         };
         gfx_draw_text(24, y + bh + NOTE_GAP, note[0], LABEL_SCALE, w - 48, C_DIM);
         gfx_draw_text(24, y + bh + NOTE_GAP + NOTE_STEP, note[1],
@@ -604,6 +646,15 @@ sleeppage_result_t sleeppage_touch(bool down, int x, int y)
         ESP_LOGI(TAG, "dim screen: %s", screendim_label(want));
         s_dirty = true;
         return SLEEPPAGE_DIM;
+    }
+
+    off_box(&bx, &by, &bw, &bh);
+    if (y >= by && y < by + bh) {
+        const int want = (settings_off_step() + 1) % (SCREENOFF_STEPS + 1);
+        settings_set_off_step((uint8_t)want);
+        ESP_LOGI(TAG, "screen off after: %s", screenoff_label(want));
+        s_dirty = true;
+        return SLEEPPAGE_OFF_AFTER;
     }
 
     /* Whole row, not a pill, for panel.c's reason: a row is the target a

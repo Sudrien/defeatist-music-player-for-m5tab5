@@ -155,6 +155,84 @@ int main(void)
         }
     }
 
+    /* ---- the screen-off table --------------------------------------- */
+    {
+        CHECK(screenoff_seconds(1) == 30,  "off 1 is %d", screenoff_seconds(1));
+        CHECK(screenoff_seconds(2) == 60,  "off 2 is %d", screenoff_seconds(2));
+        CHECK(screenoff_seconds(3) == 120, "off 3 is %d", screenoff_seconds(3));
+        CHECK(screenoff_seconds(4) == 300, "off 4 is %d", screenoff_seconds(4));
+        CHECK(screenoff_seconds(0) == 0, "off 0 should be never");
+        CHECK(screenoff_seconds(5) == 0, "off past the table should be never");
+
+        /* Off is never by default: a screen that starts going black on
+         * its own after an update nobody asked for is a fault report. */
+        CHECK(screenoff_seconds(SCREENOFF_DEFAULT_STEP) == 0,
+              "the default is %d s, wanted never",
+              screenoff_seconds(SCREENOFF_DEFAULT_STEP));
+
+        for (int s = 0; s <= SCREENOFF_STEPS; s++) {
+            CHECK(screenoff_step_for_seconds(screenoff_seconds(s)) == s,
+                  "off step %d did not survive a round trip", s);
+        }
+        CHECK(screenoff_step_for_seconds(45) == 0, "45 s was rounded in");
+
+        for (int a = 0; a <= SCREENOFF_STEPS; a++) {
+            CHECK(screenoff_label(a)[0] != '\0', "off step %d has no label", a);
+            for (int b = a + 1; b <= SCREENOFF_STEPS; b++) {
+                CHECK(strcmp(screenoff_label(a), screenoff_label(b)) != 0,
+                      "off steps %d and %d share \"%s\"",
+                      a, b, screenoff_label(a));
+            }
+        }
+    }
+
+    /* ---- off never comes before the dim ------------------------------ */
+    {
+        /* The ordinary case: off well after dim, unchanged. */
+        CHECK(screenoff_effective(120, 30) == 120, "120 after 30 gave %d",
+              screenoff_effective(120, 30));
+
+        /*
+         * The contradiction. Off at 30 s with dim at 2 min would take the
+         * screen black without ever dimming, and the dim row would
+         * silently do nothing -- a setting visibly set and having no
+         * effect is worse than either behaviour.
+         */
+        CHECK(screenoff_effective(30, 120) == 120,
+              "off 30 with dim 120 gave %d, wanted the dim's 120",
+              screenoff_effective(30, 120));
+
+        /* Equal is allowed: they happen in the same pass, and the off
+         * branch runs after the dim one. */
+        CHECK(screenoff_effective(60, 60) == 60, "equal gave %d",
+              screenoff_effective(60, 60));
+
+        /* Never means never, whatever the dim is -- including when the
+         * dim is never too. */
+        CHECK(screenoff_effective(0, 30) == 0, "off never was overridden");
+        CHECK(screenoff_effective(0, 0) == 0, "both never");
+
+        /* A dim of never does not hold off back: somebody who wants the
+         * screen to go black without dimming first should get that. */
+        CHECK(screenoff_effective(30, 0) == 30, "off 30 with dim never gave %d",
+              screenoff_effective(30, 0));
+
+        /* A property over both tables: the result is never earlier than
+         * the dim, and never earlier than what was asked for. */
+        for (int o = 0; o <= SCREENOFF_STEPS; o++) {
+            for (int d = 0; d <= SCREENDIM_STEPS; d++) {
+                const int os = screenoff_seconds(o), ds = screendim_seconds(d);
+                const int e = screenoff_effective(os, ds);
+                if (os == 0) {
+                    CHECK(e == 0, "off never became %d", e);
+                } else {
+                    CHECK(e >= os, "off %d became the earlier %d", os, e);
+                    CHECK(e >= ds, "off %d lands before the dim at %d", e, ds);
+                }
+            }
+        }
+    }
+
     printf("%d checks, %d failures\n", checks, failures);
     return failures ? 1 : 0;
 }

@@ -196,6 +196,18 @@ uint8_t settings_dim_step(void);
 void settings_set_dim_step(uint8_t step);
 
 /*
+ * And how long before the backlight goes off altogether, as a step in
+ * screendim.h's screenoff table: 0 never, which is the default.
+ *
+ * OFF IS THE BACKLIGHT, not the panel and not the touch controller --
+ * screendim.h says why that distinction is the whole safety of the
+ * feature. Defaults to never, because a screen that starts going black
+ * on its own after an update nobody asked for is a fault report.
+ */
+uint8_t settings_off_step(void);
+void settings_set_off_step(uint8_t step);
+
+/*
  * Whether the screen is upside down -- portrait, rotated 180 degrees.
  *
  * PORTRAIT ONLY, AND ON PURPOSE.

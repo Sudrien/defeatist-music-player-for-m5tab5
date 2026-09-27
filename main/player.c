@@ -7127,9 +7127,10 @@ static void ui_task(void *arg)
          * second way to set the backlight.
          */
         {
-            const bool want = screendim_due(esp_timer_get_time(),
-                                            s_last_input_us,
-                                            screendim_seconds(settings_dim_step()));
+            const int64_t now_us = esp_timer_get_time();
+            const int dim_s = screendim_seconds(settings_dim_step());
+
+            const bool want = screendim_due(now_us, s_last_input_us, dim_s);
             if (want != s_dimmed) {
                 s_dimmed = want;
                 s_brightness_pending = true;
@@ -7141,6 +7142,43 @@ static void ui_task(void *arg)
                     ESP_LOGI(TAG, "screen back up to %d%%",
                              effective_brightness());
                 }
+            }
+
+            /*
+             * The backlight off, which is the manual "Screen off" on a
+             * timer and nothing more: screen_fade_out() takes the duty to
+             * zero, the panel keeps running and the touch controller is
+             * never told anything, so ui.c's screen-off branch turns the
+             * next tap into a wake. Powering the panel or the touch chip
+             * down would leave no way back.
+             *
+             * NOT WHILE THIS PAGE IS OPEN. Somebody on the Sleep page is
+             * setting these very rows, and a screen that goes black under
+             * their hand while they read the note explaining it is the
+             * one place the feature would look broken. Playback does not
+             * hold it off -- a dark screen at night is most of the point
+             * -- but the page does.
+             *
+             * screenoff_effective() keeps this from arriving before the
+             * dim when the two rows are set to contradict each other.
+             *
+             * AFTER THE DIM, NOT BEFORE IT, so that when both fall due in
+             * the same pass the fade starts from the dimmed level rather
+             * than from full brightness -- screen_fade_out() reads
+             * effective_brightness(), and taking the two in the other
+             * order made the screen brighten for the length of a fade on
+             * its way out. Only reachable when the two intervals are
+             * equal, or when a pass was slow enough to cross both, but
+             * that is two ways and not none.
+             */
+            const int off_s = screenoff_effective(
+                                  screenoff_seconds(settings_off_step()), dim_s);
+            if (!s_screen_off && !sleeppage_is_open() &&
+                screendim_due(now_us, s_last_input_us, off_s)) {
+                ESP_LOGI(TAG, "screen off after %s untouched",
+                         screenoff_label(settings_off_step()));
+                screen_fade_out(SCREEN_FADE_MS);
+                s_screen_off = true;
             }
         }
 
@@ -7297,6 +7335,10 @@ static void ui_task(void *arg)
                 sleeppage_draw();
             } else if (r == SLEEPPAGE_BRIGHTNESS_DONE) {
                 log_brightness();
+            } else if (r == SLEEPPAGE_OFF_AFTER) {
+                /* Like the Dim row: redraw to show the new wait, and let
+                 * the tap itself be the activity that restarts it. */
+                sleeppage_draw();
             } else if (r == SLEEPPAGE_DIM) {
                 /*
                  * The page redraws to show the new interval, which is the

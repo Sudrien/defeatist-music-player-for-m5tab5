@@ -57,6 +57,68 @@ extern "C" {
  */
 #define SCREENDIM_LEVEL_PCT     (50)
 
+/*
+ * And the screen off, which is a longer wait than the dim and its own
+ * setting rather than a multiple of it -- a hidden multiplier is a rule
+ * nobody can see or change.
+ *
+ * OFF HERE MEANS THE BACKLIGHT, NOT THE PANEL. The Sleep page's manual
+ * "Screen off" already works this way and has to: ledc goes to zero
+ * duty, the ST7121 keeps running and the ST7123 touch controller is
+ * never told anything, which is why a tap can wake it (ui.c turns any
+ * tap into UI_ACTION_SCREEN_ON while the screen is off, and deliberately
+ * does not press what is under the finger). A panel or touch power-down
+ * would strand the listener with no way back, and this reuses the path
+ * that was already safe rather than inventing one that is not.
+ */
+#define SCREENOFF_STEPS         (4)         /* 1..4; 0 is never */
+#define SCREENOFF_DEFAULT_STEP  (0)         /* never, until asked for */
+
+static inline int screenoff_seconds(int step)
+{
+    static const int secs[SCREENOFF_STEPS] = { 30, 60, 120, 300 };
+    if (step <= 0 || step > SCREENOFF_STEPS) return 0;      /* never */
+    return secs[step - 1];
+}
+
+static inline int screenoff_step_for_seconds(int seconds)
+{
+    for (int s = 1; s <= SCREENOFF_STEPS; s++) {
+        if (screenoff_seconds(s) == seconds) return s;
+    }
+    return 0;
+}
+
+static inline const char *screenoff_label(int step)
+{
+    switch (step) {
+    case 1:  return "30 s";
+    case 2:  return "1 min";
+    case 3:  return "2 min";
+    case 4:  return "5 min";
+    default: return "Never";
+    }
+}
+
+/*
+ * The off wait, never shorter than the dim's.
+ *
+ * The two are set independently, so they can be set to contradict each
+ * other -- off at 30 s with dim at 2 min means the screen goes black
+ * without ever dimming, and the dim setting silently does nothing. The
+ * clamp makes the later of the two win, so "off" is always something
+ * that happens after a dim rather than instead of it, and neither row
+ * has to police the other.
+ *
+ * Both are seconds, 0 for never. Off never applies when off is never,
+ * whatever the dim says.
+ */
+static inline int screenoff_effective(int off_seconds, int dim_seconds)
+{
+    if (off_seconds <= 0) return 0;
+    return (off_seconds < dim_seconds) ? dim_seconds : off_seconds;
+}
+
 static inline int screendim_seconds(int step)
 {
     static const int secs[SCREENDIM_STEPS] = { 15, 30, 60, 120 };

@@ -14589,3 +14589,100 @@ shuffle bias. `% s_n` instead of `% (i + 1)` still produces a
 permutation, so every property the suite checks holds; catching it needs
 a statistical test, which is a flaky test, and the cost is a shuffle
 that favours some orders rather than a wrong list.
+
+### 5140-5143 -- The screen dims, then goes off, and neither is about burn-in
+
+Asked for as burn-in protection, and it is not that, which changed what
+got built. **The panel is an LCD**: `player.c` drives a PWM backlight
+through ledc and `brightness.h` has its measured 1% floor, and a
+backlight is the thing an OLED has none of. Burn-in is differential
+aging of per-pixel emitters -- a static UI wears the lit pixels faster
+than the dark ones and leaves a pattern. An LCD lights every pixel from
+the same lamp, so a static picture ages the panel uniformly, which is to
+say it leaves nothing. What LCDs can get is image persistence, which is
+temporary and uncommon on IPS.
+
+So the reflexive mitigations were all the wrong shape and none of them
+were built: no pixel shifting, no screensaver, no periodic inversion, no
+dimming of static regions. What a static picture actually costs is
+backlight hours and battery, both uniform, so the answer is to turn the
+lamp down and then off.
+
+**Two settings, two rows on the Sleep page** (5141, 5143), under
+Rotation where `rotation_box()`'s note says screen rows go. Dim: 15 s,
+30 s, 1 min, 2 min, Never, default 30 s. Off: 30 s, 1 min, 2 min, 5 min,
+Never, default **Never** -- a screen that starts going black by itself
+after an update nobody asked for is a fault report.
+
+**"Off" is the backlight and not the panel**, which is the whole safety
+of it and the reason it reuses a path rather than inventing one. The
+Sleep page's manual Screen off already worked exactly this way and had
+to: `screen_fade_out()` takes the LEDC duty to zero, the ST7121 keeps
+running, the ST7123 touch controller is never told anything, and
+`ui.c:2205` turns the next tap into `UI_ACTION_SCREEN_ON` while
+deliberately not pressing whatever is under the finger. Powering the
+panel or the touch chip down would leave no way back.
+
+**Half the slider is a fifth of the light.** `SCREENDIM_LEVEL_PCT` is
+50, and 50 means half the control the listener touched, not half the
+photons: 90 through gamma 2.2 is 79% duty and 45 is 17%. Measured on the
+board at 15 s: `screen dimmed to 45% after 15 s untouched` /
+`duty 17%`. A true half-luminance dim would be a smaller visible change
+and a worse saving; the number is one constant if it reads too dark.
+
+**The two intervals can be set to contradict each other** -- off at 30 s
+with dim at 2 min would take the screen black without ever dimming, and
+the dim row would silently do nothing. `screenoff_effective()` clamps
+off to no earlier than the dim, so off is always something that happens
+after a dim rather than instead of it, and neither row has to police the
+other.
+
+**Order within a pass matters.** The dim is evaluated before the off, so
+that when both fall due together the fade starts from the dimmed level
+-- `screen_fade_out()` reads `effective_brightness()`, and the other
+order made the screen brighten for the length of a fade on its way out.
+Reachable when the intervals are equal or when a pass is slow enough to
+cross both: two ways, not none.
+
+**One `effective_brightness()`**, which the three places that read the
+setting all go through -- the duty, the filter, and the fade's start.
+Applying the dim at two of the three would leave the screen at one
+brightness with another's filter over it.
+
+The wake is taken at `touch_get()`, the one place the panel is read,
+before the page handlers that can swallow a press and before the dim
+check, so a touch in the same pass as a deadline wakes instead of
+dimming. The touch still does what it was going to do -- a first tap
+that only woke would be a tap to make twice, and half brightness is
+readable. Off does not apply while the Sleep page is open, because
+somebody there is setting these rows and a screen going black under
+their hand is the one place it would look broken. Playback does not hold
+it off: a dark screen at night is most of the point.
+
+**The NVS prefs blob went 1 -> 2 -> 3** across 5141 and 5143, and each
+bump discards what flash holds -- volume, brightness, rotation and the
+NTP switch included -- because it is version- and length-checked. They
+come straight back from the card's record, so a reset costs one boot's
+worth of them on a device with no card, which is why four scalar fields
+still did not earn a migration. Two bumps in two patches is the argument
+for adding both fields at once next time, not for migrating.
+
+**What was checked and how.** `screendim.h` is header-only and pure
+after `sleeptimer.h`, so texttest compiles it: 334 checks, twelve
+deliberate bugs confirmed caught -- among them a last-touch of 0 read as
+"touched at boot" (which dims 30 s after power-on with nobody there),
+the off-by-one at the deadline, and the clamp inverted so off always
+takes the earlier of the two. `sleeppage.c` compiles clean on the host
+with both new rows. The settings record's format string and argument
+list were extracted and compiled under `-Wformat=2 -Werror`, twice, once
+per key added -- a key in the format and not the args is exactly what an
+append-only record punishes.
+
+`player.c` cannot be host-compiled at all; it is fatal at
+`esp_app_desc.h`. **A filtered syntax check reported it clean and that
+report was worthless**, which is worth recording because the same
+mistake is available to every session: grepping a compiler's output for
+"error" says nothing if the compiler stopped at an include. The blocks
+added to it were extracted into a standalone unit with stubs and
+exercised instead -- dim at 31 s, off at 61 s, both in one pass with the
+dim logged first, and the page open dimming but never going off.

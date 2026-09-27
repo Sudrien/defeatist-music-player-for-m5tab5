@@ -10,6 +10,15 @@ The target is **full queue semantics** -- a control client that can
 just browse and press play. That decision is what makes this expensive,
 and most of what follows is the consequence of it.
 
+**And the queue is the device's, not MPD's.** The remote page on 443
+gets the same verbs: it already browses the card over the socket (5123)
+and the natural next thing to do with a listed file is enqueue it rather
+than play it now. So the queue is a module both protocols are views of,
+and MPD is the second consumer of it rather than the reason for it. That
+ordering matters in two places -- it decides where the mutation path
+lives (below), and it means the queue is justified even if nothing ever
+listens on 6600.
+
 
 ## The one hard problem, stated first
 
@@ -135,6 +144,41 @@ tracks. Two consequences:
 
 That is a blocking call on a socket task, which is fine there and would
 not be on `media_task`.
+
+
+## Two transports, one mutation path
+
+The remote page and the MPD server both want to change the queue, and
+`remote.c`'s existing handoff cannot simply be duplicated for the second
+one. `remote_take()` (`remote.c:1005-1023`) and `remote_take_open()`
+(`remote.c:670-682`) are **single-consumer by construction** -- they
+read and clear -- and the queue and mailbox they drain are `static` to
+`remote.c`. A second server growing its own pair means `ui_task` polls
+two sets of take functions at `player.c:7012` and `:7692`, two mutexes,
+and two orderings of requests that arrive in the same pass, with nothing
+saying which wins.
+
+So the mutation path is **exported once and called by both**: a small
+module (or exported push helpers) owning the mutex, the request queue
+and the completion, with `ui_task` draining it in one place at the top
+of its pass, the way it drains `remote_take_open()` today. `remote.c`
+and `mpd.c` become two producers into it and neither owns it.
+
+Concretely on the remote side, `remote_cmd_kind_t`
+(`remoteproto.h:46-57`) gains the queue verbs beside `REMOTE_CMD_LS`,
+`_OPEN` and `_PLAYDIR`, the socket grammar gains `add|addnext <path>`,
+`qdel N`, `qmove N M`, `qclear` and a `q` listing answered in frames the
+way `ls` is (`remote.c:644-663`, `LS_FRAME` 24 KB), and `remote.html`
+grows a queue section below the fold beside the chooser. The page is
+27 KB now and every byte of it ships in the binary, so the queue view
+should reuse the chooser's row rendering and its shared-prefix elision
+rather than getting its own.
+
+The ordering that follows: **the remote's queue verbs come before
+MPD's**, because they exercise the same mutation path against a
+transport that already exists, with a page that can be driven headless
+by the fake socket the chooser was tested with. By the time `mpd.c`
+opens a listener the queue has been used in anger.
 
 
 ## What the protocol layer looks like
@@ -292,25 +336,34 @@ nothing is left half-built if the series stops.
    probably wants to be two -- the queue, then the switch-over -- with
    the commit message saying plainly that restructuring was the smallest
    correct change (`CLAUDE.md`).
-5. **The four modes.** The `play_order_t` ↔ `random`/`repeat`/`single`/
+5. **The shared mutation path**, exported and drained once by
+   `ui_task`, with `remote.c` moved onto it. No new behaviour; it is
+   the refactor that lets there be two producers.
+6. **The remote page's queue verbs**: the socket grammar, the frames,
+   the section below the fold. First real use of the queue, over a
+   transport that already works, driven headless in test.
+7. **The four modes.** The `play_order_t` ↔ `random`/`repeat`/`single`/
    `consume` mapping, written down as a table with the states that have
-   no analogue named explicitly.
-6. **`mpdproto.c` and `mpdprototest`**: grammar, quoting, command lists,
+   no analogue named explicitly. Needed by MPD; the remote page can
+   show them too, since it already has the order control.
+8. **`mpdproto.c` and `mpdprototest`**: grammar, quoting, command lists,
    `OK`/`ACK`, and the serialisers, with nothing on a socket. `run-mpd`
    into `all:` and `.PHONY`, the binary into `clean`, both the
    warnings-only `-O2 -Werror` pass and the sanitiser pass
    (`texttest/Makefile:30-37, 394-399`), and the test written
    independently of the implementation rather than sharing its
    assumptions.
-7. **`mpd.c`**: the listener, the task, the settings switch, the panel
+9. **`mpd.c`**: the listener, the task, the settings switch, the panel
    row, the socket budget decision. `status`, `currentsong`, the
    transport verbs, `setvol`.
-8. **`idle`**, with the per-connection latch.
-9. **The queue verbs**: `add`, `addid`, `delete`, `deleteid`, `move`,
-   `moveid`, `playid`, `clear`, `shuffle`, `plchanges`.
-10. **Browsing and search**: `lsinfo`, `listall`, `find`, `search`,
+10. **`idle`**, with the per-connection latch.
+11. **MPD's queue verbs**: `add`, `addid`, `delete`, `deleteid`,
+    `move`, `moveid`, `playid`, `clear`, `shuffle`, `plchanges` --
+    which by this point is a mapping onto step 5's path, not new
+    machinery.
+12. **Browsing and search**: `lsinfo`, `listall`, `find`, `search`,
     `list`.
-11. **Stored playlists**, if at all: `load`, `save`, `listplaylists`.
+13. **Stored playlists**, if at all: `load`, `save`, `listplaylists`.
     The device has `starred.m3u` (1207-1209) and `stations.m3u`, so the
     format is not new, but this is the first thing on the list that is
     optional.
@@ -325,15 +378,21 @@ Worth writing down, as `MEDIA-INDEX.md` did. **Full queue semantics is
 the expensive half, and it is the half the device may not want.** This
 is a player with a screen, and the screen's model is "a folder is what
 plays". A queue a phone can reorder is a second model of what is
-playing, and steps 1, 4 and 5 above exist entirely to make the two
+playing, and steps 1, 4, 5 and 7 above exist entirely to make the two
 models one.
 
-If, on picking this up, the answer to "what do you actually do with
-it" is "see what is playing and skip a track from the sofa", then
-steps 4, 5, 9 and 11 come out, `playlist.c` is left alone, the queue
-verbs are `ACK`ed as unsupported, and what remains is steps 2, 6, 7, 8
-and 10 -- a browse-and-control MPD server that is perhaps a third of
-the work and carries none of the use-after-free risk.
+The question to ask is not "does MPD need a queue" -- it does -- but
+**"does the remote page want one"**, and that one is answerable now,
+without writing any protocol code. If the answer is yes, steps 1-6 are
+justified by the page alone and MPD inherits them; if it is no, then
+neither surface wants a queue and the whole expensive half comes out
+together.
 
-That question is worth asking again before step 4, which is the point
-of no return.
+In that case steps 4, 5, 6, 7, 11 and 13 come out, `playlist.c` is
+left alone, MPD's queue verbs are `ACK`ed as unsupported, and what
+remains is steps 2, 3, 8, 9, 10 and 12 -- a browse-and-control MPD
+server that is perhaps a third of the work and carries none of the
+use-after-free risk. Step 1 stays either way, because it is a fault
+waiting regardless.
+
+Step 4 is the point of no return, and the remote page reaches it first.

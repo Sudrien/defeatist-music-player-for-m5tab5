@@ -359,9 +359,9 @@ $(MPDIDLE_BIN): mpdidletest.c ../main/mpdidle.c ../main/mpdidle.h ../main/mpdpro
 run-mpdidle: $(MPDIDLE_BIN)
 	ASAN_OPTIONS=detect_leaks=1:abort_on_error=0 ./$(MPDIDLE_BIN)
 
-$(UIREQ_BIN): uireqtest.c ../main/uireq.c ../main/uireq.h shim.h
+$(UIREQ_BIN): uireqtest.c ../main/uireq.c ../main/uireq.h shim.h shim.c
 	$(CC) $(WARNCFLAGS) -c ../main/uireq.c -o /dev/null
-	$(CC) $(CFLAGS) -o $@ uireqtest.c ../main/uireq.c $(LDFLAGS)
+	$(CC) $(CFLAGS) -o $@ uireqtest.c ../main/uireq.c shim.c $(LDFLAGS)
 
 run-uireq: $(UIREQ_BIN)
 	ASAN_OPTIONS=detect_leaks=1:abort_on_error=0 ./$(UIREQ_BIN)

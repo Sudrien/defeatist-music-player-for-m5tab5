@@ -7139,6 +7139,62 @@ static void ui_task(void *arg)
                 }
             }
         }
+        /*
+         * 5173: edits to the queue, from the remote (and, at step 11, from
+         * MPD). Every one waiting at the head of uireq's ring, not one a
+         * pass: a run of adds is not a hand on a button. Here beside the
+         * choice above, so they land whatever screen is showing. Nothing
+         * here starts or stops playback -- deleting the entry that is
+         * playing leaves it playing (playlist.h, 5171).
+         */
+        {
+            static char epath[512];
+            uireq_edit_t e;
+            while (uireq_take_edit(&e, epath, sizeof(epath))) {
+                static char efile[512];
+                switch (e.kind) {
+                case UIREQ_EDIT_ADD:
+                case UIREQ_EDIT_ADD_NEXT:
+                    /* What the chooser would list: a playable file, or a
+                     * cue sheet's track. A folder, or anything else,
+                     * would only be skipped as unreadable when reached. */
+                    if (!decoder_supports(epath) &&
+                        cuedir_file_of(epath, efile, sizeof(efile)) == epath) {
+                        ESP_LOGW(TAG, "queue: not a track, not added: %s", epath);
+                        break;
+                    }
+                    if ((e.kind == UIREQ_EDIT_ADD ? playlist_add(epath, -1)
+                                                  : playlist_add_next(epath)) < 0)
+                        ESP_LOGW(TAG, "queue: full, not added: %s", epath);
+                    else
+                        ESP_LOGI(TAG, "queue: %s %s", e.kind == UIREQ_EDIT_ADD ? "add" : "add next", epath);
+                    break;
+                case UIREQ_EDIT_DELETE:
+                case UIREQ_EDIT_MOVE: {
+                    /* Found and changed under one hold of the lock, so the
+                     * position is the id's when it is used. */
+                    playlist_lock();
+                    const int pos = mpdq_find_id(e.id);
+                    const bool ok = pos >= 0 &&
+                        (e.kind == UIREQ_EDIT_DELETE ? playlist_remove(pos)
+                                                     : playlist_move(pos, e.pos));
+                    playlist_unlock();
+                    if (!ok)
+                        ESP_LOGI(TAG, "queue: id %" PRIu32 " is gone, or %d is not a position; nothing done",
+                                 e.id, e.pos);
+                    else if (e.kind == UIREQ_EDIT_DELETE)
+                        ESP_LOGI(TAG, "queue: delete id %" PRIu32, e.id);
+                    else
+                        ESP_LOGI(TAG, "queue: move id %" PRIu32 " to %d", e.id, e.pos);
+                    break;
+                }
+                case UIREQ_EDIT_CLEAR:
+                    playlist_clear();
+                    ESP_LOGI(TAG, "queue: cleared");
+                    break;
+                }
+            }
+        }
         /* The media index on mount. Here because this loop runs whether
          * or not anything is playing; see medialib.h. */
         medialib_poll();

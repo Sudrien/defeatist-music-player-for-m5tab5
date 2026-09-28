@@ -35,6 +35,21 @@ static bool verb_num(const char *msg, size_t len, const char *verb, int *out)
     return true;
 }
 
+/* 5173: a decimal in `d` (dl bytes, all of them), 0..2147483647 with no
+ * sign and no leading zero -- "0" itself is fine, "07" is not. */
+static bool dec(const char *d, size_t dl, int *out)
+{
+    if (dl < 1 || dl > 10 || (dl > 1 && d[0] == '0')) return false;
+    long long v = 0;
+    for (size_t i = 0; i < dl; i++) {
+        if (d[i] < '0' || d[i] > '9') return false;
+        v = v * 10 + (d[i] - '0');
+    }
+    if (v > 2147483647LL) return false;
+    *out = (int)v;
+    return true;
+}
+
 bool remoteproto_path_ok(const char *p, size_t len)
 {
     if (!p || len == 0 || len >= REMOTEPROTO_PATH_MAX || p[0] != '/') return false;
@@ -71,6 +86,7 @@ bool remoteproto_parse(const char *msg, size_t len, remote_cmd_t *out)
     if (!out) return false;
     out->kind = REMOTE_CMD_NONE;
     out->value = 0;
+    out->value2 = 0;
     out->path = NULL;
     out->path_len = 0;
     if (!msg || len == 0 || len > REMOTEPROTO_CMD_MAX) return false;
@@ -79,6 +95,7 @@ bool remoteproto_parse(const char *msg, size_t len, remote_cmd_t *out)
         { "hello", REMOTE_CMD_HELLO }, { "play",  REMOTE_CMD_PLAY  },
         { "pause", REMOTE_CMD_PAUSE }, { "next",  REMOTE_CMD_NEXT  },
         { "prev",  REMOTE_CMD_PREV  }, { "star",  REMOTE_CMD_STAR  },
+        { "qclear", REMOTE_CMD_QCLEAR },                            /* 5173 */
     };
     for (size_t i = 0; i < sizeof(plain) / sizeof(plain[0]); i++) {
         if (word_is(msg, len, plain[i].w)) { out->kind = plain[i].k; return true; }
@@ -88,6 +105,7 @@ bool remoteproto_parse(const char *msg, size_t len, remote_cmd_t *out)
      * passes remoteproto_path_ok() -- "ls" alone is not "ls /". */
     static const struct { const char *w; remote_cmd_kind_t k; } paths[] = {
         { "ls", REMOTE_CMD_LS }, { "open", REMOTE_CMD_OPEN }, { "playdir", REMOTE_CMD_PLAYDIR },
+        { "add", REMOTE_CMD_ADD }, { "addnext", REMOTE_CMD_ADDNEXT },   /* 5173 */
     };
     for (size_t i = 0; i < sizeof(paths) / sizeof(paths[0]); i++) {
         const size_t n = strlen(paths[i].w);
@@ -101,6 +119,31 @@ bool remoteproto_parse(const char *msg, size_t len, remote_cmd_t *out)
             out->path_len = len - n - 1;
             return true;
         }
+    }
+
+    /* 5173: the queue's id verbs. One id, or an id and a position,
+     * separated by exactly one space. */
+    static const struct { const char *w; remote_cmd_kind_t k; } ids[] = {
+        { "qdel", REMOTE_CMD_QDEL }, { "qplay", REMOTE_CMD_QPLAY }, { "qmove", REMOTE_CMD_QMOVE },
+    };
+    for (size_t i = 0; i < sizeof(ids) / sizeof(ids[0]); i++) {
+        const size_t n = strlen(ids[i].w);
+        if (len < n + 2 || memcmp(msg, ids[i].w, n) != 0 || msg[n] != ' ') continue;
+        const char *a = msg + n + 1;
+        const size_t al = len - n - 1;
+        int id, pos = 0;
+        if (ids[i].k == REMOTE_CMD_QMOVE) {
+            const char *sp = memchr(a, ' ', al);
+            if (!sp || !dec(a, (size_t)(sp - a), &id) ||
+                !dec(sp + 1, al - (size_t)(sp - a) - 1, &pos)) return false;
+        } else if (!dec(a, al, &id)) {
+            return false;
+        }
+        if (id == 0) return false;          /* ids start at 1 */
+        out->kind = ids[i].k;
+        out->value = id;
+        out->value2 = pos;
+        return true;
     }
 
     int v;

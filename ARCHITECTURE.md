@@ -16405,3 +16405,69 @@ Not built with ESP-IDF, not run on a board. No `sdkconfig.defaults` or
 `idf_component.yml` change. A board run should show nothing different:
 folder taps, next and prev, shuffle, a track boundary, an MPD client's
 queue and `playid`, and pulling the card while playing.
+
+### 5173 -- the remote's queue verbs, as far as ui_task
+
+MPD.md step 6, the grammar and the path, without the page. Six new
+commands on the remote's socket:
+
+    add PATH  addnext PATH  qdel ID  qmove ID POS  qplay ID  qclear
+
+**By id, not position.** MPD.md sketched `qdel N` and `qmove N M` with
+positions. The page reads the list on the httpd task, and a folder tap
+on the glass can replace it before the command lands, so a stale
+position deletes the wrong track. A stale id finds nothing and is
+logged -- the reason `UI_ACTION_PLAY_ID` (5166) takes an id too.
+`qmove`'s target is a position, since that is where the listener
+dropped it. Ids are 1..2147483647 and positions 0..2147483647, plain
+decimal with no sign and no leading zero, in a new `dec()` beside
+`verb_num()`.
+
+**Edits share uireq's ring with the presses** (5170), so ordering and
+`uireq_serviced()` cover both. An edit is not a `ui_action_t`, because
+an add carries a path: `uireq_edit()` copies the path into PSRAM before
+it takes the lock, and `uireq_take_edit()` copies it out and frees it.
+`ui_task` takes every edit at the head of the ring in one pass, not one
+per pass as with presses, because a page adding a run of tracks is not
+a hand on a button. A press at the head stops the edits behind it until
+it is taken, so the order holds. Edits count against the same eight per
+source; the remote drops one that does not fit, as it does a press, and
+logs it.
+
+**Applied at the top of `ui_task`**, beside the remote's open/playdir,
+so they land whatever screen is up:
+
+- `add`/`addnext` go through `playlist_add()`/`playlist_add_next()`
+  (5171), and only for what the chooser would list: something
+  `decoder_supports()` or a cue sheet's track. A folder would only be
+  skipped as unreadable once reached, and three of those stop playback.
+- `qdel`/`qmove` find the id and change the list under one hold of
+  `playlist_lock()` (5172), so the position is the id's when it is used.
+- `qclear` is `playlist_clear()`. Playback carries on.
+- `qplay ID` is not an edit: it is the `UI_ACTION_PLAY_ID` press MPD's
+  `playid` already sends.
+
+Nothing here starts or stops playback. Deleting the entry that is
+playing leaves it playing, as 5171 decided.
+
+**Host-tested**: `remoteprototest.c` for the six forms and 34 refusals
+(zero ids, leading zeros, one past 2^31-1, doubled spaces, a third
+number, a path the remote may not name); `uireqtest.c` for an edit at
+the head, edit/press/edit order with `uireq_serviced()` through it, the
+path copy (unterminated in, truncated out to a short buffer), and the
+shared per-source room -- ASan sees the path of a refused edit freed.
+The apply block in `player.c` is not host-tested: `player.c` does not
+build against the fakes. MPD's own queue verbs (step 11) will produce
+the same `uireq_edit_t`.
+
+**The page does not use them yet.** It has no way to learn ids until
+the queue is sent to it, which is the next patch. Until then they can be
+tried from a browser console on the remote's page, e.g.
+`ws.send("add /sd/Album/01.mp3")`, with the MPD `playlistinfo` of a
+connected client, or the log, showing the result.
+
+Not built with ESP-IDF, not run on a board. No `sdkconfig.defaults` or
+`idf_component.yml` change. What a board run should show: on the log,
+`queue: add ...` for an add, `queue: not a track` for a folder, `queue:
+delete id N`, a no-op line for a stale id, and an MPD client's queue
+following each.

@@ -162,6 +162,42 @@ int main(void)
         }
     }
 
+    printf("  queue verbs (5173)\n");
+    {
+        remote_cmd_t c = parse("add /sd/Album/01.mp3");
+        CHECK(c.kind == REMOTE_CMD_ADD && c.path_len == 16 && memcmp(c.path, "/sd/Album/01.mp3", 16) == 0,
+              "add");
+        c = parse("addnext /usb/x.flac");
+        CHECK(c.kind == REMOTE_CMD_ADDNEXT && c.path_len == 11, "addnext");
+        c = parse("qdel 7");
+        CHECK(c.kind == REMOTE_CMD_QDEL && c.value == 7 && c.value2 == 0, "qdel 7");
+        c = parse("qplay 2147483647");
+        CHECK(c.kind == REMOTE_CMD_QPLAY && c.value == 2147483647, "qplay, the largest id");
+        c = parse("qmove 12 0");
+        CHECK(c.kind == REMOTE_CMD_QMOVE && c.value == 12 && c.value2 == 0, "qmove 12 0");
+        c = parse("qmove 3 1023");
+        CHECK(c.kind == REMOTE_CMD_QMOVE && c.value == 3 && c.value2 == 1023, "qmove 3 1023");
+        c = parse("qclear");
+        CHECK(c.kind == REMOTE_CMD_QCLEAR, "qclear");
+        /* A second value never leaks from a verb that has none. */
+        c = parse("qdel 5");
+        CHECK(c.value2 == 0, "qdel leaves value2 0");
+
+        static const char *const badq[] = {
+            "add", "add ", "add /", "add sd/x.mp3", "add /sd/../x.mp3", "addnext", "addnext /",
+            "qdel", "qdel ", "qdel 0", "qdel 07", "qdel -1", "qdel +1", "qdel 1x", "qdel 1 ",
+            "qdel 2147483648", "qdel 99999999999", "qdel  1",
+            "qmove", "qmove 1", "qmove 1 ", "qmove 0 1", "qmove 1  2", "qmove 1 02",
+            "qmove 1 2 3", "qmove 1 -2", "qmove 1 2147483648", "qmove  1 2",
+            "qplay", "qplay 0", "qclear ", "qclear 1", "QDEL 1", "qdelx 1",
+        };
+        for (size_t i = 0; i < sizeof(badq) / sizeof(badq[0]); i++) {
+            remote_cmd_t k;
+            CHECK(!remoteproto_parse(badq[i], strlen(badq[i]), &k) && k.kind == REMOTE_CMD_NONE,
+                  "\"%s\" accepted", badq[i]);
+        }
+    }
+
     printf("  one string\n");
     {
         char out[64];

@@ -11,8 +11,10 @@
  */
 #include "uireq.h"
 
+#include <stdlib.h>
 #include <string.h>
 
+#include "esp_heap_caps.h"
 #include "freertos/FreeRTOS.h"
 #include "freertos/semphr.h"
 
@@ -20,6 +22,9 @@ typedef struct {
     ui_action_t    act;
     uint32_t       seq;
     uireq_source_t src;
+    bool           is_edit;     /* 5173: `e` and `path`, not `act` */
+    uireq_edit_t   e;
+    char          *path;        /* 5173: an add's, PSRAM; NULL otherwise */
 } req_t;
 
 static SemaphoreHandle_t s_mu;
@@ -39,20 +44,76 @@ void uireq_init(void)
     if (!s_mu) s_mu = xSemaphoreCreateMutex();
 }
 
+/* Under s_mu: `r` into the ring with the next number, or 0 for no room.
+ * The caller frees r->path on 0. */
+static uint32_t push_locked(req_t r)
+{
+    if (s_waiting[r.src] >= UIREQ_PER_SOURCE || s_n >= UIREQ_DEPTH) return 0;
+    if (++s_seq == 0) s_seq = 1;            /* 0 is "did not fit" */
+    r.seq = s_seq;
+    s_ring[(s_head + s_n) % UIREQ_DEPTH] = r;
+    s_n++;
+    s_waiting[r.src]++;
+    return r.seq;
+}
+
 uint32_t uireq_press(uireq_source_t src, const ui_action_t *act)
 {
     if (!s_mu || !act || (unsigned)src >= UIREQ_SOURCES) return 0;
-    uint32_t seq = 0;
     xSemaphoreTake(s_mu, portMAX_DELAY);
-    if (s_waiting[src] < UIREQ_PER_SOURCE && s_n < UIREQ_DEPTH) {
-        if (++s_seq == 0) s_seq = 1;        /* 0 is "did not fit" */
-        seq = s_seq;
-        s_ring[(s_head + s_n) % UIREQ_DEPTH] = (req_t){ .act = *act, .seq = seq, .src = src };
-        s_n++;
-        s_waiting[src]++;
-    }
+    const uint32_t seq = push_locked((req_t){ .act = *act, .src = src });
     xSemaphoreGive(s_mu);
     return seq;
+}
+
+uint32_t uireq_edit(uireq_source_t src, const uireq_edit_t *e, const char *path, size_t len)
+{
+    if (!s_mu || !e || (unsigned)src >= UIREQ_SOURCES) return 0;
+    char *copy = NULL;
+    if (e->kind == UIREQ_EDIT_ADD || e->kind == UIREQ_EDIT_ADD_NEXT) {
+        if (!path || len == 0 || len >= UIREQ_PATH_MAX) return 0;
+        /* Copied before the lock: an allocation is not a thing to do
+         * while the other producer waits. */
+        copy = heap_caps_malloc(len + 1, MALLOC_CAP_SPIRAM | MALLOC_CAP_8BIT);
+        if (!copy) return 0;
+        memcpy(copy, path, len);
+        copy[len] = '\0';
+    }
+    xSemaphoreTake(s_mu, portMAX_DELAY);
+    const uint32_t seq = push_locked((req_t){ .src = src, .is_edit = true, .e = *e, .path = copy });
+    xSemaphoreGive(s_mu);
+    if (!seq) free(copy);
+    return seq;
+}
+
+bool uireq_take_edit(uireq_edit_t *out, char *path, size_t size)
+{
+    if (!s_mu || !out) return false;
+    char *held = NULL;
+    bool had = false;
+    xSemaphoreTake(s_mu, portMAX_DELAY);
+    if (s_n && s_ring[s_head].is_edit) {
+        const req_t *r = &s_ring[s_head];
+        *out = r->e;
+        held = r->path;
+        s_taken = r->seq;
+        s_waiting[r->src]--;
+        s_head = (s_head + 1) % UIREQ_DEPTH;
+        s_n--;
+        had = true;
+    }
+    xSemaphoreGive(s_mu);
+    if (path && size) {
+        path[0] = '\0';
+        if (held) {
+            const size_t n = strlen(held);
+            const size_t k = n < size - 1 ? n : size - 1;
+            memcpy(path, held, k);
+            path[k] = '\0';
+        }
+    }
+    free(held);
+    return had;
 }
 
 bool uireq_take_press(ui_action_t *out)
@@ -60,7 +121,7 @@ bool uireq_take_press(ui_action_t *out)
     if (!s_mu || !out) return false;
     bool had = false;
     xSemaphoreTake(s_mu, portMAX_DELAY);
-    if (s_n) {
+    if (s_n && !s_ring[s_head].is_edit) {
         const req_t *r = &s_ring[s_head];
         *out = r->act;
         s_taken = r->seq;

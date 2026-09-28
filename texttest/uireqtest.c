@@ -44,6 +44,18 @@ static void drain(void)
     uireq_published();
 }
 
+static void drain_edits(void)
+{
+    uireq_edit_t e;
+    ui_action_t a;
+    for (;;) {
+        if (uireq_take_edit(&e, NULL, 0)) continue;
+        if (uireq_take_press(&a)) continue;
+        break;
+    }
+    uireq_published();
+}
+
 static void before_init(void)
 {
     ui_action_t a = act(UI_ACTION_NEXT, 0);
@@ -171,6 +183,62 @@ static void open_slot(void)
     free(big);
 }
 
+/* 5173: edits, in the ring with the presses. */
+static void edits(void)
+{
+    uireq_edit_t e;
+    char p[UIREQ_PATH_MAX];
+
+    /* An edit at the head is taken by take_edit, not take_press. */
+    const uireq_edit_t add = { .kind = UIREQ_EDIT_ADD };
+    const char frame[] = "/sd/a.mp3TRAILING";
+    const uint32_t s1 = uireq_edit(UIREQ_REMOTE, &add, frame, 9);
+    CHECK(s1 != 0);
+    ui_action_t a;
+    CHECK(!uireq_take_press(&a));
+    CHECK(uireq_take_edit(&e, p, sizeof(p)) && e.kind == UIREQ_EDIT_ADD && strcmp(p, "/sd/a.mp3") == 0);
+    CHECK(!uireq_take_edit(&e, p, sizeof(p)));
+    uireq_published();
+    CHECK(uireq_serviced(s1));
+
+    /* Order is kept across the two: edit, press, edit. The press stops
+     * the edits behind it until it is taken. */
+    const uireq_edit_t del = { .kind = UIREQ_EDIT_DELETE, .id = 42 };
+    const uireq_edit_t mov = { .kind = UIREQ_EDIT_MOVE, .id = 9, .pos = 3 };
+    const ui_action_t n = act(UI_ACTION_NEXT, 0);
+    const uint32_t e1 = uireq_edit(UIREQ_MPD, &del, NULL, 0);
+    const uint32_t pr = uireq_press(UIREQ_REMOTE, &n);
+    const uint32_t e2 = uireq_edit(UIREQ_REMOTE, &mov, NULL, 0);
+    CHECK(e1 && pr && e2);
+    CHECK(uireq_take_edit(&e, p, sizeof(p)) && e.kind == UIREQ_EDIT_DELETE && e.id == 42 && p[0] == '\0');
+    CHECK(!uireq_take_edit(&e, p, sizeof(p)));      /* the press is next */
+    uireq_published();
+    CHECK(uireq_serviced(e1) && !uireq_serviced(pr) && !uireq_serviced(e2));
+    CHECK(uireq_take_press(&a) && a.kind == UI_ACTION_NEXT);
+    CHECK(uireq_take_edit(&e, NULL, 0) && e.kind == UIREQ_EDIT_MOVE && e.id == 9 && e.pos == 3);
+    uireq_published();
+    CHECK(uireq_serviced(pr) && uireq_serviced(e2));
+
+    /* Refusals: an add with no path, or one too long; and edits count
+     * against the source's room like presses. */
+    CHECK(uireq_edit(UIREQ_REMOTE, &add, NULL, 0) == 0);
+    CHECK(uireq_edit(UIREQ_REMOTE, &add, "/sd/x", 0) == 0);
+    char *big = malloc(UIREQ_PATH_MAX);
+    memset(big, 'x', UIREQ_PATH_MAX);
+    CHECK(uireq_edit(UIREQ_REMOTE, &add, big, UIREQ_PATH_MAX) == 0);
+    CHECK(uireq_edit(UIREQ_REMOTE, &add, big, UIREQ_PATH_MAX - 1) != 0);
+    for (int i = 1; i < UIREQ_PER_SOURCE; i++) CHECK(uireq_edit(UIREQ_REMOTE, &add, "/sd/y", 5) != 0);
+    CHECK(uireq_edit(UIREQ_REMOTE, &add, "/sd/y", 5) == 0);   /* full: the copy is freed (ASan) */
+    CHECK(uireq_press(UIREQ_REMOTE, &n) == 0);
+    CHECK(uireq_edit(UIREQ_MPD, &del, NULL, 0) != 0);         /* the other's room */
+    CHECK(uireq_take_edit(&e, p, sizeof(p)) && strlen(p) == UIREQ_PATH_MAX - 1);
+    /* A short buffer: a terminated prefix. */
+    char small[4];
+    CHECK(uireq_take_edit(&e, small, sizeof(small)) && strcmp(small, "/sd") == 0);
+    drain_edits();
+    free(big);
+}
+
 int main(void)
 {
     before_init();
@@ -180,6 +248,7 @@ int main(void)
     per_source_room();
     serviced();
     open_slot();
+    edits();
     if (s_fail) {
         fprintf(stderr, "uireqtest: %d failed\n", s_fail);
         return 1;

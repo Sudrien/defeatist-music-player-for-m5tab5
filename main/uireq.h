@@ -38,6 +38,16 @@
  *    before ui_task took the first replaces it, as a second tap on the
  *    chooser would. Only the remote produces one today.
  *
+ *  - 5173: AN EDIT to the queue -- add, add next, delete, move, clear --
+ *    goes in the same ring as the presses, in order with them, and
+ *    counts against the same per-source room. It is not a ui_action_t,
+ *    because an add carries a path: uireq_edit() copies the path into
+ *    PSRAM and the taker copies it out and frees it. ui_task takes every
+ *    edit at the head of the ring each pass (uireq_take_edit()), not one,
+ *    because a page adding a run of tracks is not a hand pressing a
+ *    button; a press at the head stops that until it is taken, so the
+ *    order is never broken and uireq_serviced() stays true to it.
+ *
  * THREADS. uireq_press(), uireq_serviced() and uireq_open() from any
  * task; uireq_take_press(), uireq_take_open() and uireq_published() from
  * ui_task only. Everything is under one mutex; nothing here blocks on
@@ -72,6 +82,22 @@ typedef enum {
  * REMOTEPROTO_PATH_MAX, which remote.c checks against it. */
 #define UIREQ_PATH_MAX      (512)
 
+/* 5173: an edit to the queue. Entries are named by id, never position:
+ * see remoteproto.h. */
+typedef enum {
+    UIREQ_EDIT_ADD = 0,     /* path, at the end */
+    UIREQ_EDIT_ADD_NEXT,    /* path, to play next */
+    UIREQ_EDIT_DELETE,      /* id */
+    UIREQ_EDIT_MOVE,        /* id, to position pos */
+    UIREQ_EDIT_CLEAR,
+} uireq_edit_kind_t;
+
+typedef struct {
+    uireq_edit_kind_t kind;
+    uint32_t          id;
+    int               pos;
+} uireq_edit_t;
+
 /* Once, from app_main(), before remote_init(), mpd_init() and ui_task. */
 void uireq_init(void);
 
@@ -83,8 +109,23 @@ void uireq_init(void);
 uint32_t uireq_press(uireq_source_t src, const ui_action_t *act);
 
 /* ui_task: the oldest waiting press, from either source. False when there
- * is none. */
+ * is none, or when the oldest thing waiting is an edit (5173) -- which is
+ * taken first, by uireq_take_edit(). */
 bool uireq_take_press(ui_action_t *out);
+
+/*
+ * 5173: queue an edit. `path` is for the two adds (need not be
+ * terminated; `len` is the truth) and ignored otherwise. The sequence
+ * number, or 0 when `src` has no room, the path does not fit
+ * UIREQ_PATH_MAX, or there was no memory to copy it. Never blocks.
+ */
+uint32_t uireq_edit(uireq_source_t src, const uireq_edit_t *e,
+                    const char *path, size_t len);
+
+/* ui_task: the oldest waiting thing, if it is an edit; its path (for an
+ * add) copied into `path`. False when nothing is waiting or the oldest
+ * is a press. */
+bool uireq_take_edit(uireq_edit_t *out, char *path, size_t size);
 
 /* ui_task: every press taken so far has had its effect published. Called
  * by mpd_publish() after it copies the state clients read. */

@@ -19,6 +19,19 @@
  *     ls PATH          list a folder ("/" lists the volumes)      5123
  *     open PATH        play a file; its folder becomes the list   5123
  *     playdir PATH     play a folder from the top                 5123
+ *     add PATH         a file onto the end of the queue           5173
+ *     addnext PATH     a file into the queue, to play next        5173
+ *     qdel ID          the queue entry with that id, out          5173
+ *     qmove ID POS     that entry to position POS                 5173
+ *     qplay ID         play that entry                            5173
+ *     qclear           empty the queue                            5173
+ *
+ * 5173: the queue verbs name an entry by its ID, not its position. The
+ * page read the list a moment ago on another task, and a folder tap on
+ * the glass may have replaced it since; a stale position would delete the
+ * wrong track, a stale id finds nothing (ui.h's UI_ACTION_PLAY_ID has the
+ * same reason). An id is 1..2147483647, a position 0..2147483647, both
+ * plain decimal with no sign and no leading zero.
  *
  * PATH is a VFS path under a mounted volume -- "/sd/..." or "/usb/..." --
  * and nothing else: see remoteproto_path_ok(). It is the first thing the
@@ -55,6 +68,12 @@ typedef enum {
     REMOTE_CMD_LS,          /* 5123: path */
     REMOTE_CMD_OPEN,        /* 5123: path */
     REMOTE_CMD_PLAYDIR,     /* 5123: path */
+    REMOTE_CMD_ADD,         /* 5173: path */
+    REMOTE_CMD_ADDNEXT,     /* 5173: path */
+    REMOTE_CMD_QDEL,        /* 5173: value = id */
+    REMOTE_CMD_QMOVE,       /* 5173: value = id, value2 = position */
+    REMOTE_CMD_QPLAY,       /* 5173: value = id */
+    REMOTE_CMD_QCLEAR,      /* 5173 */
 } remote_cmd_kind_t;
 
 /* A path command's path: the longest a VFS path here can be. */
@@ -63,6 +82,7 @@ typedef enum {
 typedef struct {
     remote_cmd_kind_t kind;
     int value;
+    int value2;             /* 5173: QMOVE's position; 0 otherwise */
     /* For LS, OPEN and PLAYDIR: into the caller's message, NOT
      * terminated -- path_len is the truth. NULL otherwise. */
     const char *path;

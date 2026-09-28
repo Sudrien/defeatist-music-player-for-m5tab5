@@ -198,6 +198,66 @@ int main(void)
         }
     }
 
+    printf("  queue frames (5174)\n");
+    {
+        static char out[256];
+        const remote_qrow_t rows[] = {
+            { 3, "a.mp3" }, { 9, "B \"quoted\".flac" }, { 12, "c\xff.ogg" }, { 13, NULL },
+        };
+        int next = -1;
+        size_t n = remoteproto_queue_frame(rows, 4, 0, 42, 1, out, sizeof(out), &next);
+        CHECK(n > 0 && next == 4 && strcmp(out,
+              "{\"t\":\"q\",\"v\":42,\"cur\":1,\"total\":4,\"from\":0,\"rows\":"
+              "[[3,\"a.mp3\"],[9,\"B \\\"quoted\\\".flac\"],[12,\"c\xef\xbf\xbd.ogg\"],[13,\"\"]],"
+              "\"done\":true}") == 0 && n == strlen(out), "whole: %s", out);
+
+        n = remoteproto_queue_frame(NULL, 0, 0, 1, -1, out, sizeof(out), &next);
+        CHECK(n > 0 && next == 0 && strcmp(out,
+              "{\"t\":\"q\",\"v\":1,\"cur\":-1,\"total\":0,\"from\":0,\"rows\":[],\"done\":true}") == 0,
+              "empty: %s", out);
+
+        /* Split across frames: every row exactly once, in order, each frame
+         * valid on its own, and none over its cap. */
+        static remote_qrow_t many[40];
+        static char names[40][24];
+        for (int i = 0; i < 40; i++) {
+            snprintf(names[i], sizeof(names[i]), "track %02d.mp3", i);
+            many[i].id = (uint32_t)(100 + i);
+            many[i].name = names[i];
+        }
+        int from = 0, frames = 0, seen = 0;
+        bool ok = true;
+        while (from < 40 && frames < 50) {
+            memset(out, 'Z', sizeof(out));
+            n = remoteproto_queue_frame(many, 40, from, 7, 5, out, 200, &next);
+            if (!n || n >= 200 || out[n] != '\0' || next <= from) { ok = false; break; }
+            char want[32];
+            snprintf(want, sizeof(want), "\"from\":%d,", from);
+            if (!strstr(out, want)) ok = false;
+            if (strstr(out, next == 40 ? "\"done\":true}" : "\"done\":false}") != out + n - (next == 40 ? 12 : 13))
+                ok = false;
+            for (int i = from; i < next; i++) {
+                char r[40];
+                snprintf(r, sizeof(r), "[%d,\"track %02d.mp3\"]", 100 + i, i);
+                if (!strstr(out, r)) ok = false;
+                seen++;
+            }
+            from = next;
+            frames++;
+        }
+        CHECK(ok && seen == 40 && frames > 1, "split: %d frames, %d rows", frames, seen);
+
+        /* A row larger than a whole frame: refused, not truncated. */
+        static char huge[300];
+        memset(huge, 'x', sizeof(huge) - 1);
+        huge[sizeof(huge) - 1] = '\0';
+        const remote_qrow_t big[] = { { 1, huge } };
+        CHECK(remoteproto_queue_frame(big, 1, 0, 1, 0, out, sizeof(out), &next) == 0 && out[0] == '\0',
+              "a row that cannot fit is refused");
+        CHECK(remoteproto_queue_frame(rows, 4, 5, 1, 0, out, sizeof(out), &next) == 0, "from past the end");
+        CHECK(remoteproto_queue_frame(rows, 4, 0, 1, 0, out, 10, &next) == 0, "a cap too small for the header");
+    }
+
     printf("  one string\n");
     {
         char out[64];

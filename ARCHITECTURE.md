@@ -16471,3 +16471,62 @@ Not built with ESP-IDF, not run on a board. No `sdkconfig.defaults` or
 `queue: add ...` for an add, `queue: not a track` for a folder, `queue:
 delete id N`, a no-op line for a stale id, and an MPD client's queue
 following each.
+
+### 5174 -- the remote page shows the queue and edits it
+
+The last of MPD.md step 6. 5173 gave the socket `add`, `addnext`,
+`qdel`, `qmove`, `qplay` and `qclear`; this sends the page the queue and
+gives it the controls.
+
+**What is sent.** `{"t":"q",...}` frames, the way `ls` is answered: the
+queue's version, the playing position (-1 when what plays is not in the
+queue, including the gap 5171 leaves), and rows of `[id, name]` from
+`from`, in frames of at most `LS_FRAME`. Names and not paths: the page
+shows a name and sends back an id, so the path never needs to cross,
+and a 1024-entry queue of ordinary names is tens of KB rather than
+hundreds. The serializer is `remoteproto_queue_frame()`, host-tested
+in `remoteprototest.c`: the exact frame, an empty queue, a 40-row queue
+split across frames with every row exactly once and every frame whole
+and under its cap, and refusals for a row that cannot fit and a cap too
+small for the header.
+
+**When.** On every change to `mpdq_version()` or `playlist_current()`,
+checked from `remote_publish()` on `ui_task`, and once on `hello`. The
+httpd task cannot read `mpdqueue.c`, so `ui_task` copies it under
+`playlist_lock()` (5172) into one of two snapshots and publishes it under
+`s_mu`, as `mpd.c` does for its clients (5166). A `hello` copies the
+published snapshot under `s_mu` before framing it, so a publish during a
+slow send cannot change what it is reading. Each snapshot is 8 KB of ids
+and offsets plus the names, grown in PSRAM; the rows array and one frame
+for `ui_task` are allocated once in `remote_init()`, a `hello`'s per
+call.
+
+`remote_publish()` is skipped while the panel, the chooser or the sleep
+page is up (5118's note), so a change made then reaches the page when
+they close. A cue sheet's track shows as its `X.cue#NN` name rather than
+its title, since the title needs the sheet read.
+
+**The page.** A Queue section below the fold, before Files: tapping a
+row plays it (`qplay`), with up, down and remove beside it; the playing
+row in the chooser's red; the chooser's shared-prefix elision on the
+names; and Clear, behind a `confirm()`. Every file row in the chooser
+gains `Next` (`addnext`) and `+` (`add`). A frame whose version differs
+from the list being assembled is dropped, so two changes in quick
+succession cannot splice. The fold hint now names the queue, which also
+replaces its `<#9662;` typo.
+
+**Checked headless**, outside the repository: `remote.html` in Chromium
+with a fake WebSocket -- two frames assembled, a stale frame from an
+older version dropped, the playing row marked, the prefix elided, up
+disabled on the first row and down on the last, each button sending
+the right command with the right id and position, an empty queue, and
+the file rows' two buttons. No page errors. The page is about 4 KB
+larger.
+
+**Not host-tested**: `remote.c`'s snapshot and framing. Not built with
+ESP-IDF, not run on a board. No `sdkconfig.defaults` or
+`idf_component.yml` change. What a board run should show: the page's
+queue matching an MPD client's `playlistinfo`, following a folder tap on
+the glass, a `+` and a `Next` from the page, moves, removes (removing the
+playing row leaves it playing and unmarked), Clear, and a second page
+opened afterwards getting the same list.

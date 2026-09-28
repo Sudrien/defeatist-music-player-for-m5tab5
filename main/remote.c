@@ -38,6 +38,8 @@
 #include "storage_io.h"
 #include "remoteproto.h"
 #include "uireq.h"            /* MPD.md step 5 */
+#include "mpdqueue.h"         /* 5174 */
+#include "playlist.h"         /* 5174 */
 #include "waveform.h"
 #include "wifijoin.h"
 #include "wifistore.h"
@@ -676,6 +678,159 @@ static void send_listing(httpd_req_t *req, const char *p, size_t plen)
     free(out);
 }
 
+/* ---- the queue (5174) -------------------------------------------------- */
+
+/*
+ * The page is sent the queue -- ids and file names -- whenever it or the
+ * playing position changes, and once on hello. The httpd task cannot read
+ * mpdqueue.c, so ui_task copies it (under playlist_lock(), 5172) into one
+ * of two snapshots and publishes it under s_mu, as mpd.c does for its
+ * clients. A hello copies the published one under s_mu before framing it,
+ * so a second publish during a slow send cannot change it underneath.
+ *
+ * Names, not paths: the page shows a name and sends back an id, so the
+ * path never needs to cross. It keeps a 1024-entry queue of ordinary
+ * names to tens of KB rather than hundreds.
+ */
+#define Q_FRAME         (LS_FRAME)
+
+typedef struct {
+    uint32_t  ver;
+    int       cur;
+    int       n;
+    uint32_t *id;           /* MPDQ_MAX, PSRAM */
+    uint32_t *off;          /* MPDQ_MAX, PSRAM: into arena */
+    char     *arena;        /* the names, NUL-separated, PSRAM, grown */
+    size_t    len, cap;
+} qsnap_t;
+
+static qsnap_t        s_qs[2];
+static int            s_qpub = -1;      /* under s_mu: published, -1 none */
+static bool           s_qsent;          /* ui_task's: s_qsent_* are good */
+static uint32_t       s_qsent_ver;      /* ui_task's */
+static int            s_qsent_cur;      /* ui_task's */
+static char          *s_qframe;         /* ui_task's, Q_FRAME */
+static remote_qrow_t *s_qrows;          /* ui_task's, MPDQ_MAX */
+
+static bool qsnap_add(qsnap_t *q, uint32_t id, const char *name)
+{
+    const size_t need = strlen(name) + 1;
+    if (q->len + need > q->cap) {
+        size_t cap = q->cap ? q->cap : 16 * 1024;
+        while (q->len + need > cap) cap *= 2;
+        char *a = heap_caps_realloc(q->arena, cap, MALLOC_CAP_SPIRAM | MALLOC_CAP_8BIT);
+        if (!a) return false;
+        q->arena = a;
+        q->cap = cap;
+    }
+    q->id[q->n] = id;
+    q->off[q->n] = (uint32_t)q->len;
+    memcpy(q->arena + q->len, name, need);
+    q->len += need;
+    q->n++;
+    return true;
+}
+
+/* Every frame of `q`, each handed to `emit`. `rows` holds MPDQ_MAX and
+ * `buf` Q_FRAME + 1. */
+static void q_frames(const qsnap_t *q, remote_qrow_t *rows, char *buf,
+                     void (*emit)(void *ctx, const char *s, size_t len), void *ctx)
+{
+    for (int i = 0; i < q->n; i++) {
+        rows[i].id = q->id[i];
+        rows[i].name = q->arena + q->off[i];
+    }
+    int from = 0;
+    do {
+        int next = from;
+        const size_t len = remoteproto_queue_frame(rows, q->n, from, q->ver, q->cur,
+                                                   buf, Q_FRAME + 1, &next);
+        if (!len) {
+            /* One name longer than a frame: it cannot be, a name is at
+             * most 255 bytes, 1.5 KB escaped. Skip it rather than stall. */
+            ESP_LOGW(TAG, "queue entry %d does not fit a frame; not sent", from);
+            from++;
+            continue;
+        }
+        emit(ctx, buf, len);
+        from = next;
+    } while (from < q->n);
+}
+
+static void emit_all(void *ctx, const char *s, size_t len) { (void)ctx; send_all(s, len); }
+static void emit_one(void *ctx, const char *s, size_t len) { ws_send_text(ctx, s, len); }
+
+/* ui_task: republish when the queue or the playing position moved. */
+static void queue_publish(void)
+{
+    if (!s_srv) { s_qsent = false; return; }
+    const int w = s_qpub == 0 ? 1 : 0;      /* the one the httpd task cannot see */
+    qsnap_t *q = &s_qs[w];
+    if (!q->id || !q->off || !s_qframe || !s_qrows) return;
+
+    playlist_lock();
+    const uint32_t ver = mpdq_version();
+    const int cur = playlist_current();
+    if (s_qsent && ver == s_qsent_ver && cur == s_qsent_cur) { playlist_unlock(); return; }
+    q->ver = ver;
+    q->cur = cur;
+    q->n = 0;
+    q->len = 0;
+    const int count = mpdq_count();
+    for (int i = 0; i < count; i++) {
+        const char *p = mpdq_path(i);
+        const char *slash = p ? strrchr(p, '/') : NULL;
+        if (!qsnap_add(q, mpdq_id(i), slash ? slash + 1 : (p ? p : ""))) {
+            ESP_LOGW(TAG, "out of PSRAM copying the queue at %d of %d", i, count);
+            break;
+        }
+    }
+    playlist_unlock();
+
+    xSemaphoreTake(s_mu, portMAX_DELAY);
+    s_qpub = w;
+    xSemaphoreGive(s_mu);
+    s_qsent = true;
+    s_qsent_ver = ver;
+    s_qsent_cur = cur;
+    q_frames(q, s_qrows, s_qframe, emit_all, NULL);
+}
+
+/* httpd task: the published queue, to one page. */
+static void send_queue(httpd_req_t *req)
+{
+    qsnap_t c = { 0 };
+    const uint32_t ps = MALLOC_CAP_SPIRAM | MALLOC_CAP_8BIT;
+    remote_qrow_t *rows = heap_caps_malloc(MPDQ_MAX * sizeof(*rows), ps);
+    char *buf = heap_caps_malloc(Q_FRAME + 1, ps);
+    bool have = false;
+    if (rows && buf) {
+        xSemaphoreTake(s_mu, portMAX_DELAY);
+        if (s_qpub >= 0) {
+            const qsnap_t *q = &s_qs[s_qpub];
+            c = (qsnap_t){ .ver = q->ver, .cur = q->cur, .n = q->n, .len = q->len };
+            c.id = heap_caps_malloc(MPDQ_MAX * sizeof(uint32_t), ps);
+            c.off = heap_caps_malloc(MPDQ_MAX * sizeof(uint32_t), ps);
+            c.arena = heap_caps_malloc(q->len ? q->len : 1, ps);
+            if (c.id && c.off && c.arena) {
+                memcpy(c.id, q->id, (size_t)q->n * sizeof(uint32_t));
+                memcpy(c.off, q->off, (size_t)q->n * sizeof(uint32_t));
+                memcpy(c.arena, q->arena, q->len);
+                have = true;
+            }
+        }
+        xSemaphoreGive(s_mu);
+    }
+    /* Nothing published yet (ui_task has not run since the server came
+     * up) sends nothing: the publish that follows reaches this page too. */
+    if (have) q_frames(&c, rows, buf, emit_one, req);
+    free(c.id);
+    free(c.off);
+    free(c.arena);
+    free(rows);
+    free(buf);
+}
+
 /* One reply to one socket, from its own handler. */
 static void send_one(httpd_req_t *req, const char *keep, const size_t *keep_len)
 {
@@ -729,6 +884,7 @@ static esp_err_t h_ws(httpd_req_t *req)
     if (c.kind == REMOTE_CMD_HELLO) {
         send_one(req, s_json, &s_json_len);
         send_one(req, s_wave, &s_wave_len);
+        send_queue(req);                /* 5174 */
         return ESP_OK;
     }
     if (c.kind == REMOTE_CMD_LS) {
@@ -912,6 +1068,14 @@ void remote_init(void)
                                MALLOC_CAP_SPIRAM | MALLOC_CAP_8BIT);
     s_levels = heap_caps_calloc(1, FRAMEWALK_MAX_COLUMNS, MALLOC_CAP_SPIRAM | MALLOC_CAP_8BIT);
     s_w_seen = heap_caps_calloc(W_SEEN_MAX, sizeof(wifi_seen_t), MALLOC_CAP_SPIRAM | MALLOC_CAP_8BIT);
+    /* 5174: the queue's snapshots and ui_task's framing. 8 KB of ids and
+     * offsets each; the names are grown as the queue needs. */
+    for (int i = 0; i < 2; i++) {
+        s_qs[i].id  = heap_caps_calloc(MPDQ_MAX, sizeof(uint32_t), MALLOC_CAP_SPIRAM | MALLOC_CAP_8BIT);
+        s_qs[i].off = heap_caps_calloc(MPDQ_MAX, sizeof(uint32_t), MALLOC_CAP_SPIRAM | MALLOC_CAP_8BIT);
+    }
+    s_qframe = heap_caps_malloc(Q_FRAME + 1, MALLOC_CAP_SPIRAM | MALLOC_CAP_8BIT);
+    s_qrows = heap_caps_malloc(MPDQ_MAX * sizeof(remote_qrow_t), MALLOC_CAP_SPIRAM | MALLOC_CAP_8BIT);
 }
 
 void remote_poll(bool want)
@@ -954,6 +1118,7 @@ static void copy_str(char *dst, size_t n, const char *src)
 
 void remote_publish(const ui_state_t *st, const char *art_path, int rec_count)
 {
+    queue_publish();                    /* 5174: first, so it sees a stop too */
     if (!s_srv || !st) return;
 
     /* The cover's key and path, for /art. */

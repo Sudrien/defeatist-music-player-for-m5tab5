@@ -407,6 +407,11 @@ nothing is left half-built if the series stops.
 6. **The remote page's queue verbs**: the socket grammar, the frames,
    the section below the fold. First real use of the queue, over a
    transport that already works, driven headless in test.
+
+   **Done in 5171-5174**: cursor-keeping edits in `playlist.c` (5171),
+   a lock on the list with copies off `ui_task` (5172), the verbs as far
+   as `ui_task` (5173) -- by id, not position -- and the queue sent to
+   the page with its controls (5174).
 7. **The four modes.** The `play_order_t` ↔ `random`/`repeat`/`single`/
    `consume` mapping, written down as a table with the states that have
    no analogue named explicitly. Needed by MPD; the remote page can

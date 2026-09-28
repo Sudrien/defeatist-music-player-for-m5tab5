@@ -148,6 +148,34 @@ typedef struct {
 size_t remoteproto_state_json(const remote_state_t *s, char *out, size_t cap);
 
 /*
+ * 5174: the queue, sent to the page in frames the way a listing is.
+ *
+ *   {"t":"q","v":V,"cur":C,"total":N,"from":F,"rows":[[ID,"name"],...],
+ *    "done":true|false}
+ *
+ * V is mpdq_version(), so the page can drop a frame from a list that has
+ * since changed; C is the playing position or -1; F is the position of
+ * this frame's first row. A row is the entry's id -- what qdel, qmove and
+ * qplay take -- and a name to show, which the caller chooses (the file
+ * name). A page rebuilds its list at from 0 and draws it at done.
+ */
+typedef struct {
+    uint32_t    id;
+    const char *name;
+} remote_qrow_t;
+
+/*
+ * One frame, starting at row `from`, holding as many rows as fit `cap`.
+ * Returns its length (NUL-terminated) and sets *next to the first row not
+ * in it; `done` is true when *next == n. 0 when not even the frame's
+ * frame fits, or when the first row alone does not -- never a frame with
+ * no rows unless there are none to send (n == 0, or from == n).
+ */
+size_t remoteproto_queue_frame(const remote_qrow_t *rows, int n, int from,
+                               uint32_t version, int cur,
+                               char *out, size_t cap, int *next);
+
+/*
  * 5120: one string as a JSON string literal, quotes included, with the
  * same escaping and UTF-8 repair as the state. Returns its length, or 0
  * when it did not fit (worst case is 6 bytes per input byte, plus 3).

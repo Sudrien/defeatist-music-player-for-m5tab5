@@ -293,6 +293,54 @@ size_t remoteproto_state_json(const remote_state_t *s, char *out, size_t cap)
     return b.n;
 }
 
+size_t remoteproto_queue_frame(const remote_qrow_t *rows, int n, int from,
+                               uint32_t version, int cur,
+                               char *out, size_t cap, int *next)
+{
+    /* The tail every frame ends with, reserved while rows are added. */
+    static const char tail_no[] = "],\"done\":false}";
+    if (!out || cap <= sizeof(tail_no) || n < 0 || from < 0 || from > n || (n && !rows))
+        return 0;
+    buf_t b = { out, cap - (sizeof(tail_no) - 1), 0, false };
+    out[0] = '\0';
+
+    puts_(&b, "{\"t\":\"q\",\"v\":");
+    putf(&b, "%lld", (long long)version);
+    puts_(&b, ",\"cur\":");
+    putf(&b, "%lld", (long long)cur);
+    puts_(&b, ",\"total\":");
+    putf(&b, "%lld", (long long)n);
+    puts_(&b, ",\"from\":");
+    putf(&b, "%lld", (long long)from);
+    puts_(&b, ",\"rows\":[");
+    if (b.over) { out[0] = '\0'; return 0; }
+
+    int i = from;
+    for (; i < n; i++) {
+        const size_t mark = b.n;
+        if (i > from) put(&b, ",", 1);
+        put(&b, "[", 1);
+        putf(&b, "%lld", (long long)rows[i].id);
+        put(&b, ",", 1);
+        put_str(&b, rows[i].name ? rows[i].name : "");
+        put(&b, "]", 1);
+        if (b.over) {
+            /* This row did not fit: take it back and end the frame. */
+            b.over = false;
+            b.n = mark;
+            out[mark] = '\0';
+            break;
+        }
+    }
+    if (i == from && from < n) { out[0] = '\0'; return 0; }  /* not even one */
+
+    b.cap = cap;
+    puts_(&b, i == n ? "],\"done\":true}" : tail_no);
+    if (b.over) { out[0] = '\0'; return 0; }
+    if (next) *next = i;
+    return b.n;
+}
+
 size_t remoteproto_wave_json(const uint8_t *lv, int n, uint32_t gen,
                              char *out, size_t cap)
 {

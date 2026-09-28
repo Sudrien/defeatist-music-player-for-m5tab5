@@ -156,6 +156,16 @@ svg { display: block; width: 100%; height: 100%; }
 .flist li.now > button.row { color: var(--fill); font-weight: 600; }
 .flist .pd { padding: .4em .7em; border-radius: 999px; background: #2a2a2a; font-size: .85em; }
 .files .msg { color: var(--album); min-height: 1.4em; }
+/* 5174: the queue, and the file rows' two ways into it. */
+.flist .qa { padding: .4em .6em; border-radius: 999px; background: #2a2a2a; font-size: .85em; }
+.qlist li > span.row { flex: 1; padding: .7em 0; min-width: 0; white-space: nowrap;
+  overflow: hidden; text-overflow: ellipsis; cursor: pointer; }
+.qlist li.now > span.row { color: var(--fill); font-weight: 600; }
+.qlist .qb { width: 2.2em; height: 2.2em; border-radius: 50%; background: #2a2a2a; }
+.qlist .qb:disabled { opacity: .3; }
+.qhead { display: flex; align-items: baseline; gap: 1em; }
+.qhead button { margin-left: auto; color: var(--icon); text-decoration: underline;
+  text-underline-offset: 3px; }
 .aux button[hidden] { display: block; visibility: hidden; }
 
 .volume { grid-area: volume; display: grid;
@@ -225,7 +235,13 @@ svg { display: block; width: 100%; height: 100%; }
   <div class="gone on" id="gone">Connecting to the player…</div>
 </main>
 </div>
-<div class="fold" id="fold">&#9662; stations<#9662; files</div>
+<div class="fold" id="fold">&#9662; queue, files, stations</div>
+
+<section class="files" id="queue">
+  <div class="qhead"><h2>Queue</h2><span class="msg" id="qmsg"></span>
+    <button id="qclear" hidden>Clear</button></div>
+  <ul class="flist qlist" id="qlist"></ul>
+</section>
 
 <section class="files" id="files">
   <h2>Files</h2>
@@ -287,6 +303,7 @@ function connect() {
     let m; try { m = JSON.parse(e.data); } catch { return; }
     if (m.t === "state") onState(m); else if (m.t === "wave") onWave(m);
     else if (m.t === "ls") onList(m);
+    else if (m.t === "q") onQueue(m);
   };
   ws.onclose = () => {
     $("gone").textContent = "Lost the player. Reconnecting…";
@@ -501,6 +518,14 @@ function renderFiles() {
       const pd = document.createElement("button"); pd.className = "pd"; pd.textContent = "▶ Play";
       pd.onclick = () => ws.send("playdir " + full); li.appendChild(pd);
     }
+    // 5174: a file can go into the queue, at the end or next.
+    if (!r.d) {
+      for (const [label, verb, tip] of [["Next", "addnext", "Play next"], ["+", "add", "Add to the queue"]]) {
+        const q = document.createElement("button"); q.className = "qa"; q.textContent = label;
+        q.title = tip; q.setAttribute("aria-label", tip);
+        q.onclick = () => send(verb + " " + full); li.appendChild(q);
+      }
+    }
     ul.appendChild(li);
   }
 }
@@ -509,6 +534,45 @@ function renderFiles() {
 $("folder").addEventListener("click", () => {
   if (S && S.path) listDir(parentOf(S.path)); else if (!fPath) listDir("/");
 });
+
+/* ---- the queue (5174) ----
+   {t:"q"} frames: v the queue's version, cur the playing position (-1
+   when what plays is not in it), rows [id, name] from `from`. Entries are
+   named back by id -- qplay, qdel, qmove -- never by position, which a
+   tap on the glass can change before a command lands. */
+let qRows = [], qNext = [], qVer = -1, qCur = -1;
+function onQueue(m) {
+  if (m.from === 0) { qNext = []; qVer = m.v; }
+  else if (m.v !== qVer) return;          // a frame of a list since replaced
+  qNext.push(...m.rows);
+  if (!m.done) return;
+  qRows = qNext; qNext = []; qCur = m.cur;
+  renderQueue();
+}
+function qButton(txt, tip, fn, off) {
+  const b = document.createElement("button"); b.className = "qb"; b.textContent = txt;
+  b.title = tip; b.setAttribute("aria-label", tip); b.disabled = !!off; b.onclick = fn;
+  return b;
+}
+function renderQueue() {
+  const ul = $("qlist"); ul.textContent = "";
+  $("qmsg").textContent = qRows.length ? qRows.length + (qRows.length === 1 ? " track" : " tracks") : "Empty.";
+  $("qclear").hidden = !qRows.length;
+  const cut = sharedPrefix(qRows.map(r => ({ n: r[1] })));
+  qRows.forEach(([id, name], i) => {
+    const li = document.createElement("li");
+    if (i === qCur) li.classList.add("now");
+    const s = document.createElement("span"); s.className = "row";
+    s.textContent = cut ? name.slice(cut) : name; s.title = name;
+    s.onclick = () => send("qplay " + id);
+    li.append(s,
+      qButton("↑", "Move up", () => send(`qmove ${id} ${i - 1}`), i === 0),
+      qButton("↓", "Move down", () => send(`qmove ${id} ${i + 1}`), i === qRows.length - 1),
+      qButton("✕", "Remove", () => send("qdel " + id)));
+    ul.appendChild(li);
+  });
+}
+$("qclear").onclick = () => { if (confirm("Empty the queue? What is playing carries on.")) send("qclear"); };
 
 /* ---- stations, below the fold (5120) ---- */
 async function loadStations() {

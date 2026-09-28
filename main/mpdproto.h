@@ -142,6 +142,9 @@ typedef enum {
     MPD_CMD_SEEK, MPD_CMD_SEEKID, MPD_CMD_SEEKCUR,
     MPD_CMD_SETVOL, MPD_CMD_VOLUME,
     MPD_CMD_OUTPUTS,
+    /* 5161: Cantata reads the mode on connect and sets it on every
+     * connect after that, since it gates this on a claim of 0.16+ */
+    MPD_CMD_REPLAY_GAIN_MODE, MPD_CMD_REPLAY_GAIN_STATUS,
 
     /* step 10. `noidle` is NOT a verb (5160): MPD's command table has no
      * such row, and the word is matched as a raw line before tokenising

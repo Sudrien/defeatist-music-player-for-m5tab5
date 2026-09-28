@@ -279,6 +279,31 @@ int main(void)
         }
     }
 
+    /* ---- ReplayGain (5161) --------------------------------------------
+     * MPD's four names (src/ReplayGainMode.cxx), strcmp'd, against a
+     * device with one switch whose "on" is per-track gain. */
+    CHECK(mpdmode_rg_from_name("off") == 0, "off turns it off");
+    CHECK(mpdmode_rg_from_name("track") == 1, "track turns it on");
+    CHECK(mpdmode_rg_from_name("album") == 1, "album is honoured as on (no album gain here)");
+    CHECK(mpdmode_rg_from_name("auto") == 1, "auto is honoured as on");
+    CHECK(mpdmode_rg_from_name("Track") == -1, "case-sensitive, as MPD's strcmp");
+    CHECK(mpdmode_rg_from_name("OFF") == -1, "OFF is not off");
+    CHECK(mpdmode_rg_from_name("") == -1, "empty");
+    CHECK(mpdmode_rg_from_name("tracks") == -1, "a longer word");
+    CHECK(mpdmode_rg_from_name("on") == -1, "on is not an MPD mode");
+    CHECK(mpdmode_rg_from_name(NULL) == -1, "NULL");
+    CHECK(strcmp(mpdmode_rg_name(true), "track") == 0, "on reports track");
+    CHECK(strcmp(mpdmode_rg_name(false), "off") == 0, "off reports off");
+    /* What a client reads back must be something it can send back and
+     * land on the same state -- Cantata saves the mode and sends it on
+     * every connect, so this round trip runs every time it connects. */
+    for (int on = 0; on <= 1; on++)
+        CHECK(mpdmode_rg_from_name(mpdmode_rg_name(on)) == on,
+              "status -> mode round trip for %d", on);
+    /* And album/auto spring back to track, not to what was asked. */
+    CHECK(strcmp(mpdmode_rg_name(mpdmode_rg_from_name("album") == 1), "track") == 0,
+          "album reads back as track");
+
     printf("%d checks, %d failures\n", checks, failures);
     return failures ? 1 : 0;
 }

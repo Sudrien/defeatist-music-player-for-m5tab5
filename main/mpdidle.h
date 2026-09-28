@@ -154,7 +154,9 @@ size_t mpdidle_noidle(mpd_idle_t *st, char *out, size_t cap);
 /*
  * The part of the player's state that `idle` reports on, as mpd.c's
  * snapshot has it. `modes` is the four MPD flags as bits (repeat 1,
- * random 2, single 4, consume 8) so a change is one compare.
+ * random 2, single 4, consume 8) so a change is one compare -- and
+ * ReplayGain as 16 (5161), because MPD raises `options` for a
+ * replay_gain_mode as it does for the four.
  */
 typedef struct {
     int      state;         /* mpd_state_t */

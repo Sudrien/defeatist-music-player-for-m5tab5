@@ -278,6 +278,14 @@ typedef enum {
     UI_ACTION_RECORD,
     UI_ACTION_PLAY,
     UI_ACTION_PAUSE,
+    /*
+     * 5161: ReplayGain on (value 1) or off (value 0) -- the panel's switch,
+     * asked for from somewhere that is not the panel. Only MPD's
+     * `replay_gain_mode` produces it; the panel still sets the setting
+     * itself, being on ui_task already. A request for a state, like PLAY
+     * and PAUSE, so asking for what is already set changes nothing.
+     */
+    UI_ACTION_REPLAYGAIN,
 } ui_action_kind_t;
 
 /* Name of an action, for logging. Never NULL. Lives beside the enum so a

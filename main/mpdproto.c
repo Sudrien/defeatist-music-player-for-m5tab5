@@ -257,6 +257,9 @@ static const cmd_def_t s_cmds[] = {
     { "setvol",         MPD_CMD_SETVOL,          1,  1 },
     { "volume",         MPD_CMD_VOLUME,          1,  1 },
     { "outputs",        MPD_CMD_OUTPUTS,         0,  0 },
+    /* 5161: arities from AllCommands.cxx */
+    { "replay_gain_mode",   MPD_CMD_REPLAY_GAIN_MODE,   1, 1 },
+    { "replay_gain_status", MPD_CMD_REPLAY_GAIN_STATUS, 0, 0 },
 
     /* step 10 */
     { "idle",           MPD_CMD_IDLE,            0, -1 },

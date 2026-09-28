@@ -5,6 +5,8 @@
  */
 #include "mpdmode.h"
 
+#include <string.h>
+
 /*
  * The forward table is indexed by the enum, so the enum's values matter.
  * Asserted rather than assumed: adding a fifth order, or reordering these
@@ -101,4 +103,19 @@ mpd_modes_t mpdmode_normalise(const mpd_modes_t *m)
 {
     if (!m) return s_fwd[PLAY_ORDER_ALL];
     return mpdmode_from_order(mpdmode_to_order(m));
+}
+
+int mpdmode_rg_from_name(const char *name)
+{
+    if (!name) return -1;
+    /* strcmp, as MPD's FromString: case matters. */
+    if (strcmp(name, "off") == 0) return 0;
+    if (strcmp(name, "track") == 0 || strcmp(name, "album") == 0 ||
+        strcmp(name, "auto") == 0) return 1;
+    return -1;
+}
+
+const char *mpdmode_rg_name(bool on)
+{
+    return on ? "track" : "off";
 }

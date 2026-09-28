@@ -90,6 +90,7 @@
 #include "mpdproto.h"
 #include "mpduri.h"
 #include "stationlist.h"
+#include "settings.h"         /* 5161: settings_rg_enabled() */
 #include "stations.h"
 #include "wifi.h"
 
@@ -188,6 +189,7 @@ typedef struct {
     int32_t     duration_ms;    /* <0 unknown */
     bool        can_seek;
     bool        updating;       /* a reindex is running */
+    bool        rg;             /* 5161: ReplayGain on */
     bool        have_song;      /* uri[0], kept as its own field for clarity */
     uint32_t    id;             /* the song id; 0 with no song */
     uint32_t    version;        /* the playlist version; starts at 1 */
@@ -573,6 +575,7 @@ static bool answered(mpd_cmd_kind_t k)
     case MPD_CMD_PLAYLISTINFO: case MPD_CMD_PLAYLISTID: case MPD_CMD_PLAYLIST:
     case MPD_CMD_PLCHANGES: case MPD_CMD_PLCHANGESPOSID:
     case MPD_CMD_IDLE:                                  /* 5160 */
+    case MPD_CMD_REPLAY_GAIN_MODE: case MPD_CMD_REPLAY_GAIN_STATUS:  /* 5161 */
         return true;
     default:
         return false;
@@ -688,6 +691,24 @@ static result_t run_cmd(conn_t *c, const mpd_cmd_t *cmd, int idx)
         take_view();
         if (s_view->have_song) put_song(c, s_view);
         return RES_OK;
+
+    case MPD_CMD_REPLAY_GAIN_STATUS:
+        /* 5161: handle_replay_gain_status. "track" or "off": see
+         * mpdmode.h for why album and auto never come back. */
+        take_view();
+        putf(c, "replay_gain_mode: %s\n", mpdmode_rg_name(s_view->rg));
+        return RES_OK;
+
+    case MPD_CMD_REPLAY_GAIN_MODE: {
+        /* 5161: handle_replay_gain_mode. MPD's FromString throws
+         * invalid_argument for an unknown name, which is ARG. */
+        const int on = mpdmode_rg_from_name(a0);
+        if (on < 0) {
+            ack(c, MPD_ACK_ARG, idx, cmd->verb, "Unrecognized replay gain mode");
+            return RES_ERR;
+        }
+        return ask(&x, UI_ACTION_REPLAYGAIN, on) ? RES_OK : RES_ERR;
+    }
 
     case MPD_CMD_OUTPUTS:
         /* One output, always on: MPD 0.20's three fields
@@ -1303,6 +1324,7 @@ void mpd_publish(const ui_state_t *st, const char *path, bool streaming)
     n->duration_ms = (st->stats_valid && st->len_sec) ? (int32_t)st->len_sec * 1000 : -1;
     n->can_seek = st->can_seek;
     n->updating = medialib_busy();
+    n->rg = settings_rg_enabled();                  /* 5161 */
     /*
      * A station's Title is what is on the air, not the station's name:
      * MPD puts the ICY title in Title and the station in Name, and a
@@ -1364,7 +1386,8 @@ void mpd_publish(const ui_state_t *st, const char *path, bool streaming)
         .version = n->version,
         .volume = n->volume,
         .modes = (uint8_t)((n->modes.repeat ? 1 : 0) | (n->modes.random ? 2 : 0) |
-                           (n->modes.single ? 4 : 0) | (n->modes.consume ? 8 : 0)),
+                           (n->modes.single ? 4 : 0) | (n->modes.consume ? 8 : 0) |
+                           (n->rg ? 16 : 0)),     /* 5161: MPD raises options for it */
         .updating = n->updating,
         .elapsed_ms = n->elapsed_ms,
     };

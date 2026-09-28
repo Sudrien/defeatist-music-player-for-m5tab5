@@ -395,6 +395,7 @@ const char *ui_action_name(ui_action_kind_t k)
     case UI_ACTION_SEEK:        return "seek";
     case UI_ACTION_VOLUME:      return "volume";
     case UI_ACTION_MUTE:        return "mute";
+    case UI_ACTION_REPLAYGAIN:  return "replaygain";
     }
     return "?";
 }

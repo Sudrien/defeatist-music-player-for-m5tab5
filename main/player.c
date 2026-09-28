@@ -8059,6 +8059,14 @@ static void ui_task(void *arg)
         case UI_ACTION_MUTE:
             audio_out_set_mute(!audio_out_muted());
             break;
+        case UI_ACTION_REPLAYGAIN:
+            /* 5161: the panel's switch, from an MPD client. Logged the
+             * panel's way, and like it, from the next track. */
+            if (settings_rg_enabled() != (act.value != 0)) {
+                settings_set_rg_enabled(act.value != 0);
+                ESP_LOGI(TAG, "replaygain %s (next track), from mpd", act.value ? "on" : "off");
+            }
+            break;
         case UI_ACTION_SEEK:
             request_seek(act.value, "slider");
             break;

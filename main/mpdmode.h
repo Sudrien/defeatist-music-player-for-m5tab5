@@ -123,6 +123,42 @@ bool mpdmode_exact(const mpd_modes_t *m);
  */
 mpd_modes_t mpdmode_normalise(const mpd_modes_t *m);
 
+/*
+ * ReplayGain (5161): MPD's four modes against this device's one switch.
+ *
+ * MPD has `off`, `track`, `album` and `auto` (src/ReplayGainMode.cxx),
+ * matched case-sensitively. This device has ReplayGain on or off
+ * (settings_rg_enabled()), and "on" is TRACK gain: the loudness is
+ * measured per track as it plays and stored beside it (replaygain.h), and
+ * nothing measures an album. So:
+ *
+ *   mode     device   status reports   exact?
+ *   -----    ------   --------------   ------
+ *   off      off      off              yes
+ *   track    on       track            yes
+ *   album    on       track            NO -- no album gain exists here
+ *   auto     on       track            NO -- MPD's auto is album-or-track
+ *
+ * `album` and `auto` are honoured as "on" rather than refused, and
+ * `replay_gain_status` then says `track`: 5156's rule, the toggle that
+ * springs back to what the device will actually do rather than a field
+ * that is confidently wrong. And a client MUST be able to set `track`,
+ * because Cantata reads the mode, saves it, and sends it back on every
+ * connect after the first.
+ *
+ * The device's switch "takes effect at the next track" (settings.h),
+ * where MPD's applies to what is already playing. Named, not fixed: it
+ * is the device's own rule for a reason written down there.
+ */
+
+/* 1 for a mode that turns ReplayGain on, 0 for `off`, -1 for anything
+ * that is not one of MPD's four names -- which is ACK_ERROR_ARG,
+ * "Unrecognized replay gain mode". */
+int mpdmode_rg_from_name(const char *name);
+
+/* What `replay_gain_status` reports: "track" or "off". */
+const char *mpdmode_rg_name(bool on);
+
 #ifdef __cplusplus
 }
 #endif

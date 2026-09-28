@@ -15727,3 +15727,61 @@ Not on a board. What a run has to show: a client in `idle` (MALP,
 ncmpcpp, or `mpc idleloop`) updating by itself on a pause at the glass, a
 volume change, a track change and a station's title change, and staying
 connected through a quiet minute.
+
+### 5161 -- replay_gain_status and replay_gain_mode, because Cantata asks
+
+The first GUI client on the board was Cantata, on a Raspberry Pi, and it
+connected as it should -- two sockets, one parked in `idle`, both still up
+two minutes later, past the inactivity timeout 5160 exempts idling
+clients from -- and reported `unknown command replay_gain_status`.
+
+**Read out of Cantata before answering one command.** Its connect sequence
+(`mpdconnection.cpp`, `setDetails()`) is `replay_gain_mode <saved>` if it
+has one, `stats`, `lsinfo "mpd-client://cantata/<version>"` with errors
+suppressed (to tell MPD from Mopidy), `status`, `stats`, `urlhandlers`,
+`tagtypes`, `commands`, `playlistinfo` and `outputs`, then
+`replay_gain_status` whenever `options` fires. Everything but the two
+ReplayGain commands was already answered. It gates them on the greeting
+(0.16 and up), so claiming 0.20 is a promise to have them.
+
+**And the setter is not optional, which the error message would not have
+said.** Cantata reads the mode, saves it, and with `applyReplayGain`
+defaulting to true sends `replay_gain_mode <that>` on every connect after
+the first. Answering the status alone would have turned one error on the
+first connect into one on every connect after it.
+
+**The mapping is lossy and written down in `mpdmode.h`**, beside 5156's
+table and for the same reason. MPD has four modes; this device has one
+switch whose "on" is per-track gain, measured as each track plays
+(`replaygain.h`) -- nothing measures an album. So `off` is off, `track` is
+on, and `album` and `auto` are honoured as on, after which
+`replay_gain_status` says `track`. That is 5156's rule: the setting
+springs back to what the device will do rather than reading as something
+it will not. Names are case-sensitive, as MPD's `strcmp`, and anything
+else is `ACK [2@N] {replay_gain_mode} Unrecognized replay gain mode`.
+The switch still takes effect at the next track, as the glass's does
+(`settings.h` explains why); MPD's applies at once.
+
+**The setter goes through `ui_task`**, as every other press does: a new
+`UI_ACTION_REPLAYGAIN` carrying 0 or 1, handled next to `MUTE` by the same
+`settings_set_rg_enabled()` the panel's switch calls, and logged the
+panel's way. The panel keeps calling the setting directly, being on
+`ui_task` already. The switch is in the snapshot, and a change raises
+`options` through 5160's diff, as MPD's `handle_replay_gain_mode` does --
+except that MPD raises it even when the mode was already set, and this
+raises it only on a change, so Cantata's reconnect `replay_gain_mode track`
+does not wake its own idle socket for nothing.
+
+`run-mpdmode` 140 checks (15 new, including the round trip Cantata runs on
+every connect: what status reports, sent back as a mode, lands on the same
+state), `run-mpdproto` 40610 (the two verbs and their arities). Driven over
+sockets in 5160's harness, 50 checks now: status, set, the `options`
+wake, `album` springing back, both ACKs, and Cantata's connect sequence
+sent word for word, which must raise no ACK except the lsinfo it sends
+with errors suppressed. Two mutations of `mpd.c` -- the switch left out of
+the idle view, and status ignoring the switch -- each caught.
+
+**What Cantata will still meet**, from the same file: the Library, Folders
+and Playlists views ask for `list`, `lsinfo`, `listallinfo` and
+`listplaylists`, which are steps 12 and 13 and ACKed as not supported yet.
+Those are the next errors to expect, and they are the planned ones.

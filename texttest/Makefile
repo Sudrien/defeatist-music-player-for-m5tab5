@@ -360,9 +360,11 @@ run-mpdidle: $(MPDIDLE_BIN)
 # extension check, the storage helpers, cuedir and esp_random() stood in
 # for in the test. Written before MPD.md step 4b so the switch-over has
 # something to pass unchanged.
-$(PLAYLIST_BIN): playlisttest.c ../main/playlist.c ../main/playlist.h shim.c shim.h fake/esp_random.h
+# 5165: and against mpdqueue.c, which holds the list now. The test's
+# source is 5164's, unchanged -- that is the point of it.
+$(PLAYLIST_BIN): playlisttest.c ../main/playlist.c ../main/playlist.h ../main/mpdqueue.c ../main/mpdqueue.h shim.c shim.h fake/esp_random.h
 	$(CC) $(WARNCFLAGS) -D_GNU_SOURCE -c ../main/playlist.c -o /dev/null
-	$(CC) $(CFLAGS) -D_GNU_SOURCE -o $@ playlisttest.c ../main/playlist.c shim.c $(LDFLAGS)
+	$(CC) $(CFLAGS) -D_GNU_SOURCE -o $@ playlisttest.c ../main/playlist.c ../main/mpdqueue.c shim.c $(LDFLAGS)
 
 run-playlist: $(PLAYLIST_BIN)
 	ASAN_OPTIONS=detect_leaks=1:abort_on_error=0 ./$(PLAYLIST_BIN)

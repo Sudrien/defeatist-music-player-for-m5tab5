@@ -32,11 +32,12 @@
  * answer to that is `idle player`, which a client gets when the new song
  * is published (5160).
  *
- * THE QUEUE IS ONE ENTRY LONG. The device's queue is its folder
- * (playlist.c), and MPD.md step 4's switch-over -- the folder filling
- * mpdqueue.c, which is what would give a client the whole list with
- * stable ids -- is not done. Until it is, what a client sees is a window
- * of one: the track on screen at position 0, with an id that changes
+ * THE QUEUE IS ONE ENTRY LONG, TO A CLIENT. Since 5165 the folder does
+ * fill mpdqueue.c -- MPD.md step 4's switch-over is done -- but this task
+ * cannot read it: the queue has no lock, and ui_task and media_task both
+ * change it. Showing it needs a copy handed over the way the status
+ * snapshot is, which is the next patch. Until then what a client sees is
+ * a window of one: the track on screen at position 0, with an id that changes
  * when the track does and a playlist version that moves with it. That is
  * true about what is playing and silent about what comes next, which is
  * the honest subset. The alternative, `playlistlength: 0` beside

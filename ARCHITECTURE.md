@@ -15906,3 +15906,69 @@ them only after the suite was strengthened, which is the useful part:
   returned the right answer. After a longer folder was loaded first, that
   slot is one of the old list's freed pointers. The suite now loads nine
   tracks, then four, and reads at the end.
+
+### 5165 -- 4b: the folder fills the queue, and the glass cannot tell
+
+`MPD.md` step 4's second half. `playlist.c`'s paths now live in
+`mpdqueue.c`: a folder load clears the queue, appends each playable file
+and each cue track, and sorts it; `playlist_path()`, `playlist_count()`
+and `playlist_index_of()` read the queue. What stays in `playlist.c` is
+what `mpdqueue.h` always said would -- where playback is (`s_current`),
+the shuffle history and the folder's name -- because the decoder, the
+three rings and the prefetch already agree about position and a second
+opinion is what the 1200 series was spent on.
+
+**The proof is 5164's test, passed with its source unchanged:** 869
+checks, `git diff` empty for `playlisttest.c`. Only the build rule
+changed, to link the queue. A folder tap now means "replace the queue
+with this folder", which is what MPD.md asked a tap to mean, and nothing
+on the glass shows it.
+
+**Restructuring was the smallest correct change**, which CLAUDE.md asks to
+be said. The storage lines are replaced and nothing else: the cursor, the
+order logic and every function's shape are as they were, and the count
+and the paths are reached through two macros named so that the logic
+reads as it did when they were this file's own array. Rewriting the
+functions against the queue's API directly would have been a larger diff
+to review for no behaviour it could change.
+
+**One queue operation was needed, `mpdq_sort()`**, because the folder has
+to come out in order. Building a sorted copy first and appending that
+would hold every path in memory twice during a load, and those strings
+are ordinary `malloc` -- internal RAM first, the heap this device runs
+short of. The sort is a permutation, like `mpdq_shuffle()`: entries keep
+their ids, only the entries that actually moved get the new version, and
+a sort that moves nothing leaves the version alone -- the rule 5136 got
+wrong once for `move` and fixed. `run-mpdqueue` 1186 checks, with the
+sort's cases asked MPD's way (which rows would a client re-read?).
+
+**What did not change.** Ownership: `playlist.c` had no lock and two
+mutators -- `ui_task` at a tap, `media_task` at a track's end and at
+`TRACK_MEDIA_GONE` -- and still does; the queue inherits exactly that
+arrangement, no better and no worse. Borrowing: `playlist_path()` hands
+out the queue's own copy, freed by the next load, which is the rule
+`playlist.h` has always stated and 5126 made the prefetch obey. Memory:
+the pointer array was 4 KB of PSRAM and the queue's entry array is 12 KB
+of PSRAM, allocated once on the first load; the strings are the same
+`malloc` they were.
+
+**What a client sees did not change either**, and that is deliberate. MPD
+still shows a window of one, because the server task cannot read a queue
+that has no lock and two writers. Showing it needs a copy handed over by
+`ui_task` the way the status snapshot is -- its own patch, and the next.
+
+**Mutation-checked against the new code**, five deliberate bugs: the
+queue never emptied, never sorted, sorted case-sensitively and never
+initialised are all caught (two of them by UBSan stopping the run inside
+the test's shuffle bookkeeping, which is louder than a FAIL line but is a
+failure). An append whose failure is ignored is not caught, because an
+append can only fail here on no memory mid-folder, which the suite cannot
+produce -- the same class of unobservable guard as 5154's and 5155's.
+
+Not built with ESP-IDF and not on a board. `player.c`, the file with all
+38 calls, could not be compiled on the host at all -- it needs IDF
+headers the host fakes do not have, before this patch as after -- so the
+claim that it is unaffected rests on `playlist.h` being unchanged, which
+it is. What a board run should show: every folder, file, station and
+resume path behaving as before, and `tab5_playlist: <dir>: N tracks` as
+before.

@@ -382,6 +382,14 @@ nothing is left half-built if the series stops.
    probably wants to be two -- the queue, then the switch-over -- with
    the commit message saying plainly that restructuring was the smallest
    correct change (`CLAUDE.md`).
+
+   **Done in three**: the queue in 5136, a test pinning `playlist.c` as it
+   was in 5164, and the switch-over in 5165, which passes that test
+   unchanged. The paths live in the queue; the cursor, the shuffle
+   history and the folder's name stay in `playlist.c`, as `mpdqueue.h`
+   always said they would. MPD still shows a window of one, because its
+   task cannot read a queue with no lock -- that needs a copy handed over
+   by `ui_task`, which is its own patch.
 5. **The shared mutation path**, exported and drained once by
    `ui_task`, with `remote.c` moved onto it. No new behaviour; it is
    the refactor that lets there be two producers.

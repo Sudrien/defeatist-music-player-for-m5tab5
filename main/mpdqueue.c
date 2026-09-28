@@ -184,6 +184,43 @@ void mpdq_shuffle(void)
     bump_range(0, s_n - 1);
 }
 
+static int (*s_sort_cmp)(const char *, const char *);
+
+static int sort_ent(const void *a, const void *b)
+{
+    return s_sort_cmp(((const ent_t *)a)->path, ((const ent_t *)b)->path);
+}
+
+void mpdq_sort(int (*cmp)(const char *a, const char *b))
+{
+    if (!s_e || !cmp || s_n < 2) return;
+    /* Which entries moved is only knowable by comparing before with
+     * after, so the ids are kept aside for the length of the sort -- 4
+     * bytes an entry, freed at once. Without room for that, every entry
+     * is stamped: over-reporting costs a client a re-read, where
+     * under-reporting would leave it drawing rows in the wrong places. */
+    uint32_t *was = big_alloc((size_t)s_n * sizeof(uint32_t));
+    if (was) for (int i = 0; i < s_n; i++) was[i] = s_e[i].id;
+
+    s_sort_cmp = cmp;               /* qsort takes no context; one mutator */
+    qsort(s_e, (size_t)s_n, sizeof(ent_t), sort_ent);
+    s_sort_cmp = NULL;
+
+    int lo = 0, hi = s_n - 1;
+    if (was) {
+        lo = -1;
+        for (int i = 0; i < s_n; i++) {
+            if (s_e[i].id != was[i]) {
+                if (lo < 0) lo = i;
+                hi = i;
+            }
+        }
+        free(was);
+        if (lo < 0) return;         /* already in order: no change, no version */
+    }
+    bump_range(lo, hi);
+}
+
 int mpdq_find_id(uint32_t id)
 {
     if (!s_e || id == 0) return -1;

@@ -110,6 +110,19 @@ bool mpdq_move(int from, int to);
  * order, so a client's songids stay meaningful across it. */
 void mpdq_shuffle(void);
 
+/*
+ * Sort by path with `cmp` (strcasecmp's shape), for a list that was
+ * loaded from a folder and not built by a person (5165: playlist.c fills
+ * the queue with a directory and wants it in the order the glass has
+ * always shown). A permutation, like mpdq_shuffle(): entries keep their
+ * ids. Only entries that actually moved get a new version, and a sort
+ * that moves nothing leaves the version alone -- the range rule
+ * bump_range() exists for. Not stable, as qsort is not: two paths `cmp`
+ * calls equal come out in either order, which is also what playlist.c's
+ * qsort did.
+ */
+void mpdq_sort(int (*cmp)(const char *a, const char *b));
+
 /* The position of `id`, or -1. */
 int mpdq_find_id(uint32_t id);
 

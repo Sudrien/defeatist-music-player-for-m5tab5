@@ -14,6 +14,7 @@
 #include <stdio.h>
 #include <stdlib.h>
 #include <string.h>
+#include <strings.h>
 
 #include "../main/mpdqueue.h"
 
@@ -280,6 +281,48 @@ int main(void)
         const uint32_t v = mpdq_version();
         mpdq_shuffle();
         CHECK(mpdq_version() == v, "shuffling one entry bumped the version");
+    }
+
+    /* ---- sort (5165) -------------------------------------------------
+     * What playlist.c needs from a folder: its order, with ids intact and
+     * the version telling a client exactly which rows moved. */
+    {
+        static const char *const p[] = { "c", "A", "b", "D", "e" };
+        fill(p, 5);
+        uint32_t ids[5];
+        for (int i = 0; i < 5; i++) ids[i] = mpdq_id(i);
+        const uint32_t v0 = mpdq_version();
+
+        mpdq_sort(strcasecmp);
+        static const char *const want[] = { "A", "b", "c", "D", "e" };
+        for (int i = 0; i < 5; i++)
+            CHECK(strcmp(mpdq_path(i), want[i]) == 0, "sorted[%d] is \"%s\", want \"%s\"",
+                  i, mpdq_path(i), want[i]);
+        for (int i = 0; i < 5; i++) {
+            const int pos = mpdq_find_id(ids[i]);
+            CHECK(pos >= 0 && strcmp(mpdq_path(pos), p[i]) == 0,
+                  "id %u lost its path in the sort", ids[i]);
+        }
+        CHECK(mpdq_version() > v0, "a sort that moved things raised the version");
+        /* c,A,b,D,e -> A,b,c,D,e: positions 0..2 changed, 3 and 4 did
+         * not, and a client must not be told they did. */
+        const uint32_t v = mpdq_version();
+        CHECK(mpdq_entry_version(0) == v && mpdq_entry_version(1) == v &&
+              mpdq_entry_version(2) == v, "the moved rows carry the new version");
+        CHECK(mpdq_entry_version(3) < v && mpdq_entry_version(4) < v,
+              "the rows that stayed put do not");
+
+        /* Already in order: nothing moves, nothing changes. */
+        mpdq_sort(strcasecmp);
+        CHECK(mpdq_version() == v, "sorting a sorted list bumped the version");
+
+        /* Fewer than two, and a NULL comparator: no-ops. */
+        mpdq_clear();
+        mpdq_append("only", NULL);
+        const uint32_t v1 = mpdq_version();
+        mpdq_sort(strcasecmp);
+        mpdq_sort(NULL);
+        CHECK(mpdq_version() == v1 && mpdq_count() == 1, "sorting one entry changed something");
     }
 
     /* ---- full ------------------------------------------------------- */

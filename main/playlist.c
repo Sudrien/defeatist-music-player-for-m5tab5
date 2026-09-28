@@ -1,6 +1,15 @@
 /*
  * playlist.c
  *
+ * 5165, MPD.md step 4b: THE LIST IS THE QUEUE NOW. The paths live in
+ * mpdqueue.c, and this file is what it always was apart from that -- the
+ * folder half (read, filter, sort) and the cursor (where playback is,
+ * the shuffle history, the folder's name), which mpdqueue.h keeps out of
+ * the queue on purpose. A folder tap therefore replaces the queue, which
+ * is what MPD.md asked a tap to mean, and the glass cannot tell:
+ * texttest/playlisttest.c was written against the old file (5164) and is
+ * passed unchanged.
+ *
  * SPDX-License-Identifier: MIT
  */
 
@@ -16,26 +25,27 @@
 
 #include "cuedir.h"
 #include "decoder.h"
+#include "mpdqueue.h"
 #include "playlist.h"
 #include "storage.h"
 
 static const char *TAG = "tab5_playlist";
 
-static char **s_paths;              /* PSRAM, PLAYLIST_MAX pointers */
+/* The queue is the list (5165); it must hold a whole folder. */
+_Static_assert(PLAYLIST_MAX <= MPDQ_MAX, "a folder must fit in the queue");
+
 static uint8_t *s_played;           /* shuffle bitmap, one bit per entry */
-static int s_count;
 static int s_current = -1;
 static char s_dir[512];
 
-static int cmp_path(const void *a, const void *b)
-{
-    return strcasecmp(*(const char *const *)a, *(const char *const *)b);
-}
+/* The count and the paths are the queue's. Named so the logic below
+ * reads as it did when they were this file's own array. */
+#define s_count         (mpdq_count())
+#define s_paths_at(i)   (mpdq_path(i))
 
 void playlist_clear(void)
 {
-    for (int i = 0; i < s_count; i++) free(s_paths[i]);
-    s_count = 0;
+    mpdq_clear();
     s_current = -1;
     s_dir[0] = '\0';
     if (s_played) memset(s_played, 0, (PLAYLIST_MAX + 7) / 8);
@@ -45,12 +55,10 @@ esp_err_t playlist_load_dir(const char *dir)
 {
     if (!dir || !*dir) return ESP_ERR_INVALID_ARG;
 
-    if (!s_paths) {
-        s_paths = heap_caps_calloc(PLAYLIST_MAX, sizeof(char *),
-                                   MALLOC_CAP_SPIRAM | MALLOC_CAP_8BIT);
+    if (!s_played) {
         s_played = heap_caps_calloc((PLAYLIST_MAX + 7) / 8, 1,
                                     MALLOC_CAP_SPIRAM | MALLOC_CAP_8BIT);
-        if (!s_paths || !s_played) {
+        if (!mpdq_init() || !s_played) {
             ESP_LOGE(TAG, "out of memory for the track list");
             return ESP_ERR_NO_MEM;
         }
@@ -89,9 +97,9 @@ esp_err_t playlist_load_dir(const char *dir)
             ESP_LOGW(TAG, "path too long, skipping: %s/%s", dir, e->d_name);
             continue;
         }
-        s_paths[s_count] = strdup(full);
-        if (!s_paths[s_count]) break;
-        s_count++;
+        /* The queue copies it, where strdup() did; -1 is its "no memory"
+         * here, the other refusals being ruled out above. */
+        if (mpdq_append(full, NULL) < 0) break;
     }
     closedir(d);
 
@@ -99,9 +107,7 @@ esp_err_t playlist_load_dir(const char *dir)
         if (s_count >= PLAYLIST_MAX) { truncated = true; break; }
         char full[512];
         if (!storage_join_path(full, sizeof(full), dir, cuedir_name(cues, i))) continue;
-        s_paths[s_count] = strdup(full);
-        if (!s_paths[s_count]) break;
-        s_count++;
+        if (mpdq_append(full, NULL) < 0) break;
     }
     cuedir_free(cues);
 
@@ -114,7 +120,7 @@ esp_err_t playlist_load_dir(const char *dir)
      * order on most cards -- so an album copied track by track is roughly
      * right and an album copied by a tool that parallelises is not. Sort
      * rather than trust it. */
-    qsort(s_paths, (size_t)s_count, sizeof(char *), cmp_path);
+    mpdq_sort(strcasecmp);
 
     snprintf(s_dir, sizeof(s_dir), "%s", dir);
     ESP_LOGI(TAG, "%s: %d track%s", dir, s_count, s_count == 1 ? "" : "s");
@@ -126,14 +132,14 @@ int playlist_count(void) { return s_count; }
 const char *playlist_path(int i)
 {
     if (i < 0 || i >= s_count) return NULL;
-    return s_paths[i];
+    return s_paths_at(i);
 }
 
 int playlist_index_of(const char *path)
 {
     if (!path) return -1;
     for (int i = 0; i < s_count; i++) {
-        if (strcmp(s_paths[i], path) == 0) return i;
+        if (strcmp(s_paths_at(i), path) == 0) return i;
     }
     return -1;
 }
@@ -159,13 +165,13 @@ const char *playlist_peek_next(play_order_t order)
 {
     if (s_count <= 0) return NULL;
     if (order == PLAY_ORDER_REPEAT_ONE) {
-        return (s_current >= 0) ? s_paths[s_current] : NULL;
+        return (s_current >= 0) ? s_paths_at(s_current) : NULL;
     }
     if (order != PLAY_ORDER_ALL) return NULL;   /* see the header */
 
     const int n = s_current + 1;
     if (s_current < 0 || n >= s_count) return NULL;
-    return s_paths[n];
+    return s_paths_at(n);
 }
 
 bool playlist_has_next(play_order_t order)
@@ -196,7 +202,7 @@ const char *playlist_next(play_order_t order)
      * exactly this case.
      */
     if (order == PLAY_ORDER_REPEAT_ONE) {
-        return (s_current >= 0) ? s_paths[s_current] : NULL;
+        return (s_current >= 0) ? s_paths_at(s_current) : NULL;
     }
 
     if (order == PLAY_ORDER_SHUFFLE) {
@@ -221,7 +227,7 @@ const char *playlist_next(play_order_t order)
             if (shuffle_seen(i)) continue;
             if (pick-- == 0) {
                 playlist_set_current(i);
-                return s_paths[i];
+                return s_paths_at(i);
             }
         }
         return NULL;
@@ -230,12 +236,12 @@ const char *playlist_next(play_order_t order)
     const int next = s_current + 1;
     if (next >= s_count) return NULL;        /* stop at the end of the folder */
     playlist_set_current(next);
-    return s_paths[next];
+    return s_paths_at(next);
 }
 
 const char *playlist_prev(void)
 {
     if (s_count <= 0 || s_current <= 0) return NULL;
     playlist_set_current(s_current - 1);
-    return s_paths[s_current];
+    return s_paths_at(s_current);
 }

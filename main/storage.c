@@ -26,6 +26,7 @@
 
 #include "storage.h"
 #include "usbhost.h"
+#include "rtctask.h"          /* 5183 */
 
 static const char *TAG = "tab5_storage";
 
@@ -824,7 +825,7 @@ esp_err_t storage_init(void)
      * detected at all.
      */
 
-    if (xTaskCreate(storage_task, "storage", 4096, NULL, 3, NULL) != pdPASS) {
+    if (rtctask_create(storage_task, "storage", 4096, NULL, 3, NULL) != pdPASS) {
         return ESP_ERR_NO_MEM;
     }
     return ESP_OK;

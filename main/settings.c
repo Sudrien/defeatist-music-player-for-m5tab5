@@ -27,6 +27,7 @@
 #include "cJSON.h"
 #include "nvs.h"
 #include "screendim.h"
+#include "rtctask.h"          /* 5183 */
 
 /*
  * 5049: the Wi-Fi switch, mirrored into NVS.
@@ -1778,11 +1779,12 @@ void settings_init(void)
      * overshoot, not the demand), and it is one path; a thousand bytes
      * over it is the margin, not a measurement. Internal RAM, because
      * this task writes flash (prefs_nvs_sync()) and a PSRAM stack cannot
-     * run with the cache off. The read failure itself is 5181's other
+     * run with the cache off -- and since 5183 the internal RAM is
+     * RTCRAM, which DMA does not need (rtctask.h). The read failure itself is 5181's other
      * half (storage.c, s_sd_bounce); this is so the next card error is a
      * logged error and not a boot loop.
      */
-    if (xTaskCreate(settings_task, "settings", 5120, NULL, 2, NULL) != pdPASS) {
+    if (rtctask_create(settings_task, "settings", 5120, NULL, 2, NULL) != pdPASS) {
         ESP_LOGW(TAG, "no writer task; settings will not be saved");
     }
 }

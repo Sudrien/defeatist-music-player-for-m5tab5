@@ -15,6 +15,7 @@
 #include "freertos/task.h"
 
 #include "battery.h"
+#include "rtctask.h"          /* 5183 */
 
 static const char *TAG = "tab5_batt";
 
@@ -372,13 +373,13 @@ esp_err_t battery_start(void)
     /* Above the gauge task and above the UI, so a trace is not
      * descheduled in the middle of the window it is measuring. Below the
      * writer, which must never wait for a diagnostic. */
-    if (xTaskCreate(battery_trace_task, "batt_tr", 4096, NULL, 5,
+    if (rtctask_create(battery_trace_task, "batt_tr", 4096, NULL, 5,
                     &s_trace_task) != pdPASS) {
         ESP_LOGW(TAG, "no trace task; battery_trace_arm() will do nothing");
         s_trace_task = NULL;
     }
 
-    return xTaskCreate(battery_task, "batt", 3072, NULL, 2, NULL) == pdPASS
+    return rtctask_create(battery_task, "batt", 3072, NULL, 2, NULL) == pdPASS
            ? ESP_OK : ESP_ERR_NO_MEM;
 }
 

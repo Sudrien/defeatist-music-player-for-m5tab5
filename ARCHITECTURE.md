@@ -17000,3 +17000,61 @@ board run should show: Cantata's Artists and Albums views filling, and
 from `mpc`: `mpc list artist`, `mpc list album artist "<name>"` and
 `mpc list album group albumartist`. The one to watch for time is an
 unfiltered `list album` on the larger volume.
+
+### 5183 -- five stacks to RTCRAM, so the radio's margin is not a coin toss
+
+v0.4.0-204, with the SD card and the USB drive in: Wi-Fi did not come
+up. It was 5177's failure again -- esp_hosted's card init asking for 512
+bytes of DMA-capable RAM, fifteen times, then `bring-up timed out` --
+from a build that differs from 5181's working one only by `list`'s code.
+The two boots differ in two numbers:
+
+                  boot DMA free    USB drive mounted    radio
+    5181 run         36031          15.1 s (after)      up
+    204 run          35943           2.9 s (before)     failed
+
+The radio's bring-up needs the DMA-capable heap nearly to the byte, and
+whether the USB drive's mount lands before or after it is a race. 5181
+spent 1.5 KB of that heap on purpose (the SD bounce buffer and the
+settings stack), which is right, and it was enough to put the race on
+the wrong side. Moving more out of `.bss` would buy a few hundred bytes
+at a time. The real reserve is elsewhere.
+
+**RTCRAM: 31 KB of internal RAM, idle at boot in every heap map this
+session** (`At 0x501080ac len 32596 free 31860`). DMA cannot use it,
+and a task stack never needs DMA. Every plain `xTaskCreate()` stack,
+meanwhile, comes out of the DMA-capable regions. So the tasks that live
+for the whole session and run at a leisurely rate now take their stacks
+-- and their TCBs -- from RTCRAM:
+
+    settings   5120    writes flash; RTCRAM is internal, fine with the cache off
+    storage    4096    the volume poll
+    batt_tr    4096    the battery trace
+    batt       3072    the gauge
+    hp_det     3072    the headphone detect
+
+19.5 KB of stack and about 1.7 KB of TCBs leave the DMA-capable heap,
+and about 10 KB of RTCRAM is still free.
+
+`rtctask_create()` in `rtctask.h`: `xTaskCreateStatic()` over a stack
+and a TCB taken once from `MALLOC_CAP_RTCRAM` and never freed. That is
+5159's pattern and for 5159's reason: `xTaskCreateWithCaps()` makes a
+helper task with an internal stack to free a task that deletes itself,
+and aborts when that allocation fails. So it is only for tasks that
+never return or delete themselves; all five are `while (1)` loops,
+checked. If RTCRAM cannot be had, the task is made the ordinary way and
+a line says so. FreeRTOS accepts the memory: `esp_ptr_internal()` and
+`esp_stack_ptr_is_sane()` both include RTC fast memory when
+`CONFIG_ESP_SYSTEM_ALLOW_RTC_FAST_MEM_AS_HEAP` is set, which the heap
+map's RTCRAM region shows it is. RTCRAM is slower for the CPU than
+L2MEM, so nothing whose inner loop is hot moves -- not the decoder, the
+writer, the media task or `ui_task`.
+
+**Not proven here.** Not host-tested (task creation), not built with
+ESP-IDF, not run on a board. No `sdkconfig.defaults` or
+`idf_component.yml` change. What a board run should show, with both
+volumes in: the boot heap map's `DMA free` about 21 KB higher than 204's
+35943, RTCRAM's `free` about 21 KB lower than 31860, no `rtctask:` line,
+and Wi-Fi joining whichever side of the radio the USB mount lands. What
+would say it is wrong: a `rtctask: ... made in the ordinary heap` line
+(RTCRAM refused), or a panic naming one of the five tasks.

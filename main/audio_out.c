@@ -35,6 +35,7 @@
 #include "audio_out.h"
 #include "battery.h"
 #include "uac.h"
+#include "rtctask.h"          /* 5183 */
 
 static const char *TAG = "tab5_audio";
 
@@ -1174,7 +1175,7 @@ esp_err_t audio_out_init(i2c_master_bus_handle_t bus,
      * conversion is simply not taken, which is the behaviour before. */
     s_cv_lock = xSemaphoreCreateMutex();
 
-    if (xTaskCreate(headphone_task, "hp_det", 3072, NULL, 3, NULL) != pdPASS) {
+    if (rtctask_create(headphone_task, "hp_det", 3072, NULL, 3, NULL) != pdPASS) {
         return ESP_ERR_NO_MEM;
     }
     return ESP_OK;

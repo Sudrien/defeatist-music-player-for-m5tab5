@@ -24,10 +24,14 @@
  * mpdidle.h's, and what counts as a change is worked out in
  * mpd_publish() from the same snapshot `status` reads.
  *
- * WHAT IT IS NOT, YET. No browsing or search (step 12), so a client can
- * only `add` a URI it already knows -- one from `playlistinfo`, or typed.
- * Adding a folder, part-queue `shuffle`, and MPD 0.23's relative
- * positions ("+1") are refused and say so. No IPv6 listener.
+ * The library (step 12): `lsinfo`, `listall`, `listallinfo` (5177),
+ * `search`, `find` and `count` (5180). One partition, `default`, and one
+ * mount, the root, over whichever volumes are in (5180).
+ *
+ * WHAT IT IS NOT, YET. No `list` (so no artist or album views), no stored
+ * playlists (step 13). Adding a folder, part-queue `shuffle`, MPD 0.23's
+ * relative positions ("+1") and 0.21's filter expressions are refused
+ * and say so. No IPv6 listener.
  *
  * NO PASSWORD, as the remote has none, and for the same reason it is off
  * by default and the panel says so under the switch.

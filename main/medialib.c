@@ -761,12 +761,26 @@ bool medialib_rd_cat(medialib_rd_t *rd, uint32_t off)
     return rd && rd->cat && rd->rec && mediacat_read_at(rd->cat, off, rd->rec);
 }
 
+FILE *medialib_rd_search(medialib_rd_t *rd)
+{
+    if (!rd || rd->vol >= STORAGE_COUNT || !rd->ix) return NULL;
+    if (rd->sr) return rd->sr;
+    char path[48];
+    const char *mount = storage_mount_path(rd->vol);
+    if (!mount || !storage_join_path(path, sizeof(path), mount, MEDIASEARCH_NAME)) return NULL;
+    storage_io_acquire(CLS);
+    rd->sr = storage_io_open(path, "rb");
+    storage_io_release();
+    return rd->sr;
+}
+
 void medialib_rd_close(medialib_rd_t *rd)
 {
     if (!rd || rd->vol >= STORAGE_COUNT) return;
     storage_io_acquire(CLS);
     if (rd->ix) storage_io_close(rd->ix);
     if (rd->cat) storage_io_close(rd->cat);
+    if (rd->sr) storage_io_close(rd->sr);          /* 5180 */
     storage_io_release();
     free(rd->src.scratch);
     free(rd->rec);

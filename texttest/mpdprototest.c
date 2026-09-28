@@ -331,6 +331,9 @@ int main(void)
             "listallinfo", "find", "search", "list", "count", "update",
             "rescan", "listplaylists", "listplaylist", "listplaylistinfo",
             "load", "save", "rm",
+            /* 5180 */
+            "listpartitions", "partition", "newpartition", "delpartition",
+            "moveoutput", "listmounts", "mount", "unmount", "listneighbors",
         };
         const size_t n = sizeof(verbs) / sizeof(verbs[0]);
         for (size_t i = 0; i < n; i++) {
@@ -769,6 +772,17 @@ int main(void)
                      "state: stop\n") == 0, "stopped status is [%s]", b);
         CHECK(strstr(b, "elapsed") == NULL && strstr(b, "time:") == NULL,
               "a stopped player reported a time: [%s]", b);
+
+        /* 5180: the partition, after consume, as MPD 0.22 orders it; and
+         * absent for "" as for NULL. */
+        s.partition = "default";
+        CHECK(mpdproto_status(&s, b, sizeof(b)) &&
+              strstr(b, "consume: 0\npartition: default\nplaylist: 1\n"),
+              "partition not after consume: [%s]", b);
+        s.partition = "";
+        CHECK(mpdproto_status(&s, b, sizeof(b)) && !strstr(b, "partition"),
+              "an empty partition was written: [%s]", b);
+        s.partition = NULL;
 
         /* Playing, everything known. MPD's field order, and nextsong
          * last, which is where MPD puts it. */

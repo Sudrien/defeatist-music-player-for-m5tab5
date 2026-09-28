@@ -306,6 +306,17 @@ static const cmd_def_t s_cmds[] = {
     { "load",             MPD_CMD_LOAD,             1, 2 },
     { "save",             MPD_CMD_SAVE,             1, 2 },
     { "rm",               MPD_CMD_RM,               1, 1 },
+
+    /* 5180: arities from AllCommands.cxx */
+    { "listpartitions",   MPD_CMD_LISTPARTITIONS,   0, 0 },
+    { "partition",        MPD_CMD_PARTITION,        1, 1 },
+    { "newpartition",     MPD_CMD_NEWPARTITION,     1, 1 },
+    { "delpartition",     MPD_CMD_DELPARTITION,     1, 1 },
+    { "moveoutput",       MPD_CMD_MOVEOUTPUT,       1, 1 },
+    { "listmounts",       MPD_CMD_LISTMOUNTS,       0, 0 },
+    { "mount",            MPD_CMD_MOUNT,            2, 2 },
+    { "unmount",          MPD_CMD_UNMOUNT,          1, 1 },
+    { "listneighbors",    MPD_CMD_LISTNEIGHBORS,    0, 0 },
 };
 
 #define N_CMDS  (sizeof(s_cmds) / sizeof(s_cmds[0]))
@@ -688,6 +699,7 @@ size_t mpdproto_status(const mpd_status_t *s, char *out, size_t cap)
     w_num(&b, "random",  s->random  ? 1 : 0);
     w_num(&b, "single",  s->single  ? 1 : 0);
     w_num(&b, "consume", s->consume ? 1 : 0);
+    if (s->partition && s->partition[0]) w_kv(&b, "partition", s->partition);   /* 5180 */
     w_num(&b, "playlist", (long long)s->playlist_version);
     w_num(&b, "playlistlength", s->playlist_length);
 

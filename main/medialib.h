@@ -152,6 +152,7 @@ typedef struct {
     FILE            *cat;       /* the catalog */
     midx_src_t       src;       /* over ix and cat; src.n records */
     mediacat_rec_t  *rec;       /* PSRAM: the catalog line last read */
+    FILE            *sr;        /* 5180: the search file, once asked for */
 } medialib_rd_t;
 
 /*
@@ -167,6 +168,16 @@ void medialib_rd_close(medialib_rd_t *rd);
 /* The catalog record at `off` -- a record's cat_off -- into rd->rec. For
  * a track's tags. False when it cannot be read. */
 bool medialib_rd_cat(medialib_rd_t *rd, uint32_t off);
+
+/*
+ * 5180: the volume's search file (mediasearch.h), opened on first asking
+ * and closed by medialib_rd_close(). Under the reader's gate like the
+ * index: a reindex rewrites it by rename too. NULL when the volume has
+ * none -- an index can exist without one (medialib.c writes it second,
+ * and a failure there costs search alone), and that volume then finds
+ * nothing. Read it with storage_io_fread(), STORAGE_IO_BACKGROUND.
+ */
+FILE *medialib_rd_search(medialib_rd_t *rd);
 
 /* A copy of one volume's status, for drawing. The counts in a RUNNING
  * status are read while the run writes them; each is a plain int, and

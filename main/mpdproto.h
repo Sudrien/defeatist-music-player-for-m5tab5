@@ -171,6 +171,13 @@ typedef enum {
     /* step 13, optional: stored playlists */
     MPD_CMD_LISTPLAYLISTS, MPD_CMD_LISTPLAYLIST, MPD_CMD_LISTPLAYLISTINFO,
     MPD_CMD_LOAD, MPD_CMD_SAVE, MPD_CMD_RM,
+
+    /* 5180: partitions (MPD 0.22) and mounts (0.19). This player has one
+     * partition, `default`, and one library over two volumes that mount
+     * themselves; the verbs say so rather than being unknown. */
+    MPD_CMD_LISTPARTITIONS, MPD_CMD_PARTITION, MPD_CMD_NEWPARTITION,
+    MPD_CMD_DELPARTITION, MPD_CMD_MOVEOUTPUT,
+    MPD_CMD_LISTMOUNTS, MPD_CMD_MOUNT, MPD_CMD_UNMOUNT, MPD_CMD_LISTNEIGHBORS,
 } mpd_cmd_kind_t;
 
 /*
@@ -471,8 +478,8 @@ typedef enum {
  * claimed and would need widening to a tri-state alongside the greeting.
  *
  * WHAT IS DELIBERATELY NOT REPORTED, because this device has none of it
- * and MPD's own status is documented as "as applicable": `partition`
- * (0.22), `lastloadedplaylist` (0.24), `mixrampdb`, `mixrampdelay` and
+ * and MPD's own status is documented as "as applicable":
+ * `lastloadedplaylist` (0.24), `mixrampdb`, `mixrampdelay` and
  * `xfade`. An absent field is read as unknown; a field reporting 0 for a
  * feature that does not exist is a claim.
  *
@@ -501,6 +508,9 @@ typedef struct {
     int         bits, channels;
     unsigned    updating_db;        /* 0: omitted. medialib_busy()'s job id */
     const char *error;              /* NULL or "": omitted */
+    /* 5180: the partition's name, after `consume` as MPD 0.22 has it.
+     * NULL or "": omitted, which is how a 0.20 server looked. */
+    const char *partition;
 } mpd_status_t;
 
 #define MPDPROTO_STATUS_MAX (512)

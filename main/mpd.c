@@ -83,6 +83,9 @@
 #include "ethernet.h"
 #include "medialib.h"
 #include "medialist.h"          /* 5177 */
+#include "mediasearch.h"        /* 5180 */
+#include "storage_io.h"         /* 5180: the search file's reads */
+#include <strings.h>            /* 5180: strcasecmp() for tag names */
 #include "mpdidle.h"         /* 5160 */
 #include "mpdmode.h"
 #include "mpdqueue.h"         /* 5166 */
@@ -152,6 +155,11 @@ static const char *TAG = "tab5_mpd";
 /* A client that stops reading must not stop the task: a send that cannot
  * complete in this long closes that client instead. */
 #define MPD_SEND_TIMEOUT_S  (2)
+
+/* 5180: the one partition, by MPD's name for the first, and the one
+ * output, by the name `outputs` has always given it. */
+#define MPD_PARTITION       "default"
+#define MPD_OUTPUT_NAME     "Tab5"
 
 /* How long a press waits for ui_task; see the file comment. A second is
  * several passes at the slowest rate ui_task runs (10 Hz). */
@@ -699,6 +707,10 @@ static bool answered(mpd_cmd_kind_t k)
     case MPD_CMD_MOVE: case MPD_CMD_MOVEID:
     case MPD_CMD_CLEAR: case MPD_CMD_SHUFFLE:
     case MPD_CMD_LSINFO: case MPD_CMD_LISTALL: case MPD_CMD_LISTALLINFO:   /* 5177 */
+    case MPD_CMD_LISTPARTITIONS: case MPD_CMD_PARTITION:                   /* 5180 */
+    case MPD_CMD_FIND: case MPD_CMD_SEARCH: case MPD_CMD_COUNT:
+    case MPD_CMD_DELPARTITION: case MPD_CMD_MOVEOUTPUT:
+    case MPD_CMD_LISTMOUNTS: case MPD_CMD_LISTNEIGHBORS:
         return true;
     default:
         return false;
@@ -706,7 +718,7 @@ static bool answered(mpd_cmd_kind_t k)
 }
 
 /* The last kind in mpdproto.h's enum, for walking the table. */
-#define MPD_CMD_LAST    MPD_CMD_RM
+#define MPD_CMD_LAST    MPD_CMD_LISTNEIGHBORS
 
 /*
  * 5166: the commands that read the list, over the pinned copy. Called
@@ -863,6 +875,10 @@ static result_t run_list_cmd(conn_t *c, const mpd_cmd_t *cmd, int idx)
  * find 512 bytes (ARCHITECTURE.md, 5178). A task-owned buffer on this
  * task is only ever touched by it, so where it lives is only a cost.
  */
+/* 5180: how much of a search file is read at a time -- the arbiter's
+ * chunk, so each read is one lease. */
+#define SEARCH_CHUNK    (16 * 1024)
+
 typedef struct {
     midx_src_t *s;
     uint32_t    i, end;
@@ -881,6 +897,9 @@ typedef struct {
     char            uri[MPDURI_MAX + 2];
     lib_walk_t      w[MEDIALIST_VOLS];          /* listall */
     char            last[MPDURI_MAX + 2];
+    /* 5180: search, find and count */
+    char            sbuf[SEARCH_CHUNK + MEDIASEARCH_LINE_MAX];
+    char            needle[MPDPROTO_MAX_ARGS / 2][MEDIASEARCH_LINE_MAX];
 } mpd_scratch_t;
 
 static mpd_scratch_t *s_lib;        /* PSRAM, from mpd_init(); this task's */
@@ -1180,6 +1199,17 @@ static int lib_file(const char *uri, midx_rec_t *r)
     return -1;
 }
 
+/* 5180: the refusal says which path, in the log. The board run after 5179
+ * had Cantata's `lsinfo` refused on connect with "/" handled, and MPD's
+ * wording does not quote the argument -- so nothing said what it asked
+ * for, or whether MPD would have refused it too. */
+static void ack_no_dir(const ctx_t *x, const char *uri)
+{
+    ESP_LOGI(TAG, "client %d: %s \"%.120s\": not a folder or file in the library",
+             x->c->fd, x->verb, uri ? uri : "");
+    ack(x->c, MPD_ACK_NO_EXIST, x->idx, x->verb, "No such directory");
+}
+
 /* `lsinfo [URI]`: one folder, both volumes merged. */
 static result_t lib_lsinfo(const ctx_t *x, const char *uri)
 {
@@ -1188,7 +1218,7 @@ static result_t lib_lsinfo(const ctx_t *x, const char *uri)
      * asks for "/" on connect, and was told No such directory. */
     if (!uri || strcmp(uri, "/") == 0) uri = "";
     if (!mpduri_ok(uri, true) || !mpduri_dir(uri, s_lib->dir, sizeof(s_lib->dir))) {
-        ack(c, MPD_ACK_NO_EXIST, x->idx, x->verb, "No such directory");
+        ack_no_dir(x, uri);
         return RES_ERR;
     }
     if (!lib_open(x)) return RES_ERR;
@@ -1213,7 +1243,7 @@ static result_t lib_lsinfo(const ctx_t *x, const char *uri)
         const int v = lib_file(uri, r);
         if (v < 0) {
             lib_close();
-            ack(c, MPD_ACK_NO_EXIST, x->idx, x->verb, "No such directory");
+            ack_no_dir(x, uri);
             return RES_ERR;
         }
         put_lib_file(c, v, r, uri, true);
@@ -1262,7 +1292,7 @@ static result_t lib_listall(const ctx_t *x, const char *uri, bool info)
      * asks for "/" on connect, and was told No such directory. */
     if (!uri || strcmp(uri, "/") == 0) uri = "";
     if (!mpduri_ok(uri, true) || !mpduri_dir(uri, s_lib->dir, sizeof(s_lib->dir))) {
-        ack(c, MPD_ACK_NO_EXIST, x->idx, x->verb, "No such directory");
+        ack_no_dir(x, uri);
         return RES_ERR;
     }
     if (!lib_open(x)) return RES_ERR;
@@ -1317,7 +1347,7 @@ static result_t lib_listall(const ctx_t *x, const char *uri, bool info)
         const int v = lib_file(uri, r);
         if (v < 0) {
             lib_close();
-            ack(c, MPD_ACK_NO_EXIST, x->idx, x->verb, "No such directory");
+            ack_no_dir(x, uri);
             return RES_ERR;
         }
         if (info) put_lib_file(c, v, r, uri, true);
@@ -1331,6 +1361,201 @@ static result_t lib_listall(const ctx_t *x, const char *uri, bool info)
         ack(c, MPD_ACK_SYSTEM, x->idx, x->verb, "the library could not be read; reindex it");
         return RES_ERR;
     }
+    return RES_OK;
+}
+
+/* ---- search, find and count (5180, MPD.md step 12) --------------------- */
+
+/*
+ * MPD's older form only: TAG VALUE pairs, `search any beatles`, `find
+ * album "Abbey Road" artist Beatles`. Each pair must hold (AND).
+ *
+ * TWO STAGES, AS mediasearch.h DESIGNED. The search file (one folded
+ * line per live track, per volume) is scanned start to finish and every
+ * pair is tested as a folded substring -- which is all of `search`, and
+ * for `find` a filter that cannot drop a true match. A line that passes
+ * is read out of the catalog at its offset, for the real path and tags:
+ * `find` then compares those exactly, and both write the song from them.
+ *
+ * WHAT THE LIBRARY KNOWS: title, artist, album and the path. So:
+ *   - `any`, `title`, `artist`, `album` and `file` are searched;
+ *   - `albumartist` is searched as `artist`, since the catalog keeps no
+ *     album artist and the track artist is what a client using it
+ *     usually gets on a single-artist album -- said, not pretended;
+ *   - `base DIR` limits to a folder of the library, exactly;
+ *   - every other tag (genre, date, track, composer, ...) is one this
+ *     device never read, so nothing matches it and the answer is empty,
+ *     rather than an ACK that would make a client stop asking;
+ *   - `window START:END` pages the results; `sort` is ignored, and the
+ *     answer is in path order, SD's volume first.
+ * Filter expressions, "(artist == 'x')", are MPD 0.21's newer form and
+ * are refused by name.
+ *
+ * A path on both volumes is answered once, from the SD, as everywhere in
+ * the library (medialist.h): a USB hit whose path the SD's index holds
+ * live is skipped.
+ */
+typedef enum { Q_FIELD, Q_BASE, Q_NONE } qkind_t;
+typedef struct {
+    qkind_t             kind;
+    mediasearch_field_t field;          /* Q_FIELD */
+    const char         *value;          /* as sent; for find and base */
+    const char         *folded;         /* into s_lib->needle */
+} qpair_t;
+
+typedef enum { Q_FIND, Q_SEARCH, Q_COUNT } qmode_t;
+
+static bool q_tag(const char *t, qpair_t *p)
+{
+    static const struct { const char *name; mediasearch_field_t f; } tags[] = {
+        { "any", MEDIASEARCH_ANY }, { "title", MEDIASEARCH_TITLE },
+        { "artist", MEDIASEARCH_ARTIST }, { "albumartist", MEDIASEARCH_ARTIST },
+        { "album", MEDIASEARCH_ALBUM }, { "file", MEDIASEARCH_FILE },
+    };
+    for (size_t i = 0; i < sizeof(tags) / sizeof(tags[0]); i++) {
+        if (strcasecmp(t, tags[i].name) == 0) {
+            p->kind = Q_FIELD;
+            p->field = tags[i].f;
+            return true;
+        }
+    }
+    if (strcasecmp(t, "base") == 0) { p->kind = Q_BASE; return true; }
+    p->kind = Q_NONE;           /* a tag the library does not hold */
+    return false;
+}
+
+/* One catalog record against one pair, exactly (find) or as the folded
+ * stage already found it (search). */
+static bool q_exact(const qpair_t *p, const mediacat_rec_t *r, qmode_t mode)
+{
+    if (p->kind == Q_BASE) {
+        const size_t n = strlen(p->value);
+        return n == 0 || (strncmp(r->path, p->value, n) == 0 &&
+                          (r->path[n] == '/' || r->path[n] == '\0'));
+    }
+    if (mode != Q_FIND) return true;
+    const char *const f[4] = { r->title, r->artist, r->album, r->path };
+    if (p->field == MEDIASEARCH_ANY) {
+        for (int i = 0; i < 4; i++) if (strcmp(f[i], p->value) == 0) return true;
+        return false;
+    }
+    return strcmp(f[(int)p->field - 1], p->value) == 0;
+}
+
+static result_t lib_find(const ctx_t *x, const mpd_cmd_t *cmd, qmode_t mode)
+{
+    conn_t *const c = x->c;
+    if (cmd->argc >= 1 && cmd->argv[0][0] == '(') {
+        ack(c, MPD_ACK_UNKNOWN, x->idx, x->verb,
+            "filter expressions are not supported by this player yet; use TAG VALUE pairs");
+        return RES_ERR;
+    }
+    if (cmd->argc % 2) {
+        ack(c, MPD_ACK_ARG, x->idx, x->verb, "incorrect number of filter arguments");
+        return RES_ERR;
+    }
+
+    static qpair_t pairs[MPDPROTO_MAX_ARGS / 2];
+    int np = 0;
+    long w_lo = 0, w_hi = INT32_MAX;
+    bool never = false;                 /* a tag nothing can match */
+    for (int i = 0; i + 1 < cmd->argc; i += 2) {
+        const char *t = cmd->argv[i], *v = cmd->argv[i + 1];
+        if (strcasecmp(t, "sort") == 0) continue;
+        if (strcasecmp(t, "group") == 0) {
+            ack(c, MPD_ACK_UNKNOWN, x->idx, x->verb, "group is not supported by this player yet");
+            return RES_ERR;
+        }
+        if (strcasecmp(t, "window") == 0) {
+            if (!arg_range(x, v, &w_lo, &w_hi)) return RES_ERR;
+            continue;
+        }
+        qpair_t *p = &pairs[np];
+        if (!q_tag(t, p)) {
+            if (p->kind == Q_NONE) never = true;
+            if (p->kind != Q_BASE) continue;
+        }
+        p->value = v;
+        p->folded = NULL;
+        if (p->kind == Q_FIELD) {
+            if (mediasearch_fold(v, s_lib->needle[np], sizeof(s_lib->needle[np])) < 0) never = true;
+            p->folded = s_lib->needle[np];
+        }
+        np++;
+    }
+
+    long n_hit = 0;
+    if (!never) {
+        if (!lib_open(x)) return RES_ERR;
+        bool err = false;
+        for (int v = 0; v < MEDIALIST_VOLS && !c->broken && !err; v++) {
+            if (!s_rd_open[v]) continue;
+            FILE *f = medialib_rd_search(&s_rd[v]);
+            if (!f) continue;
+            storage_io_acquire(STORAGE_IO_BACKGROUND);
+            const bool rew = fseek(f, 0, SEEK_SET) == 0;
+            storage_io_release();
+            if (!rew) { err = true; break; }
+
+            char *const buf = s_lib->sbuf;
+            size_t have = 0;
+            bool eof = false, skipping = false;
+            while (!eof && !c->broken && !err) {
+                const size_t got = storage_io_fread(buf + have, SEARCH_CHUNK, f, STORAGE_IO_BACKGROUND);
+                if (got == 0) eof = true;
+                have += got;
+                size_t at = 0;
+                for (;;) {
+                    char *nl = memchr(buf + at, '\n', have - at);
+                    if (!nl) break;
+                    const size_t len = (size_t)(nl - (buf + at));
+                    const char *line = buf + at;
+                    at += len + 1;
+                    if (skipping) { skipping = false; continue; }   /* tail of a long line */
+
+                    mediasearch_line_t l;
+                    if (!mediasearch_parse(line, len, &l)) continue;
+                    bool pass = true;
+                    for (int k = 0; k < np && pass; k++)
+                        if (pairs[k].kind == Q_FIELD) pass = mediasearch_match(&l, pairs[k].field, pairs[k].folded);
+                    if (!pass) continue;
+
+                    if (!medialib_rd_cat(&s_rd[v], l.cat_off)) continue;
+                    const mediacat_rec_t *r = s_rd[v].rec;
+                    for (int k = 0; k < np && pass; k++) pass = q_exact(&pairs[k], r, mode);
+                    if (!pass) continue;
+                    if (v > 0 && s_rd_open[0]) {
+                        midx_rec_t *ir = &s_lib->rec;
+                        if (midx_find(&s_rd[0].src, r->path, ir) >= 0 && !(ir->flags & MIDX_F_DEAD))
+                            continue;           /* the SD's copy answered already */
+                        s_rd[0].src.err = false;    /* a miss is not a failure */
+                    }
+                    if (mode != Q_COUNT && n_hit >= w_lo && n_hit < w_hi) {
+                        const mpd_song_t sg = {
+                            .uri = r->path, .duration_ms = -1, .pos = -1,
+                            .title = r->title[0] ? r->title : NULL,
+                            .artist = r->artist[0] ? r->artist : NULL,
+                            .album = r->album[0] ? r->album : NULL,
+                        };
+                        const size_t n = mpdproto_song(&sg, s_body, MPD_BODY_MAX);
+                        if (n) put(c, s_body, n);
+                    }
+                    n_hit++;
+                }
+                /* Keep the partial line; a line longer than the buffer
+                 * is not one of ours, and is skipped to its newline. */
+                memmove(buf, buf + at, have - at);
+                have -= at;
+                if (have >= MEDIASEARCH_LINE_MAX) { have = 0; skipping = true; }
+            }
+        }
+        lib_close();
+        if (err) {
+            ack(c, MPD_ACK_SYSTEM, x->idx, x->verb, "the library could not be read; reindex it");
+            return RES_ERR;
+        }
+    }
+    if (mode == Q_COUNT) putf(c, "songs: %ld\nplaytime: 0\n", n_hit);
     return RES_OK;
 }
 
@@ -1351,6 +1576,11 @@ static result_t run_cmd(conn_t *c, const mpd_cmd_t *cmd, int idx)
         list_unpin();
         return r;
     }
+
+    /* 5180: search, find and count. */
+    case MPD_CMD_FIND:   return lib_find(&x, cmd, Q_FIND);
+    case MPD_CMD_SEARCH: return lib_find(&x, cmd, Q_SEARCH);
+    case MPD_CMD_COUNT:  return lib_find(&x, cmd, Q_COUNT);
 
     /* 5177: the library. */
     case MPD_CMD_LSINFO:
@@ -1446,6 +1676,7 @@ static result_t run_cmd(conn_t *c, const mpd_cmd_t *cmd, int idx)
             .sample_rate = 0,
             .updating_db = v->updating ? 1u : 0u,
             .error = NULL,
+            .partition = MPD_PARTITION,                     /* 5180 */
         };
         const size_t n = mpdproto_status(&st, s_body, MPD_BODY_MAX);
         if (!n) {
@@ -1537,11 +1768,75 @@ static result_t run_cmd(conn_t *c, const mpd_cmd_t *cmd, int idx)
         return ask(&x, UI_ACTION_ORDER, (int)want) ? RES_OK : RES_ERR;
     }
 
+    /* ---- partitions and mounts (5180) ---------------------------------- */
+
+    /*
+     * ONE PARTITION. An MPD partition is a second player in the same
+     * server -- its own queue, its own state, its own outputs -- and this
+     * device has one queue and one output. So there is `default`, which
+     * every connection is in; switching to it is OK, to anything else is
+     * MPD's "partition does not exist", and a new one cannot be made.
+     * Deleting `default` is refused with MPD's own wording, since MPD
+     * refuses it too.
+     */
+    case MPD_CMD_LISTPARTITIONS:
+        putf(c, "partition: %s\n", MPD_PARTITION);
+        return RES_OK;
+    case MPD_CMD_PARTITION:
+        if (strcmp(a0, MPD_PARTITION) == 0) return RES_OK;
+        ack(c, MPD_ACK_NO_EXIST, idx, cmd->verb, "partition does not exist");
+        return RES_ERR;
+    case MPD_CMD_NEWPARTITION:
+        ack(c, MPD_ACK_UNKNOWN, idx, cmd->verb,
+            "this player has one queue and one output, so one partition");
+        return RES_ERR;
+    case MPD_CMD_DELPARTITION:
+        if (strcmp(a0, MPD_PARTITION) == 0)
+            ack(c, MPD_ACK_ARG, idx, cmd->verb, "Cannot delete the default partition");
+        else
+            ack(c, MPD_ACK_NO_EXIST, idx, cmd->verb, "partition does not exist");
+        return RES_ERR;
+    case MPD_CMD_MOVEOUTPUT:
+        /* Moving the one output into the partition it is already in. */
+        if (strcmp(a0, MPD_OUTPUT_NAME) == 0) return RES_OK;
+        ack(c, MPD_ACK_NO_EXIST, idx, cmd->verb, "No such output");
+        return RES_ERR;
+
+    /*
+     * ONE LIBRARY, TWO VOLUMES. MPD's mounts attach storage at a folder of
+     * the library; here the SD card and the USB drive are both laid over
+     * the library's root, merged, the SD winning a path both have
+     * (medialist.h). That is one mount, at the root -- `mount: ` with an
+     * empty path is MPD's root -- whose storage is the volumes that are in
+     * right now, listed in the order they win. Nothing is mounted from a
+     * client: the volumes mount themselves when they are put in, so
+     * `mount` and `unmount` say that. No neighbours: nothing is browsed
+     * for on the network.
+     */
+    case MPD_CMD_LISTMOUNTS: {
+        char vols[24] = "";
+        if (storage_present(STORAGE_SD)) strcat(vols, STORAGE_SD_MOUNT);
+        if (storage_present(STORAGE_USB)) {
+            if (vols[0]) strcat(vols, " ");
+            strcat(vols, STORAGE_USB_MOUNT);
+        }
+        puts_(c, "mount: \n");
+        if (vols[0]) putf(c, "storage: %s\n", vols);
+        return RES_OK;
+    }
+    case MPD_CMD_MOUNT:
+    case MPD_CMD_UNMOUNT:
+        ack(c, MPD_ACK_UNKNOWN, idx, cmd->verb,
+            "the SD card and USB drive mount themselves when they are put in");
+        return RES_ERR;
+    case MPD_CMD_LISTNEIGHBORS:
+        return RES_OK;
+
     case MPD_CMD_OUTPUTS:
         /* One output, always on: MPD 0.20's three fields
          * (src/output/OutputPrint.cxx). Headphones, speaker and a USB
          * DAC are one output here, switched by what is plugged in. */
-        puts_(c, "outputid: 0\noutputname: Tab5\noutputenabled: 1\n");
+        putf(c, "outputid: 0\noutputname: %s\noutputenabled: 1\n", MPD_OUTPUT_NAME);
         return RES_OK;
 
     /* ---- the transport ------------------------------------------------ */

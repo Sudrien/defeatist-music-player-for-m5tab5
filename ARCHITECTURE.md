@@ -16822,3 +16822,74 @@ board. No `sdkconfig.defaults` or `idf_component.yml` change. What a
 board run should show: no `{lsinfo} No such directory` on connect,
 Cantata's folder view at the root, and replace-and-play from Cantata
 logging `play -> play entry` and playing the new track.
+
+### 5180 -- mpd: search, find and count; one partition, one mount
+
+MPD.md step 12's search half, and two answers Cantata asked for on every
+connect.
+
+**`search`, `find`, `count`** in MPD's older form, TAG VALUE pairs, all
+of which must hold. Two stages, as `mediasearch.h` was designed for: the
+search file is read start to finish in 16 KB chunks (one lease each)
+and every pair tested as a folded substring; a line that passes is read
+from the catalog at its offset for the real path and tags, which `find`
+then compares exactly and both write the song from. So `find` costs a
+catalog read only per candidate, and `search` per result.
+
+What can be asked is what the library holds: `any`, `title`, `artist`,
+`album`, `file`, and `base DIR` (a folder of the library, matched
+exactly on the path). `albumartist` is searched as `artist` -- the
+catalog keeps no album artist -- and that is said in the code rather
+than pretended. Any other tag (genre, date, track, composer...) is one
+this device never read: nothing matches it, and the answer is an empty
+OK rather than an ACK that would teach a client to stop asking.
+`window START:END` pages; `sort` is ignored (the answer is in path
+order, SD first); `count ... group` and 0.21's filter expressions
+`"(artist == 'x')"` are refused by name. A path on both volumes is
+answered once, from the SD: a USB hit the SD's index holds live is
+skipped. A volume with an index but no search file finds nothing there
+(`medialib.c` writes the search file second, and a failure costs search
+alone). The search file is opened through the reader (5176), under the
+same reindex gate: a reindex replaces it by rename too.
+
+The whole card is scanned per query: 1203 lines on the test drive, about
+200 KB, which is what `search_build()` already reads in about a second
+with a catalog pass on top. A `search any a` that matches most of it
+pays a catalog read per match.
+
+**One partition.** An MPD partition (0.22) is a second player in the
+same server -- its own queue, state and outputs. This device has one of
+each, so: `listpartitions` answers `partition: default`, `partition
+default` is OK and any other is MPD's "partition does not exist",
+`newpartition` is refused with the reason, `delpartition default` gets
+MPD's own "Cannot delete the default partition", and `moveoutput Tab5`
+is OK (it is already there). `status` now carries `partition: default`
+after `consume`, where MPD 0.22 puts it; `mpdproto.h` had listed it as
+deliberately absent, and that line is updated.
+
+**One mount.** MPD's mounts attach storage at a folder of the library.
+Here the SD and the USB drive are both laid over the root, merged, SD
+winning -- which is one mount, at the root. `listmounts` answers `mount:`
+(empty: the root) and `storage:` listing the volumes that are in, in the
+order they win (`/sd /usb`). `mount` and `unmount` say the volumes mount
+themselves; `listneighbors` is an empty OK. Nothing on the network is
+browsed for.
+
+**And `lsinfo`'s refusal logs its argument** (`client N: lsinfo "x": not
+a folder or file in the library`). 5179 made `"/"` the root, and the next
+board run still had Cantata's connect-time `lsinfo` refused; MPD's
+wording does not quote the path, so the log could not say what was
+asked or whether MPD would have refused it too.
+
+**Host-tested**: `mpdprototest.c` for the nine new verbs in the table
+and `partition:` in `status` (after `consume`; absent for NULL and "").
+`mpd.c`'s search, partitions and mounts are not host-testable; compiled
+`-fsyntax-only` against stub IDF headers outside the repository.
+
+Not built with ESP-IDF, not run on a board. No `sdkconfig.defaults` or
+`idf_component.yml` change. What a board run should show: Cantata's
+search box returning tracks; `mpc search any <word>`, `mpc find album
+"<exact album>"` and `mpc count artist "<artist>"`; `mpc` with 0.22+
+showing `partition: default` in `status`; no `listpartitions` refusal
+on connect; and the logged `lsinfo` argument, which settles whether that
+refusal is right.

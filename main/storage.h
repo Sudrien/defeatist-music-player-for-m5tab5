@@ -219,6 +219,14 @@ void storage_hold(storage_id_t id);
  */
 void storage_hold_background(storage_id_t id);
 
+/*
+ * 5176: and a third, for the library's readers (medialib.h), set as a
+ * mask of (1 << storage_id_t) because one reader may have both volumes
+ * open at once. Only medialib.c calls it, and it owns the whole mask:
+ * 0 releases everything.
+ */
+void storage_hold_readers(uint32_t mask);
+
 #ifdef __cplusplus
 }
 #endif

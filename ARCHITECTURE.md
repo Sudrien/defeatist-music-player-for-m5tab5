@@ -16608,3 +16608,51 @@ del N` and `mpc move A B` with the device's glass and the remote page
 following, `mpc clear`, `mpc shuffle` with the playing track still
 current, and `mpc add nosuchfile` answered `No such directory`. The
 log has `client N: <verb> -> queue edit` and the `queue:` line for each.
+
+### 5176 -- medialib: readers, which a reindex waits for
+
+The first of MPD.md step 12, browsing and search. Steps 2 and 3 built
+the pieces -- `medialist.h`, one folder of both volumes merged, and the
+search file -- but nothing outside a reindex could get at a volume's
+index: `midx_src_t` needs callbacks over an open index and catalog, and
+the only ones were the reindex's own. This is those callbacks, as a
+reader: `medialib_rd_open(vol, &rd)`, `rd.src` for `medialist.h` and
+`mediaindex.h` to walk, `medialib_rd_cat()` for a record's tags, and
+`medialib_rd_close()`.
+
+**A reader and a reindex never overlap.** The reindex removes the index
+and renames a new one over it (`mediasync.c`), and FatFs reading a file
+whose name was removed under it reads freed clusters. So a reader is
+refused while a reindex runs, and `medialib_request()` refuses while a
+reader is open -- both decided under the one `s_mux` that already
+guarded `s_busy`, so there is no window between the checks. The
+automatic run is not refused and dropped (which would leave it undone
+until the next mount): `medialib_poll()` sees a reader and waits, and
+the run stays due. The REINDEX button is refused for that moment, as it
+is while another run is going.
+
+**A reader holds its volume.** `storage_hold()` is the player's and
+`storage_hold_background()` the reindex's, each one volume; a merged
+listing has both volumes open at once. So `storage.c` gains a third
+hold, a mask (`storage_hold_readers()`), which `held()` consults like
+the other two: a card pulled mid-listing is marked absent and unmounted
+when the reader closes, not under it.
+
+**One task at a time.** `mediacat_read_at()` reads through a static line
+buffer. Beside the reindex that is safe because the two cannot overlap;
+two readers on two tasks could. Only the MPD server's task will open
+readers; a second user needs a lock here first, and the header says so.
+
+**The MPD task will be reading the card.** 5175 kept `add`'s file check
+on `ui_task`, saying this task's stack is in PSRAM and "kept off the
+filesystem". That was caution rather than a rule: 5159's condition for
+a PSRAM stack is that the task never runs with the cache disabled, and
+reading the SD card does not disable it -- flash writes do. Buffers the
+SDMMC driver cannot DMA into are bounced by the driver. The readers'
+buffers are the storage_io pool's and the heap's, not the stack's.
+
+Not host-tested: `medialib.c` is file I/O over `storage_io`. Nothing
+calls a reader yet; the next patch is `lsinfo`. Not built with ESP-IDF,
+not run on a board. No `sdkconfig.defaults` or `idf_component.yml`
+change. A board run should show nothing different: a reindex on mount
+and from the button, as before.

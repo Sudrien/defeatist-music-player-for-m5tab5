@@ -106,8 +106,16 @@ static volatile int s_held = STORAGE_COUNT;
  * -- the media index -- so it does not take the player's slot from it
  * or have its own taken. Either one defers an unmount. */
 static volatile int s_held_bg = STORAGE_COUNT;
+/* 5176: a third, for the library's readers (medialib_rd_open()), which
+ * may have files open on both volumes at once -- MPD's merged listing --
+ * so it is a mask of volumes rather than one. */
+static volatile uint32_t s_held_rd;
 
-static bool held(storage_id_t id) { return s_held == id || s_held_bg == id; }
+static bool held(storage_id_t id)
+{
+    return s_held == id || s_held_bg == id ||
+           (id < STORAGE_COUNT && (s_held_rd & (1u << id)));
+}
 
 /* When the USB liveness probe last ran. Set on mount as well, so a
  * freshly attached drive is not probed a tick later for no reason. */
@@ -271,6 +279,7 @@ uint32_t storage_generation(void) { return s_generation; }
 
 void storage_hold(storage_id_t id) { s_held = id; }
 void storage_hold_background(storage_id_t id) { s_held_bg = id; }
+void storage_hold_readers(uint32_t mask) { s_held_rd = mask; }
 
 /* Answered by the bus owner. Kept as a one-line forward rather than
  * deleted so browser.c does not have to learn about usbhost.c to ask a

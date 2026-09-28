@@ -26,6 +26,10 @@
 
 #include <stdbool.h>
 
+#include <stdio.h>
+
+#include "mediacat.h"
+#include "mediaindex.h"
 #include "mediasync.h"
 #include "storage.h"
 
@@ -118,6 +122,51 @@ bool medialib_busy(void);
  * the automatic run.
  */
 void medialib_poll(void);
+
+/*
+ * 5176: READING THE LIBRARY -- MPD.md step 12, browsing and search.
+ *
+ * A reader is one volume's index and catalog, open for reading, with a
+ * midx_src_t over them that medialist.h and mediaindex.h can walk. It is
+ * how something other than the reindex gets at the library.
+ *
+ * A READER AND A REINDEX NEVER OVERLAP. The reindex removes the index and
+ * renames a new one into its place, and FatFs with a file open under a
+ * removed name reads freed clusters. So medialib_rd_open() refuses while
+ * a reindex runs, and a reindex does not start while a reader is open --
+ * medialib_request() refuses, and the automatic run waits (it stays due)
+ * rather than being dropped. A reader should be short: one MPD command.
+ *
+ * A reader holds its volume (storage_hold_readers()), so a card pulled
+ * mid-listing is marked absent and unmounted when the reader closes, not
+ * under it.
+ *
+ * ONE TASK AT A TIME. The catalog read (mediacat_read_at()) goes through
+ * a static line buffer, which is safe beside the reindex only because the
+ * two cannot overlap; two readers on two tasks could. Today only the MPD
+ * server's task opens readers. A second user needs a lock here first.
+ */
+typedef struct {
+    storage_id_t     vol;
+    FILE            *ix;        /* the index */
+    FILE            *cat;       /* the catalog */
+    midx_src_t       src;       /* over ix and cat; src.n records */
+    mediacat_rec_t  *rec;       /* PSRAM: the catalog line last read */
+} medialib_rd_t;
+
+/*
+ * Open `vol` for reading. False, with nothing held and nothing to close,
+ * when the volume is not mounted, a reindex is running, it has no index
+ * yet, or there was no memory. `rd` must not be on a task stack when a
+ * caller has a smaller one than it needs: it is a few dozen bytes, the
+ * buffers are on the heap.
+ */
+bool medialib_rd_open(storage_id_t vol, medialib_rd_t *rd);
+void medialib_rd_close(medialib_rd_t *rd);
+
+/* The catalog record at `off` -- a record's cat_off -- into rd->rec. For
+ * a track's tags. False when it cannot be read. */
+bool medialib_rd_cat(medialib_rd_t *rd, uint32_t off);
 
 /* A copy of one volume's status, for drawing. The counts in a RUNNING
  * status are read while the run writes them; each is a plain int, and

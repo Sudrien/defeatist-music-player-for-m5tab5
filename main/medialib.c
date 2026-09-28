@@ -638,13 +638,23 @@ static void reindex_task(void *arg)
     vTaskDelete(NULL);
 }
 
+/* 5176: readers open, per volume. Under s_mux with s_busy, so a reader
+ * and a reindex are decided against each other in one place. */
+static int s_readers[STORAGE_COUNT];
+
+static bool readers_open(void)
+{
+    for (int v = 0; v < STORAGE_COUNT; v++) if (s_readers[v]) return true;
+    return false;
+}
+
 bool medialib_request(storage_id_t vol)
 {
     if (vol >= STORAGE_COUNT || !storage_present(vol)) return false;
 
     taskENTER_CRITICAL(&s_mux);
-    const bool was = s_busy;
-    s_busy = true;
+    const bool was = s_busy || readers_open();      /* 5176: or being read */
+    if (!was) s_busy = true;
     taskEXIT_CRITICAL(&s_mux);
     if (was) return false;
 
@@ -698,6 +708,12 @@ void medialib_poll(void)
     }
 
     if (s_busy) return;
+    /* 5176: a reader is open. The run stays due and is tried next pass,
+     * rather than being refused below and dropped until the next mount. */
+    taskENTER_CRITICAL(&s_mux);
+    const bool reading = readers_open();
+    taskEXIT_CRITICAL(&s_mux);
+    if (reading) return;
     for (int v = 0; v < STORAGE_COUNT; v++) {
         if (!s_pending[v]) continue;
         if ((now - s_mounted_at[v]) < pdMS_TO_TICKS(MEDIALIB_SETTLE_MS)) continue;
@@ -711,4 +727,103 @@ void medialib_poll(void)
          * the button will try again. */
         s_pending[v] = false;
     }
+}
+
+/* ---- 5176: readers ------------------------------------------------------ */
+
+static void readers_hold(void)
+{
+    uint32_t mask = 0;
+    for (int v = 0; v < STORAGE_COUNT; v++) if (s_readers[v]) mask |= 1u << v;
+    storage_hold_readers(mask);
+}
+
+static bool rd_read(void *ctx, uint32_t i, midx_rec_t *out)
+{
+    medialib_rd_t *rd = ctx;
+    uint8_t raw[MIDX_REC_SIZE];
+    return storage_io_read_at(rd->ix, (int64_t)i * MIDX_REC_SIZE, raw, sizeof(raw), CLS) &&
+           midx_rec_unpack(raw, out);
+}
+
+static bool rd_fullpath(void *ctx, uint32_t cat_off, char *buf, size_t n)
+{
+    medialib_rd_t *rd = ctx;
+    if (!medialib_rd_cat(rd, cat_off)) return false;
+    const size_t len = strlen(rd->rec->path);
+    if (len + 1 > n) return false;
+    memcpy(buf, rd->rec->path, len + 1);
+    return true;
+}
+
+bool medialib_rd_cat(medialib_rd_t *rd, uint32_t off)
+{
+    return rd && rd->cat && rd->rec && mediacat_read_at(rd->cat, off, rd->rec);
+}
+
+void medialib_rd_close(medialib_rd_t *rd)
+{
+    if (!rd || rd->vol >= STORAGE_COUNT) return;
+    storage_io_acquire(CLS);
+    if (rd->ix) storage_io_close(rd->ix);
+    if (rd->cat) storage_io_close(rd->cat);
+    storage_io_release();
+    free(rd->src.scratch);
+    free(rd->rec);
+    taskENTER_CRITICAL(&s_mux);
+    s_readers[rd->vol]--;
+    taskEXIT_CRITICAL(&s_mux);
+    readers_hold();
+    memset(rd, 0, sizeof(*rd));
+    rd->vol = STORAGE_COUNT;
+}
+
+bool medialib_rd_open(storage_id_t vol, medialib_rd_t *rd)
+{
+    if (!rd) return false;
+    memset(rd, 0, sizeof(*rd));
+    rd->vol = STORAGE_COUNT;
+    if (vol >= STORAGE_COUNT) return false;
+
+    taskENTER_CRITICAL(&s_mux);
+    const bool ok = !s_busy;
+    if (ok) s_readers[vol]++;
+    taskEXIT_CRITICAL(&s_mux);
+    if (!ok) return false;
+    rd->vol = vol;
+    /* Held before anything is opened, and checked present after, so the
+     * volume cannot go between the check and the open. */
+    readers_hold();
+
+    char index[32], cat[48];
+    const char *mount = storage_mount_path(vol);
+    const uint32_t ps = MALLOC_CAP_SPIRAM | MALLOC_CAP_8BIT;
+    rd->rec = heap_caps_malloc(sizeof(*rd->rec), ps);
+    rd->src.scratch = heap_caps_malloc(MIDX_PATH_MAX + 1, ps);
+    if (!storage_present(vol) || !mount || !rd->rec || !rd->src.scratch ||
+        !storage_join_path(index, sizeof(index), mount, MEDIALIB_INDEX_NAME) ||
+        !mediacat_path(vol, cat, sizeof(cat))) {
+        medialib_rd_close(rd);
+        return false;
+    }
+
+    storage_io_acquire(CLS);
+    rd->ix = storage_io_open(index, "rb");
+    rd->cat = rd->ix ? storage_io_open(cat, "rb") : NULL;
+    long size = -1;
+    if (rd->ix && fseek(rd->ix, 0, SEEK_END) == 0) size = ftell(rd->ix);
+    storage_io_release();
+    /* No index yet (a first run not finished), or not whole records: the
+     * same test mediasync.c's open_old() makes. */
+    if (!rd->ix || !rd->cat || size < 0 || size % MIDX_REC_SIZE != 0) {
+        medialib_rd_close(rd);
+        return false;
+    }
+
+    rd->src.read = rd_read;
+    rd->src.fullpath = rd_fullpath;
+    rd->src.ctx = rd;
+    rd->src.n = (uint32_t)(size / MIDX_REC_SIZE);
+    rd->src.scratch_n = MIDX_PATH_MAX + 1;
+    return true;
 }

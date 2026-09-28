@@ -15863,3 +15863,46 @@ restarts it with `seekid <current> 0` instead of sending `previous`
 other end.
 
 `run-mpdproto` 40620 checks; the socket harness 51.
+
+### 5164 -- playlist.c, pinned before 4b changes what it stands on
+
+`MPD.md` step 4b replaces `playlist.c`'s storage -- an array of strdup'd
+paths -- with `mpdqueue.c`, and what makes that acceptable is the promise
+that the glass behaves exactly as before. `playlist.c` had no test, so
+there was nothing to hold the promise to. This is that test, written
+against the file as it is, so the switch-over can be made to pass it
+**unchanged** -- a test adjusted to fit the new code would prove nothing
+about the old behaviour.
+
+`texttest/playlisttest.c` as `run-playlist`: 869 checks, both passes. The
+directory is real -- a temporary one on the host -- so `readdir()`,
+`d_type` and the filtering run as they do on a card; the decoder's
+extension check, the storage helpers, the cue sheets and `esp_random()`
+are stood in for, and `fake/esp_random.h` is new so a test can pin what
+"random" returns. What it holds: the filters (directories, dotfiles and
+AppleDouble sidecars, unsupported extensions, audio a cue sheet covers),
+case-insensitive order with cue tracks sorted in, the ceiling, every
+order's `next`/`peek`/`has_next`, `prev`, shuffle as a permutation over
+two hundred seeds with no back-to-back repeat at the wrap, and the
+failure paths.
+
+**Three behaviours the header does not state, pinned because callers rely
+on them:** a load with a NULL or empty dir changes nothing, not even the
+cursor; `playlist_next(ALL)` with no current track starts at the top while
+`playlist_peek_next(ALL)` says nothing follows; and a folder that will not
+open empties the list and forgets its name, where an empty folder that
+opens keeps it.
+
+**Mutation-checked**, seventeen deliberate bugs, all caught -- three of
+them only after the suite was strengthened, which is the useful part:
+
+- *a case-sensitive sort* passed at first, because the fixture's names
+  (`A`, `b`, `c`, `d`) sort the same both ways. It needs `a` and `B`.
+- *removing the sort* "failed" only because `-Werror` rejected the unused
+  comparator -- a build error, not a catch. Re-run as a sort that compiles
+  and does nothing, it is four failures.
+- *`peek_next` reading past the end* passed, and is the one that matters
+  for 4b: past the last entry a FRESH array is all NULL, so the bad read
+  returned the right answer. After a longer folder was loaded first, that
+  slot is one of the old list's freed pointers. The suite now loads nine
+  tracks, then four, and reads at the end.

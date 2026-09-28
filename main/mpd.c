@@ -231,15 +231,23 @@ static uint32_t          s_last_id; /* ui_task's: ids are never reused */
  * from somewhere other than the queue's folder. Neither is in the queue,
  * and MPD never plays anything that is not, so for those the list is the
  * one thing playing -- 5158's arrangement, kept for exactly the case it
- * is honest about. A window entry's id is from its own counter with the
- * top bit set, so it can never equal a queue id.
+ * is honest about.
+ *
+ * WINDOW IDS FIT A SIGNED 32-BIT INT (5167). MPD's ids are small numbers
+ * and clients store them as int: Cantata parses them with toInt() into a
+ * qint32, which returns 0 for anything above INT32_MAX. 5166 marked
+ * window ids with the TOP bit -- 0x80000001 -- and Cantata read every one
+ * as 0. They start at 2^30 now: still apart from the queue's, which count
+ * up from 1 and would need a billion appends in one boot to meet them,
+ * and still a positive int.
  *
  * Tags are known for the song that is playing and for nothing else: the
  * catalog has them (mediacat.h) but looking every entry up is step 12's
  * query layer. Until then the other entries are `file:` with a position
  * and an id, and a client shows the file name.
  */
-#define MPD_WINDOW_ID       (0x80000000u)
+#define MPD_WINDOW_ID       (0x40000000u)
+_Static_assert(MPD_WINDOW_ID + 0x3FFFFFFFu <= 0x7FFFFFFFu, "window ids must stay positive ints");
 
 typedef struct {
     int       n;
@@ -1577,11 +1585,51 @@ void mpd_publish(const ui_state_t *st, const char *path, bool streaming)
     const int cur = playlist_current();
     const char *qp = cur >= 0 ? mpdq_path(cur) : NULL;
     const bool shown = streaming || (path && path[0]);
+    /*
+     * 5167: THE CURSOR, NOT THE SCREEN, SAYS WHICH ENTRY IS PLAYING. A
+     * folder chosen on the glass loads the queue and moves the cursor at
+     * once; the screen commits to the new track only when its first
+     * frame is ready (track_commit()). In that gap 5166 saw a shown path
+     * that was not the cursor's entry and showed the OLD track as a
+     * window of one -- with an id Cantata could not read -- which is what
+     * the board reported as "still playing" the last folder. The queue's
+     * cursor is where the player is going; the screen catches up.
+     *
+     * BUT ONLY WHILE THE SCREEN IS CATCHING UP. The screen and the cursor
+     * can also disagree for good: a double-tap of Prev walks back through
+     * history into another folder's track and leaves the cursor where it
+     * was. The two differ in which side moved. A lag is the CURSOR moving
+     * (a load, a Next) while the screen still shows what it showed then;
+     * a mismatch is the SCREEN moving to something the queue does not
+     * hold. So the path on screen is remembered each time the queue or
+     * the cursor changes, and the cursor is trusted while the screen still
+     * shows that same path -- and once the screen shows something else
+     * that is not the cursor's entry, it is a window of one.
+     *
+     * The entry's tags are the screen's only once the screen is showing
+     * that entry (`inq`); until then it is its path alone, and the tags
+     * arriving a moment later are a change in place, as a stream's are.
+     */
+    static uint32_t s_seen_qv;
+    static int      s_seen_cur = -2;
+    static char     s_seen_shown[512];      /* ui_task's */
+    if (mpdq_version() != s_seen_qv || cur != s_seen_cur) {
+        s_seen_qv = mpdq_version();
+        s_seen_cur = cur;
+        snprintf(s_seen_shown, sizeof(s_seen_shown), "%s", (path && !streaming) ? path : "");
+    }
     const bool inq = !streaming && shown && qp && strcmp(qp, path) == 0;
-    const bool window = shown && !inq && n->uri[0];
+    const bool lagging = !streaming && qp && !inq &&
+                         strcmp((path && shown) ? path : "", s_seen_shown) == 0;
+    const bool queued = !streaming && cur >= 0 && qp && (inq || lagging || !shown);
+    const bool window = !queued && shown && n->uri[0];
+    if (queued && !inq) {
+        n->title[0] = n->artist[0] = n->album[0] = '\0';
+        n->duration_ms = -1;
+    }
 
     uint32_t sid = 0;
-    if (inq) {
+    if (queued) {
         sid = mpdq_id(cur);
     } else if (window) {
         /* The same thing still playing keeps its id; anything else is new. */
@@ -1615,7 +1663,7 @@ void mpd_publish(const ui_state_t *st, const char *path, bool streaming)
     const qlist_t *ql = L;
     if (w >= 0) {
         const uint32_t vnew = p->version + 1;
-        const int song_guess = inq ? cur : 0;
+        const int song_guess = queued ? cur : 0;
         const bool changed = list_build(&s_ql[w], L, window, n->uri, sid, song_guess,
                                         tags_changed, vnew);
         n->version = changed ? vnew : p->version;
@@ -1634,9 +1682,9 @@ void mpd_publish(const ui_state_t *st, const char *path, bool streaming)
         n->next_id = p->next_id;
     } else {
         n->length = ql->n;
-        n->song = inq ? (cur < ql->n ? cur : -1) : (window && ql->n == 1 ? 0 : -1);
+        n->song = queued ? (cur < ql->n ? cur : -1) : (window && ql->n == 1 ? 0 : -1);
         n->id = n->song >= 0 ? ql->id[n->song] : 0;
-        n->next_song = inq ? mpdmode_next_pos(browser_order(), n->song, ql->n) : -1;
+        n->next_song = queued ? mpdmode_next_pos(browser_order(), n->song, ql->n) : -1;
         n->next_id = n->next_song >= 0 ? ql->id[n->next_song] : 0;
     }
     n->have_song = n->song >= 0;

@@ -16061,3 +16061,72 @@ Not on a board. What a run should show: Cantata's play queue listing the
 folder, its Next button live (except under shuffle), double-clicking a
 queue row playing it, and `tab5_mpd: client N: play -> play entry` for
 that.
+
+### 5167 -- the cursor, not the screen, and ids a client can read
+
+The board, after 5166: Next worked from Cantata, a queue row played on a
+double-click -- and then, after a folder was chosen on the glass, Cantata
+went on saying the last folder's track was playing while the device played
+the new one.
+
+**Two faults, found by replaying the chooser's sequence in the socket
+harness** -- the queue and the cursor move at the tap, the screen a few
+passes later when the new track's first frame is committed
+(`track_commit()`):
+
+- **In that gap 5166 showed the OLD track as a window of one.** The screen
+  still showed the old folder's path, the cursor's entry was the new
+  folder's, and 5166 decided "what is playing" by the screen: a shown
+  path that was not the cursor's entry meant a file from outside the
+  queue. So for half a second the list was one entry, the previous
+  track.
+- **And that window's id was unreadable.** 5166 marked window ids with
+  the top bit, `0x80000001`, to keep them apart from the queue's. MPD's
+  ids are small numbers and clients store them as int: Cantata parses
+  them with `toInt()` into a `qint32`, which yields 0 for anything above
+  `INT32_MAX`. The harness printed `id=2147483649`; Cantata saw 0.
+
+Which of the two left Cantata stuck is not provable from here -- the
+client's model is not in the harness -- but both are wrong on their own,
+and the second is wrong for every station too.
+
+**Window ids start at 2^30 now**: apart from the queue's, which count up
+from 1 and would need a billion appends in one boot to meet them, and a
+positive int. A `_Static_assert` keeps the range under `INT32_MAX`.
+
+**And the cursor says which entry is playing, while the screen catches
+up.** The distinction that makes it safe is which side moved. A *lag* is
+the cursor moving -- a load, a Next -- while the screen still shows what
+it showed then; a *mismatch* is the screen moving to something the queue
+does not hold, which a double-tap of Prev does when it walks back through
+history into another folder and leaves the cursor where it was. So the
+path on screen is remembered whenever the queue's version or the cursor
+changes, and the cursor is trusted while the screen still shows that
+path. Once the screen shows something else that is not the cursor's
+entry, it is a window of one, as before.
+
+**While the screen lags, the entry has no tags** -- its path, a position
+and an id -- because the tags on screen are still the old track's, and a
+new file with the old title is the one combination that would be
+confidently wrong. They arrive a moment later as a change in place, the
+way a stream's title does, which re-versions that row and raises
+`player`.
+
+Checked in the socket harness over the real `playlist.c` and
+`mpdqueue.c`, with a new fixture folder and a `chooser` poke that loads
+it and lags the screen by five passes: polled every 50 ms through the
+change, everything before the switch is the old folder and everything
+after is the new one at song 0, never a window, never an id above
+`INT32_MAX`, never the old folder's title against the new folder's file;
+the history case ("outside") is still a window. 43 checks, plus the older
+51. **Mutation-checked**, four deliberate bugs, all caught: window ids
+back on the top bit, the screen trusted over the cursor (5166 exactly),
+the cursor trusted even after the screen moved, and the old tags kept
+through the lag.
+
+Not on a board. What a run should show: choosing a folder on the glass
+while Cantata is open moves Cantata's queue and its now-playing to the
+new folder within about a second, and a station's id in Cantata is no
+longer 0. If Cantata still lags after this, the next thing to try is
+`mpc -h <address> idleloop` beside it, which separates "the server did
+not say" from "the client did not ask".

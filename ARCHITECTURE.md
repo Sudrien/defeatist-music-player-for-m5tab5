@@ -16704,3 +16704,75 @@ indexed card: `mpc ls` listing the volume root merged, `mpc ls <folder>`
 its folders and files with tags, `mpc listall | head`, and Cantata's
 library browser filling. `mpc add` of a path from `mpc ls` then works
 without knowing it in advance.
+
+### 5178 -- the radio could not start: 12 KB of .bss back to PSRAM
+
+The first board run with 5176 and 5177 (v0.4.0-199) never got Wi-Fi.
+esp_hosted's card init asked for 512 bytes of DMA-capable internal RAM,
+got nothing, and retried until its five seconds were up:
+
+    W (3805) tab5_heap: allocation failed: 512 bytes, caps 0x00000008, ... task main (#1)
+    --- 0x401260a4: sdmmc_allocate_aligned_buf ...
+    E (3809) eh_host_port_sdio: sdmmc_card_init failed
+    ... (#15)
+    W (5323) eh_reconfigure: bring-up timed out (5000ms); returning -EIO
+
+The same boot's heap map, before the radio started:
+
+    internal free   65863  largest   31744
+    DMA      free   26303  largest   25600
+      At 0x4ff4f2f0 len 199952 free 4      <- the main internal region, full
+      At 0x4ff2ac90 len 66352  free 26172  <- RETENT_RAM: the DMA-capable pool
+
+against 5147's boot of `DMA free 41867`. **The main internal region is
+full at boot**, so every internal allocation that does not fit there
+lands in RETENT_RAM, which is where the radio's DMA memory comes from
+(5145: "the radio owns the DMA heap"). And **a static is internal
+`.bss`**, which comes off the top of that main region before the heap
+gets it. So every byte of `.bss` added pushes a byte of somebody's
+allocation into the radio's pool.
+
+This series had added about 12 KB of it. The largest were 5175's and
+5177's buffers in `mpd.c` -- 4 KB of ids for a ranged delete, a 2 KB
+`medialist_t`, the listing's entry, record, walkers and three 508-byte
+path buffers -- then `uireq.c`'s ring, outcomes and open slot (5170,
+5173, 5175), and three 512-byte path buffers on `ui_task` (5172, 5173,
+5175). Each was written as "static, because it is not for a task's
+stack", which is right about the stack and wrong about this build's
+internal RAM, where a static is no cheaper. 5177 alone added about 5 KB;
+the run before it, with 5175, had a radio.
+
+**They are PSRAM now**, each allocated once. `mpd.c`'s gather into one
+`mpd_scratch_t` from `mpd_init()`, whose failure is the same failed init
+as any other buffer there. `uireq.c`'s from `uireq_init()`, with the
+mutex created last so a module that did not get its memory refuses
+everything rather than writing through NULL. `ui_task`'s on first use;
+without them the edits are not drained and wait, which a producer
+waiting on one sees as "player busy". Measured on the host (`size`, -O0,
+stub IDF headers, outside the repository): `mpd.o` `.bss` 11808 -> 2432
+bytes, `uireq.o` 1730 -> 66, and 1536 from `player.c`. The target's
+32-bit pointers make the real figures slightly smaller.
+
+**The rule, for the next patch that wants a buffer:** in this build a
+task-owned buffer goes in PSRAM, allocated once, unless something needs
+it internal (DMA, or code that runs with the cache off). "Static rather
+than a stack local" is still right; "static" is not the same as "cheap".
+This belongs in CLAUDE.md beside the stack rules, and is written here
+first so the user can decide the wording.
+
+**Not proven by this patch alone.** The counts fit -- 26303 at boot is
+~15 KB below 5147's, and this series' `.bss` is most of that -- but the
+board is the proof. What should show it: the `heap map (boot)` line's
+`DMA free` back up by roughly 10 KB, no `allocation failed ... caps
+0x00000008` before `eh_sdio`, and `tab5_wifi` joining a network. If the
+radio still fails with DMA free near 36 KB at boot, the cause is
+elsewhere and this is only a saving.
+
+Also in the log and not this patch: `USB drive removed` at 35.8 s, then
+the serial port going away -- the board was unplugged.
+
+Not built with ESP-IDF, not run on a board. No `sdkconfig.defaults` or
+`idf_component.yml` change. (`EXT_RAM_BSS_ATTR` would have moved the
+statics without code changes, but needs
+`CONFIG_SPIRAM_ALLOW_BSS_SEG_EXTERNAL_MEMORY` and so an sdkconfig
+change and an `rm sdkconfig`; a heap allocation needs neither.)

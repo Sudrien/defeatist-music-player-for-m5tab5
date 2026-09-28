@@ -7148,10 +7148,15 @@ static void ui_task(void *arg)
          * playing leaves it playing (playlist.h, 5171).
          */
         {
-            static char epath[512];
+            /* 5178: PSRAM, once -- 1 KB of internal .bss was part of
+             * what starved the radio's card init (ARCHITECTURE.md). No
+             * buffer, no draining: the edits wait, and a producer that
+             * waits on one is told the player is busy. */
+            static char *epath, *efile;
+            if (!epath && (epath = heap_caps_malloc(1024, MALLOC_CAP_SPIRAM | MALLOC_CAP_8BIT)))
+                efile = epath + 512;
             uireq_edit_t e;
-            while (uireq_take_edit(&e, epath, sizeof(epath))) {
-                static char efile[512];
+            while (epath && uireq_take_edit(&e, epath, 512)) {
                 /* 5175: every edit reports how it went, for a producer
                  * that must answer for it (MPD's addid, and its ACKs). */
                 uireq_done_t how = UIREQ_DONE_OK;
@@ -7162,7 +7167,7 @@ static void ui_task(void *arg)
                     /* What the chooser would list: a playable file, or a
                      * cue sheet's track. A folder, or anything else,
                      * would only be skipped as unreadable when reached. */
-                    const char *const efp = cuedir_file_of(epath, efile, sizeof(efile));
+                    const char *const efp = cuedir_file_of(epath, efile, 512);
                     if (!decoder_supports(epath) && efp == epath) {
                         ESP_LOGW(TAG, "queue: not a track, not added: %s", epath);
                         how = UIREQ_DONE_NOT_TRACK;
@@ -8190,11 +8195,12 @@ static void ui_task(void *arg)
              * the cursor, then the track -- and so does the chooser. */
             /* 5172: the id's position, the path and the cursor under the
              * lock, so they are one list; the path copied, and the request
-             * made after it is let go. Static: 512 bytes, ui_task. */
-            static char idpath[512];
+             * made after it is let go. 5178: PSRAM, once, not .bss. */
+            static char *idpath;
+            if (!idpath) idpath = heap_caps_malloc(512, MALLOC_CAP_SPIRAM | MALLOC_CAP_8BIT);
             playlist_lock();
             const int pos = mpdq_find_id((uint32_t)act.value);
-            const bool have = pos >= 0 && playlist_path_copy(pos, idpath, sizeof(idpath));
+            const bool have = idpath && pos >= 0 && playlist_path_copy(pos, idpath, 512);
             if (have) playlist_set_current(pos);
             playlist_unlock();
             if (have) {

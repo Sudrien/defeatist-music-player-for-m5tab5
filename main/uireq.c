@@ -28,7 +28,10 @@ typedef struct {
 } req_t;
 
 static SemaphoreHandle_t s_mu;
-static req_t             s_ring[UIREQ_DEPTH];      /* under s_mu */
+/* 5178: the ring, the outcomes and the open slot are PSRAM, from
+ * uireq_init(), not .bss: about 1.5 KB of internal RAM the radio's DMA
+ * needed more (ARCHITECTURE.md). */
+static req_t            *s_ring;                    /* UIREQ_DEPTH, under s_mu */
 static unsigned          s_head, s_n;               /* under s_mu */
 static unsigned          s_waiting[UIREQ_SOURCES];  /* under s_mu */
 static uint32_t          s_seq;                     /* under s_mu */
@@ -36,19 +39,28 @@ static uint32_t          s_taken;   /* under s_mu: the last one taken */
 static uint32_t          s_done;    /* under s_mu: taken AND published */
 
 /* 5175: the last UIREQ_OUTCOMES edits' outcomes, by seq % UIREQ_OUTCOMES. */
-static struct {
+typedef struct {
     uint32_t     seq;       /* 0: empty */
     uireq_done_t how;
     uint32_t     id;
-} s_done_tab[UIREQ_OUTCOMES];                                /* under s_mu */
+} outcome_t;
+static outcome_t        *s_done_tab;                /* UIREQ_OUTCOMES, under s_mu */
 
-static char              s_open_path[UIREQ_PATH_MAX];  /* under s_mu */
+static char             *s_open_path;               /* UIREQ_PATH_MAX, under s_mu */
 static bool              s_open_folder;                /* under s_mu */
 static volatile bool     s_open_pending;
 
 void uireq_init(void)
 {
-    if (!s_mu) s_mu = xSemaphoreCreateMutex();
+    if (s_mu) return;
+    const uint32_t ps = MALLOC_CAP_SPIRAM | MALLOC_CAP_8BIT;
+    s_ring = heap_caps_calloc(UIREQ_DEPTH, sizeof(*s_ring), ps);
+    s_done_tab = heap_caps_calloc(UIREQ_OUTCOMES, sizeof(*s_done_tab), ps);
+    s_open_path = heap_caps_calloc(1, UIREQ_PATH_MAX, ps);
+    /* s_mu last: every function here tests it before touching the rest,
+     * so a failed allocation leaves a module that refuses everything
+     * rather than one that writes through NULL. */
+    if (s_ring && s_done_tab && s_open_path) s_mu = xSemaphoreCreateMutex();
 }
 
 /* Under s_mu: `r` into the ring with the next number, or 0 for no room.

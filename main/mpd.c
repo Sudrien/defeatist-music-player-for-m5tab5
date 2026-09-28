@@ -845,6 +845,37 @@ static result_t run_list_cmd(conn_t *c, const mpd_cmd_t *cmd, int idx)
     }
 }
 
+/*
+ * 5178: THE BUFFERS BELOW ARE PSRAM, allocated once in mpd_init(). 5175
+ * and 5177 had them as statics, and a static is internal .bss: about
+ * 9 KB of it, in a build whose main internal region is already full at
+ * boot, which pushes other internal allocations into the one region the
+ * radio's DMA comes from -- and esp_hosted's card init then could not
+ * find 512 bytes (ARCHITECTURE.md, 5178). A task-owned buffer on this
+ * task is only ever touched by it, so where it lives is only a cost.
+ */
+typedef struct {
+    midx_src_t *s;
+    uint32_t    i, end;
+    midx_rec_t  r;
+    const char *path;       /* into r.key or s->scratch */
+    bool        valid;
+} lib_walk_t;
+
+typedef struct {
+    char            vfs[MPDURI_VFS_MAX];        /* add_uri() */
+    uint32_t        edit_ids[MPDQ_MAX];         /* range_ids() */
+    medialist_t     ml;                         /* lsinfo */
+    medialist_ent_t ent;
+    midx_rec_t      rec;
+    char            dir[MPDURI_MAX + 2];
+    char            uri[MPDURI_MAX + 2];
+    lib_walk_t      w[MEDIALIST_VOLS];          /* listall */
+    char            last[MPDURI_MAX + 2];
+} mpd_scratch_t;
+
+static mpd_scratch_t *s_lib;        /* PSRAM, from mpd_init(); this task's */
+
 /* ---- the queue's edits (5175, MPD.md step 11) --------------------------- */
 
 /*
@@ -933,8 +964,8 @@ static void ack_done(const ctx_t *x, uireq_done_t how)
  */
 static bool add_uri(const ctx_t *x, const char *uri, int pos, uint32_t *id_out)
 {
-    /* Static: this task's, and 512 bytes is not for its stack. */
-    static char vfs[MPDURI_VFS_MAX];
+    /* 5178: PSRAM, this task's -- see mpd_scratch_t. */
+    char *const vfs = s_lib->vfs;
     if (!uri || !mpduri_ok(uri, false)) {
         ack(x->c, MPD_ACK_NO_EXIST, x->idx, x->verb, "No such directory");
         return false;
@@ -943,16 +974,14 @@ static bool add_uri(const ctx_t *x, const char *uri, int pos, uint32_t *id_out)
     uireq_done_t how = UIREQ_DONE_NO_FILE;
     for (int v = 0; v < MPDURI_VOLS && how == UIREQ_DONE_NO_FILE; v++) {
         const char *m = mpduri_mount(v);
-        const int k = m ? snprintf(vfs, sizeof(vfs), "%s/%s", m, uri) : -1;
-        if (k <= 0 || (size_t)k >= sizeof(vfs) || (size_t)k >= UIREQ_PATH_MAX) continue;
+        const int k = m ? snprintf(vfs, sizeof(s_lib->vfs), "%s/%s", m, uri) : -1;
+        if (k <= 0 || (size_t)k >= sizeof(s_lib->vfs) || (size_t)k >= UIREQ_PATH_MAX) continue;
         if (!ask_edit(x, &e, vfs, &how, id_out)) return false;
     }
     if (how != UIREQ_DONE_OK) { ack_done(x, how); return false; }
     return true;
 }
 
-/* Static: up to MPDQ_MAX ids, this task's. */
-static uint32_t s_edit_ids[MPDQ_MAX];
 
 /*
  * Positions to ids, over the pinned list: a range [lo, hi) the client
@@ -969,7 +998,7 @@ static int range_ids(const ctx_t *x, long lo, long hi, bool open_end, int *n_out
     if (n_out) *n_out = n;
     if (!s_list->window && lo >= 0 && lo < hi && hi <= n) {
         k = 0;
-        for (long i = lo; i < hi; i++) s_edit_ids[k++] = s_list->id[i];
+        for (long i = lo; i < hi; i++) s_lib->edit_ids[k++] = s_list->id[i];
     }
     list_unpin();
     if (k < 0) ack(x->c, MPD_ACK_ARG, x->idx, x->verb, "Bad song index");
@@ -1015,7 +1044,7 @@ static result_t run_queue_cmd(conn_t *c, const mpd_cmd_t *cmd, int idx)
         }
         if (cmd->kind == MPD_CMD_DELETE) {
             for (int i = 0; i < k; i++) {
-                const uireq_edit_t e = { .kind = UIREQ_EDIT_DELETE, .id = s_edit_ids[i] };
+                const uireq_edit_t e = { .kind = UIREQ_EDIT_DELETE, .id = s_lib->edit_ids[i] };
                 if (!ask_edit(&x, &e, NULL, &how, NULL)) return RES_ERR;
                 if (how != UIREQ_DONE_OK) { ack_done(&x, how); return RES_ERR; }
             }
@@ -1029,7 +1058,7 @@ static result_t run_queue_cmd(conn_t *c, const mpd_cmd_t *cmd, int idx)
          */
         const bool down = to > lo;
         for (int i = 0; i < k; i++) {
-            const uireq_edit_t e = { .kind = UIREQ_EDIT_MOVE, .id = s_edit_ids[i],
+            const uireq_edit_t e = { .kind = UIREQ_EDIT_MOVE, .id = s_lib->edit_ids[i],
                                      .pos = (int)(down ? to + k - 1 : to + i) };
             if (!ask_edit(&x, &e, NULL, &how, NULL)) return RES_ERR;
             if (how != UIREQ_DONE_OK) { ack_done(&x, how); return RES_ERR; }
@@ -1078,9 +1107,6 @@ static result_t run_queue_cmd(conn_t *c, const mpd_cmd_t *cmd, int idx)
  */
 static medialib_rd_t s_rd[MEDIALIST_VOLS];
 static bool          s_rd_open[MEDIALIST_VOLS];
-static medialist_t   s_ml;
-static char          s_lib_dir[MPDURI_MAX + 2];
-static char          s_lib_uri[MPDURI_MAX + 2];
 
 static void lib_close(void)
 {
@@ -1150,36 +1176,36 @@ static result_t lib_lsinfo(const ctx_t *x, const char *uri)
 {
     conn_t *const c = x->c;
     if (!uri) uri = "";
-    if (!mpduri_ok(uri, true) || !mpduri_dir(uri, s_lib_dir, sizeof(s_lib_dir))) {
+    if (!mpduri_ok(uri, true) || !mpduri_dir(uri, s_lib->dir, sizeof(s_lib->dir))) {
         ack(c, MPD_ACK_NO_EXIST, x->idx, x->verb, "No such directory");
         return RES_ERR;
     }
     if (!lib_open(x)) return RES_ERR;
 
-    static medialist_ent_t ent;
+    medialist_ent_t *const ent = &s_lib->ent;
     bool any = false;
-    if (medialist_open(&s_ml, lib_src(0), lib_src(1), s_lib_dir)) {
-        while (!c->broken && medialist_next(&s_ml, &ent)) {
+    if (medialist_open(&s_lib->ml, lib_src(0), lib_src(1), s_lib->dir)) {
+        while (!c->broken && medialist_next(&s_lib->ml, ent)) {
             any = true;
-            const int k = snprintf(s_lib_uri, sizeof(s_lib_uri), "%s%s", s_lib_dir, ent.name);
-            if (k <= 0 || (size_t)k >= sizeof(s_lib_uri)) continue;
-            if (ent.is_dir) put_dir(c, s_lib_uri);
-            else            put_lib_file(c, ent.vol, &ent.rec, s_lib_uri, true);
+            const int k = snprintf(s_lib->uri, sizeof(s_lib->uri), "%s%s", s_lib->dir, ent->name);
+            if (k <= 0 || (size_t)k >= sizeof(s_lib->uri)) continue;
+            if (ent->is_dir) put_dir(c, s_lib->uri);
+            else            put_lib_file(c, ent->vol, &ent->rec, s_lib->uri, true);
         }
     }
-    const bool err = s_ml.err;
+    const bool err = s_lib->ml.err;
 
     /* Nothing listed under it: a file, or nothing at all. The root with
      * nothing in it is an empty library, which MPD answers with OK. */
     if (!any && !err && uri[0]) {
-        static midx_rec_t r;
-        const int v = lib_file(uri, &r);
+        midx_rec_t *const r = &s_lib->rec;
+        const int v = lib_file(uri, r);
         if (v < 0) {
             lib_close();
             ack(c, MPD_ACK_NO_EXIST, x->idx, x->verb, "No such directory");
             return RES_ERR;
         }
-        put_lib_file(c, v, &r, uri, true);
+        put_lib_file(c, v, r, uri, true);
     }
     lib_close();
     if (err) {
@@ -1205,14 +1231,6 @@ static result_t lib_lsinfo(const ctx_t *x, const char *uri)
  * listallinfo is deprecated upstream (MPD.md) and costs a catalog read
  * per file here. Answered, not optimised.
  */
-typedef struct {
-    midx_src_t *s;
-    uint32_t    i, end;
-    midx_rec_t  r;
-    const char *path;       /* into r.key or s->scratch */
-    bool        valid;
-} lib_walk_t;
-
 static void walk_fill(lib_walk_t *w)
 {
     w->valid = false;
@@ -1230,21 +1248,21 @@ static result_t lib_listall(const ctx_t *x, const char *uri, bool info)
 {
     conn_t *const c = x->c;
     if (!uri) uri = "";
-    if (!mpduri_ok(uri, true) || !mpduri_dir(uri, s_lib_dir, sizeof(s_lib_dir))) {
+    if (!mpduri_ok(uri, true) || !mpduri_dir(uri, s_lib->dir, sizeof(s_lib->dir))) {
         ack(c, MPD_ACK_NO_EXIST, x->idx, x->verb, "No such directory");
         return RES_ERR;
     }
     if (!lib_open(x)) return RES_ERR;
 
-    static lib_walk_t w[MEDIALIST_VOLS];
-    static char last[MPDURI_MAX + 2];       /* the folder of the last file, with '/' */
+    lib_walk_t *const w = s_lib->w;
+    char *const last = s_lib->last;         /* the folder of the last file, with '/' */
     bool any = false, err = false;
-    snprintf(last, sizeof(last), "%s", s_lib_dir);
+    snprintf(last, sizeof(s_lib->last), "%s", s_lib->dir);
     for (int v = 0; v < MEDIALIST_VOLS; v++) {
         w[v] = (lib_walk_t){ .s = lib_src(v) };
         if (!w[v].s) continue;
-        w[v].i = midx_seek(w[v].s, s_lib_dir, MIDX_AT);
-        w[v].end = s_lib_dir[0] ? midx_seek(w[v].s, s_lib_dir, MIDX_PAST_PREFIX) : w[v].s->n;
+        w[v].i = midx_seek(w[v].s, s_lib->dir, MIDX_AT);
+        w[v].end = s_lib->dir[0] ? midx_seek(w[v].s, s_lib->dir, MIDX_PAST_PREFIX) : w[v].s->n;
         walk_fill(&w[v]);
     }
     while (!c->broken && (w[0].valid || w[1].valid)) {
@@ -1265,9 +1283,9 @@ static result_t lib_listall(const ctx_t *x, const char *uri, bool info)
         while (k > 0 && p[k - 1] != '/') k--;            /* back to a boundary */
         for (size_t j = k; j < dl; j++) {
             if (p[j] != '/') continue;
-            memcpy(s_lib_uri, p, j);
-            s_lib_uri[j] = '\0';
-            put_dir(c, s_lib_uri);
+            memcpy(s_lib->uri, p, j);
+            s_lib->uri[j] = '\0';
+            put_dir(c, s_lib->uri);
         }
         memcpy(last, p, dl);
         last[dl] = '\0';
@@ -1282,14 +1300,14 @@ static result_t lib_listall(const ctx_t *x, const char *uri, bool info)
     for (int v = 0; v < MEDIALIST_VOLS; v++) if (w[v].s && w[v].s->err) err = true;
 
     if (!any && !err && uri[0]) {
-        static midx_rec_t r;
-        const int v = lib_file(uri, &r);
+        midx_rec_t *const r = &s_lib->rec;
+        const int v = lib_file(uri, r);
         if (v < 0) {
             lib_close();
             ack(c, MPD_ACK_NO_EXIST, x->idx, x->verb, "No such directory");
             return RES_ERR;
         }
-        if (info) put_lib_file(c, v, &r, uri, true);
+        if (info) put_lib_file(c, v, r, uri, true);
         else {
             const size_t n = mpdproto_kv("file", uri, s_body, MPD_BODY_MAX);
             if (n) put(c, s_body, n);
@@ -1885,6 +1903,7 @@ void mpd_init(void)
     if (s_mu) return;
     const uint32_t ps = MALLOC_CAP_SPIRAM | MALLOC_CAP_8BIT;
     s_mu = xSemaphoreCreateMutex();
+    s_lib  = heap_caps_calloc(1, sizeof(*s_lib), ps);     /* 5178 */
     s_pub  = heap_caps_calloc(1, sizeof(snap_t), ps);
     s_next = heap_caps_calloc(1, sizeof(snap_t), ps);
     s_view = heap_caps_calloc(1, sizeof(snap_t), ps);
@@ -1897,7 +1916,7 @@ void mpd_init(void)
         s_ql[i].ver = heap_caps_calloc(MPDQ_MAX, sizeof(uint32_t), ps);
         s_ql[i].off = heap_caps_calloc(MPDQ_MAX, sizeof(uint32_t), ps);
     }
-    bool ok = s_mu && s_pub && s_next && s_view && s_out && s_body && s_text &&
+    bool ok = s_mu && s_lib && s_pub && s_next && s_view && s_out && s_body && s_text &&
               s_stack;
     for (int i = 0; i < 2; i++) ok = ok && s_ql[i].id && s_ql[i].ver && s_ql[i].off;
     for (int i = 0; i < MPD_CLIENTS; i++) {
@@ -1921,7 +1940,7 @@ void mpd_init(void)
 
 static bool ready(void)
 {
-    if (!s_mu || !s_pub || !s_next || !s_view || !s_out || !s_body || !s_text ||
+    if (!s_mu || !s_lib || !s_pub || !s_next || !s_view || !s_out || !s_body || !s_text ||
         !s_stack) return false;
     for (int i = 0; i < 2; i++) if (!s_ql[i].id || !s_ql[i].ver || !s_ql[i].off) return false;
     for (int i = 0; i < MPD_CLIENTS; i++) if (!s_conn[i].in) return false;

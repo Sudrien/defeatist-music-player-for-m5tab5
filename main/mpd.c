@@ -709,6 +709,7 @@ static bool answered(mpd_cmd_kind_t k)
     case MPD_CMD_LSINFO: case MPD_CMD_LISTALL: case MPD_CMD_LISTALLINFO:   /* 5177 */
     case MPD_CMD_LISTPARTITIONS: case MPD_CMD_PARTITION:                   /* 5180 */
     case MPD_CMD_FIND: case MPD_CMD_SEARCH: case MPD_CMD_COUNT:
+    case MPD_CMD_LIST:                                                     /* 5182 */
     case MPD_CMD_DELPARTITION: case MPD_CMD_MOVEOUTPUT:
     case MPD_CMD_LISTMOUNTS: case MPD_CMD_LISTNEIGHBORS:
         return true;
@@ -1559,6 +1560,290 @@ static result_t lib_find(const ctx_t *x, const mpd_cmd_t *cmd, qmode_t mode)
     return RES_OK;
 }
 
+/* ---- list (5182, MPD.md step 12) ------------------------------------------ */
+
+/*
+ * `list TYPE [TAG VALUE ...] [group GTYPE]`: the distinct values of one
+ * tag among the songs the filters match, sorted -- a client's artist and
+ * album views. Cantata's album view is `list album group albumartist`.
+ *
+ * THE SAME TWO STAGES AS find (5180), with the catalog reads sorted. The
+ * search file is scanned per volume and every line that passes the
+ * folded filters has its catalog offset kept; the offsets are sorted and
+ * the catalog read in that order, so an unfiltered `list album` over the
+ * whole card is one forward pass through the catalog rather than a seek
+ * per track -- the order search_build() already reads it in. Filters are
+ * then compared exactly, as find's are, since MPD's list filters are.
+ *
+ * What can be listed is what the catalog holds: `artist`, `album`,
+ * `title`, `file`, and `albumartist` from the artist (as 5180 searches
+ * it). Any other type (genre, date, ...) is an empty OK. A song with no
+ * value for the type is left out, as MPD leaves out a song without the
+ * tag. One `group`, of the same five; a group on any other tag is
+ * dropped, and the list comes out ungrouped rather than grouped under
+ * empty headings. The old form `list album ARTIST` -- one argument after
+ * the type -- is the artist filter it has always meant.
+ *
+ * A path on both volumes counts once, from the SD, as everywhere.
+ */
+typedef struct {
+    int         field;          /* 0 title, 1 artist, 2 album, 3 path; -1 none */
+    const char *label;          /* MPD's key for it */
+} ltype_t;
+
+static bool l_type(const char *t, ltype_t *out)
+{
+    static const struct { const char *name; int field; const char *label; } types[] = {
+        { "artist", 1, "Artist" }, { "albumartist", 1, "AlbumArtist" },
+        { "album", 2, "Album" }, { "title", 0, "Title" }, { "file", 3, "file" },
+    };
+    for (size_t i = 0; i < sizeof(types) / sizeof(types[0]); i++) {
+        if (strcasecmp(t, types[i].name) == 0) {
+            out->field = types[i].field;
+            out->label = types[i].label;
+            return true;
+        }
+    }
+    out->field = -1;
+    out->label = NULL;
+    return false;
+}
+
+static const char *l_value(const mediacat_rec_t *r, int field)
+{
+    switch (field) {
+    case 0: return r->title;
+    case 1: return r->artist;
+    case 2: return r->album;
+    case 3: return r->path;
+    default: return "";
+    }
+}
+
+static int cmp_u32(const void *a, const void *b)
+{
+    const uint32_t x = *(const uint32_t *)a, y = *(const uint32_t *)b;
+    return x < y ? -1 : x > y;
+}
+
+/* The collected (group, value) pairs: NUL-separated in an arena, an
+ * offset each. Grown in PSRAM; one command's. */
+typedef struct {
+    char     *arena;
+    size_t    len, cap;
+    uint32_t *at;
+    size_t    n, ncap;
+} lset_t;
+
+static const char *s_lset_arena;        /* for the comparator */
+
+static int cmp_entry(const void *a, const void *b)
+{
+    const char *x = s_lset_arena + *(const uint32_t *)a;
+    const char *y = s_lset_arena + *(const uint32_t *)b;
+    const int g = strcmp(x, y);                             /* group */
+    if (g) return g;
+    return strcmp(x + strlen(x) + 1, y + strlen(y) + 1);    /* value */
+}
+
+static bool lset_add(lset_t *s, const char *group, const char *value)
+{
+    const size_t gl = strlen(group) + 1, vl = strlen(value) + 1;
+    const uint32_t ps = MALLOC_CAP_SPIRAM | MALLOC_CAP_8BIT;
+    if (s->len + gl + vl > s->cap) {
+        size_t cap = s->cap ? s->cap * 2 : 16 * 1024;
+        while (s->len + gl + vl > cap) cap *= 2;
+        char *a = heap_caps_realloc(s->arena, cap, ps);
+        if (!a) return false;
+        s->arena = a;
+        s->cap = cap;
+    }
+    if (s->n == s->ncap) {
+        const size_t ncap = s->ncap ? s->ncap * 2 : 1024;
+        uint32_t *at = heap_caps_realloc(s->at, ncap * sizeof(uint32_t), ps);
+        if (!at) return false;
+        s->at = at;
+        s->ncap = ncap;
+    }
+    s->at[s->n++] = (uint32_t)s->len;
+    memcpy(s->arena + s->len, group, gl);
+    memcpy(s->arena + s->len + gl, value, vl);
+    s->len += gl + vl;
+    return true;
+}
+
+/*
+ * One volume's search file, start to finish: the catalog offset of every
+ * line that passes the folded filters, appended to *offs (grown in PSRAM).
+ * False on a read failure.
+ */
+static bool lib_scan_offs(int v, const qpair_t *pairs, int np,
+                          uint32_t **offs, size_t *n, size_t *cap)
+{
+    FILE *f = medialib_rd_search(&s_rd[v]);
+    if (!f) return true;                    /* no search file: nothing here */
+    storage_io_acquire(STORAGE_IO_BACKGROUND);
+    const bool rew = fseek(f, 0, SEEK_SET) == 0;
+    storage_io_release();
+    if (!rew) return false;
+
+    char *const buf = s_lib->sbuf;
+    size_t have = 0;
+    bool eof = false, skipping = false;
+    while (!eof) {
+        const size_t got = storage_io_fread(buf + have, SEARCH_CHUNK, f, STORAGE_IO_BACKGROUND);
+        if (got == 0) eof = true;
+        have += got;
+        size_t at = 0;
+        for (;;) {
+            char *nl = memchr(buf + at, '\n', have - at);
+            if (!nl) break;
+            const size_t len = (size_t)(nl - (buf + at));
+            const char *line = buf + at;
+            at += len + 1;
+            if (skipping) { skipping = false; continue; }
+            mediasearch_line_t l;
+            if (!mediasearch_parse(line, len, &l)) continue;
+            bool pass = true;
+            for (int k = 0; k < np && pass; k++)
+                if (pairs[k].kind == Q_FIELD) pass = mediasearch_match(&l, pairs[k].field, pairs[k].folded);
+            if (!pass) continue;
+            if (*n == *cap) {
+                const size_t nc = *cap ? *cap * 2 : 1024;
+                uint32_t *o = heap_caps_realloc(*offs, nc * sizeof(uint32_t),
+                                                MALLOC_CAP_SPIRAM | MALLOC_CAP_8BIT);
+                if (!o) return false;
+                *offs = o;
+                *cap = nc;
+            }
+            (*offs)[(*n)++] = l.cat_off;
+        }
+        memmove(buf, buf + at, have - at);
+        have -= at;
+        if (have >= MEDIASEARCH_LINE_MAX) { have = 0; skipping = true; }
+    }
+    return true;
+}
+
+static result_t lib_list(const ctx_t *x, const mpd_cmd_t *cmd)
+{
+    conn_t *const c = x->c;
+    ltype_t type, group = { -1, NULL };
+    const bool known = l_type(cmd->argv[0], &type);
+    if (cmd->argc >= 2 && cmd->argv[1][0] == '(') {
+        ack(c, MPD_ACK_UNKNOWN, x->idx, x->verb,
+            "filter expressions are not supported by this player yet; use TAG VALUE pairs");
+        return RES_ERR;
+    }
+
+    static qpair_t pairs[MPDPROTO_MAX_ARGS / 2];
+    int np = 0;
+    bool never = !known;
+    if (cmd->argc == 2) {
+        /* The old form: `list album ARTIST`. MPD took it for album only. */
+        if (type.field != 2) {
+            ack(c, MPD_ACK_ARG, x->idx, x->verb,
+                "should be \"Album\" for 3 arguments");
+            return RES_ERR;
+        }
+        pairs[0] = (qpair_t){ .kind = Q_FIELD, .field = MEDIASEARCH_ARTIST, .value = cmd->argv[1] };
+        if (mediasearch_fold(cmd->argv[1], s_lib->needle[0], sizeof(s_lib->needle[0])) < 0) never = true;
+        pairs[0].folded = s_lib->needle[0];
+        np = 1;
+    } else {
+        if ((cmd->argc - 1) % 2) {
+            ack(c, MPD_ACK_ARG, x->idx, x->verb, "incorrect number of filter arguments");
+            return RES_ERR;
+        }
+        for (int i = 1; i + 1 < cmd->argc; i += 2) {
+            const char *t = cmd->argv[i], *v = cmd->argv[i + 1];
+            if (strcasecmp(t, "group") == 0) {
+                ltype_t g;
+                if (group.field < 0 && l_type(v, &g)) group = g;
+                continue;
+            }
+            if (strcasecmp(t, "sort") == 0 || strcasecmp(t, "window") == 0) continue;
+            qpair_t *p = &pairs[np];
+            if (!q_tag(t, p)) {
+                if (p->kind == Q_NONE) never = true;
+                if (p->kind != Q_BASE) continue;
+            }
+            p->value = v;
+            p->folded = NULL;
+            if (p->kind == Q_FIELD) {
+                if (mediasearch_fold(v, s_lib->needle[np], sizeof(s_lib->needle[np])) < 0) never = true;
+                p->folded = s_lib->needle[np];
+            }
+            np++;
+        }
+    }
+    if (never) return RES_OK;
+
+    if (!lib_open(x)) return RES_ERR;
+    lset_t set = { 0 };
+    uint32_t *offs = NULL;
+    size_t noffs = 0, capoffs = 0;
+    bool err = false, full = false;
+    for (int v = 0; v < MEDIALIST_VOLS && !err && !full; v++) {
+        if (!s_rd_open[v]) continue;
+        noffs = 0;
+        if (!lib_scan_offs(v, pairs, np, &offs, &noffs, &capoffs)) { err = true; break; }
+        qsort(offs, noffs, sizeof(uint32_t), cmp_u32);
+        for (size_t i = 0; i < noffs; i++) {
+            if (!medialib_rd_cat(&s_rd[v], offs[i])) continue;
+            const mediacat_rec_t *r = s_rd[v].rec;
+            bool pass = true;
+            for (int k = 0; k < np && pass; k++) pass = q_exact(&pairs[k], r, Q_FIND);
+            if (!pass) continue;
+            if (v > 0 && s_rd_open[0]) {
+                midx_rec_t *ir = &s_lib->rec;
+                if (midx_find(&s_rd[0].src, r->path, ir) >= 0 && !(ir->flags & MIDX_F_DEAD))
+                    continue;
+                s_rd[0].src.err = false;
+            }
+            const char *val = l_value(r, type.field);
+            if (!val[0]) continue;
+            if (!lset_add(&set, group.field >= 0 ? l_value(r, group.field) : "", val)) {
+                full = true;
+                break;
+            }
+        }
+    }
+    lib_close();
+    free(offs);
+
+    if (!err && !full) {
+        s_lset_arena = set.arena;
+        qsort(set.at, set.n, sizeof(uint32_t), cmp_entry);
+        const char *last_g = NULL, *last_v = NULL;
+        for (size_t i = 0; i < set.n && !c->broken; i++) {
+            const char *g = set.arena + set.at[i];
+            const char *v = g + strlen(g) + 1;
+            const bool new_g = !last_g || strcmp(g, last_g) != 0;
+            if (!new_g && strcmp(v, last_v) == 0) continue;         /* a repeat */
+            if (group.field >= 0 && new_g) {
+                const size_t n = mpdproto_kv(group.label, g, s_body, MPD_BODY_MAX);
+                if (n) put(c, s_body, n);
+            }
+            const size_t n = mpdproto_kv(type.label, v, s_body, MPD_BODY_MAX);
+            if (n) put(c, s_body, n);
+            last_g = g;
+            last_v = v;
+        }
+    }
+    free(set.arena);
+    free(set.at);
+    if (err) {
+        ack(c, MPD_ACK_SYSTEM, x->idx, x->verb, "the library could not be read; reindex it");
+        return RES_ERR;
+    }
+    if (full) {
+        ack(c, MPD_ACK_SYSTEM, x->idx, x->verb, "out of memory for the list");
+        return RES_ERR;
+    }
+    return RES_OK;
+}
+
 static result_t run_cmd(conn_t *c, const mpd_cmd_t *cmd, int idx)
 {
     const ctx_t x = { c, idx, cmd->verb };
@@ -1581,6 +1866,7 @@ static result_t run_cmd(conn_t *c, const mpd_cmd_t *cmd, int idx)
     case MPD_CMD_FIND:   return lib_find(&x, cmd, Q_FIND);
     case MPD_CMD_SEARCH: return lib_find(&x, cmd, Q_SEARCH);
     case MPD_CMD_COUNT:  return lib_find(&x, cmd, Q_COUNT);
+    case MPD_CMD_LIST:   return lib_list(&x, cmd);                 /* 5182 */
 
     /* 5177: the library. */
     case MPD_CMD_LSINFO:

@@ -25,11 +25,10 @@
  * mpd_publish() from the same snapshot `status` reads.
  *
  * The library (step 12): `lsinfo`, `listall`, `listallinfo` (5177),
- * `search`, `find` and `count` (5180). One partition, `default`, and one
+ * `search`, `find` and `count` (5180), `list` (5182). One partition, `default`, and one
  * mount, the root, over whichever volumes are in (5180).
  *
- * WHAT IT IS NOT, YET. No `list` (so no artist or album views), no stored
- * playlists (step 13). Adding a folder, part-queue `shuffle`, MPD 0.23's
+ * WHAT IT IS NOT, YET. No stored playlists (step 13). Adding a folder, part-queue `shuffle`, MPD 0.23's
  * relative positions ("+1") and 0.21's filter expressions are refused
  * and say so. No IPv6 listener.
  *

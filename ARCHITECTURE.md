@@ -16961,3 +16961,42 @@ about 1.5 KB lower than 202's. What would say it is wrong: the same
 allocation failures (the buffer did not reach the card's host), or
 `sdmmc_read_sectors: buffer smaller than sector size` (the allocation
 came back smaller than 512).
+
+### 5182 -- mpd: list, and step 12 is done
+
+The last of MPD.md step 12: `list TYPE [TAG VALUE ...] [group GTYPE]`,
+the distinct values of one tag among the songs the filters match,
+sorted. It is what a client's artist and album views are made of;
+Cantata's album view is `list album group albumartist`.
+
+**The same two stages as 5180's `find`, with the catalog reads
+sorted.** Each volume's search file is scanned and every line that
+passes the folded filters keeps its catalog offset. The offsets are
+sorted, and the catalog is read in that order, so an unfiltered `list
+album` over the whole card is one forward pass through the catalog
+rather than a seek per track -- the order `search_build()` already
+reads it in, about a second for the 1203-track test drive. The filters
+are then compared exactly, since MPD's `list` filters are `find`'s, not
+`search`'s. The (group, value) pairs go into a PSRAM arena, are sorted
+with `strcmp`, and are written once each, with a group heading each time
+the group changes -- MPD's layout for `group`.
+
+What can be listed is what the catalog holds: `artist`, `album`,
+`title`, `file`, and `albumartist` from the artist, as 5180 searches it.
+Any other type is an empty OK. A song with no value for the type is left
+out, as MPD leaves out a song without the tag. One `group`, of the same
+five; a group on anything else (date, genre) is dropped and the answer
+comes out ungrouped rather than under empty headings; a second `group`
+is ignored. The old form `list album ARTIST` is the artist filter it has
+always been, and `list artist X` with three arguments is MPD's own
+refusal ("should be "Album" for 3 arguments"). Filter expressions are
+refused by name, as in 5180. A path on both volumes counts once, from
+the SD.
+
+Not host-tested: `mpd.c`. Compiled `-fsyntax-only -Wall -Wextra` against
+stub IDF headers outside the repository. Not built with ESP-IDF, not run
+on a board. No `sdkconfig.defaults` or `idf_component.yml` change. What a
+board run should show: Cantata's Artists and Albums views filling, and
+from `mpc`: `mpc list artist`, `mpc list album artist "<name>"` and
+`mpc list album group albumartist`. The one to watch for time is an
+unfiltered `list album` on the larger volume.

@@ -11,9 +11,10 @@
  * WHAT IT ANSWERS (step 9): the connection verbs, `status`, `stats`,
  * `currentsong`, `outputs`, the transport -- `play`, `playid`, `pause`,
  * `stop`, `next`, `previous`, `seek`, `seekid`, `seekcur` -- and `setvol`
- * and `volume`. And, as a window rather than a queue, `playlistinfo`,
- * `playlistid`, `playlist`, `plchanges` and `plchangesposid`: see
- * "THE QUEUE IS ONE ENTRY LONG" in mpd.c. Everything else in mpdproto.c's
+ * and `volume`. And the queue as it is, read-only: `playlistinfo`,
+ * `playlistid`, `playlist`, `plchanges` and `plchangesposid`, with `play`
+ * and `playid` able to start any entry (5166): see "THE QUEUE IS THE
+ * QUEUE" in mpd.c. Everything else in mpdproto.c's
  * table is ACKed with ACK_ERROR_UNKNOWN, "not supported by this player
  * yet", and listed by `notcommands`, so the two answers agree.
  *

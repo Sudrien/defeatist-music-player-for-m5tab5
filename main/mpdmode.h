@@ -159,6 +159,31 @@ int mpdmode_rg_from_name(const char *name);
 /* What `replay_gain_status` reports: "track" or "off". */
 const char *mpdmode_rg_name(bool on);
 
+/*
+ * 5166: `nextsong` -- the position that follows `cur` in a list of `n`,
+ * under order `o`, or -1 for none.
+ *
+ * MPD's rule is playlist::GetNextPosition(): single+repeat is the same
+ * song, otherwise the next position, otherwise the first if repeat is
+ * set, otherwise none. Taken through this device's four orders, which
+ * are each exact in MPD's flags (the table above):
+ *
+ *   ALL          cur+1, or none at the end
+ *   ONE          cur+1, or none -- single WITHOUT repeat still names the
+ *                next song, and it is where Next goes (playlist.h maps
+ *                ONE to ALL for the button, for the same reason)
+ *   REPEAT_ONE   cur
+ *   SHUFFLE      none, and the one row that is a loss. MPD shuffles an
+ *                order in advance and can name the next song; this device
+ *                picks when it gets there (playlist.h says why), so there
+ *                is no next song to name. A client that keys its Next
+ *                button on `nextsongid` -- Cantata does -- greys it under
+ *                shuffle, where Next in fact works.
+ *
+ * -1 as well for a `cur` that is not a position.
+ */
+int mpdmode_next_pos(play_order_t o, int cur, int n);
+
 #ifdef __cplusplus
 }
 #endif

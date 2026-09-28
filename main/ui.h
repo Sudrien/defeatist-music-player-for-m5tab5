@@ -286,6 +286,14 @@ typedef enum {
      * and PAUSE, so asking for what is already set changes nothing.
      */
     UI_ACTION_REPLAYGAIN,
+    /*
+     * 5166: play the queue entry whose id is `value` -- MPD's `play N` and
+     * `playid N` on a real queue. An ID rather than a position, because
+     * the client read the list on another task and a folder tap may have
+     * replaced it since: a stale position would play the wrong song, a
+     * stale id finds nothing and is dropped.
+     */
+    UI_ACTION_PLAY_ID,
 } ui_action_kind_t;
 
 /* Name of an action, for logging. Never NULL. Lives beside the enum so a

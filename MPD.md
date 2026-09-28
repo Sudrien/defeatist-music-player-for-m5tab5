@@ -390,6 +390,11 @@ nothing is left half-built if the series stops.
    always said they would. MPD still shows a window of one, because its
    task cannot read a queue with no lock -- that needs a copy handed over
    by `ui_task`, which is its own patch.
+
+   **That copy is 5166**, and the reason it came next was a board report:
+   Cantata greys its Next button unless `status` names a `nextsongid`, and
+   a window of one never could. Clients now see the whole queue, read-only;
+   adding to it and reordering it are step 11.
 5. **The shared mutation path**, exported and drained once by
    `ui_task`, with `remote.c` moved onto it. No new behaviour; it is
    the refactor that lets there be two producers.

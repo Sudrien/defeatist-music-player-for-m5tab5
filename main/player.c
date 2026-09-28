@@ -115,6 +115,7 @@
 #include "recorder.h"
 #include "remote.h"          /* 5117 */
 #include "mpd.h"             /* 5158 */
+#include "mpdqueue.h"        /* 5166 */
 
 static const char *TAG = "tab5_mp3";
 
@@ -8059,6 +8060,20 @@ static void ui_task(void *arg)
         case UI_ACTION_MUTE:
             audio_out_set_mute(!audio_out_muted());
             break;
+        case UI_ACTION_PLAY_ID: {
+            /* 5166: an entry of the queue, by id (ui.h says why not by
+             * position). The remote's "open" does the same two steps --
+             * the cursor, then the track -- and so does the chooser. */
+            const int pos = mpdq_find_id((uint32_t)act.value);
+            const char *p = pos >= 0 ? playlist_path(pos) : NULL;
+            if (p) {
+                playlist_set_current(pos);
+                request_track(p);
+            } else {
+                ESP_LOGI(TAG, "queue entry %d is gone; nothing to play", act.value);
+            }
+            break;
+        }
         case UI_ACTION_REPLAYGAIN:
             /* 5161: the panel's switch, from an MPD client. Logged the
              * panel's way, and like it, from the next track. */

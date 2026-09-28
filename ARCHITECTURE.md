@@ -15972,3 +15972,92 @@ claim that it is unaffected rests on `playlist.h` being unchanged, which
 it is. What a board run should show: every folder, file, station and
 resume path behaving as before, and `tab5_playlist: <dir>: N tracks` as
 before.
+
+### 5166 -- clients see the queue, because Cantata's Next button asked
+
+The first board run of 4b brought a report: Cantata's Next button is
+greyed. Cantata enables it only when `status` names a `nextsongid`
+(`mainwindow.cpp`, `setEnabled(status->nextSongId() != -1)`), and 5158's
+window of one never had a next song to name. Next itself worked; the
+client would not let anyone press it.
+
+The fix is the patch 5165 said was next: show the queue. A client now
+sees `mpdqueue.c` -- the folder -- with real positions, the queue's own
+ids, `song`, `nextsong` and `playlistlength`, and `playlistinfo`,
+`playlistid`, `playlist`, `plchanges` and `plchangesposid` answer over
+it. `play N` and `playid N` start any entry.
+
+**A copy, handed over, because this task cannot read the queue.** The queue
+has no lock and two writers (`ui_task` at a tap, `media_task` at a track's
+end and at `TRACK_MEDIA_GONE`), so `mpd_publish()` on `ui_task` copies it
+-- every entry's URI, id and the version at which its position last
+changed -- whenever `mpdq_version()` moves, the way it copies the status.
+**Two copies**: `ui_task` builds into the one clients are not reading and
+publishes it with the snapshot under `s_mu`; the server task pins the
+published one for the length of a command, and `ui_task` skips a rebuild
+whose target is pinned and tries again next pass. So a `playlistinfo`
+sending a thousand rows to a slow client never holds the lock across a
+send and never stalls the pass that draws the screen. While a rebuild is
+deferred, everything that points into the list -- the song's position,
+the length, `nextsong` -- stays as published, so a position never refers
+to a list a client cannot see.
+
+**Entry versions are this file's, reached by comparison.** plchanges
+answers in the counter `status` reports, so the copy cannot borrow the
+queue's per-entry versions. A rebuilt copy keeps an entry's old version
+when the same id sits at the same position, and stamps the rest -- the
+range rule of 5136, arrived at by diffing rather than by editing. A
+station's title changing in place re-versions that one row.
+
+**`play N` sends an id, not a position** (`UI_ACTION_PLAY_ID`, handled
+beside the other presses with the remote's two steps: the cursor, then
+the track). The client read the list on another task, and a folder tap
+may have replaced it since: a stale position plays the wrong song, a
+stale id finds nothing and is dropped with a log line.
+
+**`nextsong` is MPD's rule through the device's orders** (`mpdmode.h`,
+`mpdmode_next_pos()`, tested against `GetNextPosition()` transcribed):
+the next position under normal order and under single; the same song
+under repeat-one; and **none under shuffle, the one loss**. MPD shuffles
+an order in advance and can name what comes next; this device picks when
+it gets there (`playlist.h` says why), so Cantata's Next stays grey under
+shuffle, where Next in fact works. Named here rather than papered over
+with a guess.
+
+**What is still a window of one**: a station, and a single file played
+from outside the queue's folder. MPD never plays anything that is not in
+its queue, and for those the thing playing is the honest list. A window
+entry's id has the top bit set, so it can never equal a queue id.
+
+**Known limits, each said rather than approximated.** Tags are known for
+the playing song only -- the rest are `file:` with a position and an id,
+until step 12's query layer can look them up in the catalog. `seek` and
+`seekid` on a song that is not playing are refused: MPD would start that
+song at that point, and this player seeks only the current track. Adding
+to and reordering the queue is step 11.
+
+**One risk made slightly larger, not new.** `ui_task` already reads the
+playlist every pass with no lock while `media_task` can clear it; the
+copy is a longer read of the same kind, up to 1024 paths, but only on
+the pass after the queue changed. A card pulled at exactly that moment
+is the case, and it is the same race `ui_task` already has with the
+chooser and the Next button, not a new class of one.
+
+Tests: `run-mpdmode` 167 (the `nextsong` rule, against MPD's code
+transcribed for every order and position). The socket harness now runs
+the real `playlist.c` and `mpdqueue.c` over a fixture folder: the old
+suite still passes (51; two expectations changed, both towards MPD --
+Next within a queue raises `player` and not `playlist`), and a new one,
+36 checks, covers the whole list, ranges, `play`/`playid`, the orders'
+`nextsong`, seeks refused and allowed, a reload's new ids and version,
+a retitle re-versioning one row, the window and back, and `idle
+playlist` on a reload. **Mutation-checked**, six deliberate bugs, all
+caught: `nextsong` never sent -- the reported bug -- the pin never
+released, every row re-versioned on any rebuild, `play N` sending a
+position as an id, the list not flipped with the snapshot, and window ids
+in the queue's space.
+
+Not on a board. What a run should show: Cantata's play queue listing the
+folder, its Next button live (except under shuffle), double-clicking a
+queue row playing it, and `tab5_mpd: client N: play -> play entry` for
+that.

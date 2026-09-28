@@ -304,6 +304,36 @@ int main(void)
     CHECK(strcmp(mpdmode_rg_name(mpdmode_rg_from_name("album") == 1), "track") == 0,
           "album reads back as track");
 
+    /* ---- nextsong (5166) ---------------------------------------------
+     * MPD's GetNextPosition() through the four orders. */
+    CHECK(mpdmode_next_pos(PLAY_ORDER_ALL, 0, 3) == 1, "ALL: the next one");
+    CHECK(mpdmode_next_pos(PLAY_ORDER_ALL, 2, 3) == -1, "ALL at the end: none (no repeat-all here)");
+    CHECK(mpdmode_next_pos(PLAY_ORDER_ONE, 0, 3) == 1, "ONE: single without repeat still names the next");
+    CHECK(mpdmode_next_pos(PLAY_ORDER_ONE, 2, 3) == -1, "ONE at the end: none");
+    CHECK(mpdmode_next_pos(PLAY_ORDER_REPEAT_ONE, 1, 3) == 1, "REPEAT_ONE: the same song");
+    CHECK(mpdmode_next_pos(PLAY_ORDER_REPEAT_ONE, 2, 3) == 2, "REPEAT_ONE at the end: still the same");
+    CHECK(mpdmode_next_pos(PLAY_ORDER_SHUFFLE, 0, 3) == -1, "SHUFFLE: unknowable, so none");
+    CHECK(mpdmode_next_pos(PLAY_ORDER_ALL, -1, 3) == -1, "no current: none");
+    CHECK(mpdmode_next_pos(PLAY_ORDER_ALL, 3, 3) == -1, "a current past the end: none");
+    CHECK(mpdmode_next_pos(PLAY_ORDER_REPEAT_ONE, 0, 0) == -1, "an empty list: none");
+    CHECK(mpdmode_next_pos(PLAY_ORDER_ALL, 0, 1) == -1, "one song: none after it");
+    /* Agreement with the reverse table: what MPD would compute from the
+     * flags this device reports for each order. */
+    for (int o = 0; o < 4; o++) {
+        const mpd_modes_t m = mpdmode_from_order((play_order_t)o);
+        for (int cur = 0; cur < 4; cur++) {
+            int mpd;                                /* GetNextPosition, verbatim */
+            if (m.single && m.repeat) mpd = cur;
+            else if (cur + 1 < 4)     mpd = cur + 1;
+            else if (m.repeat)        mpd = 0;
+            else                      mpd = -1;
+            const int ours = mpdmode_next_pos((play_order_t)o, cur, 4);
+            if (m.random) CHECK(ours == -1, "%s: shuffle names nothing", order_name((play_order_t)o));
+            else CHECK(ours == mpd, "%s at %d: ours %d, MPD's rule %d",
+                       order_name((play_order_t)o), cur, ours, mpd);
+        }
+    }
+
     printf("%d checks, %d failures\n", checks, failures);
     return failures ? 1 : 0;
 }

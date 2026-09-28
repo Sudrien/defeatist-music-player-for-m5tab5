@@ -119,3 +119,15 @@ const char *mpdmode_rg_name(bool on)
 {
     return on ? "track" : "off";
 }
+
+int mpdmode_next_pos(play_order_t o, int cur, int n)
+{
+    if (cur < 0 || cur >= n) return -1;
+    switch (o) {
+    case PLAY_ORDER_REPEAT_ONE: return cur;
+    case PLAY_ORDER_SHUFFLE:    return -1;
+    case PLAY_ORDER_ONE:
+    case PLAY_ORDER_ALL:
+    default:                    return cur + 1 < n ? cur + 1 : -1;
+    }
+}

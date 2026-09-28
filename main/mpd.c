@@ -32,20 +32,14 @@
  * answer to that is `idle player`, which a client gets when the new song
  * is published (5160).
  *
- * THE QUEUE IS ONE ENTRY LONG, TO A CLIENT. Since 5165 the folder does
- * fill mpdqueue.c -- MPD.md step 4's switch-over is done -- but this task
- * cannot read it: the queue has no lock, and ui_task and media_task both
- * change it. Showing it needs a copy handed over the way the status
- * snapshot is, which is the next patch. Until then what a client sees is
- * a window of one: the track on screen at position 0, with an id that changes
- * when the track does and a playlist version that moves with it. That is
- * true about what is playing and silent about what comes next, which is
- * the honest subset. The alternative, `playlistlength: 0` beside
- * `state: play`, is a state MPD itself can never be in and one clients
- * handle badly; the other alternative, exposing playlist.c's array as the
- * queue, would hand out positions and ids with nothing behind them to
- * keep them stable, which is exactly the problem mpdqueue.c exists to
- * solve.
+ * THE QUEUE IS THE QUEUE (5166). A client is shown mpdqueue.c -- the
+ * folder, since 5165 -- through a copy ui_task hands over whenever it
+ * changes, because this task cannot read a queue with no lock and two
+ * writers. Positions, ids, `song` and `nextsong` are real, so a client's
+ * queue lists the folder and its Next button knows there is a next. A
+ * station, or a file played from outside the queue's folder, is still a
+ * window of one: MPD never plays anything that is not in its queue, and
+ * the one thing playing is the honest list for those. See s_ql.
  *
  * COMMAND LISTS ARE RUN AS THEY ARRIVE, the tradeoff mpdproto.h left to
  * this file. MPD accumulates the list and runs it at command_list_end;
@@ -88,6 +82,8 @@
 #include "medialib.h"
 #include "mpdidle.h"         /* 5160 */
 #include "mpdmode.h"
+#include "mpdqueue.h"         /* 5166 */
+#include "playlist.h"         /* 5166 */
 #include "mpdproto.h"
 #include "mpduri.h"
 #include "stationlist.h"
@@ -191,9 +187,15 @@ typedef struct {
     bool        can_seek;
     bool        updating;       /* a reindex is running */
     bool        rg;             /* 5161: ReplayGain on */
-    bool        have_song;      /* uri[0], kept as its own field for clarity */
+    bool        have_song;      /* song >= 0 */
     uint32_t    id;             /* the song id; 0 with no song */
     uint32_t    version;        /* the playlist version; starts at 1 */
+    /* 5166: where the song is in the list a client is shown, how long
+     * that list is, and what follows it (mpdmode_next_pos()). */
+    int         song;           /* -1: none */
+    int         length;
+    int         next_song;      /* -1: none */
+    uint32_t    next_id;
     char        uri[MPD_URI_MAX];
     char        title[128];
     char        artist[96];
@@ -205,6 +207,55 @@ static snap_t           *s_pub;     /* ui_task writes under s_mu; PSRAM */
 static snap_t           *s_next;    /* ui_task's scratch; PSRAM */
 static snap_t           *s_view;    /* the server task's copy; PSRAM */
 static uint32_t          s_last_id; /* ui_task's: ids are never reused */
+
+/*
+ * 5166: THE LIST A CLIENT IS SHOWN.
+ *
+ * Since 5165 the queue is real -- a folder fills mpdqueue.c -- but this
+ * task cannot read it: the queue has no lock, and ui_task and media_task
+ * both change it. So ui_task copies it, in mpd_publish(), whenever it
+ * changes, the way it copies the status: every entry's URI, its id (the
+ * queue's own, which survives a move and is never reused) and the
+ * version at which its position last changed, in THIS file's version
+ * space so plchanges answers in the same counter `status` reports.
+ *
+ * TWO COPIES, so neither side waits on the other. ui_task builds into
+ * the one clients are not reading and publishes it by flipping s_ql_pub
+ * under s_mu; this task pins the published one for the length of a
+ * command (list_pin()), and ui_task skips a rebuild whose target is
+ * pinned and tries again next pass. A command that sends a thousand
+ * entries to a slow client therefore never holds s_mu across a send and
+ * never stalls the pass that draws the screen.
+ *
+ * WHAT IS A WINDOW OF ONE, STILL: a station, and a single file played
+ * from somewhere other than the queue's folder. Neither is in the queue,
+ * and MPD never plays anything that is not, so for those the list is the
+ * one thing playing -- 5158's arrangement, kept for exactly the case it
+ * is honest about. A window entry's id is from its own counter with the
+ * top bit set, so it can never equal a queue id.
+ *
+ * Tags are known for the song that is playing and for nothing else: the
+ * catalog has them (mediacat.h) but looking every entry up is step 12's
+ * query layer. Until then the other entries are `file:` with a position
+ * and an id, and a client shows the file name.
+ */
+#define MPD_WINDOW_ID       (0x80000000u)
+
+typedef struct {
+    int       n;
+    bool      window;       /* a window of one, not the queue */
+    uint32_t  src;          /* mpdq_version() it copies; unused for a window */
+    uint32_t *id;           /* MPDQ_MAX each, PSRAM */
+    uint32_t *ver;
+    uint32_t *off;          /* into arena */
+    char     *arena;        /* the URIs, NUL-separated, PSRAM, grown */
+    size_t    len, cap;
+} qlist_t;
+
+static qlist_t           s_ql[2];
+static int               s_ql_pub;          /* under s_mu */
+static int               s_ql_pin = -1;     /* under s_mu; this task's */
+static const qlist_t    *s_list;            /* this task's, while pinned */
 
 /*
  * 5160: what changed, for `idle`. ui_task works it out once per pass in
@@ -471,16 +522,46 @@ static void take_view(void)
     xSemaphoreGive(s_mu);
 }
 
-static void put_song(conn_t *c, const snap_t *v)
+/* 5166: the status and the list it describes, taken together so a song
+ * position always refers to the list it is read against. */
+static void list_pin(void)
 {
+    xSemaphoreTake(s_mu, portMAX_DELAY);
+    memcpy(s_view, s_pub, sizeof(*s_view));
+    s_ql_pin = s_ql_pub;
+    s_list = &s_ql[s_ql_pin];
+    xSemaphoreGive(s_mu);
+}
+
+static void list_unpin(void)
+{
+    xSemaphoreTake(s_mu, portMAX_DELAY);
+    s_ql_pin = -1;
+    xSemaphoreGive(s_mu);
+    s_list = NULL;
+}
+
+static const char *list_uri(int i) { return s_list->arena + s_list->off[i]; }
+
+static int list_find_id(uint32_t id)
+{
+    for (int i = 0; i < s_list->n; i++) if (s_list->id[i] == id) return i;
+    return -1;
+}
+
+/* Entry i of the pinned list. The playing song carries its tags and its
+ * length; the others are known by path alone (see above). */
+static void put_entry(conn_t *c, int i)
+{
+    const bool cur = i == s_view->song;
     const mpd_song_t s = {
-        .uri = v->uri,
-        .title = v->title,
-        .artist = v->artist,
-        .album = v->album,
-        .duration_ms = v->duration_ms,
-        .pos = 0,
-        .id = v->id,
+        .uri = list_uri(i),
+        .title = cur ? s_view->title : NULL,
+        .artist = cur ? s_view->artist : NULL,
+        .album = cur ? s_view->album : NULL,
+        .duration_ms = cur ? s_view->duration_ms : -1,
+        .pos = i,
+        .id = s_list->id[i],
     };
     const size_t n = mpdproto_song(&s, s_body, MPD_BODY_MAX);
     if (n) put(c, s_body, n);
@@ -612,13 +693,163 @@ static bool answered(mpd_cmd_kind_t k)
 /* The last kind in mpdproto.h's enum, for walking the table. */
 #define MPD_CMD_LAST    MPD_CMD_RM
 
-static result_t run_cmd(conn_t *c, const mpd_cmd_t *cmd, int idx)
+/*
+ * 5166: the commands that read the list, over the pinned copy. Called
+ * only from run_cmd(), which pins before and unpins after, so a return
+ * from anywhere in here cannot leave the list pinned.
+ */
+static result_t run_list_cmd(conn_t *c, const mpd_cmd_t *cmd, int idx)
 {
     const ctx_t x = { c, idx, cmd->verb };
     const char *const a0 = cmd->argc > 0 ? cmd->argv[0] : NULL;
     const char *const a1 = cmd->argc > 1 ? cmd->argv[1] : NULL;
+    const int n = s_list->n;
 
     switch (cmd->kind) {
+    case MPD_CMD_CURRENTSONG:
+        if (s_view->song >= 0 && s_view->song < n) put_entry(c, s_view->song);
+        return RES_OK;
+
+    case MPD_CMD_PLAYLISTINFO: {
+        long lo = 0, hi = INT32_MAX;
+        if (a0 && !arg_range(&x, a0, &lo, &hi)) return RES_ERR;
+        if (hi > n) hi = n;
+        /* MPD 0.20's queue print: a start past the end is BadRange. */
+        if (a0 && lo > hi) {
+            ack(c, MPD_ACK_ARG, idx, cmd->verb, "Bad song index");
+            return RES_ERR;
+        }
+        for (long i = lo; i < hi && !c->broken; i++) put_entry(c, (int)i);
+        return RES_OK;
+    }
+
+    case MPD_CMD_PLAYLISTID: {
+        if (!a0) {
+            for (int i = 0; i < n && !c->broken; i++) put_entry(c, i);
+            return RES_OK;
+        }
+        unsigned long id;
+        if (!arg_unsigned(&x, a0, UINT32_MAX, &id)) return RES_ERR;
+        const int pos = list_find_id((uint32_t)id);
+        if (pos < 0) {
+            ack(c, MPD_ACK_NO_EXIST, idx, cmd->verb, "No such song");
+            return RES_ERR;
+        }
+        put_entry(c, pos);
+        return RES_OK;
+    }
+
+    case MPD_CMD_PLAYLIST:
+        /* MPD's queue_print_uris(): the position and a colon, then the
+         * song's own `file: <uri>` line -- "0:file: Music/a.mp3", key and
+         * all. Through mpdproto_kv() so a bad byte in the path is
+         * repaired as it is everywhere else. */
+        for (int i = 0; i < n && !c->broken; i++) {
+            const size_t k = mpdproto_kv("file", list_uri(i), s_body, MPD_BODY_MAX);
+            if (!k) continue;
+            putf(c, "%d:", i);
+            put(c, s_body, k);
+        }
+        return RES_OK;
+
+    case MPD_CMD_PLCHANGES:
+    case MPD_CMD_PLCHANGESPOSID: {
+        unsigned long since;
+        if (!arg_unsigned(&x, a0, UINT32_MAX, &since)) return RES_ERR;
+        long lo = 0, hi = INT32_MAX;
+        if (a1 && !arg_range(&x, a1, &lo, &hi)) return RES_ERR;
+        if (hi > n) hi = n;
+        /* Every entry whose position last changed after `since` -- which
+         * is what the per-entry version is kept for (mpdqueue.h's
+         * subtle part, carried into this file's counter). */
+        for (long i = lo; i < hi && !c->broken; i++) {
+            if (s_list->ver[i] <= since) continue;
+            if (cmd->kind == MPD_CMD_PLCHANGES) put_entry(c, (int)i);
+            else putf(c, "cpos: %ld\nId: %" PRIu32 "\n", i, s_list->id[i]);
+        }
+        return RES_OK;
+    }
+
+    case MPD_CMD_PLAY: {
+        long pos = -1;
+        if (a0 && !arg_int(&x, a0, INT32_MIN, INT32_MAX, &pos)) return RES_ERR;
+        if (pos == -1) return ask(&x, UI_ACTION_PLAY, 0) ? RES_OK : RES_ERR;
+        if (pos < 0 || pos >= n) {
+            ack(c, MPD_ACK_ARG, idx, cmd->verb, "Bad song index");
+            return RES_ERR;
+        }
+        /* The song already playing starts again; another entry of the
+         * queue is played by its id (ui.h, UI_ACTION_PLAY_ID). */
+        if (pos == s_view->song) return restart(&x) ? RES_OK : RES_ERR;
+        if (s_list->window) {
+            ack(c, MPD_ACK_ARG, idx, cmd->verb, "Bad song index");
+            return RES_ERR;
+        }
+        return ask(&x, UI_ACTION_PLAY_ID, (int)s_list->id[pos]) ? RES_OK : RES_ERR;
+    }
+
+    case MPD_CMD_PLAYID: {
+        long id = -1;
+        if (a0 && !arg_int(&x, a0, INT32_MIN, INT32_MAX, &id)) return RES_ERR;
+        if (id == -1) return ask(&x, UI_ACTION_PLAY, 0) ? RES_OK : RES_ERR;
+        const int pos = list_find_id((uint32_t)id);
+        if (pos < 0) {
+            ack(c, MPD_ACK_NO_EXIST, idx, cmd->verb, "No such song");
+            return RES_ERR;
+        }
+        if (pos == s_view->song) return restart(&x) ? RES_OK : RES_ERR;
+        return ask(&x, UI_ACTION_PLAY_ID, (int)s_list->id[pos]) ? RES_OK : RES_ERR;
+    }
+
+    case MPD_CMD_SEEK:
+    case MPD_CMD_SEEKID: {
+        unsigned long which;
+        int64_t ms;
+        if (!arg_unsigned(&x, a0, UINT32_MAX, &which)) return RES_ERR;
+        if (!arg_time(&x, a1, false, &ms)) return RES_ERR;
+        const int pos = cmd->kind == MPD_CMD_SEEK
+                      ? ((long)which < n ? (int)which : -1)
+                      : list_find_id((uint32_t)which);
+        if (pos < 0) {
+            if (cmd->kind == MPD_CMD_SEEK) ack(c, MPD_ACK_ARG, idx, cmd->verb, "Bad song index");
+            else ack(c, MPD_ACK_NO_EXIST, idx, cmd->verb, "No such song");
+            return RES_ERR;
+        }
+        /* MPD would start that song at that point. This player seeks
+         * only what it is playing -- UI_ACTION_SEEK is a percentage of
+         * the current track -- and starting another song somewhere into
+         * it is a new action, not this patch. Said, not approximated. */
+        if (pos != s_view->song) {
+            ack(c, MPD_ACK_UNKNOWN, idx, cmd->verb,
+                "seeking a song that is not playing is not supported by this player yet");
+            return RES_ERR;
+        }
+        return seek_ms(&x, ms) ? RES_OK : RES_ERR;
+    }
+
+    default:
+        return RES_ERR;     /* not reached: run_cmd routes only the above */
+    }
+}
+
+static result_t run_cmd(conn_t *c, const mpd_cmd_t *cmd, int idx)
+{
+    const ctx_t x = { c, idx, cmd->verb };
+    const char *const a0 = cmd->argc > 0 ? cmd->argv[0] : NULL;
+
+    switch (cmd->kind) {
+    /* 5166: everything that reads the list, pinned for its length. */
+    case MPD_CMD_CURRENTSONG:
+    case MPD_CMD_PLAYLISTINFO: case MPD_CMD_PLAYLISTID: case MPD_CMD_PLAYLIST:
+    case MPD_CMD_PLCHANGES: case MPD_CMD_PLCHANGESPOSID:
+    case MPD_CMD_PLAY: case MPD_CMD_PLAYID:
+    case MPD_CMD_SEEK: case MPD_CMD_SEEKID: {
+        list_pin();
+        const result_t r = run_list_cmd(c, cmd, idx);
+        list_unpin();
+        return r;
+    }
+
     case MPD_CMD_PING:
     case MPD_CMD_CLEARERROR:
         return RES_OK;
@@ -688,10 +919,11 @@ static result_t run_cmd(conn_t *c, const mpd_cmd_t *cmd, int idx)
             .single = v->modes.single,
             .consume = v->modes.consume,
             .playlist_version = v->version,
-            .playlist_length = v->have_song ? 1 : 0,
-            .song = v->have_song ? 0 : -1,
+            .playlist_length = v->length,                   /* 5166 */
+            .song = v->song,
             .songid = v->id,
-            .next_song = -1,
+            .next_song = v->next_song,
+            .next_songid = v->next_id,
             .elapsed_ms = v->elapsed_ms,
             .duration_ms = v->duration_ms,
             .bitrate = -1,
@@ -714,10 +946,6 @@ static result_t run_cmd(conn_t *c, const mpd_cmd_t *cmd, int idx)
         putf(c, "uptime: %" PRIu32 "\n", (uint32_t)(esp_timer_get_time() / 1000000));
         return RES_OK;
 
-    case MPD_CMD_CURRENTSONG:
-        take_view();
-        if (s_view->have_song) put_song(c, s_view);
-        return RES_OK;
 
     case MPD_CMD_CHANNELS:
         /*
@@ -755,95 +983,7 @@ static result_t run_cmd(conn_t *c, const mpd_cmd_t *cmd, int idx)
         puts_(c, "outputid: 0\noutputname: Tab5\noutputenabled: 1\n");
         return RES_OK;
 
-    /* ---- the window of one (see the file comment) --------------------- */
-
-    case MPD_CMD_PLAYLISTINFO: {
-        take_view();
-        long lo = 0, hi = INT32_MAX;
-        if (a0 && !arg_range(&x, a0, &lo, &hi)) return RES_ERR;
-        const long len = s_view->have_song ? 1 : 0;
-        if (hi > len) hi = len;
-        /* MPD 0.20's queue print: a start past the end is BadRange. */
-        if (a0 && lo > hi) {
-            ack(c, MPD_ACK_ARG, idx, cmd->verb, "Bad song index");
-            return RES_ERR;
-        }
-        if (lo == 0 && hi == 1) put_song(c, s_view);
-        return RES_OK;
-    }
-
-    case MPD_CMD_PLAYLISTID: {
-        take_view();
-        if (!a0) {
-            if (s_view->have_song) put_song(c, s_view);
-            return RES_OK;
-        }
-        unsigned long id;
-        if (!arg_unsigned(&x, a0, UINT32_MAX, &id)) return RES_ERR;
-        if (!s_view->have_song || id != s_view->id) {
-            ack(c, MPD_ACK_NO_EXIST, idx, cmd->verb, "No such song");
-            return RES_ERR;
-        }
-        put_song(c, s_view);
-        return RES_OK;
-    }
-
-    case MPD_CMD_PLAYLIST:
-        take_view();
-        if (s_view->have_song) {
-            /* MPD's queue_print_uris(): the position and a colon, then the
-             * song's own `file: <uri>` line -- "0:file: Music/a.mp3", key
-             * and all. Through mpdproto_kv() so a bad byte in the path is
-             * repaired as it is everywhere else. */
-            const size_t n = mpdproto_kv("file", s_view->uri, s_body, MPD_BODY_MAX);
-            if (n) {
-                puts_(c, "0:");
-                put(c, s_body, n);
-            }
-        }
-        return RES_OK;
-
-    case MPD_CMD_PLCHANGES:
-    case MPD_CMD_PLCHANGESPOSID: {
-        take_view();
-        unsigned long since;
-        if (!arg_unsigned(&x, a0, UINT32_MAX, &since)) return RES_ERR;
-        long lo = 0, hi = INT32_MAX;
-        if (a1 && !arg_range(&x, a1, &lo, &hi)) return RES_ERR;
-        /* The one entry changed at the version it arrived at, which is
-         * the current version: anything older than that has missed it. */
-        if (s_view->have_song && since < s_view->version && lo == 0 && hi >= 1) {
-            if (cmd->kind == MPD_CMD_PLCHANGES) put_song(c, s_view);
-            else putf(c, "cpos: 0\nId: %" PRIu32 "\n", s_view->id);
-        }
-        return RES_OK;
-    }
-
     /* ---- the transport ------------------------------------------------ */
-
-    case MPD_CMD_PLAY: {
-        take_view();
-        long pos = -1;
-        if (a0 && !arg_int(&x, a0, INT32_MIN, INT32_MAX, &pos)) return RES_ERR;
-        if (pos == -1) return ask(&x, UI_ACTION_PLAY, 0) ? RES_OK : RES_ERR;
-        if (!s_view->have_song || pos != 0) {
-            ack(c, MPD_ACK_ARG, idx, cmd->verb, "Bad song index");
-            return RES_ERR;
-        }
-        return restart(&x) ? RES_OK : RES_ERR;
-    }
-
-    case MPD_CMD_PLAYID: {
-        take_view();
-        long id = -1;
-        if (a0 && !arg_int(&x, a0, INT32_MIN, INT32_MAX, &id)) return RES_ERR;
-        if (id == -1) return ask(&x, UI_ACTION_PLAY, 0) ? RES_OK : RES_ERR;
-        if (!s_view->have_song || (uint32_t)id != s_view->id) {
-            ack(c, MPD_ACK_NO_EXIST, idx, cmd->verb, "No such song");
-            return RES_ERR;
-        }
-        return restart(&x) ? RES_OK : RES_ERR;
-    }
 
     case MPD_CMD_PAUSE: {
         if (!a0) return ask(&x, UI_ACTION_PLAY_PAUSE, 0) ? RES_OK : RES_ERR;
@@ -870,32 +1010,6 @@ static result_t run_cmd(conn_t *c, const mpd_cmd_t *cmd, int idx)
          * the track before it (ui.h, UI_ACTION_PREV). A client's back
          * button is the glass's back button. */
         return ask(&x, UI_ACTION_PREV, 0) ? RES_OK : RES_ERR;
-
-    case MPD_CMD_SEEK: {
-        take_view();
-        unsigned long pos;
-        int64_t ms;
-        if (!arg_unsigned(&x, a0, UINT32_MAX, &pos)) return RES_ERR;
-        if (!arg_time(&x, a1, false, &ms)) return RES_ERR;
-        if (!s_view->have_song || pos != 0) {
-            ack(c, MPD_ACK_ARG, idx, cmd->verb, "Bad song index");
-            return RES_ERR;
-        }
-        return seek_ms(&x, ms) ? RES_OK : RES_ERR;
-    }
-
-    case MPD_CMD_SEEKID: {
-        take_view();
-        unsigned long id;
-        int64_t ms;
-        if (!arg_unsigned(&x, a0, UINT32_MAX, &id)) return RES_ERR;
-        if (!arg_time(&x, a1, false, &ms)) return RES_ERR;
-        if (!s_view->have_song || id != s_view->id) {
-            ack(c, MPD_ACK_NO_EXIST, idx, cmd->verb, "No such song");
-            return RES_ERR;
-        }
-        return seek_ms(&x, ms) ? RES_OK : RES_ERR;
-    }
 
     case MPD_CMD_SEEKCUR: {
         take_view();
@@ -1249,8 +1363,14 @@ void mpd_init(void)
     s_body = heap_caps_malloc(MPD_BODY_MAX, ps);
     s_text = heap_caps_malloc(MPD_TEXT_MAX, ps);
     s_stack = heap_caps_malloc(MPD_STACK, ps);  /* 5159 */
+    for (int i = 0; i < 2; i++) {               /* 5166: the list, twice */
+        s_ql[i].id  = heap_caps_calloc(MPDQ_MAX, sizeof(uint32_t), ps);
+        s_ql[i].ver = heap_caps_calloc(MPDQ_MAX, sizeof(uint32_t), ps);
+        s_ql[i].off = heap_caps_calloc(MPDQ_MAX, sizeof(uint32_t), ps);
+    }
     bool ok = s_q && s_mu && s_pub && s_next && s_view && s_out && s_body && s_text &&
               s_stack;
+    for (int i = 0; i < 2; i++) ok = ok && s_ql[i].id && s_ql[i].ver && s_ql[i].off;
     for (int i = 0; i < MPD_CLIENTS; i++) {
         s_conn[i].fd = -1;
         s_conn[i].in = heap_caps_malloc(MPDPROTO_LINE_MAX, ps);
@@ -1267,12 +1387,14 @@ void mpd_init(void)
     s_pub->state = MPD_STATE_STOP;
     s_pub->volume = -1;
     s_pub->elapsed_ms = s_pub->duration_ms = -1;
+    s_pub->song = s_pub->next_song = -1;        /* 5166 */
 }
 
 static bool ready(void)
 {
     if (!s_q || !s_mu || !s_pub || !s_next || !s_view || !s_out || !s_body || !s_text ||
         !s_stack) return false;
+    for (int i = 0; i < 2; i++) if (!s_ql[i].id || !s_ql[i].ver || !s_ql[i].off) return false;
     for (int i = 0; i < MPD_CLIENTS; i++) if (!s_conn[i].in) return false;
     return true;
 }
@@ -1329,6 +1451,71 @@ static void copy_str(char *dst, size_t n, const char *src)
     snprintf(dst, n, "%s", src ? src : "");
 }
 
+/* ---- the list, built on ui_task (5166) ------------------------------------ */
+
+static bool list_add(qlist_t *q, const char *uri, uint32_t id)
+{
+    const size_t need = strlen(uri) + 1;
+    if (q->len + need > q->cap) {
+        size_t cap = q->cap ? q->cap : 4096;
+        while (cap < q->len + need) cap *= 2;
+        char *a = heap_caps_realloc(q->arena, cap, MALLOC_CAP_SPIRAM | MALLOC_CAP_8BIT);
+        if (!a) return false;
+        q->arena = a;
+        q->cap = cap;
+    }
+    memcpy(q->arena + q->len, uri, need);
+    q->off[q->n] = (uint32_t)q->len;
+    q->id[q->n] = id;
+    q->len += need;
+    q->n++;
+    return true;
+}
+
+/*
+ * Fill `w` with the queue, or with the one thing playing, and give each
+ * entry its version: the old one if the same id sits at the same
+ * position as before, `vnew` if not -- the range rule (mpdqueue.c's
+ * bump_range()) reached by comparison, since this copy is rebuilt rather
+ * than edited. `cur_changed` stamps the playing entry too, for tags that
+ * changed in place. True when anything differs from `old`.
+ */
+static bool list_build(qlist_t *w, const qlist_t *old, bool window, const char *uri,
+                       uint32_t window_id, int song, bool cur_changed, uint32_t vnew)
+{
+    w->n = 0;
+    w->len = 0;
+    w->window = window;
+    if (window) {
+        w->src = 0;
+        (void)list_add(w, uri, window_id);
+    } else {
+        /* Static: ui_task's, and 507 bytes is not a thing for its stack. */
+        static char u[MPDURI_MAX + 1];
+        w->src = mpdq_version();
+        const int count = mpdq_count();
+        for (int i = 0; i < count; i++) {
+            const char *vfs = mpdq_path(i);
+            /* Every queue path is under a mount, so this does not fail;
+             * if it ever did, the entry keeps its place under its raw
+             * path rather than shifting every position after it. */
+            if (!vfs || !mpduri_from_vfs(vfs, u, sizeof(u)))
+                snprintf(u, sizeof(u), "%s", vfs ? vfs : "");
+            if (!list_add(w, u, mpdq_id(i))) {
+                ESP_LOGW(TAG, "out of PSRAM copying the queue at entry %d of %d", i, count);
+                break;
+            }
+        }
+    }
+    bool changed = w->n != old->n || w->window != old->window;
+    for (int i = 0; i < w->n; i++) {
+        const bool same = i < old->n && old->id[i] == w->id[i] && !(cur_changed && i == song);
+        w->ver[i] = same ? old->ver[i] : vnew;
+        if (!same) changed = true;
+    }
+    return changed;
+}
+
 void mpd_publish(const ui_state_t *st, const char *path, bool streaming)
 {
     if (!ready() || !st) return;
@@ -1353,8 +1540,6 @@ void mpd_publish(const ui_state_t *st, const char *path, bool streaming)
          * is not a song a client can be shown. */
         if (!mpduri_from_vfs(path, n->uri, sizeof(n->uri))) n->uri[0] = '\0';
     }
-    n->have_song = n->uri[0] != '\0';
-    n->state = !n->have_song ? MPD_STATE_STOP : st->playing ? MPD_STATE_PLAY : MPD_STATE_PAUSE;
     n->volume = st->volume;
     n->modes = mpdmode_from_order(browser_order());
     n->elapsed_ms = st->stats_valid ? (int32_t)st->pos_sec * 1000 : -1;
@@ -1377,29 +1562,85 @@ void mpd_publish(const ui_state_t *st, const char *path, bool streaming)
     copy_str(n->album, sizeof(n->album), st->album);
 
     /*
-     * The id and the version. s_pub is only ever written here, on this
-     * task, so reading it without the lock is reading our own last write.
+     * The id, the version and the list (5166). s_pub and the published
+     * list are only ever written here, on this task, so reading them
+     * without the lock is reading our own last write.
      *
-     * A different song is a new id and a new version. The same song with
-     * different tags -- a station's ICY title moving on -- keeps its id
-     * and moves the version, which is what MPD does when a stream's tag
-     * changes: the entry was modified in place, and a client re-reads it
-     * through plchanges.
+     * WHAT IS PLAYING, AND IS IT THE QUEUE'S? The shown path is the
+     * queue's when it is the entry the playlist's cursor is on; then the
+     * list is the queue and the song is that position. A station, or a
+     * file played from outside the queue's folder, is a window of one
+     * (see s_ql). Nothing shown at all is the queue with no song.
      */
     const snap_t *p = s_pub;
-    bool tags_changed = false;      /* 5160: for `idle player` */
-    if (n->have_song != p->have_song || strcmp(n->uri, p->uri) != 0) {
-        n->id = n->have_song ? ++s_last_id : 0;
-        n->version = p->version + 1;
-    } else if (strcmp(n->title, p->title) != 0 || strcmp(n->artist, p->artist) != 0 ||
-               strcmp(n->album, p->album) != 0) {
-        n->id = p->id;
-        n->version = p->version + 1;
-        tags_changed = true;
+    const qlist_t *L = &s_ql[s_ql_pub];
+    const int cur = playlist_current();
+    const char *qp = cur >= 0 ? mpdq_path(cur) : NULL;
+    const bool shown = streaming || (path && path[0]);
+    const bool inq = !streaming && shown && qp && strcmp(qp, path) == 0;
+    const bool window = shown && !inq && n->uri[0];
+
+    uint32_t sid = 0;
+    if (inq) {
+        sid = mpdq_id(cur);
+    } else if (window) {
+        /* The same thing still playing keeps its id; anything else is new. */
+        sid = (L->window && L->n == 1 && strcmp(L->arena, n->uri) == 0)
+            ? L->id[0] : (MPD_WINDOW_ID | ++s_last_id);
+    }
+    /* The same song with different tags -- a station's ICY title moving
+     * on -- keeps its id and moves the version, which is what MPD does
+     * when a stream's tag changes: modified in place, re-read through
+     * plchanges. */
+    const bool tags_changed = sid && sid == p->id &&
+        (strcmp(n->title, p->title) != 0 || strcmp(n->artist, p->artist) != 0 ||
+         strcmp(n->album, p->album) != 0);
+
+    const bool stale = window != L->window ||
+        (window ? (L->n != 1 || L->id[0] != sid) : L->src != mpdq_version());
+
+    /* Rebuild into the copy clients are not reading -- unless this task
+     * still has it pinned from a flip ago, in which case the list stays
+     * as published for another pass and so does everything that points
+     * into it. */
+    int w = -1;
+    if (stale || tags_changed) {
+        xSemaphoreTake(s_mu, portMAX_DELAY);
+        const int target = 1 - s_ql_pub;
+        const bool pinned = target == s_ql_pin;
+        xSemaphoreGive(s_mu);
+        if (!pinned) w = target;
+    }
+
+    const qlist_t *ql = L;
+    if (w >= 0) {
+        const uint32_t vnew = p->version + 1;
+        const int song_guess = inq ? cur : 0;
+        const bool changed = list_build(&s_ql[w], L, window, n->uri, sid, song_guess,
+                                        tags_changed, vnew);
+        n->version = changed ? vnew : p->version;
+        ql = &s_ql[w];
     } else {
-        n->id = p->id;
         n->version = p->version;
     }
+
+    if (w < 0 && (stale || tags_changed)) {
+        /* Deferred: what points into the list stays as it was, so a
+         * position never refers to a list a client cannot see. */
+        n->song = p->song;
+        n->id = p->id;
+        n->length = p->length;
+        n->next_song = p->next_song;
+        n->next_id = p->next_id;
+    } else {
+        n->length = ql->n;
+        n->song = inq ? (cur < ql->n ? cur : -1) : (window && ql->n == 1 ? 0 : -1);
+        n->id = n->song >= 0 ? ql->id[n->song] : 0;
+        n->next_song = inq ? mpdmode_next_pos(browser_order(), n->song, ql->n) : -1;
+        n->next_id = n->next_song >= 0 ? ql->id[n->next_song] : 0;
+    }
+    n->have_song = n->song >= 0;
+    n->state = !n->have_song ? MPD_STATE_STOP : st->playing ? MPD_STATE_PLAY : MPD_STATE_PAUSE;
 
     /*
      * 5160: what changed, for `idle`. DATABASE is MPD's "an update
@@ -1433,6 +1674,7 @@ void mpd_publish(const ui_state_t *st, const char *path, bool streaming)
 
     xSemaphoreTake(s_mu, portMAX_DELAY);
     memcpy(s_pub, n, sizeof(*s_pub));
+    if (w >= 0) s_ql_pub = w;       /* 5166: the list with the snapshot */
     s_events |= ev;
     xSemaphoreGive(s_mu);
     /* After the copy: a press is serviced once its effect is readable. */

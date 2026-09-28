@@ -15785,3 +15785,42 @@ the idle view, and status ignoring the switch -- each caught.
 and Playlists views ask for `list`, `lsinfo`, `listallinfo` and
 `listplaylists`, which are steps 12 and 13 and ACKed as not supported yet.
 Those are the next errors to expect, and they are the planned ones.
+
+### 5162 -- mpd: say which client pressed what, and every refusal
+
+The first session with Cantata answered "I have some control, but am I
+missing MPD logs?" with: no, the server says almost nothing. It logged
+connections, closes and failures, and a press that waited more than a
+second. It did not log the command a client sent or the ACK it got back,
+so every refusal Cantata reported was invisible on the console, and a
+client's pause read as `tab5_mp3: button: pause` -- exactly what a tap on
+the glass logs. In that run the only way to tell was that no
+`touch: down` line came before it.
+
+Two lines now, both INFO:
+
+    tab5_mpd: client 47: setvol -> volume 58%
+    tab5_mpd: client 47: ACK [5@0] {lsinfo} not supported by this player yet
+
+**Presses**, from `ask()`, which every command that changes the player
+passes through: the client, the MPD verb, and the action it became, with
+the value only where one means something. It comes just before the
+player's own `button:` line and names its source.
+
+**Refusals**, from one `put_ack()` that both ACK paths now send through --
+a handler's and the tokeniser's. The line is what the client was told,
+capped at 160 bytes because an ACK can quote a whole argument off the
+wire; `mpdproto_ack()` has already replaced any control byte in it, so a
+hostile argument cannot put a newline into the console either. A refusal
+is either a verb to build or a bug, and while a new client is being tried
+it is the most useful line there is: it is how the next thing on the list
+announces itself.
+
+**Deliberately not logged: the commands that only read.** `status`,
+`currentsong`, `playlistinfo` and the like are what a client polls, some of
+them every second, and the console is a 4096-byte USB buffer. 5149-5152
+is the reminder that a log line on this device is not free. Nor is
+`idle`, which a client parked on it sends again after every answer.
+
+Checked in 5160's socket harness, which prints the log: 50 checks still
+pass, and the lines it produced are the examples above. Not on a board.

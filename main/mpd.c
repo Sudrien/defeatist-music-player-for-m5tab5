@@ -307,6 +307,20 @@ static void putf(conn_t *c, const char *fmt, ...)
     if (n > 0) put(c, line, (size_t)n < sizeof(line) ? (size_t)n : sizeof(line) - 1);
 }
 
+/*
+ * 5162: every ACK is logged as it is sent -- the line a client is told,
+ * which is the one worth reading when a new client complains. Refusals
+ * are rare and each is a thing to build or a bug, so INFO; the log is
+ * capped at 160 bytes because an ACK can quote a whole argument off the
+ * wire, and mpdproto_ack() has already replaced any control byte in it.
+ */
+static void put_ack(conn_t *c, size_t n)
+{
+    if (!n) return;
+    ESP_LOGI(TAG, "client %d: %.*s", c->fd, (int)(n - 1 < 160 ? n - 1 : 160), s_text);
+    put(c, s_text, n);
+}
+
 /* An ACK raised by a handler, with MPD's wording supplied by the caller.
  * mpdproto_ack() sanitises both fields; see mpdproto.h. */
 static void ack(conn_t *c, mpd_ack_t code, int idx, const char *verb,
@@ -316,8 +330,7 @@ static void ack(conn_t *c, mpd_ack_t code, int idx, const char *verb,
     va_start(ap, fmt);
     vsnprintf(s_body, MPD_BODY_MAX, fmt, ap);
     va_end(ap);
-    const size_t n = mpdproto_ack(code, idx, verb, s_body, s_text, MPD_TEXT_MAX);
-    if (n) put(c, s_text, n);
+    put_ack(c, mpdproto_ack(code, idx, verb, s_body, s_text, MPD_TEXT_MAX));
 }
 
 /* ---- argument parsing, MPD's (src/protocol/ArgParser.cxx) ---------------- */
@@ -483,6 +496,18 @@ static void put_song(conn_t *c, const snap_t *v)
 static bool ask(const ctx_t *x, ui_action_kind_t kind, int value)
 {
     const req_t r = { .act = { .kind = kind, .value = value }, .seq = ++s_seq };
+    /*
+     * 5162: a press from a client says which client and which command,
+     * because the player's own "button:" line that follows it reads the
+     * same as a tap on the glass. Only presses: `status` and friends are
+     * polled, some clients every second, and would drown the console.
+     */
+    if (kind == UI_ACTION_VOLUME || kind == UI_ACTION_SEEK)
+        ESP_LOGI(TAG, "client %d: %s -> %s %d%%", x->c->fd, x->verb, ui_action_name(kind), value);
+    else if (kind == UI_ACTION_REPLAYGAIN)
+        ESP_LOGI(TAG, "client %d: %s -> replaygain %s", x->c->fd, x->verb, value ? "on" : "off");
+    else
+        ESP_LOGI(TAG, "client %d: %s -> %s", x->c->fd, x->verb, ui_action_name(kind));
     if (xQueueSend(s_q, &r, pdMS_TO_TICKS(MPD_ASK_QUEUE_MS)) != pdTRUE) {
         ack(x->c, MPD_ACK_SYSTEM, x->idx, x->verb, "player busy; try again");
         return false;
@@ -957,9 +982,8 @@ static bool run_line(conn_t *c, char *line)
     }
 
     case MPD_LINE_ERR: {
-        const size_t n = mpdproto_ack_cmd(&cmd, c->list.active ? c->list.index : 0,
-                                          s_text, MPD_TEXT_MAX);
-        if (n) put(c, s_text, n);
+        put_ack(c, mpdproto_ack_cmd(&cmd, c->list.active ? c->list.index : 0,
+                                    s_text, MPD_TEXT_MAX));
         if (c->list.active) c->list_dead = true;
         return true;
     }

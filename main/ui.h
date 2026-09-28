@@ -294,6 +294,9 @@ typedef enum {
      * stale id finds nothing and is dropped.
      */
     UI_ACTION_PLAY_ID,
+    /* 5168: set the play order to `value` (a play_order_t) -- MPD's
+     * repeat/random/single, already mapped through mpdmode.h's table. */
+    UI_ACTION_ORDER,
 } ui_action_kind_t;
 
 /* Name of an action, for logging. Never NULL. Lives beside the enum so a

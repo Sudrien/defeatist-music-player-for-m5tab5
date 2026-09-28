@@ -397,6 +397,7 @@ const char *ui_action_name(ui_action_kind_t k)
     case UI_ACTION_MUTE:        return "mute";
     case UI_ACTION_REPLAYGAIN:  return "replaygain";
     case UI_ACTION_PLAY_ID:     return "play entry";
+    case UI_ACTION_ORDER:       return "play order";
     }
     return "?";
 }

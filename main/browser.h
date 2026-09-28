@@ -205,6 +205,11 @@ void browser_draw(void);
  * at the end of every track. */
 play_order_t browser_order(void);
 
+/* 5168: set it from somewhere other than the footer -- an MPD client's
+ * repeat/random/single, through ui_task (UI_ACTION_ORDER). ui_task only,
+ * like the footer. Logged the footer's way. */
+void browser_set_order(play_order_t o);
+
 #ifdef __cplusplus
 }
 #endif

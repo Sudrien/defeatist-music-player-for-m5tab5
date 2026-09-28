@@ -415,6 +415,11 @@ nothing is left half-built if the series stops.
    to the walk over it. `status` reports what the device will actually do
    rather than what was asked for, so an unrepresentable toggle springs
    back -- the argument is in `ARCHITECTURE.md`.
+
+   **And settable from a client in 5168**, once Cantata's buttons asked:
+   `repeat`, `random`, `single` and `consume` go through the same table
+   to a play order, applied on `ui_task`. A request the device cannot do
+   springs back and raises `options` so the client re-reads.
 8. **`mpdproto.c` and `mpdprototest`**: grammar, quoting, command lists,
    `OK`/`ACK`, and the serialisers, with nothing on a socket. `run-mpd`
    into `all:` and `.PHONY`, the binary into `clean`, both the

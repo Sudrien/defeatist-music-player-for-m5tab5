@@ -8074,6 +8074,10 @@ static void ui_task(void *arg)
             }
             break;
         }
+        case UI_ACTION_ORDER:
+            /* 5168: the footer's cycle, jumped straight to one order. */
+            browser_set_order((play_order_t)act.value);
+            break;
         case UI_ACTION_REPLAYGAIN:
             /* 5161: the panel's switch, from an MPD client. Logged the
              * panel's way, and like it, from the next track. */

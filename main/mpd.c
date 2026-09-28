@@ -690,6 +690,8 @@ static bool answered(mpd_cmd_kind_t k)
     case MPD_CMD_PLAYLISTINFO: case MPD_CMD_PLAYLISTID: case MPD_CMD_PLAYLIST:
     case MPD_CMD_PLCHANGES: case MPD_CMD_PLCHANGESPOSID:
     case MPD_CMD_IDLE:                                  /* 5160 */
+    case MPD_CMD_REPEAT: case MPD_CMD_RANDOM:           /* 5168 */
+    case MPD_CMD_SINGLE: case MPD_CMD_CONSUME:
     case MPD_CMD_REPLAY_GAIN_MODE: case MPD_CMD_REPLAY_GAIN_STATUS:  /* 5161 */
     case MPD_CMD_CHANNELS:                                           /* 5163 */
         return true;
@@ -982,6 +984,51 @@ static result_t run_cmd(conn_t *c, const mpd_cmd_t *cmd, int idx)
             return RES_ERR;
         }
         return ask(&x, UI_ACTION_REPLAYGAIN, on) ? RES_OK : RES_ERR;
+    }
+
+    case MPD_CMD_REPEAT:
+    case MPD_CMD_RANDOM:
+    case MPD_CMD_SINGLE:
+    case MPD_CMD_CONSUME: {
+        /*
+         * 5168: MPD's handle_repeat and its three siblings, through
+         * mpdmode.h's table. The other three flags are as the client last
+         * saw them; the one asked for changes; the four together go to
+         * the nearest of the device's four orders.
+         *
+         * WHAT DOES NOT FIT SPRINGS BACK (5156's rule): `repeat 1` alone
+         * is repeat-all, which this device has not got, and `consume` is
+         * not a thing it can do at all. The command still says OK, as
+         * MPD's always does, and `status` then reports what the device
+         * will actually do.
+         *
+         * AND A SPRING-BACK RAISES `options`, which MPD never needs to:
+         * there a flag always changes as asked, so a client's toggle
+         * always matches. Here a client that sent `repeat 1` has drawn
+         * the toggle on, and without an event it would stay on while the
+         * device does not repeat. The event makes it re-read.
+         */
+        bool on;
+        if (!arg_bool(&x, a0, &on)) return RES_ERR;
+        take_view();
+        mpd_modes_t m = s_view->modes;
+        bool *const flag = cmd->kind == MPD_CMD_REPEAT ? &m.repeat
+                         : cmd->kind == MPD_CMD_RANDOM ? &m.random
+                         : cmd->kind == MPD_CMD_SINGLE ? &m.single : &m.consume;
+        *flag = on;
+        const play_order_t now = mpdmode_to_order(&s_view->modes);
+        const play_order_t want = mpdmode_to_order(&m);
+        const mpd_modes_t got = mpdmode_from_order(want);
+        const bool honoured = memcmp(&got, &m, sizeof(m)) == 0;
+        if (!honoured) {
+            ESP_LOGI(TAG, "client %d: %s %d has no exact play order here; "
+                     "status says what the player will do", c->fd, cmd->verb, on);
+            xSemaphoreTake(s_mu, portMAX_DELAY);
+            s_events |= MPD_IDLE_OPTIONS;
+            xSemaphoreGive(s_mu);
+        }
+        if (want == now) return RES_OK;
+        return ask(&x, UI_ACTION_ORDER, (int)want) ? RES_OK : RES_ERR;
     }
 
     case MPD_CMD_OUTPUTS:

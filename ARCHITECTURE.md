@@ -16130,3 +16130,55 @@ new folder within about a second, and a station's id in Cantata is no
 longer 0. If Cantata still lags after this, the next thing to try is
 `mpc -h <address> idleloop` beside it, which separates "the server did
 not say" from "the client did not ask".
+
+### 5168 -- repeat, random, single and consume, from a client
+
+The board after 5167: the folder swap followed in Cantata, and Cantata's
+four mode buttons were each refused -- `ACK [5@0] {repeat} not supported
+by this player yet`, and the same for `single`, `random` and `consume`.
+5156 wrote the mapping and made `status` report it; setting it waited on
+a way to change the play order from off `ui_task`, which 5161's
+ReplayGain had since shown the shape of.
+
+**The order is set where the footer sets it.** `browser_set_order()` beside
+`browser_order()`, called on `ui_task` from a new `UI_ACTION_ORDER` press
+whose value is the target `play_order_t`, logged the footer's way with
+"(from mpd)" added. The order is not persisted, before or after; a client
+setting it is no different from a tap.
+
+**The four commands go through 5156's table.** The other three flags are
+as the client last saw them in `status`, the one asked for changes, and
+the four together become the nearest of the four orders
+(`mpdmode_to_order()`). The press is sent only when the order would
+actually change.
+
+**What the device cannot do springs back** -- `repeat 1` without `single`
+is repeat-all, which this player has not got, and `consume` is not
+possible at all -- and the command still says OK, because MPD's
+`handle_repeat` and its siblings never fail on a boolean. `status` then
+reports what the device will do, which is 5156's rule.
+
+**A spring-back raises `options`, which is the one place this departs from
+MPD.** MPD raises it only when a flag changes, and there a flag always
+changes as asked, so a client's toggle always matches the server. Here a
+client that sent `repeat 1` has already drawn its toggle on; without an
+event nothing tells it to re-read, and the toggle stays on over a player
+that does not repeat. Setting what is already set still raises nothing,
+as MPD. The log says which it was: `client N: repeat 1 has no exact play
+order here; status says what the player will do`.
+
+Arguments are MPD's `ParseBool`: `0` or `1`, and anything else is
+`ACK [2@N] {verb} Boolean (0/1) expected: X`. `single oneshot` is 0.21
+and `MPDPROTO_VERSION` claims 0.20, so it is refused the same way.
+
+In the socket harness: 18 checks over the table's rows -- single, then
+repeat-one, then single off (repeat-all, springing back to all), random
+on and off, repeat alone and consume springing back with the event,
+random on repeat-one dropped, no event for a no-op, and the two ACKs.
+**Mutation-checked**, three deliberate bugs, all caught: no event on a
+spring-back, an event on every request, and the other three flags
+forgotten. The older 51 and 43 still pass.
+
+Not on a board. What a run should show: Cantata's single and random
+toggles moving the glass's order (`play order now ONE (from mpd)`), and
+its repeat toggle springing back off unless single is on.

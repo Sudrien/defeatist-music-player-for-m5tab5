@@ -213,6 +213,16 @@ static play_order_t s_order = PLAY_ORDER_ALL;
 static uint32_t s_seen_generation = UINT32_MAX;
 
 play_order_t browser_order(void) { return s_order; }
+
+static const char *order_label(void);
+
+void browser_set_order(play_order_t o)
+{
+    if ((int)o < 0 || (int)o > (int)PLAY_ORDER_REPEAT_ONE || o == s_order) return;
+    s_order = o;
+    ESP_LOGI(TAG, "play order now %s (from mpd)", order_label());
+    s_dirty = true;
+}
 bool browser_is_open(void) { return s_open; }
 
 static int rows_visible(void)

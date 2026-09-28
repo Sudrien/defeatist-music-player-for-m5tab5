@@ -410,6 +410,156 @@ int main(void)
     playlist_load_dir(one);
     CHECK(playlist_count() == 1 && playlist_path(1) == NULL, "a smaller load replaces all of it");
 
+    /* ---- 5171: edits keep the cursor and the shuffle history --------
+     *
+     * Added after the pinned sections above, which are unchanged. The
+     * album is a.mp3 B.mp3 c.MP3 d.flac; "N(i)" below is its name. */
+    char xp[768], yp[768];
+    snprintf(xp, sizeof(xp), "%s/x.mp3", s_root);
+    snprintf(yp, sizeof(yp), "%s/y.mp3", s_root);
+
+    /* Insert before the current entry: the cursor follows its entry. */
+    playlist_load_dir(album);
+    playlist_set_current(1);                                /* B */
+    CHECK(playlist_add(xp, 0) == 0, "add at the top");
+    CHECK(playlist_count() == 5 && strcmp(playlist_path(0), xp) == 0, "x is first");
+    CHECK(playlist_current() == 2 && strcmp(name_at(2), "B.mp3") == 0,
+          "the cursor moved with B: %d", playlist_current());
+    CHECK(strcmp(strrchr(playlist_peek_next(PLAY_ORDER_ALL), '/') + 1, "c.MP3") == 0,
+          "and next is still c");
+    /* After the cursor: it stays. At the end: negative `at`. */
+    CHECK(playlist_add(yp, -1) == 5 && playlist_current() == 2, "add at the end");
+    CHECK(playlist_add(xp, 7) == -1 && playlist_count() == 6, "past the end is refused");
+    CHECK(playlist_add("", 0) == -1 && playlist_count() == 6, "an empty path is refused");
+
+    /* Play next: straight after the cursor. */
+    CHECK(playlist_add_next(yp) == 3, "add_next goes after the current entry");
+    CHECK(playlist_next(PLAY_ORDER_ALL) && strcmp(playlist_path(playlist_current()), yp) == 0,
+          "and is what next plays");
+
+    /* Remove before the cursor, and after it. */
+    playlist_load_dir(album);
+    playlist_set_current(2);                                /* c */
+    CHECK(playlist_remove(0) && playlist_current() == 1 &&
+          strcmp(name_at(1), "c.MP3") == 0, "remove before: the cursor follows c");
+    CHECK(playlist_remove(2) && playlist_current() == 1 && playlist_count() == 2,
+          "remove after: the cursor stays");
+    CHECK(!playlist_remove(-1) && !playlist_remove(2), "no such entry");
+
+    /* Remove the entry playing: current -1, and the gap is the cursor. */
+    playlist_load_dir(album);
+    playlist_set_current(1);                                /* B */
+    CHECK(playlist_remove(1), "remove the current entry");
+    CHECK(playlist_current() == -1, "the current entry is no longer in the list");
+    CHECK(playlist_has_next(PLAY_ORDER_ALL), "but there is a next");
+    CHECK(strcmp(strrchr(playlist_peek_next(PLAY_ORDER_ALL), '/') + 1, "c.MP3") == 0,
+          "peek: what slid into its place");
+    CHECK(playlist_peek_next(PLAY_ORDER_REPEAT_ONE) == NULL,
+          "repeat-one has nothing to repeat");
+    {
+        const char *n = playlist_next(PLAY_ORDER_ALL);
+        CHECK(n && strcmp(strrchr(n, '/') + 1, "c.MP3") == 0 && playlist_current() == 1,
+              "next plays c and the cursor is on it");
+    }
+    playlist_load_dir(album);
+    playlist_set_current(2);                                /* c */
+    playlist_remove(2);
+    {
+        const char *p = playlist_prev();
+        CHECK(p && strcmp(strrchr(p, '/') + 1, "B.mp3") == 0 && playlist_current() == 1,
+              "prev from the gap: what was before it");
+    }
+    /* The gap moves with the entries around it. */
+    playlist_load_dir(album);
+    playlist_set_current(1);
+    playlist_remove(1);                                     /* gap before c (1) */
+    playlist_remove(0);                                     /* a goes: gap 0 */
+    CHECK(strcmp(strrchr(playlist_peek_next(PLAY_ORDER_ALL), '/') + 1, "c.MP3") == 0,
+          "a removal before the gap moves it");
+    playlist_remove(0);                                     /* c goes: d slides in */
+    CHECK(strcmp(strrchr(playlist_peek_next(PLAY_ORDER_ALL), '/') + 1, "d.flac") == 0,
+          "removing the successor makes the next one the successor");
+    CHECK(playlist_add_next(xp) == 0 &&
+          strcmp(playlist_peek_next(PLAY_ORDER_ALL), xp) == 0,
+          "add_next fills the gap");
+    playlist_set_current(1);
+    CHECK(playlist_peek_next(PLAY_ORDER_ALL) == NULL, "setting current forgets the gap");
+    /* The last entry, playing, removed: nothing follows. */
+    playlist_load_dir(album);
+    playlist_set_current(3);
+    playlist_remove(3);
+    CHECK(!playlist_has_next(PLAY_ORDER_ALL) && playlist_next(PLAY_ORDER_ALL) == NULL,
+          "the last entry removed: nothing next");
+
+    /* Move: the cursor follows the entry it is on, or makes room. */
+    playlist_load_dir(album);
+    playlist_set_current(1);                                /* B */
+    CHECK(playlist_move(1, 3) && playlist_current() == 3 && strcmp(name_at(3), "B.mp3") == 0,
+          "moving the current entry moves the cursor");
+    CHECK(playlist_move(0, 3) && playlist_current() == 2, "a move across it from above");
+    CHECK(playlist_move(3, 0) && playlist_current() == 3, "and from below");
+    CHECK(strcmp(name_at(playlist_current()), "B.mp3") == 0, "still on B");
+    CHECK(playlist_move(2, 2) && playlist_current() == 3, "a move to itself changes nothing");
+    CHECK(!playlist_move(-1, 0) && !playlist_move(0, 4), "not a position");
+
+    /* Shuffle's history follows the entries: a, B, c played, x inserted
+     * at the top. The next two shuffle picks must be x and d, in either
+     * order -- a bitmap left on the slots would call x played and B not. */
+    playlist_load_dir(album);
+    playlist_set_current(0);
+    playlist_set_current(1);
+    playlist_set_current(2);
+    playlist_add(xp, 0);
+    {
+        const char *p1 = playlist_next(PLAY_ORDER_SHUFFLE);
+        char n1[768];
+        snprintf(n1, sizeof(n1), "%s", p1 ? p1 : "");
+        const char *p2 = playlist_next(PLAY_ORDER_SHUFFLE);
+        const char *b1 = strrchr(n1, '/'), *b2 = p2 ? strrchr(p2, '/') : NULL;
+        const bool ok = b1 && b2 &&
+            ((strcmp(b1, "/x.mp3") == 0 && strcmp(b2, "/d.flac") == 0) ||
+             (strcmp(b1, "/d.flac") == 0 && strcmp(b2, "/x.mp3") == 0));
+        CHECK(ok, "shuffle picks the two unplayed: %s then %s", n1, p2 ? p2 : "(null)");
+    }
+    /* And after a removal and a move. Played: a (0) and d (3). Remove B,
+     * move d to the top: unplayed are c then... only c. */
+    playlist_load_dir(album);
+    playlist_set_current(0);
+    playlist_set_current(3);
+    playlist_remove(1);                     /* a c d, played a d */
+    playlist_move(2, 0);                    /* d a c, played d a */
+    {
+        const char *p = playlist_next(PLAY_ORDER_SHUFFLE);
+        CHECK(p && strcmp(strrchr(p, '/'), "/c.MP3") == 0, "the only unplayed is c: %s", p ? p : "(null)");
+    }
+
+    /* A move downwards: a and B played, a moved to the end. */
+    playlist_load_dir(album);
+    playlist_set_current(0);
+    playlist_set_current(1);
+    playlist_move(0, 3);                    /* B c d a, played B a */
+    {
+        const char *p1 = playlist_next(PLAY_ORDER_SHUFFLE);
+        char n1[768];
+        snprintf(n1, sizeof(n1), "%s", p1 ? p1 : "");
+        const char *p2 = playlist_next(PLAY_ORDER_SHUFFLE);
+        const char *b1 = strrchr(n1, '/'), *b2 = p2 ? strrchr(p2, '/') : NULL;
+        const bool ok = b1 && b2 &&
+            ((strcmp(b1, "/c.MP3") == 0 && strcmp(b2, "/d.flac") == 0) ||
+             (strcmp(b1, "/d.flac") == 0 && strcmp(b2, "/c.MP3") == 0));
+        CHECK(ok, "after a move down, shuffle picks c and d: %s then %s", n1, p2 ? p2 : "(null)");
+    }
+
+    /* Editing with nothing loaded: the list is still the queue. */
+    playlist_clear();
+    CHECK(playlist_add(xp, -1) == 0 && playlist_count() == 1, "add to an empty list");
+    CHECK(playlist_next(PLAY_ORDER_ALL) && playlist_current() == 0, "and play it");
+
+    /* Full. */
+    playlist_load_dir(big);
+    CHECK(playlist_add(xp, -1) == -1 && playlist_count() == PLAYLIST_MAX, "full is refused");
+    CHECK(playlist_remove(0) && playlist_add(xp, -1) == PLAYLIST_MAX - 1, "and room is room");
+
     playlist_clear();
     rm_rf(s_root);
     printf("%d checks, %d failures\n", checks, failures);

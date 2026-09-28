@@ -137,6 +137,39 @@ const char *playlist_prev(void);
 /* The folder this list came from, or "" -- shown in the chooser. */
 const char *playlist_dir(void);
 
+/*
+ * 5171: EDITING THE LIST (MPD.md step 6). The list is the queue
+ * (mpdqueue.h), and these are the only way to change it besides a load
+ * or a clear, because they move the cursor and the shuffle history with
+ * the entries -- an mpdq_* call alone would leave both on the slots.
+ * ui_task only, like everything else here that changes the list.
+ *
+ * THE ENTRY PLAYING CAN BE REMOVED. It keeps playing; playlist_current()
+ * becomes -1, the state for a file played from outside the list; and
+ * next, peek_next, has_next and prev act as if the cursor sat in the gap
+ * it left -- next is what slid into its place, prev what was before it.
+ * Setting the current entry, a load or a clear forget the gap.
+ *
+ * playlist_dir() is not changed by an edit: it is the folder the list
+ * was loaded from, and is only the log's and the chooser's name for it.
+ */
+
+/* Insert `path` at `at` (0..count), or at the end for a negative `at`.
+ * The position, or -1: full (PLAYLIST_MAX), out of memory, `at` past the
+ * end, or a path mpdq_insert() refuses. */
+int playlist_add(const char *path, int at);
+
+/* Insert `path` to play next: after the current entry, into the gap left
+ * by a removed one, or at the end when there is neither. */
+int playlist_add_next(const char *path);
+
+/* Remove the entry at `pos`. False when there is none. */
+bool playlist_remove(int pos);
+
+/* Move the entry at `from` to `to`, the others closing up -- mpdq_move()'s
+ * meaning. False when either is not a position. */
+bool playlist_move(int from, int to);
+
 /* Largest number of tracks in one folder. A folder past this is truncated
  * and logs; the cap exists because each entry is a strdup of a path up to
  * 512 bytes, and an unbounded readdir on a card root is an unbounded

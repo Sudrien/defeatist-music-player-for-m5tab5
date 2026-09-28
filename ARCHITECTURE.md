@@ -16293,3 +16293,52 @@ buttons and its chooser behave as before; an MPD client's `pause`,
 `next`, `setvol` and a mode toggle are answered OK and `status` agrees,
 as before; and a remote volume drag while a client is polling does not
 produce "player busy".
+
+### 5171 -- playlist: edits that keep the cursor
+
+The first of MPD.md step 6, the remote page's queue verbs, and nothing
+on a socket yet. The queue can be edited by `mpdq_insert()`,
+`mpdq_remove()` and `mpdq_move()` already, but its positions are
+`playlist.c`'s cursor and shuffle bitmap, and an edit through `mpdq_*`
+alone leaves both on the slots rather than the entries: the glass marks
+the wrong row, next skips or repeats one, and shuffle calls a new entry
+played and an old one not. So the edits are `playlist.c`'s:
+`playlist_add(path, at)`, `playlist_add_next(path)`,
+`playlist_remove(pos)` and `playlist_move(from, to)`, and the cursor and
+the bitmap follow the entries.
+
+**Removing the entry that is playing** was the one decision. It keeps
+playing -- it is open, and stopping it is a different request -- and
+`playlist_current()` becomes -1, which is the state `playlist.h` already
+names for a file played from outside the list. But what followed it
+should still follow it, so the position it left is kept as a gap
+(`s_gap`), and next, peek_next, has_next and prev act as if the cursor
+sat there: next is what slid into its place, prev what was before it.
+`playlist_add_next()` into a gap puts the new entry on the far side of
+it, so it is what plays next. Setting a current entry, a load or a clear
+forget the gap. Repeat-one has nothing to repeat from a gap, and says so.
+
+`playlist_dir()` is not touched by an edit. It is the folder the list
+was loaded from, and only a name for the log and the chooser.
+
+**Host-tested** in `texttest/playlisttest.c`, as a section after the
+pinned ones, which pass unchanged: inserts before and after the cursor,
+play-next, removals on each side of it and of it, the gap through
+further removals and an insert, moves across the cursor from both sides,
+full and out-of-range refusals, and the shuffle bitmap after an insert,
+a removal and moves in both directions -- observed through
+`playlist_next(PLAY_ORDER_SHUFFLE)`, since the bitmap is private.
+Removing either bitmap shift makes a check fail.
+
+**What this does not fix, and must be fixed before a socket can edit
+the list:** `playlist.c` and `mpdqueue.c` have no lock, and the list is
+read off `ui_task` -- `playlist_next()` and `playlist_clear()` on
+`main_task` in `player_loop()`, `playlist_peek_next()` on `media_task` in
+`prefetch_next()` -- each returning a pointer the queue can free. A
+folder tap has always had this race; a remote page that can delete an
+entry mid-track makes it a thing that will happen. That is the next
+patch, and the remote's verbs come after it.
+
+Not built with ESP-IDF, not run on a board. No `sdkconfig.defaults` or
+`idf_component.yml` change. Nothing calls the new functions yet, so a
+board run should show nothing different.

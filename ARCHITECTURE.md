@@ -15592,3 +15592,138 @@ Compile-checked with `-Wall -Wextra` against the current headers, with
 and without the option. The start/stop/restart sequence was not driven
 on a host; it is the part to watch on the board (switch off, wait for
 `down;`, switch on, repeatedly).
+
+### 5160 -- idle: MPD's rules, read from MPD, and `noidle` is not a verb
+
+`MPD.md` step 10. `mpdidle.h`/`.c` hold the rules as a pure module --
+subsystem names and bits, the per-connection latch, `idle` and `noidle`
+framing, and what counts as a change -- and `mpd.c` wires it in: a mask
+of changes computed once per `ui_task` pass in `mpd_publish()`, handed to
+the server task under the lock it already takes, and latched into every
+connection each time the task wakes.
+
+**Read out of MPD 0.20's source again, and again it disagreed with the
+obvious.** Three rules that a guess gets wrong:
+
+- **`changed:` lines come in MPD's bit order** -- database,
+  stored_playlist, playlist, player, mixer, ... (`IdleFlags.cxx`) -- not
+  in the order things happened.
+- **Answering an idle clears every pending event, including those the
+  client did not ask for** (`ClientIdle.cxx`, `idle_flags = 0`). A client
+  idling on `player` alone that is woken by it has lost any `mixer` that
+  was waiting. Copied rather than improved: a client that subscribes
+  narrowly and later widens is relying on it.
+- **`noidle` from a client that is not idling gets no answer at all** --
+  not an OK (`ClientProcess.cxx`). It exists for a race: the client sends
+  `noidle` as the server answers its `idle`, reads one response, and a
+  stray OK would desynchronise it for the rest of the connection.
+
+**And `noidle` is not a verb.** MPD's command table has `idle` and no
+`noidle`; the bare word is matched as a raw line, after trailing bytes
+<= 0x20 are stripped, before tokenising and before the command-list state
+is looked at. 5153 had it in `mpdproto.c`'s table with arity 0, which
+listed it in `commands` and made `noidle x` "wrong number of arguments"
+where MPD says `unknown command "noidle"`. It is out of the table and the
+enum; the two tests that assumed it was a verb are replaced by one that
+checks MPD's answer to `noidle x`.
+
+The rest, all from the same files: `noidle` while idling answers a bare
+OK and keeps pending events; any other line while idling closes the
+connection; subsystem names are case-insensitive; an unknown one is
+`ACK [2@N] {idle} Unrecognized idle event: NAME`; a bare `idle` means
+everything; the inactivity timeout is off while a client idles; and an
+`idle` inside a command list stops the rest of the list, with no OK. This
+server runs a list as it arrives rather than at its end (5158), so the
+idle is held until `command_list_end` and the lines after it are
+discarded unrun -- the same result, reached from the other side.
+
+**What counts as a change** -- MPD's `idle_add()` sites, mapped:
+
+| subsystem | raised when | MPD's site |
+| --- | --- | --- |
+| `player` | play/pause/stop, a new song, a seek, tags changed in place | `player/Control.cxx`, `Thread.cxx` |
+| `playlist` | the queue's version moved | `Partition::OnQueueModified` |
+| `mixer` | volume | `Partition::OnMixerVolumeChanged` |
+| `options` | the four modes | `Control.cxx` |
+| `update` | a reindex starts, and again when it ends | `UpdateService`, both ends |
+| `database` | a reindex ends having added, updated, revived or buried something | `RunDeferred`'s `if (modified)` |
+
+`output` is never raised, because nothing here can switch the one output.
+MPD.md listed it among the raisable ones and has been corrected, along
+with `database`, which it had as any completed reindex.
+
+**A stream's tags changing in place raises `player` AND `playlist`.** MPD
+does both: `OnPlayerTagModified` bumps the queue's version, and the player
+thread raises `player` beside it. 5158 already moved the version for an
+ICY title; this adds the `player` that goes with it.
+
+**Seeks are a jump between passes, not drift from a clock.** MPD.md said
+to reuse the remote's position-slip rule. That rule measures against a
+reference reset only when the page is sent to, so a stalled stream --
+position standing still while the clock runs -- would count as a seek
+every two seconds for as long as it stalled. Pass to pass, a stall is a
+position that does not move and a seek is one that moves too far at once.
+The tolerance is two seconds, the remote's, because the position arrives
+in whole seconds, and a seek of less than that is not reported. While
+paused, any movement is a seek.
+
+**Delivery is on the task's quarter-second wake**, not immediate. A change
+reaches an idling client within `MPD_SELECT_MS` of the `ui_task` pass
+that saw it. Waking `select()` at once would need a socket to wake it
+with, and netbudget.h has none spare. Events are delivered before a new
+connection is accepted in the same wake, so a client that has just
+arrived is not told about changes from before it came.
+
+`texttest/mpdidletest.c` as `run-mpdidle`: 81 checks, both passes clean,
+with the expected answers written out as byte strings rather than built
+by the same loop. **Mutation-checked**, seventeen deliberate bugs, all
+caught:
+
+| mutation | result |
+| --- | --- |
+| answering clears only what was heard | 2 failures |
+| `noidle` outside idle answers OK | 1 failure |
+| `noidle` clears pending events | 2 failures |
+| a change wakes an idle client whatever it subscribed to | 1 failure |
+| changes dropped while not idling | 7 failures |
+| `changed:` lines in reverse order | 1 failure |
+| subsystem names case-sensitive | 1 failure |
+| a bare `idle` subscribes to nothing | 1 failure |
+| `noidle\r` not recognised | 2 failures |
+| leading whitespace stripped before `noidle` | 1 failure |
+| a seek measured against a sticky reference | 1 failure |
+| movement while paused not a seek | 1 failure |
+| an in-place tag change raises `playlist` only | 1 failure |
+| `database` on every reindex end | 1 failure |
+| `update` only when a reindex starts | 2 failures |
+| the first view reports everything | 1 failure |
+| seek tolerance of one second | 1 failure |
+
+**And `mpd.c` itself was driven over real sockets**, which the pure suite
+cannot reach: the real file built against pthread stand-ins for FreeRTOS
+and POSIX sockets for lwIP, under ASan and UBSan, with a fake `ui_task`
+running the real call order at 10 Hz. 38 checks of exact wire bytes:
+woken by another client's `setvol` and `pause`; a subscription filtering;
+the latch across a non-idle gap; `noidle` in and out of idle and with a
+CRLF; the unknown-subsystem ACK; `idle` in a `command_list_ok_begin` list
+(list_OK for what came before, the rest unrun, answered on the next
+change); a command during idle closing the connection; resume, seek, next
+track, a retitle in place, and a reindex starting and ending; 3.5 s of
+playback and 3.5 s of a stall raising nothing; and a new client hearing
+nothing old. python-mpd2's `idle()` and `idle("player")` were checked
+against it too. The harness is not in this patch. Three mutations of
+`mpd.c` were each caught by it; a fourth -- delivering events *after* the
+accept -- was not, because catching it needs a connect and a change in the
+same quarter-second, and a test built on that timing would be flaky.
+
+**Found by checking the harness, not the code:** the first mutation run
+reported two catches that were not real, because a server left over from
+a timed-out run still held port 6600 and the next one could not bind. The
+driver was talking to a stale server. Recorded because the symptom -- a
+mutation "caught" by tests that do not exercise it -- is the one to
+distrust.
+
+Not on a board. What a run has to show: a client in `idle` (MALP,
+ncmpcpp, or `mpc idleloop`) updating by itself on a pause at the glass, a
+volume change, a track change and a station's title change, and staying
+connected through a quiet minute.

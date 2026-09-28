@@ -320,6 +320,14 @@ publisher is `remote_publish()`'s neighbour: it already computes "has
 anything changed" once per `ui_task` pass with the position-slip rules
 (`remote.c:977-993`), and that same diff feeds the idle mask.
 
+**Corrected in 5160, which built it.** `output` is not one of them: there
+is one output and nothing can switch it, so nothing raises it. `database`
+is a reindex that *changed* something, not any completed one -- MPD raises
+it only when an update modified the database. And the remote's slip rule
+is the wrong one to reuse for seeks: it measures against a clock reset on
+each send, so a stalled stream would read as a seek every two seconds.
+`idle` compares one pass with the next instead (`mpdidle.h`).
+
 
 ## The library side: what MPD asks that the index already answers
 
@@ -410,6 +418,10 @@ nothing is left half-built if the series stops.
    budget was 5157's, taken first as its own patch; `MPD_CLIENTS` is
    `netbudget.h`'s number rather than a second copy of it.
 10. **`idle`**, with the per-connection latch.
+
+    **Done in 5160**, with `noidle`, from MPD 0.20's source. `noidle`
+    turned out not to be a verb at all, and came out of `mpdproto.c`'s
+    table.
 11. **MPD's queue verbs**: `add`, `addid`, `delete`, `deleteid`,
     `move`, `moveid`, `playid`, `clear`, `shuffle`, `plchanges` --
     which by this point is a mapping onto step 5's path, not new

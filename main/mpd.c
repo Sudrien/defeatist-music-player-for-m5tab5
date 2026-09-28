@@ -29,7 +29,8 @@
  * completed: `next` calls request_track(), and the new track reaches
  * s_shown_path when its first frame is heard, some passes later. So a
  * `status` straight after `next` can still name the old song. MPD's own
- * answer to that is `idle player`, which is step 10.
+ * answer to that is `idle player`, which a client gets when the new song
+ * is published (5160).
  *
  * THE QUEUE IS ONE ENTRY LONG. The device's queue is its folder
  * (playlist.c), and MPD.md step 4's switch-over -- the folder filling
@@ -84,6 +85,7 @@
 #include "browser.h"
 #include "ethernet.h"
 #include "medialib.h"
+#include "mpdidle.h"         /* 5160 */
 #include "mpdmode.h"
 #include "mpdproto.h"
 #include "mpduri.h"
@@ -141,8 +143,8 @@ static const char *TAG = "tab5_mpd";
 
 /* MPD's own connection_timeout default (src/client/ClientGlobal.cxx,
  * CLIENT_TIMEOUT_DEFAULT). A client that says nothing for a minute is
- * closed, which on this device is also a socket given back. Step 10 will
- * have to exempt a client parked in `idle`, as MPD does. */
+ * closed, which on this device is also a socket given back. A client
+ * parked in `idle` is exempt, as in MPD (5160). */
 #define MPD_TIMEOUT_US      (60 * 1000000LL)
 
 /* A client that stops reading must not stop the task: a send that cannot
@@ -169,6 +171,8 @@ static const char *TAG = "tab5_mpd";
                              MPDPROTO_SONG_MAX : MPDPROTO_STATUS_MAX)
 /* An ACK's message, which may quote an argument off the wire. */
 #define MPD_TEXT_MAX        (MPDPROTO_LINE_MAX + 64)
+/* 5160: an idle answer is built in s_body too. */
+_Static_assert(MPD_BODY_MAX >= MPDIDLE_ANSWER_MAX, "an idle answer must fit s_body");
 
 /* ---- the state a client is told --------------------------------------- */
 
@@ -199,6 +203,17 @@ static snap_t           *s_next;    /* ui_task's scratch; PSRAM */
 static snap_t           *s_view;    /* the server task's copy; PSRAM */
 static uint32_t          s_last_id; /* ui_task's: ids are never reused */
 
+/*
+ * 5160: what changed, for `idle`. ui_task works it out once per pass in
+ * mpd_publish() and ORs it in here under s_mu; the server task takes and
+ * clears it and latches it into every connection (mpdidle_add()), so a
+ * change is delivered to a client whether or not it was idling when it
+ * happened -- MPD.md's "latched per connection, not broadcast".
+ */
+static uint32_t          s_events;  /* under s_mu */
+static mpd_idle_track_t  s_track;   /* ui_task's */
+static medialib_state_t  s_db_was[STORAGE_COUNT];  /* ui_task's */
+
 /* ---- presses ------------------------------------------------------------ */
 
 typedef struct {
@@ -219,6 +234,10 @@ typedef struct {
     size_t      fill;
     mpd_list_t  list;
     bool        list_dead;  /* a sub-command failed; discard to the end */
+    /* 5160: `idle` inside a command list, run at command_list_end. */
+    bool        list_idle;
+    uint32_t    list_idle_mask;
+    mpd_idle_t  idle;       /* 5160: this connection's latch */
     bool        broken;     /* a send failed; close after this read */
     int64_t     last_us;
 } conn_t;
@@ -511,11 +530,31 @@ static bool restart(const ctx_t *x)
     return ask(x, UI_ACTION_PLAY, 0);
 }
 
+/* ---- idle (5160) --------------------------------------------------------- */
+
+/* Answer an idling connection: its `changed:` lines and the OK, into the
+ * output being built for it. MPD restarts the inactivity timeout here. */
+static void idle_answer(conn_t *c)
+{
+    const size_t n = mpdidle_answer(&c->idle, s_body, MPD_BODY_MAX);
+    if (n) put(c, s_body, n);
+    c->last_us = esp_timer_get_time();
+}
+
+/* Start idling; answered at once if something it asked for is already
+ * latched, and otherwise silent until something is. */
+static void idle_enter(conn_t *c, uint32_t mask)
+{
+    if (mpdidle_wait(&c->idle, mask)) idle_answer(c);
+}
+
 /* ---- the verbs ---------------------------------------------------------- */
 
 /* Not R_OK: <unistd.h> has that name (access()'s read bit), and close()
  * brings <unistd.h> in. */
-typedef enum { RES_OK = 0, RES_ERR, RES_CLOSE } result_t;
+/* RES_IDLE (5160): the connection is now idling, or has been answered
+ * already; either way no OK follows -- MPD's CommandResult::IDLE. */
+typedef enum { RES_OK = 0, RES_ERR, RES_CLOSE, RES_IDLE } result_t;
 
 /* Which verbs this step answers. `commands` and `notcommands` are both
  * read from here, so they cannot disagree with the dispatcher below --
@@ -533,6 +572,7 @@ static bool answered(mpd_cmd_kind_t k)
     case MPD_CMD_SETVOL: case MPD_CMD_VOLUME: case MPD_CMD_OUTPUTS:
     case MPD_CMD_PLAYLISTINFO: case MPD_CMD_PLAYLISTID: case MPD_CMD_PLAYLIST:
     case MPD_CMD_PLCHANGES: case MPD_CMD_PLCHANGESPOSID:
+    case MPD_CMD_IDLE:                                  /* 5160 */
         return true;
     default:
         return false;
@@ -555,6 +595,29 @@ static result_t run_cmd(conn_t *c, const mpd_cmd_t *cmd, int idx)
 
     case MPD_CMD_CLOSE:
         return RES_CLOSE;
+
+    case MPD_CMD_IDLE: {
+        /* 5160, handle_idle(): names are checked before anything waits,
+         * and an unknown one is ARG, naming it. */
+        uint32_t mask;
+        int bad = 0;
+        if (!mpdidle_parse(cmd->argc, cmd->argv, &mask, &bad)) {
+            ack(c, MPD_ACK_ARG, idx, cmd->verb, "Unrecognized idle event: %s", cmd->argv[bad]);
+            return RES_ERR;
+        }
+        if (c->list.active) {
+            /* Inside a command list MPD runs the list at its end, and
+             * the idle there stops the rest of it running. This runs a
+             * list as it arrives, so the idle is held until
+             * command_list_end and what follows it is discarded unrun --
+             * the same result, reached from the other side. */
+            c->list_idle = true;
+            c->list_idle_mask = mask;
+            return RES_IDLE;
+        }
+        idle_enter(c, mask);
+        return RES_IDLE;
+    }
 
     case MPD_CMD_COMMANDS:
     case MPD_CMD_NOTCOMMANDS: {
@@ -827,9 +890,37 @@ static bool run_line(conn_t *c, char *line)
 {
     mpd_cmd_t cmd;
 
+    /*
+     * 5160: `noidle` is a raw line, not a verb, and it is looked for
+     * before anything else -- before the list state, as MPD does
+     * (ClientProcess.cxx). While idling it is the ONLY thing a client may
+     * say, and anything else closes the connection; outside idle it gets
+     * no answer at all, because the client that sent it has already
+     * received, or is about to receive, the idle answer it was racing.
+     */
+    if (c->idle.waiting) {
+        if (!mpdidle_is_noidle(line)) {
+            ESP_LOGW(TAG, "client %d: a command during idle; closing, as MPD does", c->fd);
+            return false;
+        }
+        char ok[8];
+        const size_t n = mpdidle_noidle(&c->idle, ok, sizeof(ok));
+        if (n) put(c, ok, n);
+        c->last_us = esp_timer_get_time();
+        return true;
+    }
+    if (mpdidle_is_noidle(line)) return true;
+
     if (c->list_dead) {
-        /* After a failed sub-command: read to the end, answer nothing. */
-        if (mpdproto_line(line, &c->list, &cmd) == MPD_LINE_LIST_END) c->list_dead = false;
+        /* After a failed sub-command, or an idle inside the list: read
+         * to the end, answer nothing -- and then, for the idle, idle. */
+        if (mpdproto_line(line, &c->list, &cmd) == MPD_LINE_LIST_END) {
+            c->list_dead = false;
+            if (c->list_idle) {
+                c->list_idle = false;
+                idle_enter(c, c->list_idle_mask);
+            }
+        }
         return true;
     }
 
@@ -858,7 +949,10 @@ static bool run_line(conn_t *c, char *line)
         const int idx = in_list ? c->list.index : 0;
         const result_t r = run_cmd(c, &cmd, idx);
         if (r == RES_CLOSE) return false;
-        if (r == RES_ERR) {
+        if (r == RES_ERR || r == RES_IDLE) {
+            /* An idle in a list ends it the way a failure does: nothing
+             * after it runs, no list_OK and no OK -- MPD breaks out of
+             * the list on any result that is not OK. */
             if (in_list) c->list_dead = true;
             return true;
         }
@@ -924,6 +1018,8 @@ static void conn_accept(int ls)
     c->fill = 0;
     memset(&c->list, 0, sizeof(c->list));
     c->list_dead = false;
+    c->list_idle = false;
+    mpdidle_init(&c->idle);         /* 5160: nothing from before it came */
     c->broken = false;
     c->last_us = esp_timer_get_time();
     s_nclients++;
@@ -970,6 +1066,34 @@ static void conn_read(conn_t *c)
      * closes on this.
      */
     if (c->fill == MPDPROTO_LINE_MAX) conn_close(c, "line too long");
+}
+
+/*
+ * 5160: take what ui_task published as changed since the last look, and
+ * latch it into every connection; answer the ones idling on it now. Runs
+ * once per wake of the loop, so a change reaches an idling client within
+ * MPD_SELECT_MS of the ui_task pass that saw it -- a quarter of a second
+ * at worst, which a client showing a song change does not notice. Waking
+ * the select() for it instead would need a socket to wake it with, and
+ * the socket budget (netbudget.h) has none to spare for that.
+ */
+static void deliver_events(void)
+{
+    xSemaphoreTake(s_mu, portMAX_DELAY);
+    const uint32_t ev = s_events;
+    s_events = 0;
+    xSemaphoreGive(s_mu);
+    if (!ev) return;
+
+    for (int i = 0; i < MPD_CLIENTS; i++) {
+        conn_t *c = &s_conn[i];
+        if (c->fd < 0) continue;
+        if (!mpdidle_add(&c->idle, ev)) continue;
+        s_out_len = 0;
+        idle_answer(c);
+        flush(c);
+        if (c->broken) conn_close(c, "stopped reading");
+    }
 }
 
 /* ---- the task ------------------------------------------------------------ */
@@ -1022,6 +1146,9 @@ static void mpd_task(void *arg)
             ESP_LOGW(TAG, "select failed (errno %d); stopping", errno);
             break;
         }
+        /* 5160: before the accept, so a client arriving in this wake
+         * is not told of changes from before it came. */
+        deliver_events();
         if (n > 0 && FD_ISSET(ls, &rd)) conn_accept(ls);
 
         const int64_t now = esp_timer_get_time();
@@ -1029,7 +1156,10 @@ static void mpd_task(void *arg)
             conn_t *c = &s_conn[i];
             if (c->fd < 0) continue;
             if (n > 0 && FD_ISSET(c->fd, &rd)) conn_read(c);
-            else if (now - c->last_us >= MPD_TIMEOUT_US) conn_close(c, "silent for 60 s");
+            /* 5160: not while idling -- MPD cancels the timeout for
+             * as long as a client waits, which may be all night. */
+            else if (!c->idle.waiting && now - c->last_us >= MPD_TIMEOUT_US)
+                conn_close(c, "silent for 60 s");
         }
     }
 
@@ -1148,6 +1278,9 @@ void mpd_publish(const ui_state_t *st, const char *path, bool streaming)
      * still counts as serviced. */
     if (!s_task) {
         s_done_seq = s_taken_seq;
+        /* 5160: the next server starts from a fresh view rather than
+         * comparing against one from before it was switched off. */
+        s_track.have = false;
         return;
     }
 
@@ -1195,6 +1328,7 @@ void mpd_publish(const ui_state_t *st, const char *path, bool streaming)
      * through plchanges.
      */
     const snap_t *p = s_pub;
+    bool tags_changed = false;      /* 5160: for `idle player` */
     if (n->have_song != p->have_song || strcmp(n->uri, p->uri) != 0) {
         n->id = n->have_song ? ++s_last_id : 0;
         n->version = p->version + 1;
@@ -1202,13 +1336,44 @@ void mpd_publish(const ui_state_t *st, const char *path, bool streaming)
                strcmp(n->album, p->album) != 0) {
         n->id = p->id;
         n->version = p->version + 1;
+        tags_changed = true;
     } else {
         n->id = p->id;
         n->version = p->version;
     }
 
+    /*
+     * 5160: what changed, for `idle`. DATABASE is MPD's "an update
+     * modified the database" (UpdateService::RunDeferred's `if
+     * (modified)`), so it is a run seen to finish on a volume with
+     * something added, updated, revived or buried -- not every reindex,
+     * which on a card nobody touched keeps all of it and changes nothing.
+     */
+    bool db_changed = false;
+    for (int v = 0; v < STORAGE_COUNT; v++) {
+        medialib_status_t ms;
+        medialib_status((storage_id_t)v, &ms);
+        if (s_db_was[v] == MEDIALIB_RUNNING && ms.state == MEDIALIB_DONE &&
+            ms.stats.add + ms.stats.update + ms.stats.revive + ms.stats.bury > 0)
+            db_changed = true;
+        s_db_was[v] = ms.state;
+    }
+    const mpd_idle_view_t iv = {
+        .state = n->state,
+        .id = n->id,
+        .version = n->version,
+        .volume = n->volume,
+        .modes = (uint8_t)((n->modes.repeat ? 1 : 0) | (n->modes.random ? 2 : 0) |
+                           (n->modes.single ? 4 : 0) | (n->modes.consume ? 8 : 0)),
+        .updating = n->updating,
+        .elapsed_ms = n->elapsed_ms,
+    };
+    const uint32_t ev = mpdidle_changes(&s_track, &iv, esp_timer_get_time(),
+                                        tags_changed, db_changed);
+
     xSemaphoreTake(s_mu, portMAX_DELAY);
     memcpy(s_pub, n, sizeof(*s_pub));
+    s_events |= ev;
     xSemaphoreGive(s_mu);
     /* After the copy: a press is serviced once its effect is readable. */
     s_done_seq = s_taken_seq;

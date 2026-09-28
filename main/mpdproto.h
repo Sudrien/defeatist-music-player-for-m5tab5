@@ -143,8 +143,10 @@ typedef enum {
     MPD_CMD_SETVOL, MPD_CMD_VOLUME,
     MPD_CMD_OUTPUTS,
 
-    /* step 10 */
-    MPD_CMD_IDLE, MPD_CMD_NOIDLE,
+    /* step 10. `noidle` is NOT a verb (5160): MPD's command table has no
+     * such row, and the word is matched as a raw line before tokenising
+     * (src/client/ClientProcess.cxx) -- see mpdidle.h. */
+    MPD_CMD_IDLE,
 
     /* step 7's four modes, asked over step 11's transport */
     MPD_CMD_REPEAT, MPD_CMD_RANDOM, MPD_CMD_SINGLE, MPD_CMD_CONSUME,

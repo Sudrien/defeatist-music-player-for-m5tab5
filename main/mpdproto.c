@@ -260,7 +260,8 @@ static const cmd_def_t s_cmds[] = {
 
     /* step 10 */
     { "idle",           MPD_CMD_IDLE,            0, -1 },
-    { "noidle",         MPD_CMD_NOIDLE,          0,  0 },
+    /* No "noidle" (5160): see the enum. `noidle x` is therefore
+     * `unknown command "noidle"`, which is what MPD says to it. */
 
     /* step 7's modes */
     { "repeat",         MPD_CMD_REPEAT,          1,  1 },

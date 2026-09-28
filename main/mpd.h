@@ -17,10 +17,12 @@
  * table is ACKed with ACK_ERROR_UNKNOWN, "not supported by this player
  * yet", and listed by `notcommands`, so the two answers agree.
  *
- * WHAT IT IS NOT, YET. No `idle` (step 10), so a client that waits on it
- * -- ncmpcpp -- gets an ACK and will not update by itself; `mpc` and
- * clients that poll `status` work. No queue editing (step 11), no
- * browsing or search (step 12). No IPv6 listener.
+ * And `idle` (step 10, 5160), with MPD's `noidle`: the rules are
+ * mpdidle.h's, and what counts as a change is worked out in
+ * mpd_publish() from the same snapshot `status` reads.
+ *
+ * WHAT IT IS NOT, YET. No queue editing (step 11), no browsing or search
+ * (step 12). No IPv6 listener.
  *
  * NO PASSWORD, as the remote has none, and for the same reason it is off
  * by default and the panel says so under the switch.

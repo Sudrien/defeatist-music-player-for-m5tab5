@@ -97,6 +97,7 @@ MPDURI_BIN := mpduritest
 # play_order_t against MPD's four flags. Needs playlist.h, whose esp_err.h
 # the fake/ shim supplies, so the table is host-tested like the rest.
 MPDMODE_BIN := mpdmodetest
+MPDIDLE_BIN := mpdidletest
 SCREENDIM_BIN := screendimtest
 ARTPLACE_BIN := artplacetest
 
@@ -258,7 +259,7 @@ NETLINK_BIN := netlinktest
 # ../test_audio_files so the bytes under test are the bytes on the card.
 CUE_BIN := cuesheettest
 
-all: run-remote run run-ctrl run-wifi run-clock run-rotate run-cardtime run-mediaindex run-medialist run-mediasearch run-mpdqueue run-mpdproto run-mpduri run-mpdmode run-screendim run-artplace run-mediawalk run-mediasync run-menuscroll run-fade run-tail run-portal run-old check-ui check-netbudget run-bright run-sleep run-sniff run-icy run-netplan run-stations run-pcmfold run-bufplan run-stbjpeg run-addrpin run-codec run-mp3 run-framewin run-streamplan run-stationnav run-radiobrowser run-levelhist run-favmatch run-netlink run-cue run-flacenc run-beam
+all: run-remote run run-ctrl run-wifi run-clock run-rotate run-cardtime run-mediaindex run-medialist run-mediasearch run-mpdqueue run-mpdproto run-mpduri run-mpdmode run-mpdidle run-screendim run-artplace run-mediawalk run-mediasync run-menuscroll run-fade run-tail run-portal run-old check-ui check-netbudget run-bright run-sleep run-sniff run-icy run-netplan run-stations run-pcmfold run-bufplan run-stbjpeg run-addrpin run-codec run-mp3 run-framewin run-streamplan run-stationnav run-radiobrowser run-levelhist run-favmatch run-netlink run-cue run-flacenc run-beam
 
 $(BIN): $(SRCS) shim.h ../main/gfx.h ../components/ark12/ark12.h
 	$(CC) $(CFLAGS) -o $@ $(SRCS) $(LDFLAGS)
@@ -346,6 +347,13 @@ $(MPDMODE_BIN): mpdmodetest.c ../main/mpdmode.c ../main/mpdmode.h ../main/playli
 
 run-mpdmode: $(MPDMODE_BIN)
 	ASAN_OPTIONS=detect_leaks=1:abort_on_error=0 ./$(MPDMODE_BIN)
+
+$(MPDIDLE_BIN): mpdidletest.c ../main/mpdidle.c ../main/mpdidle.h ../main/mpdproto.h
+	$(CC) $(WARNCFLAGS) -c ../main/mpdidle.c -o /dev/null
+	$(CC) $(CFLAGS) -o $@ mpdidletest.c ../main/mpdidle.c $(LDFLAGS)
+
+run-mpdidle: $(MPDIDLE_BIN)
+	ASAN_OPTIONS=detect_leaks=1:abort_on_error=0 ./$(MPDIDLE_BIN)
 
 $(SCREENDIM_BIN): screendimtest.c ../main/screendim.h
 	$(CC) $(WARNCFLAGS) -c screendimtest.c -o /dev/null
@@ -492,7 +500,7 @@ run-old: $(OLD_BINS)
 	done
 
 clean:
-	rm -f netbudget_probe.c $(BIN) $(CTRL_BIN) $(WIFI_BIN) $(CLOCK_BIN) $(FADE_BIN) $(TAIL_BIN) $(PORTAL_BIN) $(REMOTE_BIN) $(OLD_BINS) $(BRIGHT_BIN) $(SLEEP_BIN) $(SNIFF_BIN) $(ICY_BIN) $(NETPLAN_BIN) $(STATION_BIN) $(BUFPLAN_BIN) $(CODEC_BIN) $(MP3_BIN) $(FRAMEWIN_BIN) $(STREAMPLAN_BIN) $(STATIONNAV_BIN) $(RADIOBROWSER_BIN) $(LEVELHIST_BIN) $(SGAIN_BIN) $(JSONPICK_BIN) $(FAVMATCH_BIN) $(FLACENC_BIN) $(BEAM_BIN) $(NETLINK_BIN) $(CUE_BIN) $(ROTATE_BIN) $(CARDTIME_BIN) $(MEDIAINDEX_BIN) $(MEDIALIST_BIN) $(MEDIASEARCH_BIN) $(MPDQUEUE_BIN) $(MPDPROTO_BIN) $(MPDURI_BIN) $(MPDMODE_BIN) $(SCREENDIM_BIN) $(ARTPLACE_BIN) $(MEDIAWALK_BIN) $(MEDIASYNC_BIN) $(MENUSCROLL_BIN) $(STBJPEG_BIN) $(ADDRPIN_BIN)
+	rm -f netbudget_probe.c $(BIN) $(CTRL_BIN) $(WIFI_BIN) $(CLOCK_BIN) $(FADE_BIN) $(TAIL_BIN) $(PORTAL_BIN) $(REMOTE_BIN) $(OLD_BINS) $(BRIGHT_BIN) $(SLEEP_BIN) $(SNIFF_BIN) $(ICY_BIN) $(NETPLAN_BIN) $(STATION_BIN) $(BUFPLAN_BIN) $(CODEC_BIN) $(MP3_BIN) $(FRAMEWIN_BIN) $(STREAMPLAN_BIN) $(STATIONNAV_BIN) $(RADIOBROWSER_BIN) $(LEVELHIST_BIN) $(SGAIN_BIN) $(JSONPICK_BIN) $(FAVMATCH_BIN) $(FLACENC_BIN) $(BEAM_BIN) $(NETLINK_BIN) $(CUE_BIN) $(ROTATE_BIN) $(CARDTIME_BIN) $(MEDIAINDEX_BIN) $(MEDIALIST_BIN) $(MEDIASEARCH_BIN) $(MPDQUEUE_BIN) $(MPDPROTO_BIN) $(MPDURI_BIN) $(MPDMODE_BIN) $(MPDIDLE_BIN) $(SCREENDIM_BIN) $(ARTPLACE_BIN) $(MEDIAWALK_BIN) $(MEDIASYNC_BIN) $(MENUSCROLL_BIN) $(STBJPEG_BIN) $(ADDRPIN_BIN)
 	rm -rf $(BIN).dSYM $(CTRL_BIN).dSYM $(WIFI_BIN).dSYM $(CLOCK_BIN).dSYM $(FADE_BIN).dSYM $(TAIL_BIN).dSYM $(PORTAL_BIN).dSYM
 	rm -rf $(addsuffix .dSYM,$(OLD_BINS))
 
@@ -666,4 +674,4 @@ check-netbudget: $(NETBUDGET_H)
 	@rm -f netbudget_probe.c
 	@echo "netbudget: refuses below 22, accepts 22 and up, refuses unset -- all passed"
 
-.PHONY: all run-pcmfold run run-ctrl run-wifi run-clock run-rotate run-cardtime run-mediaindex run-medialist run-mediasearch run-mpdqueue run-mpdproto run-mpduri run-mpdmode run-screendim run-artplace run-mediawalk run-mediasync run-menuscroll run-fade run-tail run-portal run-old check-ui check-netbudget run-bright run-sleep run-sniff run-icy run-netplan run-stations run-pcmfold run-bufplan run-stbjpeg run-addrpin run-codec run-mp3 run-framewin run-streamplan run-stationnav run-radiobrowser run-levelhist run-favmatch run-netlink run-cue run-flacenc run-beam clean
+.PHONY: all run-pcmfold run run-ctrl run-wifi run-clock run-rotate run-cardtime run-mediaindex run-medialist run-mediasearch run-mpdqueue run-mpdproto run-mpduri run-mpdmode run-mpdidle run-screendim run-artplace run-mediawalk run-mediasync run-menuscroll run-fade run-tail run-portal run-old check-ui check-netbudget run-bright run-sleep run-sniff run-icy run-netplan run-stations run-pcmfold run-bufplan run-stbjpeg run-addrpin run-codec run-mp3 run-framewin run-streamplan run-stationnav run-radiobrowser run-levelhist run-favmatch run-netlink run-cue run-flacenc run-beam clean

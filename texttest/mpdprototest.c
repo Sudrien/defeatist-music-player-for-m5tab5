@@ -240,7 +240,6 @@ int main(void)
     ok_parse("setvol 50", MPD_CMD_SETVOL, 1);
     ok_parse("idle", MPD_CMD_IDLE, 0);
     ok_parse("idle player mixer playlist", MPD_CMD_IDLE, 3);
-    ok_parse("noidle", MPD_CMD_NOIDLE, 0);
     ok_parse("add foo", MPD_CMD_ADD, 1);
     ok_parse("addid foo", MPD_CMD_ADDID, 1);
     ok_parse("addid foo 2", MPD_CMD_ADDID, 2);
@@ -288,6 +287,16 @@ int main(void)
               "ACK [5@0] {} unknown command \"readpicture\"\n");
     bad_parse("getvol", MPD_ACK_UNKNOWN,
               "ACK [5@0] {} unknown command \"getvol\"\n");
+    /* `noidle` is not in MPD's command table (src/command/
+     * AllCommands.cxx has "idle" and no "noidle"): the bare word is
+     * caught as a raw line before tokenising, and anything that misses
+     * that -- an argument after it -- is looked up and not found. 5153
+     * had it as a verb of arity 0, which made this "wrong number of
+     * arguments" and listed it in `commands`. */
+    bad_parse("noidle", MPD_ACK_UNKNOWN,
+              "ACK [5@0] {} unknown command \"noidle\"\n");
+    bad_parse("noidle now", MPD_ACK_UNKNOWN,
+              "ACK [5@0] {} unknown command \"noidle\"\n");
 
     /* ---- the table's own consistency -------------------------------- */
     {
@@ -303,7 +312,7 @@ int main(void)
             "urlhandlers", "decoders", "status", "stats", "currentsong",
             "clearerror", "play", "playid", "pause", "stop", "next",
             "previous", "seek", "seekid", "seekcur", "setvol", "volume",
-            "outputs", "idle", "noidle", "repeat", "random", "single",
+            "outputs", "idle", "repeat", "random", "single",
             "consume", "add", "addid", "delete", "deleteid", "move",
             "moveid", "clear", "shuffle", "playlistinfo", "playlistid",
             "playlist", "plchanges", "plchangesposid", "lsinfo", "listall",

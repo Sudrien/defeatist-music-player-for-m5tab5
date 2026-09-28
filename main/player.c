@@ -7046,7 +7046,7 @@ static void ui_task(void *arg)
 
     while (1) {
         int bx = 0, by = 0;
-        const bool bdown = touch_get(&bx, &by);
+        bool bdown = touch_get(&bx, &by);           /* 5169: not const; see below */
 
         /*
          * Any touch is the wake, and it is taken here because this is the
@@ -7061,6 +7061,37 @@ static void ui_task(void *arg)
          * this is a dim, not a blank.
          */
         if (bdown) s_last_input_us = esp_timer_get_time();
+
+        /*
+         * 5169: A TAP ON A SCREEN THAT IS OFF ONLY WAKES IT, WHEREVER IT
+         * LANDS. ui.c has always done this for the main screen (its
+         * screen-off branch turns a tap into UI_ACTION_SCREEN_ON and
+         * nothing else), but the chooser, the panel and the sleep page
+         * each read the touch below BEFORE ui.c does, and none of them
+         * asked whether the screen was lit -- so the screen could go off
+         * with the chooser up (it opens itself at boot when there is
+         * nothing to resume), and the tap that woke it also played
+         * whatever row was under the finger, unseen.
+         *
+         * Taken here, where the panel is read and before every handler,
+         * so it is one rule and not four: the backlight comes back, the
+         * press is swallowed until the finger lifts (touch_swallow(),
+         * the same tool every screen transition uses), and this pass
+         * sees no touch at all.
+         *
+         * A DIMMED screen is not off -- s_screen_off is only set when the
+         * backlight goes out -- so a tap on a dim screen still does what
+         * it lands on, as it always has: at half brightness the screen is
+         * readable, and making that tap a wake as well would be a press
+         * the listener has to make twice (the comment above says so).
+         */
+        if (bdown && s_screen_off) {
+            s_screen_off = false;
+            backlight_set(screen_on_duty());
+            touch_swallow();
+            ESP_LOGI(TAG, "screen woken by a tap; the tap does nothing else");
+            bdown = false;
+        }
 
         sleep_timer_tick();
         /*

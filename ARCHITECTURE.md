@@ -16182,3 +16182,41 @@ forgotten. The older 51 and 43 still pass.
 Not on a board. What a run should show: Cantata's single and random
 toggles moving the glass's order (`play order now ONE (from mpd)`), and
 its repeat toggle springing back off unless single is on.
+
+### 5169 -- a tap on a dark screen only wakes it, on every screen
+
+Reported from the board: the tap that wakes the screen could also press
+whatever control it landed on. A dim was fine doing that; an off screen
+was not.
+
+`ui.c` has always done the right thing for the main screen -- its
+screen-off branch turns a tap into `UI_ACTION_SCREEN_ON` and nothing
+else, "waking straight into a button would let one tap turn the screen
+off again". But `ui_task` hands the touch to the chooser, the settings
+panel and the sleep page **before** `ui.c` sees it, and none of the three
+asked whether the backlight was on. The screen can go off with the
+chooser up -- it opens itself at boot when there is nothing to resume,
+and the off timer only holds off for the sleep page -- and then the tap
+that woke it also played whichever row was under the finger, on a
+screen the listener could not yet see.
+
+**One rule, at the one place the panel is read.** At the top of
+`ui_task`, straight after `touch_get()` and before every handler: a touch
+while `s_screen_off` turns the backlight back on, swallows the press with
+`touch_swallow()` -- the tool every screen transition already uses, which
+holds until the finger lifts and a settle window passes -- and clears
+`bdown`, so no handler sees a touch that pass. Logged as `screen woken by
+a tap; the tap does nothing else`. `ui.c`'s own branch stays, now as the
+second line of defence for a screen that goes off within a pass.
+
+**A dimmed screen is unchanged**, deliberately: `s_screen_off` is set only
+when the backlight goes out, so a tap on a dim screen still does what it
+lands on. At half brightness the screen is readable, and making that tap
+a wake as well would be a press the listener has to make twice -- the
+reason the comment above the input-time update already gave.
+
+Not tested on a host: `player.c` does not compile against the host fakes.
+What a board run should show: let the screen go off with the chooser
+open, tap a row -- the screen comes on, the log says `screen woken by a
+tap`, and nothing plays; the same with the settings panel open; and a tap
+on a dimmed screen still pressing what it hits.

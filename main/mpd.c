@@ -1625,6 +1625,9 @@ void mpd_publish(const ui_state_t *st, const char *path, bool streaming)
      */
     const snap_t *p = s_pub;
     const qlist_t *L = &s_ql[s_ql_pub];
+    /* 5172: the queue is read directly below, and main_task can load or
+     * clear it meanwhile; held until the copy clients read is built. */
+    playlist_lock();
     const int cur = playlist_current();
     const char *qp = cur >= 0 ? mpdq_path(cur) : NULL;
     const bool shown = streaming || (path && path[0]);
@@ -1714,6 +1717,7 @@ void mpd_publish(const ui_state_t *st, const char *path, bool streaming)
     } else {
         n->version = p->version;
     }
+    playlist_unlock();      /* 5172: nothing below reads the queue */
 
     if (w < 0 && (stale || tags_changed)) {
         /* Deferred: what points into the list stays as it was, so a

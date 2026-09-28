@@ -5569,12 +5569,13 @@ static void prefetch_next(void)
      */
     static char next_path[512];
 
-    const char *peek = playlist_peek_next(browser_order());
-    if (!peek) {
+    /* 5172: and copied under playlist.c's lock, since the list can now be
+     * edited from ui_task while this runs: the snprintf that was here read
+     * a pointer the edit could free between the peek and the copy. */
+    if (!playlist_peek_next_copy(browser_order(), next_path, sizeof(next_path))) {
         ESP_LOGD(TAG, "prefetch: nothing next (order/end of folder)");
         return;
     }
-    snprintf(next_path, sizeof(next_path), "%s", peek);
     const char *const next = next_path;
 
     /*
@@ -8096,11 +8097,17 @@ static void ui_task(void *arg)
             /* 5166: an entry of the queue, by id (ui.h says why not by
              * position). The remote's "open" does the same two steps --
              * the cursor, then the track -- and so does the chooser. */
+            /* 5172: the id's position, the path and the cursor under the
+             * lock, so they are one list; the path copied, and the request
+             * made after it is let go. Static: 512 bytes, ui_task. */
+            static char idpath[512];
+            playlist_lock();
             const int pos = mpdq_find_id((uint32_t)act.value);
-            const char *p = pos >= 0 ? playlist_path(pos) : NULL;
-            if (p) {
-                playlist_set_current(pos);
-                request_track(p);
+            const bool have = pos >= 0 && playlist_path_copy(pos, idpath, sizeof(idpath));
+            if (have) playlist_set_current(pos);
+            playlist_unlock();
+            if (have) {
+                request_track(idpath);
             } else {
                 ESP_LOGI(TAG, "queue entry %d is gone; nothing to play", act.value);
             }
@@ -11416,7 +11423,8 @@ static bool autostart(char *out, size_t out_len)
         if (playlist_load_dir(root) != ESP_OK) continue;
         if (playlist_count() == 0) continue;
         playlist_set_current(0);
-        snprintf(out, out_len, "%s", playlist_path(0));
+        /* 5172: copied under the lock; this is main_task. */
+        if (!playlist_path_copy(0, out, out_len)) continue;
         return true;
     }
     return false;
@@ -13856,8 +13864,10 @@ static void player_loop(void)
             fails = 0;
         }
 
-        const char *next = playlist_next(browser_order());
-        if (next) {
+        /* 5172: copied under the lock, straight into s_path -- which is
+         * where the borrowed pointer was copied to below anyway. This is
+         * main_task, and ui_task can edit the list meanwhile. */
+        if (playlist_next_copy(browser_order(), s_path, sizeof(s_path))) {
             /*
              * There is another track, so this gap is a gap and not a
              * stop. Without this the amplifier idles across every
@@ -13883,7 +13893,6 @@ static void player_loop(void)
              * amp idles as it should.
              */
             s_track_changing = true;
-            snprintf(s_path, sizeof(s_path), "%s", next);
             have = true;
             continue;
         }
@@ -14276,6 +14285,7 @@ void app_main(void)
      * on it too now, and that reaches opendir()/readdir() through FatFs
      * and carries a couple of 512-byte path buffers on the way -- so the
      * old size overflowed on the first folder with a long name in it. */
+    playlist_init();                /* 5172: before any task reads the list */
     uireq_init();                   /* MPD.md step 5: before both servers */
     remote_init();                  /* 5117: before the task that polls it */
     mpd_init();                     /* 5158: likewise */

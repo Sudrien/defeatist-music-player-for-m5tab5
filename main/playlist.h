@@ -37,6 +37,23 @@ typedef enum {
  * way and say why.
  */
 
+/*
+ * 5172: the lock, created here. Once, from app_main(), before any task
+ * that uses the list. Before it, every function runs unlocked, which is
+ * what a single-threaded host test wants.
+ */
+void playlist_init(void);
+
+/*
+ * 5172: hold the lock across several calls, for a reader that needs the
+ * list and the cursor to agree -- or that reads mpdqueue.h directly, as
+ * mpd.c does, which is reading the list without this file's lock unless
+ * it holds this. Recursive, so the playlist_* calls inside are fine. Keep
+ * it short: main_task waits on it at every track boundary.
+ */
+void playlist_lock(void);
+void playlist_unlock(void);
+
 /* Replace the list with the playable files in dir, sorted case-insensitively.
  *
  * Directories are not descended. An album that is one folder deep with
@@ -72,8 +89,20 @@ int playlist_count(void);
  * The loan is only as safe as the mutation rule, which is today "ui_task
  * mutates, at a user's tap". A list that a socket can rewrite mid-track
  * makes a held pointer a use-after-free rather than a stale one.
+ *
+ * 5172: SO OFF ui_task, COPY UNDER THE LOCK. Every function here takes
+ * playlist.c's lock, which keeps the list whole while it is read -- but a
+ * borrowed pointer outlives the call, and the lock with it. The *_copy
+ * readers below copy before letting go, and are what main_task and
+ * media_task use. ui_task, which makes the edits, still borrows at the
+ * sites that copy straight into a request; what it races is main_task's
+ * load and clear, which is the race a folder tap has always had.
  */
 const char *playlist_path(int i);
+
+/* 5172: the entry at `i`, copied into `out`. False, `out` untouched, when
+ * there is none. */
+bool playlist_path_copy(int i, char *out, size_t size);
 
 /* Index of path in the current list, or -1. Compares whole paths, so a
  * track chosen from a different folder does not match a same-named track
@@ -96,6 +125,10 @@ void playlist_set_current(int i);
  */
 const char *playlist_next(play_order_t order);
 
+/* 5172: playlist_next(), copied under the lock. False when it would have
+ * returned NULL. */
+bool playlist_next_copy(play_order_t order, char *out, size_t size);
+
 /*
  * What playlist_next() would return, without consuming anything.
  *
@@ -112,6 +145,10 @@ const char *playlist_next(play_order_t order);
  * prefetch, and that is the honest answer rather than a missing feature.
  */
 const char *playlist_peek_next(play_order_t order);
+
+/* 5172: playlist_peek_next(), copied under the lock. False when it would
+ * have returned NULL. */
+bool playlist_peek_next_copy(play_order_t order, char *out, size_t size);
 
 /*
  * Whether pressing next would do anything, for the UI to grey the button.
@@ -142,7 +179,8 @@ const char *playlist_dir(void);
  * (mpdqueue.h), and these are the only way to change it besides a load
  * or a clear, because they move the cursor and the shuffle history with
  * the entries -- an mpdq_* call alone would leave both on the slots.
- * ui_task only, like everything else here that changes the list.
+ * ui_task only, like everything else here that changes the list (5172:
+ * which is a convention now, not what keeps the list whole -- the lock is).
  *
  * THE ENTRY PLAYING CAN BE REMOVED. It keeps playing; playlist_current()
  * becomes -1, the state for a file played from outside the list; and

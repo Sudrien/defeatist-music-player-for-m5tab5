@@ -16342,3 +16342,66 @@ patch, and the remote's verbs come after it.
 Not built with ESP-IDF, not run on a board. No `sdkconfig.defaults` or
 `idf_component.yml` change. Nothing calls the new functions yet, so a
 board run should show nothing different.
+
+### 5172 -- playlist: one lock, and copies off ui_task
+
+What 5171 said had to come before a socket can edit the list. The list
+-- `playlist.c`'s cursor over `mpdqueue.c`'s entries -- is changed on
+two tasks and read on three, with no lock:
+
+- `ui_task`: every tap, and since 5171 the edits; `mpd_publish()` reads
+  `mpdq_*` directly to build the copy MPD clients see;
+- `main_task`: `playlist_load_dir()` in `autostart()` and
+  `restore_last_track()`, `playlist_clear()` when the volume goes, and
+  `playlist_next()` at every track boundary;
+- `media_task`: `playlist_peek_next()` in `prefetch_next()`.
+
+Every reader was handed a pointer the queue owns and frees. A folder tap
+has always raced these; a remote page that can delete an entry mid-track
+makes the race routine.
+
+**One recursive mutex in `playlist.c`**, created by `playlist_init()`
+from `app_main()` beside `uireq_init()`. Every public function takes it.
+The old bodies are static `*_locked` functions that call each other, so
+nothing inside depends on recursion; it is recursive for
+`playlist_lock()`/`playlist_unlock()`, which let a caller hold it across
+several calls. Before `playlist_init()` the lock is a no-op, which is
+what keeps `playlisttest.c`'s pinned sections unchanged and passing.
+
+**Copies off `ui_task`.** `playlist_path_copy()`, `playlist_next_copy()`
+and `playlist_peek_next_copy()` copy before the lock is let go.
+`player_loop()`'s next now copies straight into `s_path` (where the
+borrowed pointer was copied to anyway); `prefetch_next()` copies into
+`next_path` as before but under the lock, closing the window between
+its peek and its `snprintf`; `autostart()` copies its first entry.
+
+**The two direct readers of the queue hold the lock.** `mpd_publish()`
+from reading the cursor through building the client copy -- lock order
+playlist, then `mpd.c`'s own `s_mu`, and nothing takes them the other
+way. `UI_ACTION_PLAY_ID` finds the id, copies the path and sets the
+cursor under it, and calls `request_track()` after letting go, so no
+lock is held across the request.
+
+**What still borrows:** `ui_task`'s other sites (`request_track(
+playlist_path(0))` and the like), which copy straight into a request.
+What they race is `main_task`'s load and clear, the same race a folder
+tap always had, now narrowed to the instant between return and copy.
+Converting them is mechanical and was left out to keep this patch to
+the paths a socket makes routine.
+
+**Held across a directory read.** `playlist_load_dir()` holds the lock
+while it reads the folder, so a reader on another task waits for the
+new list rather than seeing half of it. `main_task` can therefore wait
+at a track boundary for a folder load on `ui_task` -- which is replacing
+the list it is about to read. No lock-order cycle with the storage
+arbiter: leases are taken per read and nobody calls into the playlist
+while holding one.
+
+**Host-tested** only as far as a single thread goes: `shim.h` gained
+no-op recursive-mutex calls, and the full suite passes. The lock
+itself is not exercised by any test.
+
+Not built with ESP-IDF, not run on a board. No `sdkconfig.defaults` or
+`idf_component.yml` change. A board run should show nothing different:
+folder taps, next and prev, shuffle, a track boundary, an MPD client's
+queue and `playid`, and pulling the card while playing.

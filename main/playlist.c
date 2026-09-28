@@ -22,6 +22,8 @@
 #include "esp_heap_caps.h"
 #include "esp_log.h"
 #include "esp_random.h"
+#include "freertos/FreeRTOS.h"
+#include "freertos/semphr.h"
 
 #include "cuedir.h"
 #include "decoder.h"
@@ -30,6 +32,22 @@
 #include "storage.h"
 
 static const char *TAG = "tab5_playlist";
+
+/*
+ * 5172: ONE LOCK, around everything. The list is changed on ui_task (a
+ * tap, and since 5171 an edit) and on main_task (a load at autostart and
+ * restore, a clear when the volume goes), and read on media_task
+ * (prefetch) as well. Every public function takes it; the static
+ * *_locked functions below are the bodies, and call each other rather
+ * than the public ones. Recursive all the same, because playlist_lock()
+ * lets a caller hold it across several calls (mpd.c reads the queue
+ * directly, and needs the list and the cursor to agree). NULL until
+ * playlist_init(), and then a no-op, so a host test that never calls it
+ * runs single-threaded as it always did.
+ */
+static SemaphoreHandle_t s_mu;
+#define L()     do { if (s_mu) xSemaphoreTakeRecursive(s_mu, portMAX_DELAY); } while (0)
+#define U()     do { if (s_mu) xSemaphoreGiveRecursive(s_mu); } while (0)
 
 /* The queue is the list (5165); it must hold a whole folder. */
 _Static_assert(PLAYLIST_MAX <= MPDQ_MAX, "a folder must fit in the queue");
@@ -49,7 +67,7 @@ static char s_dir[512];
 #define s_count         (mpdq_count())
 #define s_paths_at(i)   (mpdq_path(i))
 
-void playlist_clear(void)
+static void clear_locked(void)
 {
     mpdq_clear();
     s_current = -1;
@@ -58,7 +76,7 @@ void playlist_clear(void)
     if (s_played) memset(s_played, 0, (PLAYLIST_MAX + 7) / 8);
 }
 
-esp_err_t playlist_load_dir(const char *dir)
+static esp_err_t load_dir_locked(const char *dir)
 {
     if (!dir || !*dir) return ESP_ERR_INVALID_ARG;
 
@@ -71,7 +89,7 @@ esp_err_t playlist_load_dir(const char *dir)
         }
     }
 
-    playlist_clear();
+    clear_locked();
 
     DIR *d = opendir(dir);
     if (!d) {
@@ -134,15 +152,15 @@ esp_err_t playlist_load_dir(const char *dir)
     return s_count ? ESP_OK : ESP_ERR_NOT_FOUND;
 }
 
-int playlist_count(void) { return s_count; }
 
-const char *playlist_path(int i)
+
+static const char *path_locked(int i)
 {
     if (i < 0 || i >= s_count) return NULL;
     return s_paths_at(i);
 }
 
-int playlist_index_of(const char *path)
+static int index_of_locked(const char *path)
 {
     if (!path) return -1;
     for (int i = 0; i < s_count; i++) {
@@ -151,9 +169,9 @@ int playlist_index_of(const char *path)
     return -1;
 }
 
-int playlist_current(void) { return s_current; }
 
-void playlist_set_current(int i)
+
+static void set_current_locked(int i)
 {
     s_current = (i >= 0 && i < s_count) ? i : -1;
     s_gap = -1;
@@ -162,14 +180,14 @@ void playlist_set_current(int i)
     }
 }
 
-const char *playlist_dir(void) { return s_dir; }
+
 
 static bool shuffle_seen(int i)
 {
     return s_played && (s_played[i / 8] & (1 << (i % 8)));
 }
 
-const char *playlist_peek_next(play_order_t order)
+static const char *peek_next_locked(play_order_t order)
 {
     if (s_count <= 0) return NULL;
     if (order == PLAY_ORDER_REPEAT_ONE) {
@@ -184,7 +202,7 @@ const char *playlist_peek_next(play_order_t order)
     return s_paths_at(n);
 }
 
-bool playlist_has_next(play_order_t order)
+static bool has_next_locked(play_order_t order)
 {
     if (s_count <= 0) return false;
     if (order == PLAY_ORDER_SHUFFLE) return true;   /* see the header */
@@ -196,7 +214,7 @@ bool playlist_has_next(play_order_t order)
     return s_current >= 0 && s_current + 1 < s_count;
 }
 
-const char *playlist_next(play_order_t order)
+static const char *next_locked(play_order_t order)
 {
     if (s_count <= 0) return NULL;
 
@@ -237,7 +255,7 @@ const char *playlist_next(play_order_t order)
         for (int i = 0; i < s_count; i++) {
             if (shuffle_seen(i)) continue;
             if (pick-- == 0) {
-                playlist_set_current(i);
+                set_current_locked(i);
                 return s_paths_at(i);
             }
         }
@@ -247,19 +265,19 @@ const char *playlist_next(play_order_t order)
     /* 5171: after the playing entry was removed, its successor. */
     const int next = (s_current < 0 && s_gap >= 0) ? s_gap : s_current + 1;
     if (next >= s_count) return NULL;        /* stop at the end of the folder */
-    playlist_set_current(next);
+    set_current_locked(next);
     return s_paths_at(next);
 }
 
-const char *playlist_prev(void)
+static const char *prev_locked(void)
 {
     /* 5171: after the playing entry was removed, what was before it. */
     if (s_current < 0 && s_gap > 0 && s_gap <= s_count) {
-        playlist_set_current(s_gap - 1);
+        set_current_locked(s_gap - 1);
         return s_paths_at(s_current);
     }
     if (s_count <= 0 || s_current <= 0) return NULL;
-    playlist_set_current(s_current - 1);
+    set_current_locked(s_current - 1);
     return s_paths_at(s_current);
 }
 
@@ -304,7 +322,7 @@ static bool edit_ready(void)
     return mpdq_init() && s_played;
 }
 
-int playlist_add(const char *path, int at)
+static int add_locked(const char *path, int at)
 {
     if (!edit_ready() || s_count >= PLAYLIST_MAX) return -1;
     const int n = s_count;
@@ -320,14 +338,14 @@ int playlist_add(const char *path, int at)
     return at;
 }
 
-int playlist_add_next(const char *path)
+static int add_next_locked(const char *path)
 {
-    if (s_current >= 0) return playlist_add(path, s_current + 1);
-    if (s_gap >= 0) return playlist_add(path, s_gap);
-    return playlist_add(path, -1);
+    if (s_current >= 0) return add_locked(path, s_current + 1);
+    if (s_gap >= 0) return add_locked(path, s_gap);
+    return add_locked(path, -1);
 }
 
-bool playlist_remove(int pos)
+static bool remove_locked(int pos)
 {
     const int n = s_count;
     if (pos < 0 || pos >= n) return false;
@@ -349,7 +367,7 @@ bool playlist_remove(int pos)
     return true;
 }
 
-bool playlist_move(int from, int to)
+static bool move_locked(int from, int to)
 {
     const int n = s_count;
     if (from < 0 || from >= n || to < 0 || to >= n) return false;
@@ -365,4 +383,59 @@ bool playlist_move(int from, int to)
      * in which case the boundary stays where it was. */
     if (s_gap >= 0 && s_gap < n && s_gap != from) s_gap = moved_index(s_gap, from, to);
     return true;
+}
+
+/* ---- 5172: the public functions, each under the lock ------------------ */
+
+void playlist_init(void)
+{
+    if (!s_mu) s_mu = xSemaphoreCreateRecursiveMutex();
+}
+
+void playlist_lock(void)   { L(); }
+void playlist_unlock(void) { U(); }
+
+void playlist_clear(void)                     { L(); clear_locked(); U(); }
+esp_err_t playlist_load_dir(const char *dir)
+{
+    /* Held across the directory read, so a reader on another task waits
+     * for the new list rather than seeing half of it. The list is being
+     * replaced, so there is nothing better for it to read meanwhile. */
+    L(); const esp_err_t e = load_dir_locked(dir); U(); return e;
+}
+int playlist_count(void)                      { L(); const int n = s_count; U(); return n; }
+const char *playlist_path(int i)              { L(); const char *p = path_locked(i); U(); return p; }
+int playlist_index_of(const char *path)       { L(); const int i = index_of_locked(path); U(); return i; }
+int playlist_current(void)                    { L(); const int c = s_current; U(); return c; }
+void playlist_set_current(int i)              { L(); set_current_locked(i); U(); }
+const char *playlist_dir(void)                { return s_dir; }
+const char *playlist_peek_next(play_order_t o){ L(); const char *p = peek_next_locked(o); U(); return p; }
+bool playlist_has_next(play_order_t o)        { L(); const bool b = has_next_locked(o); U(); return b; }
+const char *playlist_next(play_order_t o)     { L(); const char *p = next_locked(o); U(); return p; }
+const char *playlist_prev(void)               { L(); const char *p = prev_locked(); U(); return p; }
+int playlist_add(const char *path, int at)    { L(); const int i = add_locked(path, at); U(); return i; }
+int playlist_add_next(const char *path)       { L(); const int i = add_next_locked(path); U(); return i; }
+bool playlist_remove(int pos)                 { L(); const bool b = remove_locked(pos); U(); return b; }
+bool playlist_move(int from, int to)          { L(); const bool b = move_locked(from, to); U(); return b; }
+
+/* The copying readers: the path is copied before the lock is let go, so
+ * nothing another task does afterwards can free what the caller holds. */
+static bool copy_out(const char *p, char *out, size_t size)
+{
+    if (!p || !out || !size) return false;
+    snprintf(out, size, "%s", p);
+    return true;
+}
+
+bool playlist_path_copy(int i, char *out, size_t size)
+{
+    L(); const bool b = copy_out(path_locked(i), out, size); U(); return b;
+}
+bool playlist_next_copy(play_order_t order, char *out, size_t size)
+{
+    L(); const bool b = copy_out(next_locked(order), out, size); U(); return b;
+}
+bool playlist_peek_next_copy(play_order_t order, char *out, size_t size)
+{
+    L(); const bool b = copy_out(peek_next_locked(order), out, size); U(); return b;
 }

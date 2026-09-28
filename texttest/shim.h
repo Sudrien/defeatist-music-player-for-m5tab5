@@ -40,6 +40,11 @@ static inline BaseType_t xSemaphoreTake(SemaphoreHandle_t s, TickType_t t)
 { (void)s; (void)t; return pdTRUE; }
 static inline BaseType_t xSemaphoreGive(SemaphoreHandle_t s) { (void)s; return pdTRUE; }
 static inline SemaphoreHandle_t xSemaphoreCreateBinary(void) { return (void *)1; }
+/* 5172: playlist.c's lock is recursive. */
+static inline SemaphoreHandle_t xSemaphoreCreateRecursiveMutex(void) { return (void *)1; }
+static inline BaseType_t xSemaphoreTakeRecursive(SemaphoreHandle_t s, TickType_t t)
+{ (void)s; (void)t; return pdTRUE; }
+static inline BaseType_t xSemaphoreGiveRecursive(SemaphoreHandle_t s) { (void)s; return pdTRUE; }
 static inline BaseType_t xSemaphoreGiveFromISR(SemaphoreHandle_t s, BaseType_t *woken)
 { (void)s; if (woken) *woken = pdFALSE; return pdTRUE; }
 #define portYIELD_FROM_ISR(x)     do { (void)(x); } while (0)

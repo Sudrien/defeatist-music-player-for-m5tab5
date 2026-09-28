@@ -16776,3 +16776,49 @@ Not built with ESP-IDF, not run on a board. No `sdkconfig.defaults` or
 statics without code changes, but needs
 `CONFIG_SPIRAM_ALLOW_BSS_SEG_EXTERNAL_MEMORY` and so an sdkconfig
 change and an `rm sdkconfig`; a heap allocation needs neither.)
+
+### 5179 -- Cantata on the board: the root is "/", and a filled queue is the queue
+
+The first client session against 5175-5178 (v0.4.0-200, Cantata). What
+worked, from the log: the library through `listallinfo` (Cantata added
+`age2/xcredits.mp3`, a path it could only have got from there), `clear`,
+`add` with SD tried and then USB, `playid`, the mode toggles, `seekid`.
+Two things were wrong, both in this series.
+
+**`lsinfo` on connect was `No such directory`.** Cantata asks for the
+root as `"/"`; MPD takes that as the root, and `mpduri_ok()` refuses a
+leading slash, as it should for anything else. `lsinfo` and the two
+`listall`s now take `"/"` as `""` before the check.
+
+**"Replace and play" restarted the old track.** Cantata's sequence is
+`clear`, `add`, `add`, `play 0`, and the log has `play -> seek 0%`, which
+is `restart()`. The `clear` took the playing track out of the queue, so
+`mpd_publish()` showed it as a window of one (5166) -- and `play 0`
+compared 0 with the window's song, found them equal, and restarted it.
+The client meant the queue it had just filled.
+
+So a window of one is now only for a station, or for a file played when
+the queue is empty. A file from outside a queue that has entries shows
+the queue, with no current song -- the state MPD is in after a `clear`.
+The track plays on underneath and `status` says stop until something
+from the queue plays; a client's play button then does what MPD's does.
+A station keeps its window, since its title in `currentsong` is what a
+client shows while one plays and it is never in the queue.
+
+**And `play` with no argument and no current song starts the queue from
+the top**, as MPD's does, rather than resuming the file from outside it
+-- which after the change above is the file the client no longer sees.
+
+Not changed, and visible in the same log: `add` asks for the SD path,
+is told no such file, and then asks for the USB path -- two round trips
+of about 130 ms for a file on USB. Choosing the volume from the index
+would need both readers opened per `add`, which costs about as much; left
+as it is. The `list`, `search`, `listplaylists` and `listplaylistinfo`
+refusals are steps 12 (the rest) and 13.
+
+Not host-tested: `mpd.c`. Compiled `-fsyntax-only` against stub IDF
+headers outside the repository. Not built with ESP-IDF, not run on a
+board. No `sdkconfig.defaults` or `idf_component.yml` change. What a
+board run should show: no `{lsinfo} No such directory` on connect,
+Cantata's folder view at the root, and replace-and-play from Cantata
+logging `play -> play entry` and playing the new track.

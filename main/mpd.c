@@ -37,9 +37,11 @@
  * changes, because this task cannot read a queue with no lock and two
  * writers. Positions, ids, `song` and `nextsong` are real, so a client's
  * queue lists the folder and its Next button knows there is a next. A
- * station, or a file played from outside the queue's folder, is still a
+ * station, or a file played from outside an EMPTY queue, is still a
  * window of one: MPD never plays anything that is not in its queue, and
- * the one thing playing is the honest list for those. See s_ql.
+ * the one thing playing is the honest list for those. See s_ql. (5179:
+ * a file outside a queue that has entries is not a window -- the queue
+ * is shown, with no current song. See mpd_publish().)
  *
  * COMMAND LISTS ARE RUN AS THEY ARRIVE, the tradeoff mpdproto.h left to
  * this file. MPD accumulates the list and runs it at command_list_end;
@@ -786,6 +788,13 @@ static result_t run_list_cmd(conn_t *c, const mpd_cmd_t *cmd, int idx)
     case MPD_CMD_PLAY: {
         long pos = -1;
         if (a0 && !arg_int(&x, a0, INT32_MIN, INT32_MAX, &pos)) return RES_ERR;
+        /* 5179: no current song, and a queue: MPD starts the queue from
+         * the top (PlayerControl's play with no position). Since 5179 that
+         * is what a client sees after `clear` and `add` while a file from
+         * outside the queue plays on, and resuming that file would be the
+         * wrong track. */
+        if (pos == -1 && s_view->song < 0 && !s_list->window && n > 0)
+            return ask(&x, UI_ACTION_PLAY_ID, (int)s_list->id[0]) ? RES_OK : RES_ERR;
         if (pos == -1) return ask(&x, UI_ACTION_PLAY, 0) ? RES_OK : RES_ERR;
         if (pos < 0 || pos >= n) {
             ack(c, MPD_ACK_ARG, idx, cmd->verb, "Bad song index");
@@ -1175,7 +1184,9 @@ static int lib_file(const char *uri, midx_rec_t *r)
 static result_t lib_lsinfo(const ctx_t *x, const char *uri)
 {
     conn_t *const c = x->c;
-    if (!uri) uri = "";
+    /* 5179: "/" is the root as well as "", as MPD takes it -- Cantata
+     * asks for "/" on connect, and was told No such directory. */
+    if (!uri || strcmp(uri, "/") == 0) uri = "";
     if (!mpduri_ok(uri, true) || !mpduri_dir(uri, s_lib->dir, sizeof(s_lib->dir))) {
         ack(c, MPD_ACK_NO_EXIST, x->idx, x->verb, "No such directory");
         return RES_ERR;
@@ -1247,7 +1258,9 @@ static void walk_fill(lib_walk_t *w)
 static result_t lib_listall(const ctx_t *x, const char *uri, bool info)
 {
     conn_t *const c = x->c;
-    if (!uri) uri = "";
+    /* 5179: "/" is the root as well as "", as MPD takes it -- Cantata
+     * asks for "/" on connect, and was told No such directory. */
+    if (!uri || strcmp(uri, "/") == 0) uri = "";
     if (!mpduri_ok(uri, true) || !mpduri_dir(uri, s_lib->dir, sizeof(s_lib->dir))) {
         ack(c, MPD_ACK_NO_EXIST, x->idx, x->verb, "No such directory");
         return RES_ERR;
@@ -2165,7 +2178,21 @@ void mpd_publish(const ui_state_t *st, const char *path, bool streaming)
     const bool lagging = !streaming && qp && !inq &&
                          strcmp((path && shown) ? path : "", s_seen_shown) == 0;
     const bool queued = !streaming && cur >= 0 && qp && (inq || lagging || !shown);
-    const bool window = !queued && shown && n->uri[0];
+    /*
+     * 5179: A WINDOW ONLY WHEN THERE IS NO QUEUE TO SHOW, or for a
+     * station. The board run after 5177: Cantata's "replace and play" is
+     * `clear`, `add`, `play 0`. The clear took the playing track out of
+     * the queue, so this showed that track as a window of one -- and
+     * `play 0` restarted it instead of playing what had just been added,
+     * because position 0 was the window. A client that has just filled
+     * the queue is talking about the queue. So a file that is not the
+     * queue's shows the queue with no current song, which is the state
+     * MPD is in after a clear; the track plays on underneath, and
+     * `status` says stop until something from the queue plays. A station
+     * keeps its window: it is never in the queue, and its title in
+     * `currentsong` is what a client shows while one plays.
+     */
+    const bool window = !queued && shown && n->uri[0] && (streaming || mpdq_count() == 0);
     if (queued && !inq) {
         n->title[0] = n->artist[0] = n->album[0] = '\0';
         n->duration_ms = -1;

@@ -1769,7 +1769,20 @@ void settings_init(void)
      * starts. Until then the defaults are in memory and are as usable
      * as anything loaded from a file.
      */
-    if (xTaskCreate(settings_task, "settings", 4096, NULL, 2, NULL) != pdPASS) {
+    /*
+     * 5181: 5120, from 4096. The v0.4.0-202 board run panicked here with
+     * a stack protection fault 24 bytes past the floor, inside
+     * _vfprintf_r taking stdio's lock: a card read failing under the
+     * settings write, and the driver's error log printing from inside the
+     * write. 4088 + 24 is the figure on that path (CLAUDE.md: the
+     * overshoot, not the demand), and it is one path; a thousand bytes
+     * over it is the margin, not a measurement. Internal RAM, because
+     * this task writes flash (prefs_nvs_sync()) and a PSRAM stack cannot
+     * run with the cache off. The read failure itself is 5181's other
+     * half (storage.c, s_sd_bounce); this is so the next card error is a
+     * logged error and not a boot loop.
+     */
+    if (xTaskCreate(settings_task, "settings", 5120, NULL, 2, NULL) != pdPASS) {
         ESP_LOGW(TAG, "no writer task; settings will not be saved");
     }
 }

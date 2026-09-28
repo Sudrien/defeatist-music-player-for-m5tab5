@@ -16893,3 +16893,71 @@ search box returning tracks; `mpc search any <word>`, `mpc find album
 showing `partition: default` in `status`; no `listpartitions` refusal
 on connect; and the logged `lsinfo` argument, which settles whether that
 refusal is right.
+
+### 5181 -- the SD card after the radio: one bounce buffer, and room to log a failure
+
+The first board run of this series with the SD card in (v0.4.0-202)
+boot-looped. The same build without the card booted and ran, so the
+card was the difference.
+
+**What failed.** Straight after `radio up`, every read of the card:
+
+    W tab5_heap: allocation failed: 512 bytes, caps 0x00000008, ... task main
+    --- allocate_dma_buf at sdmmc_cmd.c:38
+    --- sdmmc_read_sectors at sdmmc_cmd.c:675
+    E sdmmc_cmd: allocate_dma_buf: not enough mem, err=0x101
+    E diskio_sdmmc: sdmmc_read_blocks failed (0x101)
+    I tab5_mp3: last track is gone: /sd/Recordings/...
+
+`sdmmc_read_sectors()` in IDF 5.5.5 DMAs straight into the caller's
+buffer only when the host's alignment check passes. Otherwise it reads
+a block at a time through a DMA-capable buffer and copies. With no
+buffer given, it allocates 512 bytes of `MALLOC_CAP_DMA` per read and
+frees it after. FatFs's sector window lives in the FATFS object, which
+is not cache-aligned, so every stat, directory walk and FAT lookup on
+the card takes that path. The radio takes the DMA-capable heap when it
+comes up and keeps it (5145, and every heap map since: 351 bytes left
+at `station up`), so from then on there was nothing to allocate. The
+USB drive does not go through this driver, which is why the no-card
+runs never showed it.
+
+**Fix: one buffer, for the session.** `sdmmc_host_t` has a
+`dma_aligned_buffer`, and its header documents it for exactly this:
+"temporary buffer for multi-block read/write transactions to/from
+unaligned buffers. Allocate with DMA capable memory, size should be an
+integer multiple of your card's sector size." `storage_init()` allocates
+512 bytes of `MALLOC_CAP_DMA` before the first mount and before the
+radio -- as the driver's own `sdmmc_allocate_aligned_buf()` does -- and
+every mount passes it in. It is not done with the driver's
+`SDMMC_HOST_FLAG_ALLOC_ALIGNED_BUF`. That flag allocates at the start of
+every card init, nothing frees it on a failed mount, and the poll mounts
+an empty slot once a second: 512 bytes of DMA leaked a second. One
+buffer, never freed, costs 512 bytes once. Reads still go a block at a
+time through it, as they already did through the driver's per-read
+allocation; large reads into the storage arbiter's buffers are aligned
+and do not take this path.
+
+**And the panic, which turned failed reads into a boot loop.** The
+`settings` task (4096 bytes) faulted 24 bytes past its stack floor
+inside `_vfprintf_r` taking stdio's lock -- a card read failing under
+the settings write, with the driver's error log printed from inside the
+write. By CLAUDE.md's rule that is 4088 + 24 on that path, and it is one
+path. The stack is now 5120: the margin is a guess, not a measurement,
+and a second fault on this task would give the figure. It stays in
+internal RAM because the task writes flash (`prefs_nvs_sync()`), and a
+PSRAM stack cannot run with the cache off.
+
+**Cost:** 512 bytes of DMA-capable RAM and 1 KB of internal RAM, both
+taken before the radio. The boot heap map should read about 1.5 KB
+lower than 202's (`DMA free 37571` with the card in). The radio came up
+at 26 KB free in 5177's failure and at 38 KB in 202, so there is room
+for this.
+
+**Not proven here.** Not built with ESP-IDF, not run on a board. No
+`sdkconfig.defaults` or `idf_component.yml` change. What a board run with
+the card in should show: no `allocate_dma_buf` lines at all, the last
+track found instead of "gone", Wi-Fi joining, and the boot heap map
+about 1.5 KB lower than 202's. What would say it is wrong: the same
+allocation failures (the buffer did not reach the card's host), or
+`sdmmc_read_sectors: buffer smaller than sector size` (the allocation
+came back smaller than 512).

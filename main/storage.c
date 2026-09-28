@@ -8,6 +8,7 @@
 
 #include "driver/sdmmc_host.h"
 #include "esp_check.h"
+#include "esp_heap_caps.h"          /* 5181: the SD bounce buffer */
 #include "esp_log.h"
 #include "esp_vfs_fat.h"
 #include "ff.h"
@@ -97,6 +98,42 @@ static const char *TAG = "tab5_storage";
 /* ------------------------------------------------------------------ */
 
 static sdmmc_card_t *s_card;
+
+/*
+ * 5181: THE SD CARD'S BOUNCE BUFFER, ONE, FOR THE SESSION.
+ *
+ * sdmmc_read_sectors() (IDF 5.5.5) reads straight into the caller's
+ * buffer only when it meets the host's alignment; otherwise it reads a
+ * block at a time through a DMA-capable buffer and copies. FatFs's sector
+ * window is such a caller -- it lives in the FATFS object, which is not
+ * cache-aligned -- so every directory walk, stat and FAT lookup on the
+ * card goes that way. With no buffer given, the driver allocates a fresh
+ * 512 bytes of MALLOC_CAP_DMA for each read and frees it after. The radio
+ * takes the DMA-capable heap when it comes up (5145) and keeps it, so
+ * from then on every such read failed: the first board run with a card
+ * in (v0.4.0-202) had `allocate_dma_buf: not enough mem` on every read
+ * after `radio up`, the last track called gone, and a panic.
+ *
+ * So the host is given one here, made in storage_init() while the heap is
+ * still whole, and every mount uses it: sdmmc_host_t's
+ * `dma_aligned_buffer`, which the driver's header documents for exactly
+ * this ("temporary buffer for multi-block read/write transactions to/from
+ * unaligned buffers ... allocate with DMA capable memory, size an integer
+ * multiple of your card's sector size"). Allocated as the driver's own
+ * SDMMC_HOST_FLAG_ALLOC_ALIGNED_BUF would -- heap_caps_malloc(512,
+ * MALLOC_CAP_DMA) -- but NOT through that flag: the flag allocates at the
+ * start of every card init and nothing frees it on a failed mount, and
+ * the poll tries to mount an empty slot once a second. One buffer, never
+ * freed, costs 512 bytes once.
+ *
+ * A block at a time through it, as the driver already did through its
+ * own. Large reads into the storage arbiter's buffers are aligned and do
+ * not come this way.
+ */
+static void *s_sd_bounce;
+#ifndef SDMMC_IO_BLOCK_SIZE
+#define SDMMC_IO_BLOCK_SIZE     (512)   /* sd_protocol_defs.h's; the sector */
+#endif
 static sd_pwr_ctrl_handle_t s_pwr;
 
 static volatile bool s_mounted[STORAGE_COUNT];
@@ -350,6 +387,7 @@ static esp_err_t sd_mount_at(bool verbose, int freq_khz)
     host.slot = SDMMC_HOST_SLOT_0;          /* the default is slot 1 */
     host.max_freq_khz = freq_khz;
     host.pwr_ctrl_handle = s_pwr;
+    host.dma_aligned_buffer = s_sd_bounce;  /* 5181; NULL: the driver's own */
 
     sdmmc_slot_config_t slot = SDMMC_SLOT_CONFIG_DEFAULT();
     slot.width = 4;
@@ -749,6 +787,14 @@ esp_err_t storage_init(void)
     if (!s_msc_events) return ESP_ERR_NO_MEM;
     ESP_RETURN_ON_ERROR(usbhost_register_class("msc", msc_class_install),
                         TAG, "register msc");
+
+    /* 5181: before the first mount, and before the radio -- see
+     * s_sd_bounce. */
+    s_sd_bounce = heap_caps_malloc(SDMMC_IO_BLOCK_SIZE, MALLOC_CAP_DMA);
+    if (!s_sd_bounce) {
+        ESP_LOGW(TAG, "no DMA memory for the SD bounce buffer; card reads may "
+                 "fail once the radio is up");
+    }
 
     const sd_pwr_ctrl_ldo_config_t ldo = { .ldo_chan_id = SD_LDO_CHAN };
     ESP_RETURN_ON_ERROR(sd_pwr_ctrl_new_on_chip_ldo(&ldo, &s_pwr), TAG, "sd ldo");

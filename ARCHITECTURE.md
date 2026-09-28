@@ -16656,3 +16656,51 @@ calls a reader yet; the next patch is `lsinfo`. Not built with ESP-IDF,
 not run on a board. No `sdkconfig.defaults` or `idf_component.yml`
 change. A board run should show nothing different: a reindex on mount
 and from the button, as before.
+
+### 5177 -- mpd: lsinfo, listall and listallinfo
+
+MPD.md step 12's browsing, over 5176's readers and `medialist.h`.
+
+**`lsinfo [URI]`** is `medialist.h` itself: one folder, both volumes
+merged, SD winning a path both have, in the index's order (which is
+MPD's). A folder is `directory: <uri>`; a file is its `file:` line and
+its title, artist and album from the catalog -- one catalog read per
+file, so a 30-track folder is 30 short reads. No `Time`/`duration`: the
+catalog has no length and reading one means opening the file. A client
+shows the song without it. `lsinfo` of a file shows that song, as MPD
+does; of nothing, `No such directory` (50). The root of an empty
+library is an empty OK. No `playlist:` lines: stored playlists are step
+13.
+
+**`listall` and `listallinfo`** are not `medialist.h`, which is one
+folder deep and would need a 2 KB listing per level of recursion.
+Everything below a folder is one contiguous run of each index (the
+property `MIDX_PAST_PREFIX` exists for), so the two runs are merged by
+path in one pass, equal paths collapsing to the SD's, and a `directory:`
+line is written for each folder the first time a path enters it.
+`midx_path_cmp()` orders '/' lowest, so a folder's contents come before a
+sibling like `Album.flac` -- MPD's depth-first order. That emission was
+checked outside the repository against a model with nested, sibling and
+space-named folders, at the root and under a folder. A folder holding
+only tombstones does not appear. `listallinfo` adds the catalog read
+per file; it is deprecated upstream and answered, not optimised.
+
+**Readers are held for one command.** Both volumes are opened at the
+start of the command and closed at its end, so a reindex waits at most
+that long (5176). While a reindex runs, these ACK 52 "the library is
+being indexed; try again when it is done" -- MPD would serve its old
+database, and this cannot read the index while it is being replaced. A
+volume with no card or no index yet lists as empty. A read failure
+partway ACKs 52 after the lines already written, as MPD does.
+
+**Checked beyond the host suite**: `mpd.c` and `medialib.c` compiled
+`-fsyntax-only -Wall -Wextra` on the host against stub IDF headers,
+outside the repository. Clean apart from the stubs' own gaps. That is
+a syntax check, not a test.
+
+Not built with ESP-IDF, not run on a board. No `sdkconfig.defaults` or
+`idf_component.yml` change. What a board run should show, with an
+indexed card: `mpc ls` listing the volume root merged, `mpc ls <folder>`
+its folders and files with tags, `mpc listall | head`, and Cantata's
+library browser filling. `mpc add` of a path from `mpc ls` then works
+without knowing it in advance.

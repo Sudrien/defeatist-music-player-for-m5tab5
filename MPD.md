@@ -463,6 +463,10 @@ nothing is left half-built if the series stops.
     queue, and 0.23's relative positions.
 12. **Browsing and search**: `lsinfo`, `listall`, `find`, `search`,
     `list`.
+
+    **Browsing done in 5176-5177**: readers of the index that a reindex
+    waits for (5176), then `lsinfo`, `listall` and `listallinfo` (5177).
+    Search next.
 13. **Stored playlists**, if at all: `load`, `save`, `listplaylists`.
     The device has `starred.m3u` (1207-1209) and `stations.m3u`, so the
     format is not new, but this is the first thing on the list that is

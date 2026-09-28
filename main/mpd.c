@@ -80,6 +80,7 @@
 #include "browser.h"
 #include "ethernet.h"
 #include "medialib.h"
+#include "medialist.h"          /* 5177 */
 #include "mpdidle.h"         /* 5160 */
 #include "mpdmode.h"
 #include "mpdqueue.h"         /* 5166 */
@@ -695,6 +696,7 @@ static bool answered(mpd_cmd_kind_t k)
     case MPD_CMD_DELETE: case MPD_CMD_DELETEID:
     case MPD_CMD_MOVE: case MPD_CMD_MOVEID:
     case MPD_CMD_CLEAR: case MPD_CMD_SHUFFLE:
+    case MPD_CMD_LSINFO: case MPD_CMD_LISTALL: case MPD_CMD_LISTALLINFO:   /* 5177 */
         return true;
     default:
         return false;
@@ -1066,6 +1068,241 @@ static result_t run_queue_cmd(conn_t *c, const mpd_cmd_t *cmd, int idx)
     }
 }
 
+/* ---- the library (5177, MPD.md step 12) --------------------------------- */
+
+/*
+ * Both volumes' indexes, open for one command (medialib.h's readers, 5176)
+ * and closed at its end, so a reindex waits at most one command. Slot 0 is
+ * the SD, which wins a path both have (medialist.h). Static: this task's,
+ * and a medialist_t is 2 KB.
+ */
+static medialib_rd_t s_rd[MEDIALIST_VOLS];
+static bool          s_rd_open[MEDIALIST_VOLS];
+static medialist_t   s_ml;
+static char          s_lib_dir[MPDURI_MAX + 2];
+static char          s_lib_uri[MPDURI_MAX + 2];
+
+static void lib_close(void)
+{
+    for (int v = 0; v < MEDIALIST_VOLS; v++) {
+        if (s_rd_open[v]) medialib_rd_close(&s_rd[v]);
+        s_rd_open[v] = false;
+    }
+}
+
+/* Open what can be opened. False, ACKed, only while a reindex runs: a
+ * volume with no index, or no card, is a volume with nothing in it. */
+static bool lib_open(const ctx_t *x)
+{
+    static const storage_id_t vols[MEDIALIST_VOLS] = { STORAGE_SD, STORAGE_USB };
+    if (medialib_busy()) {
+        ack(x->c, MPD_ACK_SYSTEM, x->idx, x->verb,
+            "the library is being indexed; try again when it is done");
+        return false;
+    }
+    for (int v = 0; v < MEDIALIST_VOLS; v++)
+        s_rd_open[v] = medialib_rd_open(vols[v], &s_rd[v]);
+    return true;
+}
+
+static midx_src_t *lib_src(int v) { return s_rd_open[v] ? &s_rd[v].src : NULL; }
+
+/*
+ * One file's lines: its URI, and its tags from the catalog when they can
+ * be read. No Time or duration: the catalog does not hold a length, and
+ * reading one means opening the file. A client shows the song without it.
+ */
+static void put_lib_file(conn_t *c, int v, const midx_rec_t *r, const char *uri, bool tags)
+{
+    mpd_song_t s = { .uri = uri, .duration_ms = -1, .pos = -1 };
+    if (tags && medialib_rd_cat(&s_rd[v], r->cat_off)) {
+        const mediacat_rec_t *m = s_rd[v].rec;
+        s.title = m->title[0] ? m->title : NULL;
+        s.artist = m->artist[0] ? m->artist : NULL;
+        s.album = m->album[0] ? m->album : NULL;
+    }
+    const size_t n = mpdproto_song(&s, s_body, MPD_BODY_MAX);
+    if (n) put(c, s_body, n);
+}
+
+static void put_dir(conn_t *c, const char *uri)
+{
+    const size_t n = mpdproto_directory(uri, s_body, MPD_BODY_MAX);
+    if (n) put(c, s_body, n);
+}
+
+/*
+ * A URI that names a FILE, on the preferred volume that has it live.
+ * lsinfo and listall of a file show that one song, as MPD's do.
+ */
+static int lib_file(const char *uri, midx_rec_t *r)
+{
+    for (int v = 0; v < MEDIALIST_VOLS; v++) {
+        midx_src_t *s = lib_src(v);
+        if (!s) continue;
+        if (midx_find(s, uri, r) >= 0 && !(r->flags & MIDX_F_DEAD)) return v;
+    }
+    return -1;
+}
+
+/* `lsinfo [URI]`: one folder, both volumes merged. */
+static result_t lib_lsinfo(const ctx_t *x, const char *uri)
+{
+    conn_t *const c = x->c;
+    if (!uri) uri = "";
+    if (!mpduri_ok(uri, true) || !mpduri_dir(uri, s_lib_dir, sizeof(s_lib_dir))) {
+        ack(c, MPD_ACK_NO_EXIST, x->idx, x->verb, "No such directory");
+        return RES_ERR;
+    }
+    if (!lib_open(x)) return RES_ERR;
+
+    static medialist_ent_t ent;
+    bool any = false;
+    if (medialist_open(&s_ml, lib_src(0), lib_src(1), s_lib_dir)) {
+        while (!c->broken && medialist_next(&s_ml, &ent)) {
+            any = true;
+            const int k = snprintf(s_lib_uri, sizeof(s_lib_uri), "%s%s", s_lib_dir, ent.name);
+            if (k <= 0 || (size_t)k >= sizeof(s_lib_uri)) continue;
+            if (ent.is_dir) put_dir(c, s_lib_uri);
+            else            put_lib_file(c, ent.vol, &ent.rec, s_lib_uri, true);
+        }
+    }
+    const bool err = s_ml.err;
+
+    /* Nothing listed under it: a file, or nothing at all. The root with
+     * nothing in it is an empty library, which MPD answers with OK. */
+    if (!any && !err && uri[0]) {
+        static midx_rec_t r;
+        const int v = lib_file(uri, &r);
+        if (v < 0) {
+            lib_close();
+            ack(c, MPD_ACK_NO_EXIST, x->idx, x->verb, "No such directory");
+            return RES_ERR;
+        }
+        put_lib_file(c, v, &r, uri, true);
+    }
+    lib_close();
+    if (err) {
+        ack(c, MPD_ACK_SYSTEM, x->idx, x->verb, "the library could not be read; reindex it");
+        return RES_ERR;
+    }
+    return RES_OK;
+}
+
+/*
+ * `listall [URI]` and `listallinfo [URI]`: everything below a folder, in
+ * one pass over both indexes merged. Not medialist.h, which is one
+ * folder deep and would need a 2 KB listing per level of recursion:
+ * every file below a folder is one contiguous run of each index (the
+ * PAST_PREFIX property), so the two runs are merged by path -- equal
+ * paths collapse to the SD's -- and a `directory:` line is written for
+ * each folder the first time a path enters it. midx_path_cmp() orders
+ * '/' lowest, so a folder's contents come straight after its name and
+ * before a sibling like "Album.flac", which is MPD's depth-first order.
+ * Folders with no live file in them are not in the answer: the index
+ * holds files, and a folder of only tombstones is not on the card.
+ *
+ * listallinfo is deprecated upstream (MPD.md) and costs a catalog read
+ * per file here. Answered, not optimised.
+ */
+typedef struct {
+    midx_src_t *s;
+    uint32_t    i, end;
+    midx_rec_t  r;
+    const char *path;       /* into r.key or s->scratch */
+    bool        valid;
+} lib_walk_t;
+
+static void walk_fill(lib_walk_t *w)
+{
+    w->valid = false;
+    while (w->s && !w->s->err && w->i < w->end) {
+        if (!w->s->read(w->s->ctx, w->i++, &w->r)) { w->s->err = true; return; }
+        if (w->r.flags & MIDX_F_DEAD) continue;
+        w->path = midx_rec_fullpath(w->s, &w->r);
+        if (!w->path) return;
+        w->valid = true;
+        return;
+    }
+}
+
+static result_t lib_listall(const ctx_t *x, const char *uri, bool info)
+{
+    conn_t *const c = x->c;
+    if (!uri) uri = "";
+    if (!mpduri_ok(uri, true) || !mpduri_dir(uri, s_lib_dir, sizeof(s_lib_dir))) {
+        ack(c, MPD_ACK_NO_EXIST, x->idx, x->verb, "No such directory");
+        return RES_ERR;
+    }
+    if (!lib_open(x)) return RES_ERR;
+
+    static lib_walk_t w[MEDIALIST_VOLS];
+    static char last[MPDURI_MAX + 2];       /* the folder of the last file, with '/' */
+    bool any = false, err = false;
+    snprintf(last, sizeof(last), "%s", s_lib_dir);
+    for (int v = 0; v < MEDIALIST_VOLS; v++) {
+        w[v] = (lib_walk_t){ .s = lib_src(v) };
+        if (!w[v].s) continue;
+        w[v].i = midx_seek(w[v].s, s_lib_dir, MIDX_AT);
+        w[v].end = s_lib_dir[0] ? midx_seek(w[v].s, s_lib_dir, MIDX_PAST_PREFIX) : w[v].s->n;
+        walk_fill(&w[v]);
+    }
+    while (!c->broken && (w[0].valid || w[1].valid)) {
+        int take = w[0].valid ? 0 : 1;
+        bool both = false;
+        if (w[0].valid && w[1].valid) {
+            const int cmp = midx_path_cmp(w[0].path, w[1].path);
+            take = cmp <= 0 ? 0 : 1;
+            both = cmp == 0;
+        }
+        const char *p = w[take].path;
+        any = true;
+        /* Each folder between the last one written and this file's. */
+        const char *slash = strrchr(p, '/');
+        const size_t dl = slash ? (size_t)(slash - p) + 1 : 0;
+        size_t k = 0;
+        while (k < dl && last[k] && last[k] == p[k]) k++;
+        while (k > 0 && p[k - 1] != '/') k--;            /* back to a boundary */
+        for (size_t j = k; j < dl; j++) {
+            if (p[j] != '/') continue;
+            memcpy(s_lib_uri, p, j);
+            s_lib_uri[j] = '\0';
+            put_dir(c, s_lib_uri);
+        }
+        memcpy(last, p, dl);
+        last[dl] = '\0';
+        if (info) put_lib_file(c, take, &w[take].r, p, true);
+        else {
+            const size_t n = mpdproto_kv("file", p, s_body, MPD_BODY_MAX);
+            if (n) put(c, s_body, n);
+        }
+        walk_fill(&w[take]);
+        if (both) walk_fill(&w[1]);
+    }
+    for (int v = 0; v < MEDIALIST_VOLS; v++) if (w[v].s && w[v].s->err) err = true;
+
+    if (!any && !err && uri[0]) {
+        static midx_rec_t r;
+        const int v = lib_file(uri, &r);
+        if (v < 0) {
+            lib_close();
+            ack(c, MPD_ACK_NO_EXIST, x->idx, x->verb, "No such directory");
+            return RES_ERR;
+        }
+        if (info) put_lib_file(c, v, &r, uri, true);
+        else {
+            const size_t n = mpdproto_kv("file", uri, s_body, MPD_BODY_MAX);
+            if (n) put(c, s_body, n);
+        }
+    }
+    lib_close();
+    if (err) {
+        ack(c, MPD_ACK_SYSTEM, x->idx, x->verb, "the library could not be read; reindex it");
+        return RES_ERR;
+    }
+    return RES_OK;
+}
+
 static result_t run_cmd(conn_t *c, const mpd_cmd_t *cmd, int idx)
 {
     const ctx_t x = { c, idx, cmd->verb };
@@ -1083,6 +1320,13 @@ static result_t run_cmd(conn_t *c, const mpd_cmd_t *cmd, int idx)
         list_unpin();
         return r;
     }
+
+    /* 5177: the library. */
+    case MPD_CMD_LSINFO:
+        return lib_lsinfo(&x, a0);
+    case MPD_CMD_LISTALL:
+    case MPD_CMD_LISTALLINFO:
+        return lib_listall(&x, a0, cmd->kind == MPD_CMD_LISTALLINFO);
 
     /* 5175: the queue's edits. */
     case MPD_CMD_ADD: case MPD_CMD_ADDID:

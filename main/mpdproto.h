@@ -145,6 +145,9 @@ typedef enum {
     /* 5161: Cantata reads the mode on connect and sets it on every
      * connect after that, since it gates this on a claim of 0.16+ */
     MPD_CMD_REPLAY_GAIN_MODE, MPD_CMD_REPLAY_GAIN_STATUS,
+    /* 5163: Cantata asks, with errors shown, to look for its dynamic-
+     * playlist helper. subscribe and the message verbs are not here. */
+    MPD_CMD_CHANNELS,
 
     /* step 10. `noidle` is NOT a verb (5160): MPD's command table has no
      * such row, and the word is matched as a raw line before tokenising

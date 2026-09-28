@@ -15824,3 +15824,42 @@ is the reminder that a log line on this device is not free. Nor is
 
 Checked in 5160's socket harness, which prints the log: 50 checks still
 pass, and the lines it produced are the examples above. Not on a board.
+
+### 5163 -- channels, the one refusal on Cantata's connect that was not planned
+
+5162's log on the board, with Cantata connecting, named every refusal:
+
+    ACK [5@0] {} unknown command "channels"
+    ACK [5@0] {lsinfo} not supported by this player yet        (x2)
+    ACK [5@0] {} unknown command "listpartitions"
+    ACK [5@0] {list} not supported by this player yet          (x2)
+    ACK [5@0] {listplaylists} not supported by this player yet
+    ACK [5@0] {listplaylistinfo} not supported by this player yet
+
+Read against Cantata's source, one line at a time:
+
+- `lsinfo`, `list`, `listplaylists`, `listplaylistinfo` are steps 12 and
+  13, the browsing and the stored playlists. Planned, and expected.
+- `listpartitions` is 0.22, and MPD 0.20 -- what the greeting claims --
+  says `unknown command` too. Cantata sends it with its own error display
+  off (`sendCommand("listpartitions", false)`) and takes the failure as
+  "no partitions". Correct as it is, and left alone.
+- **`channels` was the gap.** It has been MPD since 0.17, and Cantata
+  sends it with errors shown, looking for its dynamic-playlist helper.
+
+**The empty answer is exact, not a placeholder.** MPD's `handle_channels`
+lists every channel that any client has subscribed to. `subscribe` is not
+a verb here, so no client can have, and the empty list is what MPD
+itself says with nobody subscribed. Cantata reads it, does not find its
+helper, and turns dynamic playlists off -- which is also true. `subscribe`,
+`unsubscribe`, `readmessages` and `sendmessage` stay unknown; a test pins
+`subscribe` as unknown so that `channels` staying empty stays justified.
+
+**Not a bug, and worth writing down because it looks like one:** the same
+log has `seekid -> seek 0%` twice, a few seconds into a track. That is
+Cantata's Previous button: past `prevSeekDuration` into a track it
+restarts it with `seekid <current> 0` instead of sending `previous`
+(`goToPrevious()`), which is the glass's own rule arrived at from the
+other end.
+
+`run-mpdproto` 40620 checks; the socket harness 51.

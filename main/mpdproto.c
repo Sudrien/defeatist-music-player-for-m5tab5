@@ -260,6 +260,7 @@ static const cmd_def_t s_cmds[] = {
     /* 5161: arities from AllCommands.cxx */
     { "replay_gain_mode",   MPD_CMD_REPLAY_GAIN_MODE,   1, 1 },
     { "replay_gain_status", MPD_CMD_REPLAY_GAIN_STATUS, 0, 0 },
+    { "channels",       MPD_CMD_CHANNELS,        0,  0 },      /* 5163 */
 
     /* step 10 */
     { "idle",           MPD_CMD_IDLE,            0, -1 },

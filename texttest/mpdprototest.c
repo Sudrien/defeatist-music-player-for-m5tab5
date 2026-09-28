@@ -240,6 +240,12 @@ int main(void)
     ok_parse("setvol 50", MPD_CMD_SETVOL, 1);
     ok_parse("idle", MPD_CMD_IDLE, 0);
     ok_parse("replay_gain_status", MPD_CMD_REPLAY_GAIN_STATUS, 0);
+    ok_parse("channels", MPD_CMD_CHANNELS, 0);
+    bad_parse("channels x", MPD_ACK_ARG,
+              "ACK [2@0] {channels} wrong number of arguments for \"channels\"\n");
+    /* Not built, and so still unknown: channels is answerable without
+     * them only because nobody can subscribe. */
+    bad_parse("subscribe x", MPD_ACK_UNKNOWN, "ACK [5@0] {} unknown command \"subscribe\"\n");
     ok_parse("replay_gain_mode track", MPD_CMD_REPLAY_GAIN_MODE, 1);
     bad_parse("replay_gain_mode", MPD_ACK_ARG,
               "ACK [2@0] {replay_gain_mode} wrong number of arguments for \"replay_gain_mode\"\n");
@@ -318,7 +324,7 @@ int main(void)
             "urlhandlers", "decoders", "status", "stats", "currentsong",
             "clearerror", "play", "playid", "pause", "stop", "next",
             "previous", "seek", "seekid", "seekcur", "setvol", "volume",
-            "outputs", "replay_gain_mode", "replay_gain_status", "idle", "repeat", "random", "single",
+            "outputs", "replay_gain_mode", "replay_gain_status", "channels", "idle", "repeat", "random", "single",
             "consume", "add", "addid", "delete", "deleteid", "move",
             "moveid", "clear", "shuffle", "playlistinfo", "playlistid",
             "playlist", "plchanges", "plchangesposid", "lsinfo", "listall",

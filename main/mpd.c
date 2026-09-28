@@ -601,6 +601,7 @@ static bool answered(mpd_cmd_kind_t k)
     case MPD_CMD_PLCHANGES: case MPD_CMD_PLCHANGESPOSID:
     case MPD_CMD_IDLE:                                  /* 5160 */
     case MPD_CMD_REPLAY_GAIN_MODE: case MPD_CMD_REPLAY_GAIN_STATUS:  /* 5161 */
+    case MPD_CMD_CHANNELS:                                           /* 5163 */
         return true;
     default:
         return false;
@@ -715,6 +716,17 @@ static result_t run_cmd(conn_t *c, const mpd_cmd_t *cmd, int idx)
     case MPD_CMD_CURRENTSONG:
         take_view();
         if (s_view->have_song) put_song(c, s_view);
+        return RES_OK;
+
+    case MPD_CMD_CHANNELS:
+        /*
+         * 5163: MPD's handle_channels lists every channel any client has
+         * subscribed to. `subscribe` is not a verb here, so no client can
+         * have, and the empty list is exact rather than a stand-in -- it
+         * is what MPD says with nobody subscribed. Cantata reads it to
+         * look for its dynamic-playlist helper and, finding none, turns
+         * that feature off, which is the right answer too.
+         */
         return RES_OK;
 
     case MPD_CMD_REPLAY_GAIN_STATUS:

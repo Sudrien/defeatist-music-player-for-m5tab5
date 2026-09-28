@@ -7152,23 +7152,51 @@ static void ui_task(void *arg)
             uireq_edit_t e;
             while (uireq_take_edit(&e, epath, sizeof(epath))) {
                 static char efile[512];
+                /* 5175: every edit reports how it went, for a producer
+                 * that must answer for it (MPD's addid, and its ACKs). */
+                uireq_done_t how = UIREQ_DONE_OK;
+                uint32_t new_id = 0;
                 switch (e.kind) {
                 case UIREQ_EDIT_ADD:
-                case UIREQ_EDIT_ADD_NEXT:
+                case UIREQ_EDIT_ADD_NEXT: {
                     /* What the chooser would list: a playable file, or a
                      * cue sheet's track. A folder, or anything else,
                      * would only be skipped as unreadable when reached. */
-                    if (!decoder_supports(epath) &&
-                        cuedir_file_of(epath, efile, sizeof(efile)) == epath) {
+                    const char *const efp = cuedir_file_of(epath, efile, sizeof(efile));
+                    if (!decoder_supports(epath) && efp == epath) {
                         ESP_LOGW(TAG, "queue: not a track, not added: %s", epath);
+                        how = UIREQ_DONE_NOT_TRACK;
                         break;
                     }
-                    if ((e.kind == UIREQ_EDIT_ADD ? playlist_add(epath, -1)
-                                                  : playlist_add_next(epath)) < 0)
+                    /* 5175: and there. The page only offers what it listed,
+                     * but an MPD client names a path it may have made up,
+                     * and a queue entry that is not on the card is a skip
+                     * waiting to happen. For a cue track, the audio. */
+                    struct stat est;
+                    if (stat(efp, &est) != 0 || !S_ISREG(est.st_mode)) {
+                        ESP_LOGI(TAG, "queue: no such file, not added: %s", epath);
+                        how = UIREQ_DONE_NO_FILE;
+                        break;
+                    }
+                    /* The position and the id read under one hold of the
+                     * lock, so the id is the new entry's. */
+                    playlist_lock();
+                    const int n = playlist_count();
+                    const int at = e.kind == UIREQ_EDIT_ADD_NEXT ? playlist_add_next(epath)
+                                 : e.pos > n ? -2 : playlist_add(epath, e.pos);
+                    if (at >= 0) new_id = mpdq_id(at);
+                    playlist_unlock();
+                    if (at == -2) {
+                        how = UIREQ_DONE_BAD_POS;
+                        ESP_LOGI(TAG, "queue: %d is not a position; not added: %s", e.pos, epath);
+                    } else if (at < 0) {
+                        how = UIREQ_DONE_FULL;
                         ESP_LOGW(TAG, "queue: full, not added: %s", epath);
-                    else
+                    } else {
                         ESP_LOGI(TAG, "queue: %s %s", e.kind == UIREQ_EDIT_ADD ? "add" : "add next", epath);
+                    }
                     break;
+                }
                 case UIREQ_EDIT_DELETE:
                 case UIREQ_EDIT_MOVE: {
                     /* Found and changed under one hold of the lock, so the
@@ -7179,20 +7207,27 @@ static void ui_task(void *arg)
                         (e.kind == UIREQ_EDIT_DELETE ? playlist_remove(pos)
                                                      : playlist_move(pos, e.pos));
                     playlist_unlock();
-                    if (!ok)
+                    if (!ok) {
+                        how = pos < 0 ? UIREQ_DONE_GONE : UIREQ_DONE_BAD_POS;
                         ESP_LOGI(TAG, "queue: id %" PRIu32 " is gone, or %d is not a position; nothing done",
                                  e.id, e.pos);
-                    else if (e.kind == UIREQ_EDIT_DELETE)
+                    } else if (e.kind == UIREQ_EDIT_DELETE) {
                         ESP_LOGI(TAG, "queue: delete id %" PRIu32, e.id);
-                    else
+                    } else {
                         ESP_LOGI(TAG, "queue: move id %" PRIu32 " to %d", e.id, e.pos);
+                    }
                     break;
                 }
                 case UIREQ_EDIT_CLEAR:
                     playlist_clear();
                     ESP_LOGI(TAG, "queue: cleared");
                     break;
+                case UIREQ_EDIT_SHUFFLE:                    /* 5175 */
+                    playlist_shuffle();
+                    ESP_LOGI(TAG, "queue: shuffled");
+                    break;
                 }
+                uireq_edit_done(e.seq, how, new_id);
             }
         }
         /* The media index on mount. Here because this loop runs whether

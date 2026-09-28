@@ -901,7 +901,10 @@ static esp_err_t h_ws(httpd_req_t *req)
     /* 5173: the queue's edits. Dropped when the page's room is full, as a
      * press is; the page learns what landed from the queue it is sent. */
     {
-        uireq_edit_t e = { .kind = UIREQ_EDIT_CLEAR, .id = (uint32_t)c.value, .pos = c.value2 };
+        /* 5175: an add's pos is where it goes, and the page's adds go at
+         * the end; only qmove carries a position. */
+        uireq_edit_t e = { .kind = UIREQ_EDIT_CLEAR, .id = (uint32_t)c.value,
+                           .pos = c.kind == REMOTE_CMD_QMOVE ? c.value2 : -1 };
         bool is_edit = true;
         switch (c.kind) {
         case REMOTE_CMD_ADD:     e.kind = UIREQ_EDIT_ADD;      break;

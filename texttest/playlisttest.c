@@ -555,6 +555,47 @@ int main(void)
     CHECK(playlist_add(xp, -1) == 0 && playlist_count() == 1, "add to an empty list");
     CHECK(playlist_next(PLAY_ORDER_ALL) && playlist_current() == 0, "and play it");
 
+    /* 5175: shuffle in place. The cursor follows B by id; every entry is
+     * still there once; the history is only B. */
+    playlist_load_dir(album);
+    playlist_set_current(0);
+    playlist_set_current(1);                                /* B, a played */
+    playlist_shuffle();
+    CHECK(playlist_count() == 4, "shuffle keeps the count");
+    CHECK(playlist_current() >= 0 && strcmp(name_at(playlist_current()), "B.mp3") == 0,
+          "the cursor follows B: %d", playlist_current());
+    {
+        int seen = 0;
+        for (int i = 0; i < 4; i++) {
+            const char *nm = name_at(i);
+            if (!strcmp(nm, "a.mp3")) seen |= 1;
+            if (!strcmp(nm, "B.mp3")) seen |= 2;
+            if (!strcmp(nm, "c.MP3")) seen |= 4;
+            if (!strcmp(nm, "d.flac")) seen |= 8;
+        }
+        CHECK(seen == 15, "every entry once");
+        /* Three shuffle picks before a wrap: a, c and d -- a is no longer
+         * called played. */
+        int picked = 0;
+        for (int k = 0; k < 3; k++) {
+            const char *p = playlist_next(PLAY_ORDER_SHUFFLE);
+            const char *b = p ? strrchr(p, '/') + 1 : "";
+            if (!strcmp(b, "a.mp3")) picked |= 1;
+            if (!strcmp(b, "c.MP3")) picked |= 4;
+            if (!strcmp(b, "d.flac")) picked |= 8;
+        }
+        CHECK(picked == 13, "the history restarts with only B played: %d", picked);
+    }
+    playlist_load_dir(album);
+    playlist_set_current(1);
+    playlist_remove(1);                                     /* a gap */
+    playlist_shuffle();
+    CHECK(playlist_current() == -1 && playlist_peek_next(PLAY_ORDER_ALL) == NULL,
+          "a shuffle forgets the gap");
+    playlist_clear();
+    playlist_shuffle();
+    CHECK(playlist_count() == 0 && playlist_current() == -1, "shuffling nothing");
+
     /* Full. */
     playlist_load_dir(big);
     CHECK(playlist_add(xp, -1) == -1 && playlist_count() == PLAYLIST_MAX, "full is refused");

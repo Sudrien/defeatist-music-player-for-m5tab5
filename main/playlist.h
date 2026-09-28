@@ -208,6 +208,13 @@ bool playlist_remove(int pos);
  * meaning. False when either is not a position. */
 bool playlist_move(int from, int to);
 
+/*
+ * 5175: shuffle the list in place (MPD's `shuffle`). The entry playing
+ * stays current wherever it lands; shuffle's played history starts again
+ * with only it played; a gap is forgotten.
+ */
+void playlist_shuffle(void);
+
 /* Largest number of tracks in one folder. A folder past this is truncated
  * and logs; the cap exists because each entry is a strdup of a path up to
  * 512 bytes, and an unbounded readdir on a card root is an unbounded

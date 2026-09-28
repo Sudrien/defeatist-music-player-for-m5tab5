@@ -691,6 +691,10 @@ static bool answered(mpd_cmd_kind_t k)
     case MPD_CMD_SINGLE: case MPD_CMD_CONSUME:
     case MPD_CMD_REPLAY_GAIN_MODE: case MPD_CMD_REPLAY_GAIN_STATUS:  /* 5161 */
     case MPD_CMD_CHANNELS:                                           /* 5163 */
+    case MPD_CMD_ADD: case MPD_CMD_ADDID:                            /* 5175 */
+    case MPD_CMD_DELETE: case MPD_CMD_DELETEID:
+    case MPD_CMD_MOVE: case MPD_CMD_MOVEID:
+    case MPD_CMD_CLEAR: case MPD_CMD_SHUFFLE:
         return true;
     default:
         return false;
@@ -839,6 +843,229 @@ static result_t run_list_cmd(conn_t *c, const mpd_cmd_t *cmd, int idx)
     }
 }
 
+/* ---- the queue's edits (5175, MPD.md step 11) --------------------------- */
+
+/*
+ * An edit, the way ask() is a press: through uireq (5173's path, which the
+ * remote page's verbs already use), waited for, and answered for. Two
+ * waits, not one. First for the OUTCOME, which ui_task records at the top
+ * of its pass -- including while a page on the glass keeps it from
+ * publishing -- because an edit can be refused (a full queue, a stale id)
+ * and the client must be told which. Then, bounded and without complaint,
+ * for the publish, so a `playlistinfo` straight after an OK sees the
+ * change when the player can show it, as a press's `status` does.
+ *
+ * If the outcome itself does not come in MPD_ASK_WAIT_MS -- the edit is
+ * queued behind a press, and presses are not taken while a page is open
+ * -- the client is told the player is busy. The edit is still queued and
+ * will land when the page closes; a client that retries adds twice. That
+ * is written here rather than hidden, and the page is the only way to
+ * cause it.
+ */
+static bool ask_edit(const ctx_t *x, const uireq_edit_t *e, const char *path,
+                     uireq_done_t *how_out, uint32_t *id_out)
+{
+    ESP_LOGI(TAG, "client %d: %s -> queue edit", x->c->fd, x->verb);
+    uint32_t seq;
+    const TickType_t q0 = xTaskGetTickCount();
+    while ((seq = uireq_edit(UIREQ_MPD, e, path, path ? strlen(path) : 0)) == 0) {
+        if (xTaskGetTickCount() - q0 >= pdMS_TO_TICKS(MPD_ASK_QUEUE_MS)) {
+            ack(x->c, MPD_ACK_SYSTEM, x->idx, x->verb, "player busy; try again");
+            return false;
+        }
+        vTaskDelay(pdMS_TO_TICKS(10));
+    }
+    uireq_done_t how = UIREQ_DONE_OK;
+    uint32_t id = 0;
+    const TickType_t t0 = xTaskGetTickCount();
+    while (!uireq_edit_outcome(seq, &how, &id)) {
+        if (xTaskGetTickCount() - t0 >= pdMS_TO_TICKS(MPD_ASK_WAIT_MS)) {
+            ESP_LOGI(TAG, "%s: the player has not taken it yet (a page is open?)", x->verb);
+            ack(x->c, MPD_ACK_SYSTEM, x->idx, x->verb,
+                "player busy; the change is queued and may still happen");
+            return false;
+        }
+        vTaskDelay(pdMS_TO_TICKS(10));
+    }
+    const TickType_t p0 = xTaskGetTickCount();
+    while (!uireq_serviced(seq) && xTaskGetTickCount() - p0 < pdMS_TO_TICKS(MPD_ASK_WAIT_MS))
+        vTaskDelay(pdMS_TO_TICKS(10));
+    if (how_out) *how_out = how;
+    if (id_out) *id_out = id;
+    return true;
+}
+
+/* The ACK for a refused edit: MPD's code and wording for each reason. */
+static void ack_done(const ctx_t *x, uireq_done_t how)
+{
+    switch (how) {
+    case UIREQ_DONE_OK:
+        break;
+    case UIREQ_DONE_NO_FILE:
+        /* MPD's DatabaseError NOT_FOUND on an add, which is this. */
+        ack(x->c, MPD_ACK_NO_EXIST, x->idx, x->verb, "No such directory");
+        break;
+    case UIREQ_DONE_NOT_TRACK:
+        ack(x->c, MPD_ACK_UNKNOWN, x->idx, x->verb,
+            "adding a folder or a file this player cannot play is not supported");
+        break;
+    case UIREQ_DONE_FULL:
+        ack(x->c, MPD_ACK_PLAYLIST_MAX, x->idx, x->verb, "Playlist is too large");
+        break;
+    case UIREQ_DONE_BAD_POS:
+        ack(x->c, MPD_ACK_ARG, x->idx, x->verb, "Bad song index");
+        break;
+    case UIREQ_DONE_GONE:
+        ack(x->c, MPD_ACK_NO_EXIST, x->idx, x->verb, "No such song");
+        break;
+    }
+}
+
+/*
+ * `add` and `addid`: a URI onto the queue. The URI is a path below a
+ * volume, and which volume is not in it (mpduri.h), so SD is tried first
+ * and USB when SD has no such file -- the shadowing mpduri.h describes,
+ * decided by the file rather than by the index, since the index can lag
+ * the card. ui_task checks the file (it already reads the card; this
+ * task's stack is in PSRAM and is kept off the filesystem).
+ */
+static bool add_uri(const ctx_t *x, const char *uri, int pos, uint32_t *id_out)
+{
+    /* Static: this task's, and 512 bytes is not for its stack. */
+    static char vfs[MPDURI_VFS_MAX];
+    if (!uri || !mpduri_ok(uri, false)) {
+        ack(x->c, MPD_ACK_NO_EXIST, x->idx, x->verb, "No such directory");
+        return false;
+    }
+    const uireq_edit_t e = { .kind = UIREQ_EDIT_ADD, .pos = pos };
+    uireq_done_t how = UIREQ_DONE_NO_FILE;
+    for (int v = 0; v < MPDURI_VOLS && how == UIREQ_DONE_NO_FILE; v++) {
+        const char *m = mpduri_mount(v);
+        const int k = m ? snprintf(vfs, sizeof(vfs), "%s/%s", m, uri) : -1;
+        if (k <= 0 || (size_t)k >= sizeof(vfs) || (size_t)k >= UIREQ_PATH_MAX) continue;
+        if (!ask_edit(x, &e, vfs, &how, id_out)) return false;
+    }
+    if (how != UIREQ_DONE_OK) { ack_done(x, how); return false; }
+    return true;
+}
+
+/* Static: up to MPDQ_MAX ids, this task's. */
+static uint32_t s_edit_ids[MPDQ_MAX];
+
+/*
+ * Positions to ids, over the pinned list: a range [lo, hi) the client
+ * named against the list it was shown. False, ACKed, when the range is
+ * not inside it -- and on a window of one (a station, a file from outside
+ * the queue), whose positions are not the queue's.
+ */
+static int range_ids(const ctx_t *x, long lo, long hi, bool open_end, int *n_out)
+{
+    list_pin();
+    const int n = s_list->n;
+    int k = -1;
+    if (open_end && hi > n) hi = n;
+    if (n_out) *n_out = n;
+    if (!s_list->window && lo >= 0 && lo < hi && hi <= n) {
+        k = 0;
+        for (long i = lo; i < hi; i++) s_edit_ids[k++] = s_list->id[i];
+    }
+    list_unpin();
+    if (k < 0) ack(x->c, MPD_ACK_ARG, x->idx, x->verb, "Bad song index");
+    return k;
+}
+
+static result_t run_queue_cmd(conn_t *c, const mpd_cmd_t *cmd, int idx)
+{
+    const ctx_t x = { c, idx, cmd->verb };
+    const char *const a0 = cmd->argc > 0 ? cmd->argv[0] : NULL;
+    const char *const a1 = cmd->argc > 1 ? cmd->argv[1] : NULL;
+    uireq_done_t how = UIREQ_DONE_OK;
+
+    switch (cmd->kind) {
+    case MPD_CMD_ADD:
+        return add_uri(&x, a0, -1, NULL) ? RES_OK : RES_ERR;
+
+    case MPD_CMD_ADDID: {
+        long pos = -1;
+        /* MPD 0.23's "+N"/"-N", relative to the playing song, is not
+         * taken: arg_int refuses the sign and says so. */
+        if (a1 && !arg_int(&x, a1, 0, INT32_MAX, &pos)) return RES_ERR;
+        uint32_t id = 0;
+        if (!add_uri(&x, a0, (int)pos, &id)) return RES_ERR;
+        putf(c, "Id: %" PRIu32 "\n", id);
+        return RES_OK;
+    }
+
+    case MPD_CMD_DELETE:
+    case MPD_CMD_MOVE: {
+        long lo, hi;
+        if (!arg_range(&x, a0, &lo, &hi)) return RES_ERR;
+        long to = 0;
+        if (cmd->kind == MPD_CMD_MOVE && !arg_int(&x, a1, 0, INT32_MAX, &to)) return RES_ERR;
+        int n = 0;
+        const int k = range_ids(&x, lo, hi, hi == INT32_MAX, &n);
+        if (k < 0) return RES_ERR;
+        /* Checked whole before anything moves, so a block that will not
+         * fit is refused rather than half moved. */
+        if (cmd->kind == MPD_CMD_MOVE && to + k > n) {
+            ack(c, MPD_ACK_ARG, idx, cmd->verb, "Bad song index");
+            return RES_ERR;
+        }
+        if (cmd->kind == MPD_CMD_DELETE) {
+            for (int i = 0; i < k; i++) {
+                const uireq_edit_t e = { .kind = UIREQ_EDIT_DELETE, .id = s_edit_ids[i] };
+                if (!ask_edit(&x, &e, NULL, &how, NULL)) return RES_ERR;
+                if (how != UIREQ_DONE_OK) { ack_done(&x, how); return RES_ERR; }
+            }
+            return RES_OK;
+        }
+        /*
+         * A block moves so its first entry lands at `to`, in order.
+         * Upwards, each goes to to+i in turn. Downwards, each goes to
+         * to+k-1: every one taken from above that position shifts the
+         * ones already placed up by one, and they end at to..to+k-1.
+         */
+        const bool down = to > lo;
+        for (int i = 0; i < k; i++) {
+            const uireq_edit_t e = { .kind = UIREQ_EDIT_MOVE, .id = s_edit_ids[i],
+                                     .pos = (int)(down ? to + k - 1 : to + i) };
+            if (!ask_edit(&x, &e, NULL, &how, NULL)) return RES_ERR;
+            if (how != UIREQ_DONE_OK) { ack_done(&x, how); return RES_ERR; }
+        }
+        return RES_OK;
+    }
+
+    case MPD_CMD_DELETEID:
+    case MPD_CMD_MOVEID: {
+        unsigned long id;
+        if (!arg_unsigned(&x, a0, UINT32_MAX, &id)) return RES_ERR;
+        long to = 0;
+        if (cmd->kind == MPD_CMD_MOVEID && !arg_int(&x, a1, 0, INT32_MAX, &to)) return RES_ERR;
+        const uireq_edit_t e = { .kind = cmd->kind == MPD_CMD_DELETEID ? UIREQ_EDIT_DELETE
+                                                                      : UIREQ_EDIT_MOVE,
+                                 .id = (uint32_t)id, .pos = (int)to };
+        if (!ask_edit(&x, &e, NULL, &how, NULL)) return RES_ERR;
+        if (how != UIREQ_DONE_OK) { ack_done(&x, how); return RES_ERR; }
+        return RES_OK;
+    }
+
+    case MPD_CMD_CLEAR:
+    case MPD_CMD_SHUFFLE: {
+        if (a0) {
+            ack(c, MPD_ACK_UNKNOWN, idx, cmd->verb,
+                "shuffling part of the queue is not supported by this player yet");
+            return RES_ERR;
+        }
+        const uireq_edit_t e = { .kind = cmd->kind == MPD_CMD_CLEAR ? UIREQ_EDIT_CLEAR
+                                                                   : UIREQ_EDIT_SHUFFLE };
+        return ask_edit(&x, &e, NULL, &how, NULL) ? RES_OK : RES_ERR;
+    }
+
+    default:
+        return RES_ERR;     /* not reached: run_cmd routes only the above */
+    }
+}
+
 static result_t run_cmd(conn_t *c, const mpd_cmd_t *cmd, int idx)
 {
     const ctx_t x = { c, idx, cmd->verb };
@@ -856,6 +1083,13 @@ static result_t run_cmd(conn_t *c, const mpd_cmd_t *cmd, int idx)
         list_unpin();
         return r;
     }
+
+    /* 5175: the queue's edits. */
+    case MPD_CMD_ADD: case MPD_CMD_ADDID:
+    case MPD_CMD_DELETE: case MPD_CMD_DELETEID:
+    case MPD_CMD_MOVE: case MPD_CMD_MOVEID:
+    case MPD_CMD_CLEAR: case MPD_CMD_SHUFFLE:
+        return run_queue_cmd(c, cmd, idx);
 
     case MPD_CMD_PING:
     case MPD_CMD_CLEARERROR:

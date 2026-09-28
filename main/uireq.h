@@ -85,18 +85,36 @@ typedef enum {
 /* 5173: an edit to the queue. Entries are named by id, never position:
  * see remoteproto.h. */
 typedef enum {
-    UIREQ_EDIT_ADD = 0,     /* path, at the end */
+    UIREQ_EDIT_ADD = 0,     /* path, at position pos, or the end when pos < 0 (5175) */
     UIREQ_EDIT_ADD_NEXT,    /* path, to play next */
     UIREQ_EDIT_DELETE,      /* id */
     UIREQ_EDIT_MOVE,        /* id, to position pos */
     UIREQ_EDIT_CLEAR,
+    UIREQ_EDIT_SHUFFLE,     /* 5175: the whole queue */
 } uireq_edit_kind_t;
 
 typedef struct {
     uireq_edit_kind_t kind;
     uint32_t          id;
     int               pos;
+    /* 5175: set by uireq_take_edit() -- the number uireq_edit() returned,
+     * which the taker hands back to uireq_edit_done(). Ignored going in. */
+    uint32_t          seq;
 } uireq_edit_t;
+
+/*
+ * 5175: how an edit came out, for a producer that must answer for it --
+ * MPD's `addid` replies with the new id, and a refusal is an ACK whose
+ * code depends on why.
+ */
+typedef enum {
+    UIREQ_DONE_OK = 0,
+    UIREQ_DONE_NOT_TRACK,   /* an add of something the chooser would not list */
+    UIREQ_DONE_NO_FILE,     /* an add of a path that is not there */
+    UIREQ_DONE_FULL,        /* an add to a full queue */
+    UIREQ_DONE_BAD_POS,     /* a position that is not one */
+    UIREQ_DONE_GONE,        /* no entry has that id */
+} uireq_done_t;
 
 /* Once, from app_main(), before remote_init(), mpd_init() and ui_task. */
 void uireq_init(void);
@@ -126,6 +144,25 @@ uint32_t uireq_edit(uireq_source_t src, const uireq_edit_t *e,
  * add) copied into `path`. False when nothing is waiting or the oldest
  * is a press. */
 bool uireq_take_edit(uireq_edit_t *out, char *path, size_t size);
+
+/*
+ * 5175: ui_task, after applying the edit numbered `seq`: how it went, and
+ * for an add the new entry's id (0 otherwise). Kept for the last
+ * UIREQ_OUTCOMES edits, which is more than the ring holds, so an outcome
+ * is not overwritten before a producer that is waiting on it can read it.
+ */
+void uireq_edit_done(uint32_t seq, uireq_done_t how, uint32_t id);
+
+/*
+ * 5175: the outcome of edit `seq`, once ui_task has recorded it. False
+ * until then -- which is not the same as serviced: ui_task applies edits
+ * at the top of every pass, including while a page on the glass keeps it
+ * from publishing (mpd.h's note), so a producer that needs the outcome
+ * waits for this and not for uireq_serviced().
+ */
+bool uireq_edit_outcome(uint32_t seq, uireq_done_t *how, uint32_t *id);
+
+#define UIREQ_OUTCOMES      (2 * UIREQ_DEPTH)
 
 /* ui_task: every press taken so far has had its effect published. Called
  * by mpd_publish() after it copies the state clients read. */

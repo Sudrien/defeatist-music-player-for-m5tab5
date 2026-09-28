@@ -385,6 +385,26 @@ static bool move_locked(int from, int to)
     return true;
 }
 
+/*
+ * 5175: shuffle the list itself -- MPD's `shuffle`, which reorders the
+ * queue, as opposed to PLAY_ORDER_SHUFFLE, which walks it at random.
+ * mpdq_shuffle() is a permutation with ids kept, so the cursor follows
+ * its entry by id. The played bitmap is by position and a permutation
+ * scrambles it, so it starts again with only the current entry played,
+ * as a fresh shuffle pass would. A gap names a position between two
+ * entries that are no longer neighbours, so it is forgotten, and next
+ * after a shuffle from a gap starts at the top.
+ */
+static void shuffle_locked(void)
+{
+    const uint32_t cur_id = s_current >= 0 ? mpdq_id(s_current) : 0;
+    mpdq_shuffle();
+    s_current = cur_id ? mpdq_find_id(cur_id) : -1;
+    s_gap = -1;
+    if (s_played) memset(s_played, 0, (PLAYLIST_MAX + 7) / 8);
+    if (s_current >= 0) played_put(s_current, true);
+}
+
 /* ---- 5172: the public functions, each under the lock ------------------ */
 
 void playlist_init(void)
@@ -417,6 +437,7 @@ int playlist_add(const char *path, int at)    { L(); const int i = add_locked(pa
 int playlist_add_next(const char *path)       { L(); const int i = add_next_locked(path); U(); return i; }
 bool playlist_remove(int pos)                 { L(); const bool b = remove_locked(pos); U(); return b; }
 bool playlist_move(int from, int to)          { L(); const bool b = move_locked(from, to); U(); return b; }
+void playlist_shuffle(void)                   { L(); shuffle_locked(); U(); }             /* 5175 */
 
 /* The copying readers: the path is copied before the lock is let go, so
  * nothing another task does afterwards can free what the caller holds. */

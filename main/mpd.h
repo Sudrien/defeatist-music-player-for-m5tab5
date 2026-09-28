@@ -14,7 +14,9 @@
  * and `volume`. And the queue as it is, read-only: `playlistinfo`,
  * `playlistid`, `playlist`, `plchanges` and `plchangesposid`, with `play`
  * and `playid` able to start any entry (5166): see "THE QUEUE IS THE
- * QUEUE" in mpd.c. Everything else in mpdproto.c's
+ * QUEUE" in mpd.c. And since 5175 (step 11) the queue's edits: `add`,
+ * `addid`, `delete`, `deleteid`, `move`, `moveid`, `clear` and
+ * `shuffle`, through uireq.h as the remote page's are. Everything else in mpdproto.c's
  * table is ACKed with ACK_ERROR_UNKNOWN, "not supported by this player
  * yet", and listed by `notcommands`, so the two answers agree.
  *
@@ -22,8 +24,10 @@
  * mpdidle.h's, and what counts as a change is worked out in
  * mpd_publish() from the same snapshot `status` reads.
  *
- * WHAT IT IS NOT, YET. No queue editing (step 11), no browsing or search
- * (step 12). No IPv6 listener.
+ * WHAT IT IS NOT, YET. No browsing or search (step 12), so a client can
+ * only `add` a URI it already knows -- one from `playlistinfo`, or typed.
+ * Adding a folder, part-queue `shuffle`, and MPD 0.23's relative
+ * positions ("+1") are refused and say so. No IPv6 listener.
  *
  * NO PASSWORD, as the remote has none, and for the same reason it is off
  * by default and the panel says so under the switch.

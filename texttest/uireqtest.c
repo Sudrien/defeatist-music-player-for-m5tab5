@@ -239,6 +239,43 @@ static void edits(void)
     free(big);
 }
 
+/* 5175: outcomes, and the seq take_edit hands back to report them by. */
+static void outcomes(void)
+{
+    uireq_edit_t e;
+    const uireq_edit_t add = { .kind = UIREQ_EDIT_ADD, .pos = 3 };
+    const uint32_t s1 = uireq_edit(UIREQ_MPD, &add, "/sd/a.mp3", 9);
+    const uint32_t s2 = uireq_edit(UIREQ_MPD, &add, "/sd/b.mp3", 9);
+    CHECK(s1 && s2);
+    uireq_done_t how = UIREQ_DONE_GONE;
+    uint32_t id = 99;
+    CHECK(!uireq_edit_outcome(s1, &how, &id));          /* not yet */
+    CHECK(uireq_take_edit(&e, NULL, 0) && e.seq == s1 && e.pos == 3);
+    uireq_edit_done(e.seq, UIREQ_DONE_OK, 1234);
+    CHECK(uireq_edit_outcome(s1, &how, &id) && how == UIREQ_DONE_OK && id == 1234);
+    CHECK(!uireq_edit_outcome(s2, &how, &id));
+    CHECK(uireq_take_edit(&e, NULL, 0) && e.seq == s2);
+    uireq_edit_done(e.seq, UIREQ_DONE_FULL, 0);
+    CHECK(uireq_edit_outcome(s2, &how, &id) && how == UIREQ_DONE_FULL && id == 0);
+    CHECK(!uireq_edit_outcome(0, &how, &id));
+    uireq_published();
+
+    /* Kept for UIREQ_OUTCOMES edits, then overwritten -- never answered
+     * for the wrong edit. */
+    const uireq_edit_t clr = { .kind = UIREQ_EDIT_CLEAR };
+    const uint32_t first = uireq_edit(UIREQ_MPD, &clr, NULL, 0);
+    CHECK(uireq_take_edit(&e, NULL, 0));
+    uireq_edit_done(e.seq, UIREQ_DONE_OK, 7);
+    for (int i = 0; i < UIREQ_OUTCOMES; i++) {
+        CHECK(uireq_edit(UIREQ_MPD, &clr, NULL, 0) != 0);
+        CHECK(uireq_take_edit(&e, NULL, 0));
+        uireq_edit_done(e.seq, UIREQ_DONE_GONE, 0);
+        if (i == UIREQ_OUTCOMES - 2) CHECK(uireq_edit_outcome(first, &how, &id) && id == 7);
+    }
+    CHECK(!uireq_edit_outcome(first, &how, &id));        /* its slot reused */
+    uireq_published();
+}
+
 int main(void)
 {
     before_init();
@@ -249,6 +286,7 @@ int main(void)
     serviced();
     open_slot();
     edits();
+    outcomes();
     if (s_fail) {
         fprintf(stderr, "uireqtest: %d failed\n", s_fail);
         return 1;

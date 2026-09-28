@@ -35,6 +35,13 @@ static uint32_t          s_seq;                     /* under s_mu */
 static uint32_t          s_taken;   /* under s_mu: the last one taken */
 static uint32_t          s_done;    /* under s_mu: taken AND published */
 
+/* 5175: the last UIREQ_OUTCOMES edits' outcomes, by seq % UIREQ_OUTCOMES. */
+static struct {
+    uint32_t     seq;       /* 0: empty */
+    uireq_done_t how;
+    uint32_t     id;
+} s_done_tab[UIREQ_OUTCOMES];                                /* under s_mu */
+
 static char              s_open_path[UIREQ_PATH_MAX];  /* under s_mu */
 static bool              s_open_folder;                /* under s_mu */
 static volatile bool     s_open_pending;
@@ -95,6 +102,7 @@ bool uireq_take_edit(uireq_edit_t *out, char *path, size_t size)
     if (s_n && s_ring[s_head].is_edit) {
         const req_t *r = &s_ring[s_head];
         *out = r->e;
+        out->seq = r->seq;              /* 5175 */
         held = r->path;
         s_taken = r->seq;
         s_waiting[r->src]--;
@@ -114,6 +122,30 @@ bool uireq_take_edit(uireq_edit_t *out, char *path, size_t size)
     }
     free(held);
     return had;
+}
+
+void uireq_edit_done(uint32_t seq, uireq_done_t how, uint32_t id)
+{
+    if (!s_mu || !seq) return;
+    xSemaphoreTake(s_mu, portMAX_DELAY);
+    s_done_tab[seq % UIREQ_OUTCOMES].seq = seq;
+    s_done_tab[seq % UIREQ_OUTCOMES].how = how;
+    s_done_tab[seq % UIREQ_OUTCOMES].id = id;
+    xSemaphoreGive(s_mu);
+}
+
+bool uireq_edit_outcome(uint32_t seq, uireq_done_t *how, uint32_t *id)
+{
+    if (!s_mu || !seq) return false;
+    bool have = false;
+    xSemaphoreTake(s_mu, portMAX_DELAY);
+    if (s_done_tab[seq % UIREQ_OUTCOMES].seq == seq) {
+        if (how) *how = s_done_tab[seq % UIREQ_OUTCOMES].how;
+        if (id) *id = s_done_tab[seq % UIREQ_OUTCOMES].id;
+        have = true;
+    }
+    xSemaphoreGive(s_mu);
+    return have;
 }
 
 bool uireq_take_press(ui_action_t *out)

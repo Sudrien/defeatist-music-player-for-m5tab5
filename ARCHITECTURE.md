@@ -16530,3 +16530,81 @@ queue matching an MPD client's `playlistinfo`, following a folder tap on
 the glass, a `+` and a `Next` from the page, moves, removes (removing the
 playing row leaves it playing and unmarked), Clear, and a second page
 opened afterwards getting the same list.
+
+### 5175 -- mpd: the queue's edits, from a client
+
+MPD.md step 11. `add`, `addid`, `delete`, `deleteid`, `move`, `moveid`,
+`clear` and `shuffle` are answered, as MPD.md predicted, by mapping onto
+the path the remote page's verbs already use (5170, 5173). `playid` and
+`plchanges` were already there (5166).
+
+**What the mapping lacked: an outcome.** The page does not need to be
+told whether an edit worked; it is sent the queue. An MPD client does:
+`addid` answers with the new entry's id, and a refusal is an ACK whose
+code depends on why. So `uireq_take_edit()` now hands back the edit's
+sequence number, `ui_task` reports each edit with `uireq_edit_done(seq,
+how, id)`, and the producer reads it with `uireq_edit_outcome()`. Kept
+for the last `UIREQ_OUTCOMES` (32) edits, twice what the ring holds, so
+nothing waiting on one can lose it.
+
+**Two waits in `ask_edit()`, not one.** First for the outcome, which
+`ui_task` records at the top of its pass -- including while a page on the
+glass stops it publishing -- and then, bounded and silent, for the
+publish, so `playlistinfo` straight after an OK shows the change when
+the player can. If the outcome does not come in `MPD_ASK_WAIT_MS` (an
+edit queued behind a press, and presses wait while a page is open), the
+client is ACKed "player busy; the change is queued and may still
+happen". It is still queued, so a client that retries adds twice. That
+is the one way to get a wrong answer, and a page on the glass is the only
+way to cause it.
+
+**Positions become ids on this task**, over the pinned list (5166), and
+are never sent: a `delete 3` is `deleteid` of whatever the client was
+shown at 3. A window of one (a station, a file from outside the queue)
+has no queue positions, and position verbs on it are "Bad song index".
+A range is resolved whole, then applied one edit at a time. A block
+`move START:END TO` is checked whole before anything moves (`TO + k >
+n` is refused, not half done) and then moved one entry at a time, so
+its first lands at `TO`: upwards each to `TO+i`, downwards each to
+`TO+k-1`. That order was checked exhaustively outside the repository
+against a list model, for every block and target up to seven entries.
+Each edit waits a `ui_task` pass, so deleting a few hundred by range is
+seconds, not instant; `clear` is one edit.
+
+**Adding.** A URI names a path below a volume and not which volume
+(`mpduri.h`), so SD is tried first and USB when SD has no such file --
+decided by the file, not the index, which can lag the card. `ui_task`
+checks it, since it already reads the card and this task's stack is in
+PSRAM (5159): what the chooser would list (`decoder_supports()` or a cue
+track), and now also `stat()` -- a regular file, the audio for a cue
+track. That check applies to the page's adds too; they only offer what
+they listed, but a file can go between the listing and the tap. The
+ACKs are MPD's where MPD has one: `No such directory` (50) for a missing
+file, `Playlist is too large` (51), `Bad song index` (2), `No such song`
+(50). A folder, or a file this player cannot play, is ACK 5 and says so
+-- MPD would add a folder recursively, which is not this patch.
+`addid URI POS` inserts at `POS`; `add` has no position in this
+server's table and adds at the end.
+
+**`shuffle` reorders the queue** -- `playlist_shuffle()`, new here --
+where PLAY_ORDER_SHUFFLE walks it. The entry playing stays current
+wherever it lands; shuffle's played history restarts with only it
+played; a gap (5171) is forgotten. Host-tested in `playlisttest.c`.
+Shuffling part of the queue is refused.
+
+**The remote page's `add`** now says "at the end" explicitly
+(`pos = -1`): an add's `pos` is where it goes as of this patch, and it
+was 0 there.
+
+**Host-tested**: `uireqtest.c` for outcomes (not before `done`, the id
+and reason after, the seq on the taken edit, and a slot reused only
+after `UIREQ_OUTCOMES` more); `playlisttest.c` for shuffle. `mpd.c` and
+the `player.c` apply block are not host-testable.
+
+Not built with ESP-IDF, not run on a board. No `sdkconfig.defaults` or
+`idf_component.yml` change. What a board run should show, from Cantata
+or `mpc`: `mpc add <uri from mpc playlist -f %file%>` appending, `mpc
+del N` and `mpc move A B` with the device's glass and the remote page
+following, `mpc clear`, `mpc shuffle` with the playing track still
+current, and `mpc add nosuchfile` answered `No such directory`. The
+log has `client N: <verb> -> queue edit` and the `queue:` line for each.

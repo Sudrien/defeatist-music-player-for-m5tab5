@@ -455,6 +455,12 @@ nothing is left half-built if the series stops.
     `move`, `moveid`, `playid`, `clear`, `shuffle`, `plchanges` --
     which by this point is a mapping onto step 5's path, not new
     machinery.
+
+    **Done in 5175**, as that mapping, plus the one thing it lacked:
+    an edit's outcome, so `addid` can answer with the new id and a
+    refusal can be the right ACK. `playid` and `plchanges` were already
+    there (5166). Not taken: adding a folder, shuffling part of the
+    queue, and 0.23's relative positions.
 12. **Browsing and search**: `lsinfo`, `listall`, `find`, `search`,
     `list`.
 13. **Stored playlists**, if at all: `load`, `save`, `listplaylists`.

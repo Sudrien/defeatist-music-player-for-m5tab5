@@ -3,8 +3,8 @@
  * verbs of MPD.md step 9.
  *
  * WHAT IT IS. A third input to the same ui_task switch the touch panel,
- * the HID keys and the browser remote feed -- mpd_take() is read beside
- * remote_take() -- and a third reader of the same ui_state_t the panel
+ * the HID keys and the browser remote feed -- through uireq.h, beside the
+ * remote's presses (MPD.md step 5) -- and a third reader of the same ui_state_t the panel
  * draws from. A `pause` from a phone is the press the glass would have
  * made, with the same rules, and `status` is what the screen is showing.
  *
@@ -28,10 +28,10 @@
  * NO PASSWORD, as the remote has none, and for the same reason it is off
  * by default and the panel says so under the switch.
  *
- * THREADS. mpd_poll(), mpd_publish() and mpd_take() are ui_task's. The
- * server task owns every socket and never calls into the player: it reads
- * a mutex-held copy of the last published state, and asks for presses
- * through a queue that ui_task drains. See mpd.c for why a press WAITS
+ * THREADS. mpd_poll() and mpd_publish() are ui_task's. The server task
+ * owns every socket and never calls into the player: it reads a
+ * mutex-held copy of the last published state, and asks for presses
+ * through uireq.h, which ui_task drains. See mpd.c for why a press WAITS
  * for ui_task where the remote's does not.
  *
  * SPDX-License-Identifier: MIT
@@ -91,14 +91,10 @@ int mpd_clients(void);
  * What the screen is about to show, as `status` and `currentsong` will
  * report it. `path` is the file on screen (player.c's s_shown_path), and
  * `streaming` says it is a station instead, whose URL mpd.c reads from
- * stations.h. Also the point at which a press taken by mpd_take() in this
- * pass counts as serviced.
+ * stations.h. Also the point at which a press taken from uireq.h in this
+ * pass counts as serviced (uireq_published()).
  */
 void mpd_publish(const ui_state_t *st, const char *path, bool streaming);
-
-/* A press from a client, as the touch panel would have produced it.
- * False when there is none. */
-bool mpd_take(ui_action_t *out);
 
 #ifdef __cplusplus
 }

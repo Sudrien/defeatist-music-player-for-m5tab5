@@ -16220,3 +16220,76 @@ What a board run should show: let the screen go off with the chooser
 open, tap a row -- the screen comes on, the log says `screen woken by a
 tap`, and nothing plays; the same with the settings panel open; and a tap
 on a dimmed screen still pressing what it hits.
+
+### 5170 -- one way into ui_task, and the remote and MPD both use it
+
+MPD.md step 5, "the shared mutation path", taken now because steps 6
+and 11 -- the remote's queue verbs and MPD's -- would each have grown
+another take function beside the three there were.
+
+**What there was.** Each server had its own way in, static to its own
+file and read by `ui_task` at its own line: `remote.c` a queue of eight
+`remote_cmd_t` (`remote_take()`) and a one-slot mailbox for a chosen
+file or folder (`remote_take_open()`); `mpd.c` a queue of eight presses
+with sequence numbers (`mpd_take()`) and the `s_taken_seq`/`s_done_seq`
+pair `ask()` waited on. `player.c` read `remote_take()` and then
+`mpd_take()`, one press a pass, so two presses waiting in the same pass
+were ordered by which line came first in the file.
+
+**What there is: `uireq.c`.** One mutex, one ring of `UIREQ_DEPTH`
+presses, one open slot. `uireq_press(source, action)` from any task,
+`uireq_take_press()` and `uireq_take_open()` from `ui_task`, and MPD's
+completion rule moved in whole: every press gets a number,
+`uireq_published()` (called where `mpd_publish()` used to write
+`s_done_seq`) marks everything taken so far as serviced, and
+`uireq_serviced(seq)` is what `ask()` polls. `remote_take()`,
+`remote_take_open()` and `mpd_take()` are gone; `ui_task` drains in the
+same two places it did.
+
+**A ring and not a FreeRTOS queue**, for two reasons. The sequence
+number has to be given out under the same lock as the slot: with a
+queue, two tasks could number their presses 5 and 6 and send 6 first,
+and the pass that took 6 would mark 5 serviced before anything had
+taken it. And the per-source room below needs a count a queue does not
+keep.
+
+**Nothing each producer had is lost:**
+
+- *Room.* Each source may have `UIREQ_PER_SOURCE` (8) waiting -- what
+  each queue held -- so a burst from one does not fill the other's.
+- *Full.* `uireq_press()` never blocks. The remote drops a press that
+  does not fit, as it did. MPD waited in `xQueueSend()` for up to
+  `MPD_ASK_QUEUE_MS`; `ask()` now polls for the same time at the same
+  10 ms its completion wait already used, and ACKs "player busy" at the
+  end of it, as it did.
+- *The open slot* replaces on a second choice and clears on take, as it
+  did, and refuses a path longer than `UIREQ_PATH_MAX` whole rather than
+  storing it cut -- which cannot happen from the remote, whose parser's
+  `REMOTEPROTO_PATH_MAX` is checked against it with a `_Static_assert`.
+- *Mapping.* `REMOTE_CMD_*` to `UI_ACTION_*` is done in `h_ws()` when
+  the press arrives, rather than in `remote_take()` when it was taken.
+  The same switch; a command with no action is now dropped before it is
+  queued rather than after.
+
+**The one change in behaviour:** presses are taken in the order they
+arrived across both sources. Before, an MPD press that arrived first
+waited behind a remote press queued later in the same pass. Nothing
+depended on that, and arrival order is what "the same press as the
+glass" means.
+
+**Host-tested**: `texttest/uireqtest.c`, `make run-uireq`, in `all:`,
+written from the header's promises -- each source's eight and the
+other's untouched, order across sources, a press not serviced when
+merely taken and not by a later remote press being taken, the ring's
+wrap, the open slot's replace, clear, refusal and truncation. The
+per-source limit was checked by removing it: four failures. One
+thread and a no-op mutex, so the locking itself is not what it tests.
+To reach `ui.h` the host fake `driver/i2c_master.h` gained
+`i2c_master_dev_handle_t`, which `audio_out.h` names in a prototype.
+
+Not built with ESP-IDF, not run on a board. No `sdkconfig.defaults` or
+`idf_component.yml` change. What a board run should show: the remote's
+buttons and its chooser behave as before; an MPD client's `pause`,
+`next`, `setvol` and a mode toggle are answered OK and `status` agrees,
+as before; and a remote volume drag while a client is polling does not
+produce "player busy".

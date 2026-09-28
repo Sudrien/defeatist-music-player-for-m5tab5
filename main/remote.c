@@ -37,6 +37,7 @@
 #include "storage.h"
 #include "storage_io.h"
 #include "remoteproto.h"
+#include "uireq.h"            /* MPD.md step 5 */
 #include "waveform.h"
 #include "wifijoin.h"
 #include "wifistore.h"
@@ -81,7 +82,6 @@ extern const uint8_t favicon_ico_end[]   asm("_binary_favicon_ico_end");
 
 static httpd_handle_t    s_srv;         /* 5121: HTTPS, port 443 */
 static httpd_handle_t    s_plain;       /* 5121: port 80, a redirect only */
-static QueueHandle_t     s_q;
 static SemaphoreHandle_t s_mu;          /* s_json, s_wave, s_art_* */
 
 /* The last of each, for a page that has just said hello. PSRAM: nothing
@@ -571,9 +571,9 @@ typedef struct {
     bool  dir;
 } ls_row_t;
 
-static char  s_open_path[REMOTEPROTO_PATH_MAX];
-static bool  s_open_folder;
-static volatile bool s_open_pending;
+/* MPD.md step 5: a chosen path goes through uireq_open(), whose slot must
+ * hold any path this parser accepts. */
+_Static_assert(REMOTEPROTO_PATH_MAX <= UIREQ_PATH_MAX, "uireq's slot is shorter than a remote path");
 
 static int ls_cmp(const void *a, const void *b)
 {
@@ -676,20 +676,6 @@ static void send_listing(httpd_req_t *req, const char *p, size_t plen)
     free(out);
 }
 
-bool remote_take_open(char *path, size_t size, bool *folder)
-{
-    if (!s_open_pending || !s_mu) return false;
-    xSemaphoreTake(s_mu, portMAX_DELAY);
-    const bool had = s_open_pending;
-    if (had) {
-        snprintf(path, size, "%s", s_open_path);
-        if (folder) *folder = s_open_folder;
-        s_open_pending = false;
-    }
-    xSemaphoreGive(s_mu);
-    return had;
-}
-
 /* One reply to one socket, from its own handler. */
 static void send_one(httpd_req_t *req, const char *keep, const size_t *keep_len)
 {
@@ -751,18 +737,27 @@ static esp_err_t h_ws(httpd_req_t *req)
     }
     if (c.kind == REMOTE_CMD_OPEN || c.kind == REMOTE_CMD_PLAYDIR) {
         /* One slot: a second choice before ui_task took the first
-         * replaces it, as a second tap on the chooser would. */
-        xSemaphoreTake(s_mu, portMAX_DELAY);
-        memcpy(s_open_path, c.path, c.path_len);
-        s_open_path[c.path_len] = '\0';
-        s_open_folder = c.kind == REMOTE_CMD_PLAYDIR;
-        s_open_pending = true;
-        xSemaphoreGive(s_mu);
+         * replaces it, as a second tap on the chooser would. The slot is
+         * uireq's since MPD.md step 5. */
+        (void)uireq_open(c.path, c.path_len, c.kind == REMOTE_CMD_PLAYDIR);
         return ESP_OK;
+    }
+    /* Mapped here, where remote_take() used to on ui_task, so what is
+     * queued is the press the panel would have made. */
+    ui_action_t a = { .kind = UI_ACTION_NONE, .value = 0 };
+    switch (c.kind) {
+    case REMOTE_CMD_PLAY:   a.kind = UI_ACTION_PLAY;     break;
+    case REMOTE_CMD_PAUSE:  a.kind = UI_ACTION_PAUSE;    break;
+    case REMOTE_CMD_NEXT:   a.kind = UI_ACTION_NEXT;     break;
+    case REMOTE_CMD_PREV:   a.kind = UI_ACTION_PREV;     break;
+    case REMOTE_CMD_STAR:   a.kind = UI_ACTION_FAVORITE; break;
+    case REMOTE_CMD_VOLUME: a.kind = UI_ACTION_VOLUME; a.value = c.value; break;
+    case REMOTE_CMD_SEEK:   a.kind = UI_ACTION_SEEK;   a.value = c.value; break;
+    default:                return ESP_OK;
     }
     /* Dropped rather than waited for when full: eight presses queued in
      * one ui_task pass is a script, not a hand. */
-    (void)xQueueSend(s_q, &c, 0);
+    (void)uireq_press(UIREQ_REMOTE, &a);
     return ESP_OK;
 }
 
@@ -888,8 +883,7 @@ static void stop(const char *why)
 
 void remote_init(void)
 {
-    if (s_q) return;
-    s_q = xQueueCreate(8, sizeof(remote_cmd_t));
+    if (s_mu) return;
     s_mu = xSemaphoreCreateMutex();
     s_json = heap_caps_calloc(1, REMOTE_JSON_MAX, MALLOC_CAP_SPIRAM | MALLOC_CAP_8BIT);
     s_wave = heap_caps_calloc(1, REMOTE_WAVE_MAX, MALLOC_CAP_SPIRAM | MALLOC_CAP_8BIT);
@@ -902,7 +896,7 @@ void remote_init(void)
 
 void remote_poll(bool want)
 {
-    if (!s_q || !s_mu || !s_json || !s_wave || !s_build || !s_levels || !s_w_seen) return;
+    if (!s_mu || !s_json || !s_wave || !s_build || !s_levels || !s_w_seen) return;
     char ip[20];
     const bool net = have_ip(ip, sizeof(ip));
     /* 5120: the portal has port 80 while it runs; see REMOTE_PORT. */
@@ -1011,26 +1005,4 @@ void remote_publish(const ui_state_t *st, const char *art_path, int rec_count)
     s_last = *c;
     s_sent_us = now;
     keep_and_send(s_json, &s_json_len, REMOTE_JSON_MAX, s_build, len);
-}
-
-/* ---- presses ----------------------------------------------------------- */
-
-bool remote_take(ui_action_t *out)
-{
-    if (!s_q || !out) return false;
-    remote_cmd_t c;
-    if (xQueueReceive(s_q, &c, 0) != pdTRUE) return false;
-
-    out->value = 0;
-    switch (c.kind) {
-    case REMOTE_CMD_PLAY:   out->kind = UI_ACTION_PLAY;     break;
-    case REMOTE_CMD_PAUSE:  out->kind = UI_ACTION_PAUSE;    break;
-    case REMOTE_CMD_NEXT:   out->kind = UI_ACTION_NEXT;     break;
-    case REMOTE_CMD_PREV:   out->kind = UI_ACTION_PREV;     break;
-    case REMOTE_CMD_STAR:   out->kind = UI_ACTION_FAVORITE; break;
-    case REMOTE_CMD_VOLUME: out->kind = UI_ACTION_VOLUME; out->value = c.value; break;
-    case REMOTE_CMD_SEEK:   out->kind = UI_ACTION_SEEK;   out->value = c.value; break;
-    default:                return false;
-    }
-    return true;
 }

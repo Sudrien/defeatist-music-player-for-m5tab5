@@ -398,6 +398,12 @@ nothing is left half-built if the series stops.
 5. **The shared mutation path**, exported and drained once by
    `ui_task`, with `remote.c` moved onto it. No new behaviour; it is
    the refactor that lets there be two producers.
+
+   **Done in 5170**, as `uireq.c`: one ring for presses from both, with
+   MPD's sequence numbers and completion moved in, and the remote's
+   one-slot choice beside it. `remote_take()`, `remote_take_open()` and
+   `mpd_take()` are gone. The one difference is that presses from the
+   two are taken in arrival order rather than remote-first.
 6. **The remote page's queue verbs**: the socket grammar, the frames,
    the section below the fold. First real use of the queue, over a
    transport that already works, driven headless in test.

@@ -1,0 +1,189 @@
+/*
+ * uireqtest.c -- uireq.c, the one way into ui_task (MPD.md step 5).
+ *
+ * Written from uireq.h's promises, not from the ring inside uireq.c:
+ * what each producer had before the move is what it must still have.
+ *
+ *  - each source keeps its own eight, and a full one does not take the
+ *    other's room (remote.c's and mpd.c's queues were 8 each);
+ *  - presses come out in the order they went in, across sources;
+ *  - a sequence number is never 0, and is serviced only once the pass
+ *    that took it has published -- not when a later press is queued,
+ *    and not when it is merely taken;
+ *  - the open slot is one slot: the second choice replaces the first,
+ *    it is cleared by taking, and a path too long is refused whole
+ *    rather than stored cut.
+ *
+ * One thread, and shim.h's mutex is a no-op, so nothing here tests the
+ * locking; it tests what the lock protects.
+ *
+ * SPDX-License-Identifier: MIT
+ */
+#include <stdio.h>
+#include <stdlib.h>
+#include <string.h>
+
+#include "uireq.h"
+
+static int s_fail;
+
+#define CHECK(cond) do { \
+    if (!(cond)) { fprintf(stderr, "FAIL %s:%d: %s\n", __FILE__, __LINE__, #cond); s_fail++; } \
+} while (0)
+
+static ui_action_t act(ui_action_kind_t k, int v)
+{
+    const ui_action_t a = { .kind = k, .value = v };
+    return a;
+}
+
+static void drain(void)
+{
+    ui_action_t a;
+    while (uireq_take_press(&a)) { }
+    uireq_published();
+}
+
+static void before_init(void)
+{
+    ui_action_t a = act(UI_ACTION_NEXT, 0);
+    CHECK(uireq_press(UIREQ_REMOTE, &a) == 0);
+    CHECK(!uireq_take_press(&a));
+    CHECK(!uireq_open("/sdcard/a", 9, false));
+    char p[16];
+    CHECK(!uireq_take_open(p, sizeof(p), NULL));
+}
+
+static void order_across_sources(void)
+{
+    const ui_action_t r1 = act(UI_ACTION_PAUSE, 0), m1 = act(UI_ACTION_SEEK, 40),
+                      r2 = act(UI_ACTION_VOLUME, 70);
+    CHECK(uireq_press(UIREQ_MPD, &m1) != 0);
+    CHECK(uireq_press(UIREQ_REMOTE, &r1) != 0);
+    CHECK(uireq_press(UIREQ_REMOTE, &r2) != 0);
+    ui_action_t a;
+    CHECK(uireq_take_press(&a) && a.kind == UI_ACTION_SEEK && a.value == 40);
+    CHECK(uireq_take_press(&a) && a.kind == UI_ACTION_PAUSE);
+    CHECK(uireq_take_press(&a) && a.kind == UI_ACTION_VOLUME && a.value == 70);
+    CHECK(!uireq_take_press(&a));
+    drain();
+}
+
+static void per_source_room(void)
+{
+    const ui_action_t n = act(UI_ACTION_NEXT, 0);
+    for (int i = 0; i < UIREQ_PER_SOURCE; i++) CHECK(uireq_press(UIREQ_REMOTE, &n) != 0);
+    /* The remote's ninth is dropped, as its own queue dropped it... */
+    CHECK(uireq_press(UIREQ_REMOTE, &n) == 0);
+    /* ...and MPD still has all eight of its own. */
+    for (int i = 0; i < UIREQ_PER_SOURCE; i++) CHECK(uireq_press(UIREQ_MPD, &n) != 0);
+    CHECK(uireq_press(UIREQ_MPD, &n) == 0);
+
+    /* Taking one gives the room back to the source it came from. */
+    ui_action_t a;
+    CHECK(uireq_take_press(&a));                    /* a remote press */
+    CHECK(uireq_press(UIREQ_MPD, &n) == 0);
+    CHECK(uireq_press(UIREQ_REMOTE, &n) != 0);
+    CHECK(uireq_press(UIREQ_REMOTE, &n) == 0);
+
+    CHECK(uireq_press(UIREQ_SOURCES, &n) == 0);     /* not a source */
+    CHECK(uireq_press(UIREQ_MPD, NULL) == 0);
+    drain();
+
+    /* Round the ring more than once, so its wrap is on the path. */
+    for (int round = 0; round < 5; round++) {
+        for (int i = 0; i < UIREQ_PER_SOURCE; i++) {
+            const ui_action_t v = act(UI_ACTION_VOLUME, round * 10 + i);
+            CHECK(uireq_press(i & 1 ? UIREQ_MPD : UIREQ_REMOTE, &v) != 0);
+        }
+        for (int i = 0; i < UIREQ_PER_SOURCE; i++)
+            CHECK(uireq_take_press(&a) && a.value == round * 10 + i);
+    }
+    drain();
+}
+
+static void serviced(void)
+{
+    const ui_action_t p = act(UI_ACTION_PLAY, 0);
+    const uint32_t s1 = uireq_press(UIREQ_MPD, &p);
+    const uint32_t s2 = uireq_press(UIREQ_REMOTE, &p);
+    const uint32_t s3 = uireq_press(UIREQ_MPD, &p);
+    CHECK(s1 && s2 && s3 && s1 != s2 && s2 != s3);
+    CHECK(!uireq_serviced(s1));
+
+    /* Publishing with nothing taken services nothing new. */
+    uireq_published();
+    CHECK(!uireq_serviced(s1));
+
+    ui_action_t a;
+    CHECK(uireq_take_press(&a));
+    CHECK(!uireq_serviced(s1));         /* taken is not published */
+    uireq_published();
+    CHECK(uireq_serviced(s1));
+    CHECK(!uireq_serviced(s2));
+    CHECK(!uireq_serviced(s3));
+
+    /* A remote press between two MPD presses: taking it does not service
+     * the MPD press behind it. */
+    CHECK(uireq_take_press(&a));
+    uireq_published();
+    CHECK(uireq_serviced(s2));
+    CHECK(!uireq_serviced(s3));
+    CHECK(uireq_take_press(&a));
+    uireq_published();
+    CHECK(uireq_serviced(s3));
+    CHECK(uireq_serviced(s1));          /* and stays serviced */
+}
+
+static void open_slot(void)
+{
+    char p[UIREQ_PATH_MAX];
+    bool folder = true;
+    CHECK(!uireq_take_open(p, sizeof(p), &folder));
+
+    /* Not terminated at len: the remote's path points into its frame. */
+    const char frame[] = "/sdcard/Music/A.flacTRAILING";
+    CHECK(uireq_open(frame, 20, false));
+    CHECK(uireq_open("/sdcard/Music", 13, true));   /* replaces it */
+    CHECK(uireq_take_open(p, sizeof(p), &folder));
+    CHECK(strcmp(p, "/sdcard/Music") == 0 && folder);
+    CHECK(!uireq_take_open(p, sizeof(p), &folder)); /* cleared */
+
+    CHECK(uireq_open(frame, 20, false));
+    CHECK(uireq_take_open(p, sizeof(p), NULL));
+    CHECK(strcmp(p, "/sdcard/Music/A.flac") == 0);
+
+    /* The longest that fits, and one past it. */
+    char *big = malloc(UIREQ_PATH_MAX);
+    memset(big, 'x', UIREQ_PATH_MAX);
+    CHECK(uireq_open(big, UIREQ_PATH_MAX - 1, false));
+    CHECK(uireq_take_open(p, sizeof(p), NULL) && strlen(p) == UIREQ_PATH_MAX - 1);
+    CHECK(uireq_open("/sdcard/kept", 12, false));
+    CHECK(!uireq_open(big, UIREQ_PATH_MAX, true));  /* refused whole... */
+    CHECK(uireq_take_open(p, sizeof(p), &folder));
+    CHECK(strcmp(p, "/sdcard/kept") == 0 && !folder); /* ...not stored */
+
+    /* A short buffer gets a terminated prefix, never an overrun. */
+    char small[8];
+    CHECK(uireq_open("/sdcard/Music", 13, true));
+    CHECK(uireq_take_open(small, sizeof(small), NULL));
+    CHECK(strcmp(small, "/sdcard") == 0);
+    free(big);
+}
+
+int main(void)
+{
+    before_init();
+    uireq_init();
+    uireq_init();       /* twice is once */
+    order_across_sources();
+    per_source_room();
+    serviced();
+    open_slot();
+    if (s_fail) {
+        fprintf(stderr, "uireqtest: %d failed\n", s_fail);
+        return 1;
+    }
+    printf("uireqtest: ok\n");
+    return 0;
+}

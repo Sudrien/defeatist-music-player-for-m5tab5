@@ -5,10 +5,11 @@
  * WHAT IT IS. The transport bar, again, in a browser: the cover, the
  * envelope with the position on it, title/album/artist, prev, the switch,
  * next, the star and the volume. It is a second input to the same
- * ui_task switch the touch panel and the HID keys feed -- remote_take()
- * is read beside s_hid_action -- so a press from a phone is the same
- * press as one on the glass, with the same rules. And a second reader of
- * the same ui_state_t the panel draws from, so the two cannot disagree.
+ * ui_task switch the touch panel and the HID keys feed -- its presses
+ * are read beside s_hid_action, through uireq.h -- so a press from a
+ * phone is the same press as one on the glass, with the same rules. And
+ * a second reader of the same ui_state_t the panel draws from, so the
+ * two cannot disagree.
  *
  * WHAT IT IS NOT. It cannot record (remoteproto.h says why), it has no
  * settings page and no network setup -- the portal is where the network
@@ -26,11 +27,11 @@
  * ports, never both listening.
  *
  * THREADS. remote_poll() and remote_publish() are ui_task's; the server's
- * handlers run on the httpd task and reach the player only through a
- * queue (presses) and a mutex-held copy of the last state (for a page
- * that has just connected). Sends to open sockets are queued onto the
- * httpd task with httpd_queue_work(), which is the only task allowed to
- * write to them.
+ * handlers run on the httpd task and reach the player only through
+ * uireq.h (presses and choices) and a mutex-held copy of the last state
+ * (for a page that has just connected). Sends to open sockets are queued
+ * onto the httpd task with httpd_queue_work(), which is the only task
+ * allowed to write to them.
  *
  * SPDX-License-Identifier: MIT
  */
@@ -85,18 +86,13 @@ bool remote_url(char *out, size_t out_size);
  */
 void remote_publish(const ui_state_t *st, const char *art_path, int rec_count);
 
-/* A press from a page, as the touch panel would have produced it. False
- * when there is none. */
-bool remote_take(ui_action_t *out);
-
 /*
- * 5123: a file or folder chosen on the page, as the device's chooser
- * would have produced it -- `folder` false is BROWSER_PLAY_FILE, true is
- * BROWSER_PLAY_FOLDER. The path passed remoteproto_path_ok() but may no
- * longer exist; the player finds out the way the chooser would. False
- * when there is none.
+ * Presses from a page, and a file or folder chosen on it (5123), go to
+ * ui_task through uireq.h since MPD.md step 5 -- remote_take() and
+ * remote_take_open() were this file's own and are gone. A chosen path
+ * passed remoteproto_path_ok() but may no longer exist; the player finds
+ * out the way the chooser would.
  */
-bool remote_take_open(char *path, size_t size, bool *folder);
 
 #ifdef __cplusplus
 }

@@ -115,6 +115,7 @@
 #include "recorder.h"
 #include "remote.h"          /* 5117 */
 #include "mpd.h"             /* 5158 */
+#include "uireq.h"           /* MPD.md step 5 */
 #include "mpdqueue.h"        /* 5166 */
 
 static const char *TAG = "tab5_mp3";
@@ -7116,7 +7117,7 @@ static void ui_task(void *arg)
         {
             static char rpath[512];
             bool folder = false;
-            if (remote_take_open(rpath, sizeof(rpath), &folder)) {
+            if (uireq_take_open(rpath, sizeof(rpath), &folder)) {
                 ESP_LOGI(TAG, "remote: %s %s", folder ? "play folder" : "open", rpath);
                 if (folder) {
                     if (playlist_load_dir(rpath) == ESP_OK && playlist_count() > 0) {
@@ -7890,10 +7891,10 @@ static void ui_task(void *arg)
         }
         /* 5117: and a press from a browser, on the same terms and after
          * both -- the glass and a key in the hand come first. Not gated
-         * on screen_off either, for the reason above. */
-        if (act.kind == UI_ACTION_NONE) (void)remote_take(&act);
-        /* 5158: and one from an MPD client, last, on the same terms. */
-        if (act.kind == UI_ACTION_NONE) (void)mpd_take(&act);
+         * on screen_off either, for the reason above. 5158: and one from
+         * an MPD client, on the same terms. MPD.md step 5: the two are
+         * one queue (uireq.h), taken in the order they arrived. */
+        if (act.kind == UI_ACTION_NONE) (void)uireq_take_press(&act);
 
         /*
          * One line per press, at the point they are dispatched rather
@@ -14275,6 +14276,7 @@ void app_main(void)
      * on it too now, and that reaches opendir()/readdir() through FatFs
      * and carries a couple of 512-byte path buffers on the way -- so the
      * old size overflowed on the first folder with a long name in it. */
+    uireq_init();                   /* MPD.md step 5: before both servers */
     remote_init();                  /* 5117: before the task that polls it */
     mpd_init();                     /* 5158: likewise */
     xTaskCreate(ui_task, "ui", 8192, NULL, 4, NULL);

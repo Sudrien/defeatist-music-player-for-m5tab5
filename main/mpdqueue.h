@@ -21,7 +21,7 @@
  *
  * OWNERSHIP: THIS MODULE HAS NO LOCK, deliberately, like playlist.c.
  * One task mutates -- ui_task, draining requests the way it drains
- * remote_take_open() -- and a socket task asks rather than calls. MPD.md
+ * uireq_take_open() -- and a socket task asks rather than calls. MPD.md
  * has the argument. What this file does provide is the thing that makes
  * that safe to get wrong: mpdq_path() hands out a pointer the queue
  * owns, and the rule is the same as playlist.h's, written below.

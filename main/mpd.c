@@ -8,17 +8,17 @@
  * and a listener to carry none of what it is for.
  *
  * NOTHING HERE CALLS THE PLAYER. The task reads a copy of the state that
- * ui_task published (mpd_publish()) and asks for presses through a queue
- * that ui_task drains (mpd_take()), which is remote.c's arrangement and
- * MPD.md's rule: the server task "never calls playlist_* or
+ * ui_task published (mpd_publish()) and asks for presses through uireq.h,
+ * which ui_task drains and remote.c feeds too (MPD.md step 5) -- MPD.md's
+ * rule: the server task "never calls playlist_* or
  * request_track() itself".
  *
  * A PRESS WAITS FOR ui_task, where the remote's does not. MPD is
  * synchronous in a way the remote page is not: a client that is told OK
  * for `pause` and then asks `status` expects to see `state: pause`, and
  * a client that sees `play` instead toggles again. So ask() queues the
- * press with a sequence number and waits until mpd_publish() has run in
- * the pass that took it -- the pass whose state reflects it -- before the
+ * press as uireq_press() numbers it and waits until mpd_publish() has run
+ * in the pass that took it -- the pass whose state reflects it -- before the
  * OK goes out. Bounded by MPD_ASK_WAIT_MS, because ui_task `continue`s
  * past the take and the publish while the panel, the chooser or the sleep
  * page is open (player.c, 5118's note), and a client must still get an
@@ -86,6 +86,7 @@
 #include "playlist.h"         /* 5166 */
 #include "mpdproto.h"
 #include "mpduri.h"
+#include "uireq.h"            /* MPD.md step 5 */
 #include "stationlist.h"
 #include "settings.h"         /* 5161: settings_rg_enabled() */
 #include "stations.h"
@@ -152,9 +153,9 @@ static const char *TAG = "tab5_mpd";
 /* How long a press waits for ui_task; see the file comment. A second is
  * several passes at the slowest rate ui_task runs (10 Hz). */
 #define MPD_ASK_WAIT_MS     (1000)
-/* How long a press waits for room in the queue before it is refused. */
+/* How long a press waits for room in the queue before it is refused.
+ * The room is uireq.h's UIREQ_PER_SOURCE, which was MPD_QUEUE_DEPTH. */
 #define MPD_ASK_QUEUE_MS    (100)
-#define MPD_QUEUE_DEPTH     (8)
 
 /* After a listener that would not bind, how long before trying again --
  * the remote's REMOTE_RETRY_US. */
@@ -275,18 +276,6 @@ static const qlist_t    *s_list;            /* this task's, while pinned */
 static uint32_t          s_events;  /* under s_mu */
 static mpd_idle_track_t  s_track;   /* ui_task's */
 static medialib_state_t  s_db_was[STORAGE_COUNT];  /* ui_task's */
-
-/* ---- presses ------------------------------------------------------------ */
-
-typedef struct {
-    ui_action_t act;
-    uint32_t    seq;
-} req_t;
-
-static QueueHandle_t     s_q;
-static uint32_t          s_seq;             /* the server task's */
-static volatile uint32_t s_taken_seq;       /* ui_task: the last one taken */
-static volatile uint32_t s_done_seq;        /* ui_task: taken AND published */
 
 /* ---- the server --------------------------------------------------------- */
 
@@ -585,7 +574,7 @@ static void put_entry(conn_t *c, int i)
  */
 static bool ask(const ctx_t *x, ui_action_kind_t kind, int value)
 {
-    const req_t r = { .act = { .kind = kind, .value = value }, .seq = ++s_seq };
+    const ui_action_t a = { .kind = kind, .value = value };
     /*
      * 5162: a press from a client says which client and which command,
      * because the player's own "button:" line that follows it reads the
@@ -598,12 +587,20 @@ static bool ask(const ctx_t *x, ui_action_kind_t kind, int value)
         ESP_LOGI(TAG, "client %d: %s -> replaygain %s", x->c->fd, x->verb, value ? "on" : "off");
     else
         ESP_LOGI(TAG, "client %d: %s -> %s", x->c->fd, x->verb, ui_action_name(kind));
-    if (xQueueSend(s_q, &r, pdMS_TO_TICKS(MPD_ASK_QUEUE_MS)) != pdTRUE) {
-        ack(x->c, MPD_ACK_SYSTEM, x->idx, x->verb, "player busy; try again");
-        return false;
+    /* uireq_press() does not block, so the wait for room that
+     * xQueueSend() did is here: polled at the same 10 ms as the wait
+     * below. */
+    uint32_t seq;
+    const TickType_t q0 = xTaskGetTickCount();
+    while ((seq = uireq_press(UIREQ_MPD, &a)) == 0) {
+        if (xTaskGetTickCount() - q0 >= pdMS_TO_TICKS(MPD_ASK_QUEUE_MS)) {
+            ack(x->c, MPD_ACK_SYSTEM, x->idx, x->verb, "player busy; try again");
+            return false;
+        }
+        vTaskDelay(pdMS_TO_TICKS(10));
     }
     const TickType_t t0 = xTaskGetTickCount();
-    while ((int32_t)(s_done_seq - r.seq) < 0) {
+    while (!uireq_serviced(seq)) {
         if (xTaskGetTickCount() - t0 >= pdMS_TO_TICKS(MPD_ASK_WAIT_MS)) {
             ESP_LOGI(TAG, "%s: the player has not taken it yet (a page is "
                      "open?); answering now, it lands later", x->verb);
@@ -1407,9 +1404,8 @@ out:
 
 void mpd_init(void)
 {
-    if (s_q) return;
+    if (s_mu) return;
     const uint32_t ps = MALLOC_CAP_SPIRAM | MALLOC_CAP_8BIT;
-    s_q = xQueueCreate(MPD_QUEUE_DEPTH, sizeof(req_t));
     s_mu = xSemaphoreCreateMutex();
     s_pub  = heap_caps_calloc(1, sizeof(snap_t), ps);
     s_next = heap_caps_calloc(1, sizeof(snap_t), ps);
@@ -1423,7 +1419,7 @@ void mpd_init(void)
         s_ql[i].ver = heap_caps_calloc(MPDQ_MAX, sizeof(uint32_t), ps);
         s_ql[i].off = heap_caps_calloc(MPDQ_MAX, sizeof(uint32_t), ps);
     }
-    bool ok = s_q && s_mu && s_pub && s_next && s_view && s_out && s_body && s_text &&
+    bool ok = s_mu && s_pub && s_next && s_view && s_out && s_body && s_text &&
               s_stack;
     for (int i = 0; i < 2; i++) ok = ok && s_ql[i].id && s_ql[i].ver && s_ql[i].off;
     for (int i = 0; i < MPD_CLIENTS; i++) {
@@ -1447,7 +1443,7 @@ void mpd_init(void)
 
 static bool ready(void)
 {
-    if (!s_q || !s_mu || !s_pub || !s_next || !s_view || !s_out || !s_body || !s_text ||
+    if (!s_mu || !s_pub || !s_next || !s_view || !s_out || !s_body || !s_text ||
         !s_stack) return false;
     for (int i = 0; i < 2; i++) if (!s_ql[i].id || !s_ql[i].ver || !s_ql[i].off) return false;
     for (int i = 0; i < MPD_CLIENTS; i++) if (!s_conn[i].in) return false;
@@ -1577,7 +1573,7 @@ void mpd_publish(const ui_state_t *st, const char *path, bool streaming)
     /* Nothing listening: nothing to fill, but a press taken this pass
      * still counts as serviced. */
     if (!s_task) {
-        s_done_seq = s_taken_seq;
+        uireq_published();
         /* 5160: the next server starts from a fresh view rather than
          * comparing against one from before it was switched off. */
         s_track.have = false;
@@ -1773,15 +1769,5 @@ void mpd_publish(const ui_state_t *st, const char *path, bool streaming)
     s_events |= ev;
     xSemaphoreGive(s_mu);
     /* After the copy: a press is serviced once its effect is readable. */
-    s_done_seq = s_taken_seq;
-}
-
-bool mpd_take(ui_action_t *out)
-{
-    if (!s_q || !out) return false;
-    req_t r;
-    if (xQueueReceive(s_q, &r, 0) != pdTRUE) return false;
-    *out = r.act;
-    s_taken_seq = r.seq;
-    return true;
+    uireq_published();
 }

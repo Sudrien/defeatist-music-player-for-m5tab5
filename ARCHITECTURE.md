@@ -17693,3 +17693,29 @@ Compiled as 5206 was, no warnings. Not on the board. What to look for:
 7.7 KB -- not 15 -- and after `capture: ended`, playback working at the
 track's rate. A failure now reads `capture: ESP_ERR_NO_MEM; playback left
 as it was`, and the next track plays.
+
+### 5210 -- The capture channel is clocked from APLL
+
+5209 on the board: playback survived the failed start (`playback left as
+it was`), which was the point of it. The capture did not start:
+
+    E i2s_tdm: i2s_tdm_calculate_clock(70): sample rate is too large
+    E tab5_audio: rx_init(1135): tdm rx
+
+A slave RX channel still runs an internal clock to sample the incoming
+BCLK with, and IDF makes it bclk_div x BCLK with bclk_div at least 8
+(i2s_tdm.c and i2s_std.c both clamp it): 3.072 MHz x 8 = 24.576 MHz. It
+must be more than 1.99 times under its source. The P4's I2S has two
+sources: XTAL, 40 MHz, the default -- too slow -- and APLL. The built-in
+pair's std RX has the same BCLK and would have failed identically.
+
+Both RX configs now take `I2S_CLK_SRC_APLL`. IDF sets APLL to the
+internal clock x 2 (i2s_set_get_apll_freq(): 5.3 MHz floor / 24.576 MHz
++ 1, clamped to 2), 49.152 MHz, inside the P4's 5.3-125 MHz, and 49.152 >
+24.576 x 1.99. The channel releases APLL when it is deleted. Playback's
+TX stays on XTAL; nothing else here uses APLL.
+
+What to look for: no `sample rate is too large`, and `capture: ES7210
+headset microphone, TDM slot 3 of 4` followed by `capture running`. If
+APLL lands under 48.9 MHz the same error comes back, and IDF logs its
+real frequency at debug level.

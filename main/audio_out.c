@@ -1103,7 +1103,17 @@ static esp_err_t tx_reclock(uint32_t rate, bool capture)
     return err != ESP_OK ? err : en;
 }
 
-/* The ES7210's SDOUT on DIN, clocked by TX. See above. */
+/*
+ * The ES7210's SDOUT on DIN, clocked by TX. See above.
+ *
+ * 5210: from APLL. A slave channel still runs an internal clock to
+ * sample BCLK with, and IDF makes it at least 8 x BCLK: 3.072 MHz x 8 =
+ * 24.576 MHz, which must be under half its source. The P4's I2S has two
+ * sources, XTAL (40 MHz, the default, and too slow: "sample rate is too
+ * large") and APLL, which IDF sets to 49.152 MHz for this and gives back
+ * when the channel is deleted. Playback stays on XTAL. Nothing else in
+ * this program uses APLL.
+ */
 static esp_err_t rx_init(audio_capture_src_t src)
 {
     i2s_chan_config_t chan = I2S_CHANNEL_DEFAULT_CONFIG(I2S_NUM_0, I2S_ROLE_SLAVE);
@@ -1132,15 +1142,17 @@ static esp_err_t rx_init(audio_capture_src_t src)
                 I2S_TDM_SLOT0 | I2S_TDM_SLOT1 | I2S_TDM_SLOT2 | I2S_TDM_SLOT3),
         };
         memcpy(&tdm.gpio_cfg, &pins, sizeof(pins));
+        tdm.clk_cfg.clk_src = I2S_CLK_SRC_APLL;         /* 5210 */
         ESP_RETURN_ON_ERROR(i2s_channel_init_tdm_mode(s_rx, &tdm), TAG, "tdm rx");
     } else {
         /* 24 bits in 32-bit slots, as 5106. */
-        const i2s_std_config_t std = {
+        i2s_std_config_t std = {
             .clk_cfg = I2S_STD_CLK_DEFAULT_CONFIG(AUDIO_CAPTURE_RATE),
             .slot_cfg = I2S_STD_PHILIPS_SLOT_DEFAULT_CONFIG(I2S_DATA_BIT_WIDTH_32BIT,
                                                             I2S_SLOT_MODE_STEREO),
             .gpio_cfg = pins,
         };
+        std.clk_cfg.clk_src = I2S_CLK_SRC_APLL;         /* 5210 */
         ESP_RETURN_ON_ERROR(i2s_channel_init_std_mode(s_rx, &std), TAG, "std rx");
     }
     ESP_RETURN_ON_ERROR(i2s_channel_enable(s_rx), TAG, "rx enable");

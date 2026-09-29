@@ -91,6 +91,8 @@ listpartitions partition delpartition moveoutput listmounts listneighbors
 getvol password crossfade enableoutput disableoutput toggleoutput swap
 swapid findadd searchadd searchaddpl playlistfind playlistsearch
 playlistclear playlistmove rename
+listfiles subscribe unsubscribe readmessages sendmessage prio prioid rangeid
+addtagid cleartagid readcomments mixrampdb mixrampdelay kill config sticker
 """.split()
 
 
@@ -716,7 +718,10 @@ class Checker:
             self.expect_ok("seekcur +2", "seekcur +2")
             self.expect_ok("seekid <current> 1", f"seekid {st.get('songid')} 1")
             self.expect_ok("seek <current pos> 1", f"seek {st.get('song')} 1")
-            self.expect_ack("seek of another song is refused", f"seek {b} 1", 5)
+            # 5229: another song is started there.
+            self.expect_ok("seek of another song", f"seek {b} 2")
+            st = self.wait_state(lambda s: s.get("song") == p0, 5.0)
+            self.ok("seek of another song plays it", st.get("song") == p0, st.get("song"))
         else:
             self.skip("seek, seekid, seekcur", "the song has no duration over 10 s")
 
@@ -828,6 +833,99 @@ class Checker:
         self.expect_ack('playlistdelete "[Radio Streams]" is refused', 'playlistdelete "[Radio Streams]" 0', 5)
         self.expect_ack('searchaddpl "[Radio Streams]" is refused', 'searchaddpl "[Radio Streams]" file x', 2)
 
+    # ---- 5232: the rest of 0.20 (5227-5231) --------------------------------------
+
+    def rest_read_only(self):
+        self.section("0.20's remaining verbs (nothing changed)")
+        f0 = self.files[0] if getattr(self, "files", None) else None
+        if f0:
+            folder, name = f0.rsplit("/", 1)
+            r = self.expect_ok("listfiles <folder>", f"listfiles {q(folder)}") or []
+            self.ok("listfiles names the file", ("file", name) in pairs(r), repr(r[:6]))
+            r = self.expect_ok("listfiles (root)", "listfiles") or []
+            self.ok("listfiles root lists a folder", any(k == "directory" for k, v in pairs(r)), repr(r))
+            try:
+                self.c.cmd('listfiles "sd/__no_such__"')
+                self.ok("listfiles of a missing folder is refused", False, "got OK")
+            except Ack as e:
+                # The player says NO_EXIST; stock MPD says SYSTEM, from storage.
+                self.ok("listfiles of a missing folder is refused", e.code in (50, 52), str(e))
+            r = self.expect_ok("readcomments <file>", f"readcomments {q(f0)}")
+            self.expect_ack("readcomments of a missing file is NO_EXIST", 'readcomments "sd/__no_such__.mp3"', 50)
+            r = self.expect_ok("count group artist", f"count base {q(folder)} group artist") or []
+            n = sum(int(v) for k, v in pairs(r) if k == "songs")
+            self.ok("count group adds up to the folder's count", n == int(kv(self.c.cmd(
+                f"count base {q(folder)}")).get("songs", "-1")), repr(r[:6]))
+        r = self.expect_ok("stats", "stats") or []
+        st = kv(r)
+        for k in ("artists", "albums", "songs"):
+            self.ok(f"stats has {k}", k in st, repr(r))
+
+        self.expect_ack("prio is refused", "prio 1 0:1", 5)
+        self.expect_ack("prio 300 is ARG", "prio 300 0:1", 2)
+        self.expect_ack("rangeid is refused", "rangeid 1 0:1", 5)
+        self.expect_ack("addtagid on a file is refused (MPD's ACK 4)", "addtagid 1 artist x", 4)
+        self.expect_ack("cleartagid on a file is refused (MPD's ACK 4)", "cleartagid 1", 4)
+        self.expect_ok("mixrampdb 0 (off)", "mixrampdb 0")
+        self.expect_ok("mixrampdelay nan (off)", "mixrampdelay nan")
+        self.expect_ack("mixrampdelay 2 is refused", "mixrampdelay 2", 5)
+        self.expect_ack("config is local-only (PERMISSION)", "config", 4)
+        self.expect_ack("sticker: no database", 'sticker get song "x" y', 5)
+        # `kill` is in the commands check and deliberately never sent: a
+        # real MPD would stop.
+
+    def messages(self):
+        self.section("client messages")
+        self.expect_ack("subscribe with a bad name is ARG", 'subscribe "no spaces"', 2)
+        self.expect_ok("subscribe", "subscribe mpdcheck")
+        self.expect_ack("subscribe twice is EXIST", "subscribe mpdcheck", 56)
+        r = self.expect_ok("channels", "channels") or []
+        self.ok("channels lists it", ("channel", "mpdcheck") in pairs(r), repr(r))
+        self.expect_ack("sendmessage to nobody is NO_EXIST", 'sendmessage nobodyhere "x"', 50)
+        try:
+            w = self.connect()
+        except OSError as e:
+            self.ok("second connection", False, str(e))
+            return
+        try:
+            w.cmd("subscribe mpdcheck2")
+            w.send("idle message")
+            time.sleep(0.3)
+            self.expect_ok("sendmessage", 'sendmessage mpdcheck2 "hello, there"')
+            w.s.settimeout(5)
+            r = w.read_answer()
+            self.ok("idle message wakes the subscriber", "changed: message" in r, repr(r))
+            r = w.cmd("readmessages")
+            self.ok("readmessages gives channel and text",
+                    ("channel", "mpdcheck2") in pairs(r) and ("message", "hello, there") in pairs(r), repr(r))
+            self.ok("readmessages empties the queue", w.cmd("readmessages") == [])
+        except (Ack, OSError) as e:
+            self.ok("messages between two connections", False, str(e))
+        finally:
+            w.close()
+        self.expect_ok("unsubscribe", "unsubscribe mpdcheck")
+        self.expect_ack("unsubscribe again is NO_EXIST", "unsubscribe mpdcheck", 50)
+
+    def folders(self):
+        self.section("adding a folder")
+        folder = self.files[0].rsplit("/", 1)[0]
+        self.trim_tests()
+        self.expect_ok("add <folder>", f"add {q(folder)}")
+        t = self.tail()
+        self.ok("add <folder> queues its songs", self.files[0] in t and all(u.startswith(folder + "/") for u in t),
+                f"{len(t)} added")
+        self.trim_tests()
+        self.expect_ack("add of a missing folder is NO_EXIST", 'add "sd/__no_such_folder__"', 50)
+        have = {v for k, v in pairs(self.c.cmd("listplaylists")) if k == "playlist"}
+        if PL_A in have:
+            self.skip("playlistadd <folder>", f"{PL_A} already exists")
+            return
+        self.expect_ok("playlistadd <folder>", f"playlistadd {q(PL_A)} {q(folder)}")
+        got = self.listed(PL_A)
+        self.ok("playlistadd <folder> writes its songs, not the folder",
+                self.files[0] in got and folder not in got, repr(got[:4]))
+        self.c.cmd(f"rm {q(PL_A)}")
+
     # ---- the run -------------------------------------------------------------------
 
     def run(self):
@@ -852,6 +950,8 @@ class Checker:
             self.state_reads()
             self.idle()
             have_lib = self.library()
+            self.rest_read_only()                                   # 5232
+            self.messages()
             if self.a.read_only:
                 if playing and kv(self.c.cmd("status")).get("state") != "play":
                     self.c.cmd("play")
@@ -863,6 +963,7 @@ class Checker:
                 self.transport()
                 self.volume_modes()
                 self.stored()
+                self.folders()                                      # 5232
         except (OSError, ConnectionError, Ack) as e:
             # An ACK nothing expected, or the connection lost: the run
             # stops here, and what was changed is still put back.

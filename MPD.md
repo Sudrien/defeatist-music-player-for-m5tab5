@@ -516,29 +516,46 @@ board reports from Cantata 2.5 against it:
 
 Known and left:
 
-- `status` reports elapsed in whole seconds, and a seek from a client is
-  turned into a percentage of the track (the player's own seek). A
-  client's progress bar can snap back by up to about a second on each
-  `status` and after a seek. Seen on the board and accepted for now.
-- Filter expressions (`(artist == 'x')`, MPD 0.21) are refused by name;
-  the older TAG VALUE form is what is served. `group` on `find`, adding
-  a folder, partial `shuffle` and `load` of a range are refused too.
-- One partition, `default`; mounts are the two volumes and cannot be
-  made from a client.
-- Refused with a reason, or still unknown (5218-5223 filled in the rest
-  of doc/protocol.rst's list): `albumart` and `readpicture` (a feature,
-  and why the greeting stays 0.20), `prio`/`prioid`, `rangeid`,
-  `addtagid`/`cleartagid`, `outputset`, the sticker, message and
-  subscribe verbs, `readcomments`, `getfingerprint`, `config`,
-  `binarylimit`, `mixrampdb`/`mixrampdelay`. Crossfade other than 0,
-  and turning the one output off, are refused rather than ignored.
-- Not yet driven on the board: `list` (5182), `search`/`find` (5180),
-  Cantata's stored-playlists view (5184), and everything from 5218 on:
-  `getvol`, `findadd`/`searchadd`/`searchaddpl`,
-  `playlistfind`/`playlistsearch`, `swap`/`swapid`, and editing a
-  stored playlist (`playlistdelete`, `playlistmove`, `playlistclear`,
-  `rename`).
+**Every verb in MPD 0.20's command table is answered** (5227-5231,
+checked against the list in src/command/AllCommands.cxx): each one
+either does what MPD does or gives MPD's own refusal for a server
+without the feature. What still separates this server from 0.20 is
+behaviour, and all of it is outside mpd.c:
 
+- **Seeking is by percent.** `status` reports elapsed in whole seconds,
+  and every seek -- `seekcur`, and since 5229 `seek`/`seekid` of a
+  song not playing, which is played and then sought -- lands on the
+  nearest hundredth of the track. A client's progress bar can snap back
+  by up to about a second. Needs a millisecond seek, and a
+  start-at-offset, in the player.
+- **The modes are the player's four orders** (MPD.md step 7): repeat
+  alone (repeat-all) and consume spring back, and `status` says what
+  the player will do. Needs the player to have those orders.
+- **Tags the index does not keep**: genre, date, album artist (served
+  as the artist), track and disc number. `list genre` is empty and a
+  client shows them as unknown. An index-format change
+  (MEDIA-INDEX.md).
+- **No lengths in the catalog**, so `count` and `stats` say no
+  playtime and a queue entry that is not playing has no duration.
+
+Refused on purpose, each with its reason: turning the one output off,
+crossfade and MixRamp other than off, a second partition, mounting,
+`prio`/`prioid` (the player's random has no use for them), `rangeid`,
+`addtagid`/`cleartagid` (MPD's own answer for a local file), `kill`,
+`config` (local clients only, and every client is TCP), `sticker` (no
+database), a shuffle of part of the queue, `load` of a range, `group`
+on `find`. `listfiles` gives no `size` (a 32-bit off_t, 5228).
+
+Newer than 0.20 and not claimed: filter expressions and `albumart`
+(0.21), `readpicture`, `binarylimit`, `outputset` (0.22). Some newer
+things are answered anyway because answering costs nothing -- `getvol`
+(5218), `save`'s mode (0.24) -- but the greeting stays 0.20 until 0.21's
+two are done.
+
+Not yet driven on the board: `list` (5182), `search`/`find` (5180),
+Cantata's stored-playlists view (5184), and everything from 5218 on.
+`tools/mpdcheck.py <ip>` (5225-5226, extended in 5232) runs all of it
+and puts the listener's queue, volume and song back.
 
 ## What would make this not worth building
 

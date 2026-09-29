@@ -18365,3 +18365,31 @@ the index does not keep. MPD.md has the list.
 
 Compiled -O2 -Wall -Wextra on the host stubs: mpd.c, no warnings.
 texttest all passes. Not on the board.
+
+### 5232 -- mpdcheck for 5227-5231; addtagid as MPD answers it; MPD.md
+
+tools/mpdcheck.py checks what 5227-5231 added: `add` and `playlistadd`
+of a folder (and that the playlist gets songs, not the folder's path),
+`listfiles`, `seek` of a song not playing (5225's check that it was
+refused is replaced), client messages across two connections including
+`idle message`, `count ... group` adding up to the plain count, the
+`stats` counts, `readcomments`, and each refusal's code. `kill` is in
+the commands check and never sent -- a real MPD would stop. The
+messages and 0.20-remainder checks run in --read-only too; they change
+nothing that outlives the connection.
+
+Run against stock MPD 0.23.5 it corrected one thing in 5231:
+`addtagid` and `cleartagid` on a local file are ACK 4 "Cannot edit tags
+of local file" there, and every queue entry here is a local file, so
+mpd.c now sends exactly that rather than 5231's ACK 5 and its own words.
+It also showed stock MPD refusing `listfiles` of a missing folder with
+52 (a storage error) where this server says 50; the check takes either,
+and mpd.c is left saying NO_EXIST, as its lsinfo does.
+
+MPD.md's "Where it stands" is rewritten for the state after 5231: every
+0.20 verb is answered, and what separates the server from 0.20 is the
+behaviour outside mpd.c -- percent seeking, the four play orders, the
+tags and lengths the index does not keep.
+
+Compiled -O2 -Wall -Wextra on the host stubs: mpd.c, no warnings.
+texttest all passes. Not on the board.

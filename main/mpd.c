@@ -3532,9 +3532,10 @@ static result_t run_cmd(conn_t *c, const mpd_cmd_t *cmd, int idx)
     case MPD_CMD_ADDTAGID:
     case MPD_CMD_CLEARTAGID:
         /* MPD edits the tags of a queued stream only. Streams are played
-         * here, not queued (5201), so every queue entry is a file. */
-        ack(c, MPD_ACK_UNKNOWN, idx, cmd->verb,
-            "only a stream's tags can be edited, and streams are not queued on this player");
+         * here, not queued (5201), so every queue entry is a file, and
+         * MPD's answer for a file is this one -- code and words as stock
+         * MPD 0.23 sends them (5232; 5231 had ACK 5 and its own words). */
+        ack(c, MPD_ACK_PERMISSION, idx, cmd->verb, "Cannot edit tags of local file");
         return RES_ERR;
 
     case MPD_CMD_READCOMMENTS: {

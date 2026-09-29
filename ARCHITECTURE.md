@@ -17281,3 +17281,17 @@ Nothing is put back when the volume returns: the queue it left is
 gone, as it is in MPD. A drive that drops off the bus for a moment
 empties its part of the queue -- the cost of not holding entries whose
 files cannot be opened.
+
+### 5193 -- player: the amplifier follows playback whatever screen is up
+
+v0.4.0-214: with the chooser up, Cantata's `pause` (resume) played -- the
+writer moved at 35009 -- but "amplifier on" came at 41532, when cancel
+was tapped. audio_out_set_idle() was called once a pass in the
+transport half, which every page skips; 5188's pass behind a page runs
+that half, but calls it before the press is dispatched, so it saw
+s_playing still false, and every pass after was the page's. The call
+is moved to the top of the loop, beside the queue edits, and is made
+every pass. Its comments stay where they were, pointing to it.
+
+The direct audio_out_set_idle(false) at first sound (0204) did not
+cover this: a resume from pause has no first sound.

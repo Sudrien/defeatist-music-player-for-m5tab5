@@ -7346,6 +7346,19 @@ static void ui_task(void *arg)
             }
             seen = true;
         }
+        /*
+         * 5193: the amplifier, every pass -- the comments where this call
+         * used to be, above st.battery_pct, say what each term is for.
+         * It was in the transport half, which a page skips, so a play
+         * from MPD behind the chooser (5188) started the audio with the
+         * amplifier still idle: silence until cancel was tapped, six
+         * seconds in v0.4.0-214. Here, it follows s_playing whatever
+         * screen is up.
+         */
+        audio_out_set_idle(!s_playing ||
+                           (s_streaming && !s_stream_audible) ||
+                           (!s_decoding && !s_track_changing &&
+                            !s_tail_pending && !fade_out_active()));
         /* The media index on mount. Here because this loop runs whether
          * or not anything is playing; see medialib.h. */
         medialib_poll();
@@ -8107,10 +8120,7 @@ static void ui_task(void *arg)
          * overriding that call on its next pass, which is what it was
          * doing.
          */
-        audio_out_set_idle(!s_playing ||
-                           (s_streaming && !s_stream_audible) ||
-                           (!s_decoding && !s_track_changing &&
-                            !s_tail_pending && !fade_out_active()));
+        /* 5193: audio_out_set_idle() moved to the top of the loop. */
         st.battery_pct = battery_pct();
         st.battery_charging = battery_charging();
         st.ext_power = battery_external();

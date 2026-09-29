@@ -741,6 +741,7 @@ static bool answered(mpd_cmd_kind_t k)
     case MPD_CMD_FINDADD: case MPD_CMD_SEARCHADD: case MPD_CMD_SEARCHADDPL:   /* 5221 */
     case MPD_CMD_PLAYLISTFIND: case MPD_CMD_PLAYLISTSEARCH:   /* 5222 */
     case MPD_CMD_PLAYLISTCLEAR: case MPD_CMD_PLAYLISTMOVE: case MPD_CMD_RENAME:   /* 5223 */
+    case MPD_CMD_LISTFILES:   /* 5228 */
         return true;
     default:
         return false;
@@ -748,7 +749,7 @@ static bool answered(mpd_cmd_kind_t k)
 }
 
 /* The last kind in mpdproto.h's enum, for walking the table. */
-#define MPD_CMD_LAST    MPD_CMD_RENAME
+#define MPD_CMD_LAST    MPD_CMD_LISTFILES
 
 /*
  * 5166: the commands that read the list, over the pinned copy. Called
@@ -1936,6 +1937,76 @@ static bool uri_is_dir(const char *uri)
     return is;
 }
 
+/*
+ * 5228: `listfiles [URI]` -- a folder as the card has it, not as the index
+ * does: every file and folder, indexed or not, playable or not, as MPD's
+ * handle_listfiles lists storage. Names only, one level, in directory
+ * order (MPD does not sort this either). The root is the two volume
+ * folders that are in.
+ *
+ * `Last-Modified` for each; `size` is left out. The VFS stat() here
+ * carries a 32-bit off_t, so a file past 2 GB -- which exFAT allows and a
+ * recording can reach -- would be listed with a wrong size (CLAUDE.md:
+ * on a file the listener supplies that is a bug). MPD prints size only
+ * where storage knows it, so leaving it out is within the protocol.
+ *
+ * Hidden names (storage_is_hidden(): a leading dot, the volume's system
+ * folders) are left out, as the chooser leaves them out. A name with a
+ * newline in it cannot be written as a line and is skipped.
+ */
+static void put_mtime(conn_t *c, time_t t);
+
+static result_t lib_listfiles(const ctx_t *x, const char *uri)
+{
+    conn_t *const c = x->c;
+    if (!uri) uri = "";
+    if (!mpduri_ok(uri, true)) { ack_no_dir(x, uri); return RES_ERR; }
+    if (!uri[0]) {
+        for (int v = 0; v < MPDURI_VOLS; v++)
+            if (storage_present(v == MPDURI_VOL_SD ? STORAGE_SD : STORAGE_USB))
+                putf(c, "directory: %s\n", mpduri_name(v));
+        return RES_OK;
+    }
+    const char *rel = "";
+    const int v = mpduri_split(uri, &rel);
+    if (v < 0) { ack_no_dir(x, uri); return RES_ERR; }
+    const storage_id_t id = v == MPDURI_VOL_SD ? STORAGE_SD : STORAGE_USB;
+    char *const dir = s_lib->vfs;
+    char *const path = s_lib->last;
+    const int k = rel[0] ? snprintf(dir, sizeof(s_lib->vfs), "%s/%s", mpduri_mount(v), rel)
+                         : snprintf(dir, sizeof(s_lib->vfs), "%s", mpduri_mount(v));
+    if (k <= 0 || (size_t)k >= sizeof(s_lib->vfs)) { ack_no_dir(x, uri); return RES_ERR; }
+
+    storage_hold_brief(id);
+    DIR *d = storage_present(id) ? opendir(dir) : NULL;
+    if (!d) {
+        storage_release_brief(id);
+        ack_no_dir(x, uri);
+        return RES_ERR;
+    }
+    long n = 0;
+    struct dirent *e;
+    while (!c->broken && (e = readdir(d)) != NULL) {
+        const char *name = e->d_name;
+        if (!strcmp(name, ".") || !strcmp(name, "..") || storage_is_hidden(name) ||
+            strpbrk(name, "\r\n"))
+            continue;
+        const int m = snprintf(path, sizeof(s_lib->last), "%s/%s", dir, name);
+        struct stat st;
+        if (m <= 0 || (size_t)m >= sizeof(s_lib->last) || stat(path, &st) != 0) continue;
+        const size_t kn = mpdproto_kv(S_ISDIR(st.st_mode) ? "directory" : "file", name,
+                                      s_body, MPD_BODY_MAX);
+        if (!kn) continue;
+        put(c, s_body, kn);
+        put_mtime(c, st.st_mtime);
+        n++;
+    }
+    closedir(d);
+    storage_release_brief(id);
+    ESP_LOGI(TAG, "client %d: listfiles \"%.64s\": %ld entries", c->fd, uri, n);
+    return RES_OK;
+}
+
 /* ---- list (5182, MPD.md step 12) ------------------------------------------ */
 
 /*
@@ -3016,6 +3087,8 @@ static result_t run_cmd(conn_t *c, const mpd_cmd_t *cmd, int idx)
     /* 5177: the library. */
     case MPD_CMD_LSINFO:
         return lib_lsinfo(&x, a0);
+    case MPD_CMD_LISTFILES:                                         /* 5228 */
+        return lib_listfiles(&x, a0);
     case MPD_CMD_LISTALL:
     case MPD_CMD_LISTALLINFO:
         return lib_listall(&x, a0, cmd->kind == MPD_CMD_LISTALLINFO);

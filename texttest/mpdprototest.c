@@ -351,6 +351,8 @@ int main(void)
             "playlistfind", "playlistsearch",
             /* 5223 */
             "playlistclear", "playlistmove", "rename",
+            /* 5228 */
+            "listfiles",
         };
         const size_t n = sizeof(verbs) / sizeof(verbs[0]);
         for (size_t i = 0; i < n; i++) {

@@ -18226,3 +18226,27 @@ tell "nothing below it" from "added".
 
 Compiled -O2 -Wall -Wextra on the host stubs: mpd.c, no warnings.
 texttest all passes. Not on the board.
+
+### 5228 -- mpd: listfiles
+
+`listfiles [URI]` (MPD 0.19) lists a folder as the card has it rather
+than as the index does: every file and folder, indexed or not, playable
+or not, one level, names only, in directory order (MPD does not sort
+it either). The root is the volume folders that are in, as `lsinfo`'s
+root is. `Last-Modified` for each entry.
+
+`size` is left out on purpose. stat() through the VFS here carries a
+32-bit off_t, so a file past 2 GB -- exFAT allows it, a long recording
+reaches it -- would be listed with a wrong size, and CLAUDE.md is clear
+that a 32-bit limit on a file the listener supplies is a bug. MPD
+prints size only where its storage knows it, so leaving it out is
+within the protocol. Reading it right needs FatFs's f_stat() and its
+64-bit FSIZE_t, which is its own patch if a client turns out to want
+sizes.
+
+Hidden names (storage_is_hidden()) are left out, as the chooser leaves
+them out; a name containing a newline cannot be a line and is skipped.
+The folder is read under one brief hold.
+
+Compiled -O2 -Wall -Wextra on the host stubs: mpd.c, no warnings.
+texttest all passes. Not on the board.

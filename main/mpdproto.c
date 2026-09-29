@@ -347,6 +347,9 @@ static const cmd_def_t s_cmds[] = {
     { "playlistclear",    MPD_CMD_PLAYLISTCLEAR,       1,  1 },
     { "playlistmove",     MPD_CMD_PLAYLISTMOVE,        3,  3 },
     { "rename",           MPD_CMD_RENAME,              2,  2 },
+
+    /* 5228: arities from AllCommands.cxx */
+    { "listfiles",        MPD_CMD_LISTFILES,           0,  1 },
 };
 
 #define N_CMDS  (sizeof(s_cmds) / sizeof(s_cmds[0]))

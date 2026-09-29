@@ -200,6 +200,9 @@ typedef enum {
 
     /* 5223: stored playlists edited in place */
     MPD_CMD_PLAYLISTCLEAR, MPD_CMD_PLAYLISTMOVE, MPD_CMD_RENAME,
+
+    /* 5228: a folder as the card has it, indexed or not */
+    MPD_CMD_LISTFILES,
 } mpd_cmd_kind_t;
 
 /*

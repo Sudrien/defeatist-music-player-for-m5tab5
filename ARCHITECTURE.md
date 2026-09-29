@@ -18393,3 +18393,31 @@ tags and lengths the index does not keep.
 
 Compiled -O2 -Wall -Wextra on the host stubs: mpd.c, no warnings.
 texttest all passes. Not on the board.
+
+### 5234 -- mpd: negative unsigned arguments; add of a missing path
+
+The first board run of mpdcheck on a current build (v0.4.0-256-g41cbd2c)
+passed 267 of 269. The two failures:
+
+- `crossfade -1` was ACK 5 "crossfade is not supported" where MPD says
+  ACK 2. arg_unsigned() used strtoul(), which accepts a sign and
+  negates: "-1" read as ULONG_MAX, which on this target is UINT32_MAX
+  and so inside every `hi` of UINT32_MAX, and the value went on to the
+  handler. Any unsigned argument had the same hole (`playlistid -1`
+  looked up id 4294967295 and said No such song, which happened to be
+  harmless). A '-' anywhere is now "Integer expected", ARG.
+- `add` of a folder that does not exist was ACK 5 "adding a folder or a
+  file this player cannot play is not supported". mpd.c's uri_is_dir()
+  (5227) is false for a missing path, so it went to add_uri() and
+  ui_task, which checked "a playable file or a cue track" before "is it
+  there" -- and a path that is not there is neither. The player.c
+  branch now stats the path first and answers NO_FILE, which mpd.c
+  sends as NO_EXIST. A cue track (efp != epath) does not take that
+  branch; its audio is stat'ed below as before. The remote page shares
+  the path and now also says "no such file" for a path that is not on
+  the card.
+
+Compiled -O2 -Wall -Wextra on the host stubs: mpd.c, no warnings.
+player.c is not host-compilable (too many IDF headers); the change is
+a stat() in a block that already stat()s a few lines later. texttest
+all passes. The board run to confirm: mpdcheck, which checks both.

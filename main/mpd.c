@@ -462,7 +462,11 @@ static bool arg_unsigned(const ctx_t *x, const char *s, unsigned long hi,
     char *end;
     errno = 0;
     const unsigned long v = strtoul(s, &end, 10);
-    if (end == s || *end != '\0') {
+    /* 5234: strtoul() takes a sign and negates, so "-1" read as ULONG_MAX
+     * -- UINT32_MAX here, inside every `hi` that is UINT32_MAX -- and
+     * `crossfade -1` got past the check to be refused as unsupported
+     * rather than as the bad argument it is. */
+    if (end == s || *end != '\0' || strchr(s, '-')) {
         ack(x->c, MPD_ACK_ARG, x->idx, x->verb, "Integer expected: %s", s);
         return false;
     }

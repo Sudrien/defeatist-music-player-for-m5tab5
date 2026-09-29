@@ -7308,6 +7308,16 @@ static void ui_task(void *arg)
                      * would only be skipped as unreadable when reached. */
                     const char *const efp = cuedir_file_of(epath, efile, 512);
                     if (!decoder_supports(epath) && efp == epath) {
+                        /* 5234: a path that is not there at all is "no
+                         * such file", not "not a track" -- MPD's add of
+                         * a missing folder is NO_EXIST, and this said
+                         * the folder could not be played. */
+                        struct stat mst;
+                        if (stat(epath, &mst) != 0) {
+                            ESP_LOGI(TAG, "queue: no such file, not added: %s", epath);
+                            how = UIREQ_DONE_NO_FILE;
+                            break;
+                        }
                         ESP_LOGW(TAG, "queue: not a track, not added: %s", epath);
                         how = UIREQ_DONE_NOT_TRACK;
                         break;

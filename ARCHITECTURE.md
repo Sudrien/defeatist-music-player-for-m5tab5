@@ -17806,3 +17806,29 @@ The probe logs all four slots for either input now. What to look for:
 and 2 alive at room level (hundreds to a few thousand) and a file that
 is the room; on STEREO, tap the left microphone hole and see which
 channel jumps.
+
+### 5213 -- Capture DMA in smaller blocks, and a short wait for it
+
+Record pressed nine seconds after boot, while Wi-Fi was still joining:
+
+    capture before: DMA-capable internal 5839 free (largest 4352)
+    allocation failed: 1920 bytes ... i2s_tdm_set_slot
+    capture: ESP_ERR_NO_MEM; playback left as it was
+    record refused: The microphones did not start (ESP_ERR_NO_MEM).
+
+5209 held -- refused, playback untouched -- but the refusal was
+avoidable. Every other run shows 14-17 KB free a few seconds after the
+join; the radio's DMA use spikes while it associates and falls back.
+
+- The RX channel's DMA is 8 x 120 frames rather than 4 x 240: the same
+  7.5 KB and 20 ms at 48 kHz, in 960-byte blocks, which fit the
+  fragments the radio leaves (largest 4352 here) where 1920 need not.
+  rec_in still reads 240 frames at a time; a read spans descriptors.
+- capture_begin() tries rx_init() up to 5 times, 100 ms apart, while it
+  fails with ESP_ERR_NO_MEM, and logs `capture: DMA found on try N` when
+  a retry succeeds. At most 400 ms more before a refusal; the player is
+  paused for the recording anyway. A failed try logs IDF's "channel has
+  not been enabled yet" from the cleanup, as a single failure did.
+
+What does not change: if the pool stays short past half a second the
+recording is refused, with playback as it was.

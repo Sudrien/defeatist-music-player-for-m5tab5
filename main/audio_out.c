@@ -65,8 +65,15 @@ static const char *TAG = "tab5_audio";
  * and only the RX channel is new -- 4 x 240 x 8, 7.5 KB, on top of what
  * playback holds, never in place of it. See tx_reclock().
  */
-#define CAPTURE_DMA_DESC        (4)
-#define CAPTURE_DMA_FRAMES      (240)
+/* 5213: 8 x 120 rather than 4 x 240 -- the same 7.5 KB and 20 ms, in
+ * 960-byte blocks instead of 1920. On the board, pressed while Wi-Fi was
+ * joining, DMA was 5839 free with the largest block 4352; the radio's
+ * dip is brief, and smaller blocks fit the fragments it leaves. */
+#define CAPTURE_DMA_DESC        (8)
+#define CAPTURE_DMA_FRAMES      (120)
+/* 5213: how long a capture waits for that DMA before refusing. */
+#define CAPTURE_DMA_TRIES       (5)
+#define CAPTURE_DMA_WAIT_MS     (100)
 
 /* ---- ES8388 ---- */
 #define ES8388_ADDR             (0x10)
@@ -1149,6 +1156,14 @@ esp_err_t audio_out_capture_begin(audio_capture_src_t src)
     /* The RX channel first: it is the only allocation, and if it fails
      * nothing else has moved. */
     esp_err_t err = rx_init(src);
+    /* 5213: the radio's DMA use spikes while it joins or rekeys and
+     * falls back within a second; wait a little rather than refuse. */
+    for (int t = 1; err == ESP_ERR_NO_MEM && t < CAPTURE_DMA_TRIES; t++) {
+        rx_delete();
+        vTaskDelay(pdMS_TO_TICKS(CAPTURE_DMA_WAIT_MS));
+        err = rx_init(src);
+        if (err == ESP_OK) ESP_LOGI(TAG, "capture: DMA found on try %d", t + 1);
+    }
     if (err == ESP_OK) err = tx_reclock(AUDIO_CAPTURE_RATE, true);
     /* MCLK is at 256 x 48 kHz from here, which the ES7210 needs before
      * it will take a configuration. */

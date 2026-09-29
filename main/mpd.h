@@ -28,7 +28,12 @@
  * `search`, `find` and `count` (5180), `list` (5182). One partition, `default`, and one
  * mount, the root, over whichever volumes are in (5180).
  *
- * WHAT IT IS NOT, YET. No stored playlists (step 13). Adding a folder, part-queue `shuffle`, MPD 0.23's
+ * Stored playlists (step 13, 5184): `listplaylists`, `listplaylist`,
+ * `listplaylistinfo`, `load`, `save`, `rm`, as `Playlists/<name>.m3u` on
+ * the card or the drive.
+ *
+ * WHAT IT IS NOT, YET. No `playlistadd`, `playlistdelete`, `rename` or
+ * the other playlist editing verbs; save the queue instead. Adding a folder, part-queue `shuffle`, MPD 0.23's
  * relative positions ("+1") and 0.21's filter expressions are refused
  * and say so. No IPv6 listener.
  *

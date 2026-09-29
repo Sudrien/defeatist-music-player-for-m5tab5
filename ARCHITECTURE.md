@@ -17058,3 +17058,65 @@ volumes in: the boot heap map's `DMA free` about 21 KB higher than 204's
 and Wi-Fi joining whichever side of the radio the USB mount lands. What
 would say it is wrong: a `rtctask: ... made in the ordinary heap` line
 (RTCRAM refused), or a panic naming one of the five tasks.
+
+### 5184 -- mpd: stored playlists, in a Playlists folder
+
+MPD.md step 13, the one it called optional. Cantata asked for
+`listplaylists` and `listplaylistinfo` on every connect, and the board
+logs have `save` and `rm` from its "save queue as playlist". So:
+`listplaylists`, `listplaylist`, `listplaylistinfo`, `load`, `save` and
+`rm`.
+
+**Where: `<mount>/Playlists/<name>.m3u`**, beside the recorder's
+`Recordings/` folder and made the same way (`mkdir` on the first save).
+Plain `.m3u`, one entry a line, and the entry is the library URI
+(`Album/01 Track.mp3`) rather than a VFS path. It names no volume, so a
+playlist still works after an album moves between the card and the
+drive, and it is what a client sends and is shown everywhere else. A
+line starting `#` is a comment. A VFS path (`/usb/...`) is read too, so a
+file written by hand works. A station URL is listed but not queued.
+
+**Both volumes, merged by name, SD winning**, as the library is:
+`listplaylists` reads both folders and lists a name once, with the
+file's `Last-Modified`. `save` writes where the name already is,
+otherwise to the SD, otherwise to the drive. `rm` removes the name from
+both. Names are MPD's rule -- not empty, no `/`, no newline -- plus no
+leading `.`, which FAT would hide, and 128 bytes at most. `save` takes
+MPD 0.24's mode: `create` (the default, `Playlist already exists` if it
+does), `append` or `replace`. It writes the queue the client sees; a
+window of one (a station, or a file outside an empty queue) is not a
+queue and saves nothing. `load NAME START:END` is refused by name.
+
+**`load` is one edit, not one per track.** `UIREQ_EDIT_LOAD` carries the
+file's path to `ui_task`, which reads it and appends each entry through
+`playlist_add()`. Each entry is resolved as `add` resolves one (SD first,
+then USB), checked the same way (something the chooser would list, and
+there), and skipped otherwise. The outcome carries the count, and the
+log says `queue: loaded N from <path>, M skipped`. A 200-track playlist
+is one `ui_task` pass of card reads rather than 200 round trips at
+~130 ms.
+
+**Files are opened only under a brief hold.** `storage.c` gains a
+fourth hold, `storage_hold_brief()`/`storage_release_brief()`, counted
+per volume so two holders do not release each other: a playlist file
+open on the MPD task or `ui_task` defers an unmount until it is
+closed, as the readers' mask (5176) does for the index.
+
+`save` and `rm` raise `stored_playlist` for `idle`, so a second client's
+list updates.
+
+Not in this patch: `playlistadd`, `playlistdelete`, `playlistmove`,
+`playlistclear` and `rename` (editing a playlist in place). They are not
+in `mpdproto.c`'s table, so they are `unknown command` as before; saving
+the queue is the way to change one. `starred.m3u` and `stations.m3u` stay
+where they are and are not listed as playlists.
+
+Not host-tested: `mpd.c` and `player.c`. `mpd.c` compiled
+`-fsyntax-only -Wall -Wextra` against stub IDF headers outside the
+repository. Not built with ESP-IDF, not run on a board. No
+`sdkconfig.defaults` or `idf_component.yml` change. What a board run
+should show: no `listplaylists`/`listplaylistinfo` refusals on connect;
+Cantata's "save queue as playlist" making `/sd/Playlists/<name>.m3u`
+(`client N: save "<name>": K entries to ...`); the playlist in Cantata's
+Playlists view, its tracks listed with tags; loading it logging `queue:
+loaded K from ...`; and deleting it from Cantata removing the file.

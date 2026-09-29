@@ -148,11 +148,15 @@ static volatile int s_held_bg = STORAGE_COUNT;
  * may have files open on both volumes at once -- MPD's merged listing --
  * so it is a mask of volumes rather than one. */
 static volatile uint32_t s_held_rd;
+/* 5184: brief holds, counted per volume -- a playlist file open for a
+ * moment, on whichever task. */
+static volatile int s_held_brief[STORAGE_COUNT];
+static portMUX_TYPE s_brief_mux = portMUX_INITIALIZER_UNLOCKED;
 
 static bool held(storage_id_t id)
 {
     return s_held == id || s_held_bg == id ||
-           (id < STORAGE_COUNT && (s_held_rd & (1u << id)));
+           (id < STORAGE_COUNT && ((s_held_rd & (1u << id)) || s_held_brief[id] > 0));
 }
 
 /* When the USB liveness probe last ran. Set on mount as well, so a
@@ -318,6 +322,22 @@ uint32_t storage_generation(void) { return s_generation; }
 void storage_hold(storage_id_t id) { s_held = id; }
 void storage_hold_background(storage_id_t id) { s_held_bg = id; }
 void storage_hold_readers(uint32_t mask) { s_held_rd = mask; }
+
+void storage_hold_brief(storage_id_t id)
+{
+    if (id >= STORAGE_COUNT) return;
+    taskENTER_CRITICAL(&s_brief_mux);
+    s_held_brief[id]++;
+    taskEXIT_CRITICAL(&s_brief_mux);
+}
+
+void storage_release_brief(storage_id_t id)
+{
+    if (id >= STORAGE_COUNT) return;
+    taskENTER_CRITICAL(&s_brief_mux);
+    if (s_held_brief[id] > 0) s_held_brief[id]--;
+    taskEXIT_CRITICAL(&s_brief_mux);
+}
 
 /* Answered by the bus owner. Kept as a one-line forward rather than
  * deleted so browser.c does not have to learn about usbhost.c to ask a

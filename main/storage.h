@@ -227,6 +227,16 @@ void storage_hold_background(storage_id_t id);
  */
 void storage_hold_readers(uint32_t mask);
 
+/*
+ * 5184: a fourth, for a file held open a moment by anyone -- a stored
+ * playlist being read or written, on the MPD task or ui_task. Counted per
+ * volume, so two holders on one volume do not release each other; every
+ * hold is paired with a release. Hold BEFORE checking the volume is
+ * present and opening, release after the close.
+ */
+void storage_hold_brief(storage_id_t id);
+void storage_release_brief(storage_id_t id);
+
 #ifdef __cplusplus
 }
 #endif

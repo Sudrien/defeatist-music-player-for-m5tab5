@@ -473,6 +473,10 @@ nothing is left half-built if the series stops.
     format is not new, but this is the first thing on the list that is
     optional.
 
+    **Done in 5184**, because Cantata asked on every connect: the six
+    verbs of the table, over `Playlists/<name>.m3u` at a volume's root,
+    beside `Recordings/`, with library URIs in them.
+
 Nothing here has been on hardware, nothing has been built, and steps 1
 and 2 are worth doing whatever happens to the rest.
 

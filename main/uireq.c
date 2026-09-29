@@ -89,7 +89,8 @@ uint32_t uireq_edit(uireq_source_t src, const uireq_edit_t *e, const char *path,
 {
     if (!s_mu || !e || (unsigned)src >= UIREQ_SOURCES) return 0;
     char *copy = NULL;
-    if (e->kind == UIREQ_EDIT_ADD || e->kind == UIREQ_EDIT_ADD_NEXT) {
+    if (e->kind == UIREQ_EDIT_ADD || e->kind == UIREQ_EDIT_ADD_NEXT ||
+        e->kind == UIREQ_EDIT_LOAD) {                      /* 5184 */
         if (!path || len == 0 || len >= UIREQ_PATH_MAX) return 0;
         /* Copied before the lock: an allocation is not a thing to do
          * while the other producer waits. */

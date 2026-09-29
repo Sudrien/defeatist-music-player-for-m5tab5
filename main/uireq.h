@@ -91,6 +91,9 @@ typedef enum {
     UIREQ_EDIT_MOVE,        /* id, to position pos */
     UIREQ_EDIT_CLEAR,
     UIREQ_EDIT_SHUFFLE,     /* 5175: the whole queue */
+    UIREQ_EDIT_LOAD,        /* 5184: path is a stored playlist's VFS path;
+                             * its entries go on the end, the id out is
+                             * how many were added */
 } uireq_edit_kind_t;
 
 typedef struct {
@@ -113,7 +116,7 @@ typedef enum {
     UIREQ_DONE_NO_FILE,     /* an add of a path that is not there */
     UIREQ_DONE_FULL,        /* an add to a full queue */
     UIREQ_DONE_BAD_POS,     /* a position that is not one */
-    UIREQ_DONE_GONE,        /* no entry has that id */
+    UIREQ_DONE_GONE,        /* no entry has that id; 5184: no such playlist */
 } uireq_done_t;
 
 /* Once, from app_main(), before remote_init(), mpd_init() and ui_task. */

@@ -86,6 +86,9 @@
 #include "mediasearch.h"        /* 5180 */
 #include "storage_io.h"         /* 5180: the search file's reads */
 #include <strings.h>            /* 5180: strcasecmp() for tag names */
+#include <dirent.h>             /* 5184: the Playlists folder */
+#include <sys/stat.h>
+#include <time.h>
 #include "mpdidle.h"         /* 5160 */
 #include "mpdmode.h"
 #include "mpdqueue.h"         /* 5166 */
@@ -710,6 +713,9 @@ static bool answered(mpd_cmd_kind_t k)
     case MPD_CMD_LISTPARTITIONS: case MPD_CMD_PARTITION:                   /* 5180 */
     case MPD_CMD_FIND: case MPD_CMD_SEARCH: case MPD_CMD_COUNT:
     case MPD_CMD_LIST:                                                     /* 5182 */
+    case MPD_CMD_LISTPLAYLISTS: case MPD_CMD_LISTPLAYLIST:                 /* 5184 */
+    case MPD_CMD_LISTPLAYLISTINFO: case MPD_CMD_LOAD:
+    case MPD_CMD_SAVE: case MPD_CMD_RM:
     case MPD_CMD_DELPARTITION: case MPD_CMD_MOVEOUTPUT:
     case MPD_CMD_LISTMOUNTS: case MPD_CMD_LISTNEIGHBORS:
         return true;
@@ -1844,6 +1850,281 @@ static result_t lib_list(const ctx_t *x, const mpd_cmd_t *cmd)
     return RES_OK;
 }
 
+/* ---- stored playlists (5184, MPD.md step 13) ------------------------------ */
+
+/*
+ * `<mount>/Playlists/<name>.m3u`, beside the recorder's `Recordings`
+ * folder, made the first time something is saved. One URI a line, the
+ * library URI (`Album/01 Track.mp3`): no volume in it, so a playlist
+ * survives an album moving between the card and the drive, and the SD
+ * is tried first when it is loaded, as `add` does. A line starting '#'
+ * is a comment; a VFS path ("/usb/...") is read too, so a file written
+ * by hand works.
+ *
+ * Both volumes' folders are read and merged by name; a name on both is
+ * the SD's, and `rm` removes it from both. `save` writes to the SD when
+ * there is one. Names are MPD's rule: not empty, no '/', no newline, and
+ * here also no leading '.', which FAT would hide.
+ *
+ * FILES OPEN ONLY UNDER storage_hold_brief(), so a volume pulled during
+ * a read or a write waits for the close to unmount.
+ */
+#define PL_DIR          "Playlists"
+#define PL_EXT          ".m3u"
+#define PL_NAME_MAX     (128)
+
+static bool pl_name_ok(const char *n)
+{
+    const size_t len = n ? strlen(n) : 0;
+    if (len == 0 || len > PL_NAME_MAX || n[0] == '.') return false;
+    return !strpbrk(n, "/\\\n\r");
+}
+
+static const storage_id_t s_pl_vols[MEDIALIST_VOLS] = { STORAGE_SD, STORAGE_USB };
+
+/* "<mount>/Playlists/<name>.m3u", or false if it does not fit. */
+static bool pl_path(storage_id_t v, const char *name, char *out, size_t cap)
+{
+    const int k = snprintf(out, cap, "%s/" PL_DIR "/%s" PL_EXT, storage_mount_path(v), name);
+    return k > 0 && (size_t)k < cap;
+}
+
+static void pl_changed(void)
+{
+    xSemaphoreTake(s_mu, portMAX_DELAY);
+    s_events |= MPD_IDLE_STORED_PLAYLIST;
+    xSemaphoreGive(s_mu);
+}
+
+static void put_mtime(conn_t *c, time_t t)
+{
+    struct tm tm;
+    char ts[32];
+    if (!gmtime_r(&t, &tm) || !strftime(ts, sizeof(ts), "%Y-%m-%dT%H:%M:%SZ", &tm)) return;
+    putf(c, "Last-Modified: %s\n", ts);
+}
+
+static int cmp_str(const void *a, const void *b)
+{
+    return strcmp(*(char *const *)a, *(char *const *)b);
+}
+
+static result_t pl_list(const ctx_t *x)
+{
+    conn_t *const c = x->c;
+    /* Up to 256 names from both folders; PSRAM, this command's. */
+    enum { MAXN = 256 };
+    char **names = heap_caps_calloc(MAXN, sizeof(char *), MALLOC_CAP_SPIRAM | MALLOC_CAP_8BIT);
+    time_t *mt = heap_caps_calloc(MAXN, sizeof(time_t), MALLOC_CAP_SPIRAM | MALLOC_CAP_8BIT);
+    char *dir = s_lib->vfs;
+    int n = 0;
+    for (int v = 0; names && mt && v < MEDIALIST_VOLS; v++) {
+        storage_hold_brief(s_pl_vols[v]);
+        DIR *d = NULL;
+        if (storage_present(s_pl_vols[v])) {
+            snprintf(dir, sizeof(s_lib->vfs), "%s/" PL_DIR, storage_mount_path(s_pl_vols[v]));
+            d = opendir(dir);
+        }
+        struct dirent *e;
+        while (d && n < MAXN && (e = readdir(d)) != NULL) {
+            const size_t l = strlen(e->d_name);
+            if (e->d_type == DT_DIR || l <= 4 || e->d_name[0] == '.' ||
+                strcasecmp(e->d_name + l - 4, PL_EXT) != 0) continue;
+            char *nm = heap_caps_malloc(l - 3, MALLOC_CAP_SPIRAM | MALLOC_CAP_8BIT);
+            if (!nm) break;
+            memcpy(nm, e->d_name, l - 4);
+            nm[l - 4] = '\0';
+            bool dup = false;
+            for (int k = 0; k < n && !dup; k++) dup = strcmp(names[k], nm) == 0;
+            if (dup) { free(nm); continue; }       /* the SD's already */
+            char *const p = s_lib->uri;
+            struct stat st;
+            mt[n] = (pl_path(s_pl_vols[v], nm, p, sizeof(s_lib->uri)) && stat(p, &st) == 0) ? st.st_mtime : 0;
+            names[n++] = nm;
+        }
+        if (d) closedir(d);
+        storage_release_brief(s_pl_vols[v]);
+    }
+    /* Sorted by name, the modification times carried along by index. */
+    char **sorted = heap_caps_malloc((size_t)(n ? n : 1) * sizeof(char *), MALLOC_CAP_SPIRAM | MALLOC_CAP_8BIT);
+    if (sorted) {
+        for (int i = 0; i < n; i++) sorted[i] = names[i];
+        qsort(sorted, (size_t)n, sizeof(char *), cmp_str);
+        for (int i = 0; i < n && !c->broken; i++) {
+            int k = 0;
+            while (k < n && names[k] != sorted[i]) k++;
+            const size_t w = mpdproto_kv("playlist", sorted[i], s_body, MPD_BODY_MAX);
+            if (w) put(c, s_body, w);
+            if (k < n && mt[k]) put_mtime(c, mt[k]);
+        }
+    }
+    for (int i = 0; i < n; i++) free(names[i]);
+    free(names); free(mt); free(sorted);
+    return RES_OK;
+}
+
+/* The volume whose folder has `name` (SD first), its path in `out`; -1. */
+static int pl_find(const char *name, char *out, size_t cap)
+{
+    for (int v = 0; v < MEDIALIST_VOLS; v++) {
+        if (!storage_present(s_pl_vols[v]) || !pl_path(s_pl_vols[v], name, out, cap)) continue;
+        struct stat st;
+        if (stat(out, &st) == 0 && S_ISREG(st.st_mode)) return v;
+    }
+    return -1;
+}
+
+static result_t pl_contents(const ctx_t *x, const char *name, bool info)
+{
+    conn_t *const c = x->c;
+    char *const path = s_lib->vfs;
+    if (!pl_name_ok(name)) {
+        ack(c, MPD_ACK_ARG, x->idx, x->verb, "Bad playlist name");
+        return RES_ERR;
+    }
+    const int v = pl_find(name, path, sizeof(s_lib->vfs));
+    if (v < 0) {
+        ack(c, MPD_ACK_NO_EXIST, x->idx, x->verb, "No such playlist");
+        return RES_ERR;
+    }
+    if (info && !lib_open(x)) return RES_ERR;
+    storage_hold_brief(s_pl_vols[v]);
+    FILE *f = storage_present(s_pl_vols[v]) ? fopen(path, "r") : NULL;
+    char *const line = s_lib->sbuf;
+    char *const uri = s_lib->uri;
+    while (f && !c->broken && fgets(line, MEDIASEARCH_LINE_MAX, f)) {
+        size_t n = strlen(line);
+        while (n && (line[n - 1] == '\n' || line[n - 1] == '\r' || line[n - 1] == ' ')) line[--n] = '\0';
+        if (!n || line[0] == '#') continue;
+        /* A VFS path is shown as its URI; a station URL as itself. */
+        if (line[0] == '/' && mpduri_from_vfs(line, uri, sizeof(s_lib->uri))) { /* uri set */ }
+        else snprintf(uri, sizeof(s_lib->uri), "%s", line);
+        midx_rec_t *const r = &s_lib->rec;
+        const int lv = info ? lib_file(uri, r) : -1;
+        if (lv >= 0) {
+            put_lib_file(c, lv, r, uri, true);
+        } else {
+            const size_t w = mpdproto_kv("file", uri, s_body, MPD_BODY_MAX);
+            if (w) put(c, s_body, w);
+        }
+    }
+    if (f) fclose(f);
+    storage_release_brief(s_pl_vols[v]);
+    if (info) lib_close();
+    return RES_OK;
+}
+
+static result_t pl_save(const ctx_t *x, const char *name, const char *mode)
+{
+    conn_t *const c = x->c;
+    char *const path = s_lib->vfs;
+    if (!pl_name_ok(name)) {
+        ack(c, MPD_ACK_ARG, x->idx, x->verb, "Bad playlist name");
+        return RES_ERR;
+    }
+    /* MPD 0.24's mode: create (the default), append, replace. */
+    const bool append = mode && strcmp(mode, "append") == 0;
+    const bool replace = mode && strcmp(mode, "replace") == 0;
+    if (mode && !append && !replace && strcmp(mode, "create") != 0) {
+        ack(c, MPD_ACK_ARG, x->idx, x->verb, "Unrecognized save mode: %s", mode);
+        return RES_ERR;
+    }
+    const int have = pl_find(name, path, sizeof(s_lib->vfs));
+    if (have >= 0 && !append && !replace) {
+        ack(c, MPD_ACK_EXIST, x->idx, x->verb, "Playlist already exists");
+        return RES_ERR;
+    }
+    /* Where it already is, or the SD, or the drive. */
+    int v = have;
+    for (int k = 0; v < 0 && k < MEDIALIST_VOLS; k++) if (storage_present(s_pl_vols[k])) v = k;
+    if (v < 0) {
+        ack(c, MPD_ACK_SYSTEM, x->idx, x->verb, "no card or drive to save it on");
+        return RES_ERR;
+    }
+    const storage_id_t vol = s_pl_vols[v];
+    storage_hold_brief(vol);
+    snprintf(path, sizeof(s_lib->vfs), "%s/" PL_DIR, storage_mount_path(vol));
+    if (mkdir(path, 0777) != 0 && errno != EEXIST) {
+        storage_release_brief(vol);
+        ack(c, MPD_ACK_SYSTEM, x->idx, x->verb, "could not make the " PL_DIR " folder");
+        return RES_ERR;
+    }
+    FILE *f = (storage_present(vol) && pl_path(vol, name, path, sizeof(s_lib->vfs)))
+            ? fopen(path, append ? "a" : "w") : NULL;
+    int wrote = 0;
+    bool ok = f != NULL;
+    if (f) {
+        list_pin();
+        /* The queue as the client sees it -- a window of one is not a
+         * queue, and a station has no library URI, so neither is saved. */
+        for (int i = 0; ok && !s_list->window && i < s_list->n; i++) {
+            ok = fprintf(f, "%s\n", list_uri(i)) > 0;
+            wrote++;
+        }
+        list_unpin();
+        ok = (fclose(f) == 0) && ok;
+    }
+    storage_release_brief(vol);
+    if (!ok) {
+        ack(c, MPD_ACK_SYSTEM, x->idx, x->verb, "could not write the playlist");
+        return RES_ERR;
+    }
+    ESP_LOGI(TAG, "client %d: %s \"%s\": %d entries to %s", c->fd, x->verb, name, wrote, path);
+    pl_changed();
+    return RES_OK;
+}
+
+static result_t pl_rm(const ctx_t *x, const char *name)
+{
+    conn_t *const c = x->c;
+    char *const path = s_lib->vfs;
+    if (!pl_name_ok(name)) {
+        ack(c, MPD_ACK_ARG, x->idx, x->verb, "Bad playlist name");
+        return RES_ERR;
+    }
+    int gone = 0;
+    for (int v = 0; v < MEDIALIST_VOLS; v++) {
+        storage_hold_brief(s_pl_vols[v]);
+        if (storage_present(s_pl_vols[v]) && pl_path(s_pl_vols[v], name, path, sizeof(s_lib->vfs)) &&
+            remove(path) == 0) gone++;
+        storage_release_brief(s_pl_vols[v]);
+    }
+    if (!gone) {
+        ack(c, MPD_ACK_NO_EXIST, x->idx, x->verb, "No such playlist");
+        return RES_ERR;
+    }
+    pl_changed();
+    return RES_OK;
+}
+
+static result_t pl_load(const ctx_t *x, const char *name, const char *range)
+{
+    conn_t *const c = x->c;
+    char *const path = s_lib->vfs;
+    if (!pl_name_ok(name)) {
+        ack(c, MPD_ACK_ARG, x->idx, x->verb, "Bad playlist name");
+        return RES_ERR;
+    }
+    if (range) {
+        ack(c, MPD_ACK_UNKNOWN, x->idx, x->verb,
+            "loading part of a playlist is not supported by this player yet");
+        return RES_ERR;
+    }
+    if (pl_find(name, path, sizeof(s_lib->vfs)) < 0) {
+        ack(c, MPD_ACK_NO_EXIST, x->idx, x->verb, "No such playlist");
+        return RES_ERR;
+    }
+    const uireq_edit_t e = { .kind = UIREQ_EDIT_LOAD, .pos = -1 };
+    uireq_done_t how = UIREQ_DONE_OK;
+    uint32_t added = 0;
+    if (!ask_edit(x, &e, path, &how, &added)) return RES_ERR;
+    if (how != UIREQ_DONE_OK) {
+        ack(c, MPD_ACK_NO_EXIST, x->idx, x->verb, "No such playlist");
+        return RES_ERR;
+    }
+    return RES_OK;
+}
+
 static result_t run_cmd(conn_t *c, const mpd_cmd_t *cmd, int idx)
 {
     const ctx_t x = { c, idx, cmd->verb };
@@ -1861,6 +2142,14 @@ static result_t run_cmd(conn_t *c, const mpd_cmd_t *cmd, int idx)
         list_unpin();
         return r;
     }
+
+    /* 5184: stored playlists. */
+    case MPD_CMD_LISTPLAYLISTS:    return pl_list(&x);
+    case MPD_CMD_LISTPLAYLIST:     return pl_contents(&x, a0, false);
+    case MPD_CMD_LISTPLAYLISTINFO: return pl_contents(&x, a0, true);
+    case MPD_CMD_SAVE:             return pl_save(&x, a0, cmd->argc > 1 ? cmd->argv[1] : NULL);
+    case MPD_CMD_RM:               return pl_rm(&x, a0);
+    case MPD_CMD_LOAD:             return pl_load(&x, a0, cmd->argc > 1 ? cmd->argv[1] : NULL);
 
     /* 5180: search, find and count. */
     case MPD_CMD_FIND:   return lib_find(&x, cmd, Q_FIND);

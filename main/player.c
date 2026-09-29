@@ -7042,6 +7042,68 @@ static int file_star_state(void)
     return state;
 }
 
+/*
+ * 5184: MPD's `load` -- a stored playlist's entries onto the end of the
+ * queue, here on ui_task in one edit rather than an `add` round trip per
+ * line. `path` is the .m3u's VFS path. An entry is a library URI
+ * (relative, found on the SD first and then the USB drive, as `add` finds
+ * one) or a VFS path; a line starting '#' is a comment, a URL is a
+ * station and not a queue entry, and anything the chooser would not list
+ * or that is not on the card is skipped. False only when the file cannot
+ * be opened -- MPD's "No such playlist".
+ */
+static bool queue_load_m3u(const char *path, int *added_out)
+{
+    /* PSRAM, once: a line and the path it resolves to. */
+    static char *line, *vfs, *audio;
+    if (!line && (line = heap_caps_malloc(3 * 1024, MALLOC_CAP_SPIRAM | MALLOC_CAP_8BIT))) {
+        vfs = line + 1024;
+        audio = line + 2048;
+    }
+    if (!line) return false;
+
+    const storage_id_t vol = strncmp(path, STORAGE_USB_MOUNT "/", 5) == 0 ? STORAGE_USB : STORAGE_SD;
+    storage_hold_brief(vol);
+    FILE *f = storage_present(vol) ? fopen(path, "r") : NULL;
+    if (!f) {
+        storage_release_brief(vol);
+        ESP_LOGI(TAG, "queue: no playlist at %s", path);
+        return false;
+    }
+    int added = 0, skipped = 0;
+    while (fgets(line, 1024, f)) {
+        size_t n = strlen(line);
+        while (n && (line[n - 1] == '\n' || line[n - 1] == '\r' || line[n - 1] == ' ')) line[--n] = '\0';
+        if (!n || line[0] == '#') continue;
+        if (strstr(line, "://")) { skipped++; continue; }          /* a station */
+        bool found = false;
+        static const char *const mounts[] = { STORAGE_SD_MOUNT, STORAGE_USB_MOUNT };
+        for (int m = 0; m < 2 && !found; m++) {
+            int k;
+            if (line[0] == '/') {
+                if (m) break;                                       /* a VFS path: as it is */
+                k = snprintf(vfs, 1024, "%s", line);
+            } else {
+                k = snprintf(vfs, 1024, "%s/%s", mounts[m], line);
+            }
+            if (k <= 0 || k >= 1024) continue;
+            const char *af = cuedir_file_of(vfs, audio, 1024);
+            if (!decoder_supports(vfs) && af == vfs) continue;
+            struct stat st;
+            if (stat(af, &st) != 0 || !S_ISREG(st.st_mode)) continue;
+            found = true;
+        }
+        if (!found) { skipped++; continue; }
+        if (playlist_add(vfs, -1) < 0) { skipped++; break; }       /* full */
+        added++;
+    }
+    fclose(f);
+    storage_release_brief(vol);
+    ESP_LOGI(TAG, "queue: loaded %d from %s, %d skipped", added, path, skipped);
+    if (added_out) *added_out = added;
+    return true;
+}
+
 static void ui_task(void *arg)
 {
     ui_state_t st;
@@ -7231,6 +7293,12 @@ static void ui_task(void *arg)
                     playlist_shuffle();
                     ESP_LOGI(TAG, "queue: shuffled");
                     break;
+                case UIREQ_EDIT_LOAD: {                     /* 5184 */
+                    int added = 0;
+                    if (!queue_load_m3u(epath, &added)) how = UIREQ_DONE_GONE;
+                    new_id = (uint32_t)added;
+                    break;
+                }
                 }
                 uireq_edit_done(e.seq, how, new_id);
             }

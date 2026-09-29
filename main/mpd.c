@@ -256,10 +256,8 @@ static uint32_t          s_last_id; /* ui_task's: ids are never reused */
  * up from 1 and would need a billion appends in one boot to meet them,
  * and still a positive int.
  *
- * Tags are known for the song that is playing and for nothing else: the
- * catalog has them (mediacat.h) but looking every entry up is step 12's
- * query layer. Until then the other entries are `file:` with a position
- * and an id, and a client shows the file name.
+ * Tags are known for the song that is playing; since 5185 the other
+ * entries get theirs from the catalog as they are printed (lib_tags()).
  */
 #define MPD_WINDOW_ID       (0x40000000u)
 _Static_assert(MPD_WINDOW_ID + 0x3FFFFFFFu <= 0x7FFFFFFFu, "window ids must stay positive ints");
@@ -560,12 +558,15 @@ static int list_find_id(uint32_t id)
     return -1;
 }
 
+static bool lib_tags(const char *uri, mpd_song_t *s);   /* 5185 */
+
 /* Entry i of the pinned list. The playing song carries its tags and its
- * length; the others are known by path alone (see above). */
+ * length; since 5185 the others carry the catalog's tags when the
+ * library is open for the command (lib_tags()), and no length. */
 static void put_entry(conn_t *c, int i)
 {
     const bool cur = i == s_view->song;
-    const mpd_song_t s = {
+    mpd_song_t s = {
         .uri = list_uri(i),
         .title = cur ? s_view->title : NULL,
         .artist = cur ? s_view->artist : NULL,
@@ -574,6 +575,7 @@ static void put_entry(conn_t *c, int i)
         .pos = i,
         .id = s_list->id[i],
     };
+    if (!cur) (void)lib_tags(s.uri, &s);
     const size_t n = mpdproto_song(&s, s_body, MPD_BODY_MAX);
     if (n) put(c, s_body, n);
 }
@@ -1204,6 +1206,27 @@ static int lib_file(const char *uri, midx_rec_t *r)
         if (midx_find(s, uri, r) >= 0 && !(r->flags & MIDX_F_DEAD)) return v;
     }
     return -1;
+}
+
+/*
+ * 5185: a queue entry's tags from the catalog, when the library is open
+ * (run_cmd() opens it for the commands that print entries). Cantata
+ * showed every entry but the playing one as unknown artist and album:
+ * put_entry() had only the playing song's tags, and a client groups the
+ * queue by them. The strings point into s_rd[], good until the next
+ * medialib_rd_cat() on that volume -- put_entry() prints before that.
+ */
+static bool lib_tags(const char *uri, mpd_song_t *s)
+{
+    if (!uri || !uri[0] || (!s_rd_open[0] && !s_rd_open[1])) return false;
+    midx_rec_t *const r = &s_lib->rec;
+    const int v = lib_file(uri, r);
+    if (v < 0 || !medialib_rd_cat(&s_rd[v], r->cat_off)) return false;
+    const mediacat_rec_t *m = s_rd[v].rec;
+    s->title = m->title[0] ? m->title : NULL;
+    s->artist = m->artist[0] ? m->artist : NULL;
+    s->album = m->album[0] ? m->album : NULL;
+    return true;
 }
 
 /* 5180: the refusal says which path, in the log. The board run after 5179
@@ -1967,10 +1990,18 @@ static result_t pl_list(const ctx_t *x)
 static int pl_find(const char *name, char *out, size_t cap)
 {
     for (int v = 0; v < MEDIALIST_VOLS; v++) {
-        if (!storage_present(s_pl_vols[v]) || !pl_path(s_pl_vols[v], name, out, cap)) continue;
+        /* 5185: held, as storage.h asks; the stat was not. Whether that
+         * is why `listplaylistinfo` said No such playlist straight after
+         * a `save` wrote the file is not known -- the log line below
+         * says what name was asked for. */
+        storage_hold_brief(s_pl_vols[v]);
         struct stat st;
-        if (stat(out, &st) == 0 && S_ISREG(st.st_mode)) return v;
+        const bool is = storage_present(s_pl_vols[v]) && pl_path(s_pl_vols[v], name, out, cap) &&
+                        stat(out, &st) == 0 && S_ISREG(st.st_mode);
+        storage_release_brief(s_pl_vols[v]);
+        if (is) return v;
     }
+    ESP_LOGI(TAG, "no stored playlist \"%.64s\"", name);
     return -1;
 }
 
@@ -2137,9 +2168,20 @@ static result_t run_cmd(conn_t *c, const mpd_cmd_t *cmd, int idx)
     case MPD_CMD_PLCHANGES: case MPD_CMD_PLCHANGESPOSID:
     case MPD_CMD_PLAY: case MPD_CMD_PLAYID:
     case MPD_CMD_SEEK: case MPD_CMD_SEEKID: {
+        /* 5185: the commands that print entries read their tags from the
+         * catalog. Not while a reindex runs: then they print as before,
+         * without, rather than being refused. */
+        const bool tags = cmd->kind == MPD_CMD_PLAYLISTINFO || cmd->kind == MPD_CMD_PLAYLISTID
+                       || cmd->kind == MPD_CMD_PLCHANGES;
+        if (tags && !medialib_busy()) {
+            static const storage_id_t vols[MEDIALIST_VOLS] = { STORAGE_SD, STORAGE_USB };
+            for (int v = 0; v < MEDIALIST_VOLS; v++)
+                s_rd_open[v] = medialib_rd_open(vols[v], &s_rd[v]);
+        }
         list_pin();
         const result_t r = run_list_cmd(c, cmd, idx);
         list_unpin();
+        if (tags) lib_close();
         return r;
     }
 

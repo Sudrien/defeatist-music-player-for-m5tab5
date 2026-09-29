@@ -17120,3 +17120,23 @@ Cantata's "save queue as playlist" making `/sd/Playlists/<name>.m3u`
 (`client N: save "<name>": K entries to ...`); the playlist in Cantata's
 Playlists view, its tracks listed with tags; loading it logging `queue:
 loaded K from ...`; and deleting it from Cantata removing the file.
+
+### 5185 -- mpd: queue entries carry the catalog's tags
+
+Cantata showed every queue entry but the playing one as unknown artist
+and album. `put_entry()` printed tags only for the playing song; the
+others were `file:` alone, as the comment above `qlist_t` had planned
+until step 12. Step 12's readers exist now (5176), so `playlistinfo`,
+`playlistid` and `plchanges` open the library for the command and each
+entry's Title, Artist and Album come from the catalog (`lib_tags()`),
+as `lsinfo`'s do. While a reindex runs they print as before rather than
+being refused. No length: the catalog does not hold one.
+
+Genre stays unknown, and will until the catalog stores it: mediacat.h
+has title, artist and album and nothing else, and `tagtypes` says so.
+
+Also: `pl_find()` holds the volume around its stat (storage.h's rule
+for brief holds, which it missed), and logs the name it did not find.
+v0.4.0-206 had `listplaylistinfo` answer No such playlist straight
+after `save "v"` wrote /sd/Playlists/v.m3u, and the refusal did not say
+what name was asked for.

@@ -78,6 +78,10 @@ PL_A = "__mpdcheck_a"
 PL_B = "__mpdcheck_b"
 PL_C = "__mpdcheck_c"
 
+# 5236: the id bit the player gives a window of one (mpd.c MPD_WINDOW_ID):
+# a station, or the track still playing after a clear.
+WINDOW_ID = 0x40000000
+
 # Every verb the server answers as of 5224 -- `commands` must list each.
 EXPECTED_COMMANDS = """
 ping close commands notcommands tagtypes urlhandlers decoders status stats
@@ -85,7 +89,7 @@ currentsong clearerror play playid pause stop next previous seek seekid
 seekcur setvol volume outputs replay_gain_mode replay_gain_status channels
 idle repeat random single consume add addid delete deleteid move moveid
 clear shuffle playlistinfo playlistid playlist plchanges plchangesposid
-lsinfo listall listallinfo find search list count listplaylists
+lsinfo listall listallinfo find search list count update rescan listplaylists
 listplaylist listplaylistinfo load save rm playlistadd playlistdelete
 listpartitions partition delpartition moveoutput listmounts listneighbors
 getvol password crossfade enableoutput disableoutput toggleoutput swap
@@ -457,8 +461,16 @@ class Checker:
         self.expect_ok("list genre (not held) is empty OK", "list genre")
 
         if self.a.reindex:
-            self.expect_ok("update", "update")
-            self.expect_ok("rescan", "rescan")
+            # 5236: a job id, and the run waited out -- while it runs the
+            # library answers "being indexed", and every check after
+            # this one reads it.
+            for verb in ("update", "rescan"):
+                r = self.expect_ok(verb, verb) or []
+                self.ok(f"{verb} answers updating_db: N", "updating_db" in kv(r), repr(r))
+                t = time.time()
+                while "updating_db" in self.status() and time.time() - t < 60:
+                    time.sleep(0.5)
+                self.ok(f"the {verb} run finishes", "updating_db" not in self.status())
         else:
             self.skip("update/rescan", "starts a reindex; pass --reindex")
         return True
@@ -496,7 +508,13 @@ class Checker:
 
     def trim_tests(self):
         """Delete everything after the listener's own entries."""
-        n = len(self.queue())
+        left = songs(self.c.cmd("playlistinfo"))
+        n = len(left)
+        # 5236: a window of one (the playing track after a clear, 5179) is
+        # not queue positions and cannot be deleted; there is nothing of
+        # the test's in it.
+        if n == 1 and int(left[0].get("Id", "0")) & WINDOW_ID:
+            return
         if n > self.base:
             try:
                 self.c.cmd(f"delete {self.base}:")
@@ -633,7 +651,14 @@ class Checker:
             self.expect_ok("shuffle", "shuffle")
             self.ok("shuffle keeps the same entries and ids", sorted(self.ids()) == before)
             self.expect_ok("clear", "clear")
-            self.ok("clear empties the queue", self.queue() == [])
+            # 5236: MPD stops on clear; this player plays on, and shows
+            # what is still playing as a window of one (5179) -- an entry
+            # whose id is a window id, and the current song. Either is
+            # an emptied queue.
+            left = songs(self.c.cmd("playlistinfo"))
+            win = (len(left) == 1 and int(left[0].get("Id", "0")) & WINDOW_ID and
+                   self.status().get("songid") == left[0].get("Id"))
+            self.ok("clear empties the queue", left == [] or win, repr(left[:2]))
             self.base = 0 if self.a.destructive else self.base
         else:
             self.skip("clear, shuffle", "they act on your whole queue; pass --destructive")

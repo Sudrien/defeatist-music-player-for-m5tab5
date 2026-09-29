@@ -18466,3 +18466,47 @@ texttest all passes. mpdcheck against stock MPD 0.23.5 with two queued
 and one playing: clear and shuffle skipped, queue and playback as
 before. Not yet on the board: a boot with a folder loaded and the
 chooser up, then mpdcheck, should show playlistlength 21 at once.
+
+### 5236 -- mpd: update and rescan; mpdcheck and a clear that plays on
+
+The first `--destructive --reindex` board run (v0.4.0-258-ga2b5c02):
+280 passed, 3 failed.
+
+UPDATE AND RESCAN were in the command table since step 12 and never
+answered -- "not supported by this player yet", and not in `commands`,
+which is why no earlier run noticed. They are MPD 0.20's core. Now:
+
+- `update [URI]` and `rescan [URI]` start a reindex (medialib_request(),
+  what the panel's REINDEX starts; it takes its own lock, so the server
+  task may call it). A run walks a whole volume, so a URI below a
+  volume reindexes that volume. The root reindexes both: the SD now,
+  and the USB started from mpd_publish() when the SD's run has ended
+  (s_update_next, under s_mu; retried each pass while the drive is in
+  and readers hold it off).
+- The answer is `updating_db: N`, a job id counted by this task, and
+  `status` carries the same N while the run goes. A run already going
+  -- automatic, the panel's, or an earlier update -- is answered with
+  its id rather than refused: MPD queues a second update, and this one
+  is already doing the walk.
+- `rescan` is the same run. The engine rereads what changed by its
+  stamp and has no "reread everything"; MPD's rescan does. Said here
+  and in the comment rather than pretended.
+
+CLEAR, AS DESIGNED. After `clear` the track that was playing plays on,
+and with the queue empty mpd_publish() shows it as a window of one
+(5179: "a window only when there is no queue to show"). MPD stops on
+clear and shows nothing. That is a deliberate difference, kept: the
+glass is still playing it. mpdcheck now takes an empty list, or one
+entry with a window id (MPD_WINDOW_ID, 0x40000000) that is the current
+song, as a cleared queue; and removing test entries leaves such a
+window alone -- the two "Bad song index" warnings on that run were the
+script deleting position 0 of it.
+
+mpdcheck also waits out each update's run (status without
+`updating_db`, up to 60 s), since the library answers "being indexed"
+while one goes and every later check reads it, and lists update and
+rescan among the verbs `commands` must name.
+
+Compiled -O2 -Wall -Wextra on the host stubs: mpd.c, no warnings.
+texttest all passes. mpdcheck --destructive --reindex against stock
+MPD 0.23.5: update, rescan and clear pass. Not on the board.

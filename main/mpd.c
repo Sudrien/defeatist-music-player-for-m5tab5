@@ -300,6 +300,10 @@ static const qlist_t    *s_list;            /* this task's, while pinned */
  */
 static uint32_t          s_events;  /* under s_mu */
 static uint32_t          s_pub_gen; /* 5235: publishes so far; under s_mu */
+/* 5236: `update` of the whole library starts one volume; the other is
+ * started from mpd_publish() when that run ends. Under s_mu. */
+static int               s_update_next = -1;    /* storage_id_t, or -1 */
+static uint32_t          s_update_job;          /* this task's: the last id given */
 static mpd_idle_track_t  s_track;   /* ui_task's */
 static medialib_state_t  s_db_was[STORAGE_COUNT];  /* ui_task's */
 
@@ -765,6 +769,7 @@ static bool answered(mpd_cmd_kind_t k)
     case MPD_CMD_MOVE: case MPD_CMD_MOVEID:
     case MPD_CMD_CLEAR: case MPD_CMD_SHUFFLE:
     case MPD_CMD_LSINFO: case MPD_CMD_LISTALL: case MPD_CMD_LISTALLINFO:   /* 5177 */
+    case MPD_CMD_UPDATE: case MPD_CMD_RESCAN:                              /* 5236 */
     case MPD_CMD_LISTPARTITIONS: case MPD_CMD_PARTITION:                   /* 5180 */
     case MPD_CMD_FIND: case MPD_CMD_SEARCH: case MPD_CMD_COUNT:
     case MPD_CMD_LIST:                                                     /* 5182 */
@@ -3383,6 +3388,57 @@ static result_t run_cmd(conn_t *c, const mpd_cmd_t *cmd, int idx)
     }
     case MPD_CMD_LIST:   return lib_list(&x, cmd, false);          /* 5182 */
 
+    /*
+     * 5236: `update [URI]` and `rescan [URI]` -- a reindex (medialib.h),
+     * what the panel's REINDEX button starts. The index is per volume and
+     * a run walks the whole volume, so a URI below a volume reindexes
+     * that volume; the root reindexes both, the SD first and the USB
+     * started by mpd_publish() when the SD's run ends. `rescan` is the
+     * same run: the engine rereads what changed by its stamp and cannot
+     * be told to reread everything, as MPD's rescan does -- said, not
+     * pretended.
+     *
+     * MPD answers `updating_db: N`, a job id, and `status` carries N
+     * while it runs; `idle update` then `database` follow as for the
+     * automatic run (5160). A run already going (automatic, or from the
+     * panel) is answered with its id rather than refused: MPD queues a
+     * second update behind the first, and this one is already doing the
+     * walk the second would.
+     */
+    case MPD_CMD_UPDATE:
+    case MPD_CMD_RESCAN: {
+        const char *uri = a0 ? a0 : "";
+        if (strcmp(uri, "/") == 0) uri = "";
+        int v = -1;
+        if (uri[0] && (!mpduri_ok(uri, true) || (v = mpduri_split(uri, NULL)) < 0)) {
+            ack(c, MPD_ACK_ARG, idx, cmd->verb, "Malformed path");
+            return RES_ERR;
+        }
+        const storage_id_t first = v == MPDURI_VOL_USB ? STORAGE_USB
+                                 : v == MPDURI_VOL_SD ? STORAGE_SD
+                                 : storage_present(STORAGE_SD) ? STORAGE_SD : STORAGE_USB;
+        if (medialib_busy()) {
+            putf(c, "updating_db: %" PRIu32 "\n", s_update_job ? s_update_job : 1u);
+            return RES_OK;
+        }
+        if (!medialib_request(first)) {
+            ack(c, MPD_ACK_SYSTEM, idx, cmd->verb, storage_present(first)
+                ? "the library is being read; try again in a moment"
+                : "no card or drive to index");
+            return RES_ERR;
+        }
+        if (v < 0 && first == STORAGE_SD && storage_present(STORAGE_USB)) {
+            xSemaphoreTake(s_mu, portMAX_DELAY);
+            s_update_next = STORAGE_USB;
+            xSemaphoreGive(s_mu);
+        }
+        if (++s_update_job == 0) s_update_job = 1;
+        ESP_LOGI(TAG, "client %d: %s \"%.64s\" -> reindex %s, job %" PRIu32, c->fd, cmd->verb,
+                 uri, storage_label(first), s_update_job);
+        putf(c, "updating_db: %" PRIu32 "\n", s_update_job);
+        return RES_OK;
+    }
+
     /* 5177: the library. */
     case MPD_CMD_LSINFO:
         return lib_lsinfo(&x, a0);
@@ -3495,7 +3551,7 @@ static result_t run_cmd(conn_t *c, const mpd_cmd_t *cmd, int idx)
             .duration_ms = v->duration_ms,
             .bitrate = -1,
             .sample_rate = 0,
-            .updating_db = v->updating ? 1u : 0u,
+            .updating_db = v->updating ? (s_update_job ? s_update_job : 1u) : 0u,   /* 5236 */
             .error = NULL,
             .partition = MPD_PARTITION,                     /* 5180 */
         };
@@ -4419,6 +4475,23 @@ void mpd_publish(const ui_state_t *st, const char *path, bool streaming)
     n->elapsed_ms = st->stats_valid ? (int32_t)st->pos_sec * 1000 : -1;
     n->duration_ms = (st->stats_valid && st->len_sec) ? (int32_t)st->len_sec * 1000 : -1;
     n->can_seek = st->can_seek;
+    /* 5236: the second volume of an `update` of everything, once the
+     * first is done. ui_task calls this often; the request is cheap to
+     * refuse while the first still runs. */
+    if (!medialib_busy()) {
+        xSemaphoreTake(s_mu, portMAX_DELAY);
+        const int next = s_update_next;
+        s_update_next = -1;
+        xSemaphoreGive(s_mu);
+        if (next >= 0 && !medialib_request((storage_id_t)next) &&
+            storage_present((storage_id_t)next)) {
+            /* Refused with the volume present: readers open this very
+             * moment. The next pass tries again. */
+            xSemaphoreTake(s_mu, portMAX_DELAY);
+            s_update_next = next;
+            xSemaphoreGive(s_mu);
+        }
+    }
     n->updating = medialib_busy();
     n->rg = settings_rg_enabled();                  /* 5161 */
     /*

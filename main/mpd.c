@@ -157,6 +157,12 @@ static const char *TAG = "tab5_mpd";
  * parked in `idle` is exempt, as in MPD (5160). */
 #define MPD_TIMEOUT_US      (60 * 1000000LL)
 
+/* 5229: how long `seek` of a song not playing waits for that song to
+ * start and publish a length before seeking it. A card open, a decoder
+ * probe and a sidecar read are well inside this; a stream is never a
+ * queue entry. */
+#define MPD_SEEK_START_MS   (3000)
+
 /* A client that stops reading must not stop the task: a send that cannot
  * complete in this long closes that client instead. */
 #define MPD_SEND_TIMEOUT_S  (2)
@@ -882,14 +888,35 @@ static result_t run_list_cmd(conn_t *c, const mpd_cmd_t *cmd, int idx)
             else ack(c, MPD_ACK_NO_EXIST, idx, cmd->verb, "No such song");
             return RES_ERR;
         }
-        /* MPD would start that song at that point. This player seeks
-         * only what it is playing -- UI_ACTION_SEEK is a percentage of
-         * the current track -- and starting another song somewhere into
-         * it is a new action, not this patch. Said, not approximated. */
+        /*
+         * 5229: another song is started and then sought, which is what
+         * MPD does in one step. This player seeks only what it is
+         * playing, as a percentage of it (UI_ACTION_SEEK), and the
+         * percentage needs the length -- so the song is played by id,
+         * and the published view is watched until it is that song with
+         * a length, for up to MPD_SEEK_START_MS. Starting at 0 is just
+         * the play. A song that does not become seekable in that time
+         * (a file the decoder cannot seek) is left playing from the top
+         * and the seek is refused with the reason, as MPD refuses one.
+         */
         if (pos != s_view->song) {
-            ack(c, MPD_ACK_UNKNOWN, idx, cmd->verb,
-                "seeking a song that is not playing is not supported by this player yet");
-            return RES_ERR;
+            if (s_list->window) {
+                ack(c, MPD_ACK_ARG, idx, cmd->verb, "Bad song index");
+                return RES_ERR;
+            }
+            const uint32_t want = s_list->id[pos];
+            if (!ask(&x, UI_ACTION_PLAY_ID, (int)want)) return RES_ERR;
+            if (ms <= 0) return RES_OK;
+            const TickType_t t0 = xTaskGetTickCount();
+            for (;;) {
+                take_view();
+                if (s_view->id == want && s_view->duration_ms > 0 && s_view->can_seek) break;
+                if (xTaskGetTickCount() - t0 >= pdMS_TO_TICKS(MPD_SEEK_START_MS)) {
+                    ack(c, MPD_ACK_UNKNOWN, idx, cmd->verb, "Not seekable");
+                    return RES_ERR;
+                }
+                vTaskDelay(pdMS_TO_TICKS(50));
+            }
         }
         return seek_ms(&x, ms) ? RES_OK : RES_ERR;
     }

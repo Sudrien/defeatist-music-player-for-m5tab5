@@ -18250,3 +18250,32 @@ The folder is read under one brief hold.
 
 Compiled -O2 -Wall -Wextra on the host stubs: mpd.c, no warnings.
 texttest all passes. Not on the board.
+
+### 5229 -- mpd: seek and seekid on a song that is not playing
+
+MPD's `seek POS TIME` and `seekid ID TIME` start that song at that
+point. Here they were refused unless the song was already playing,
+because the player seeks only its current track, as a percentage of it
+(UI_ACTION_SEEK), and a percentage needs the track's length.
+
+Now the song is played by id (UI_ACTION_PLAY_ID, as `playid`), and the
+server task watches the published view -- take_view() every 50 ms -- until
+it is that song with a length and can_seek, for up to
+MPD_SEEK_START_MS (3 s); then seek_ms() as for the playing song. A seek
+to 0 is only the play. A song that does not become seekable in that time
+is left playing from its start and the seek is ACK 5 "Not seekable",
+MPD's own answer for a song its decoder cannot seek. On a window of one
+(a station, a file from outside the queue) another position is "Bad
+song index", as before.
+
+So the percent resolution (MPD.md, "Known and left") applies here too:
+the song starts at the nearest hundredth of its length. The start is
+audible -- a moment of the top of the track before the seek lands --
+which MPD avoids by seeking the decoder before output; doing that here
+means a start-at-offset action in the player, not a change to mpd.c.
+
+The list stays pinned while the task waits, as it is for the whole of
+every list command; the publisher writes the other half of s_ql[].
+
+Compiled -O2 -Wall -Wextra on the host stubs: mpd.c, no warnings.
+texttest all passes. Not on the board.

@@ -22,6 +22,7 @@
 
 #include "driver/gpio.h"
 #include "driver/i2s_std.h"
+#include "driver/i2s_tdm.h"     /* 5206: the headset microphone */
 #include "esp_check.h"
 #include "esp_heap_caps.h"
 #include "esp_log.h"
@@ -151,6 +152,7 @@ static i2c_master_dev_handle_t s_es7210;
  */
 static SemaphoreHandle_t       s_i2s_lock;
 static volatile bool           s_capturing;
+static audio_capture_src_t     s_cap_src;      /* 5206: while s_capturing */
 
 static volatile bool s_headphones;
 static uint32_t s_rate;
@@ -923,6 +925,7 @@ static const uint8_t k_es7210_on[][2] = {
     { 0x04, 0x01 },     /* LRCK_DIVH: MCLK / 256 */
     { 0x05, 0x00 },     /* LRCK_DIVL */
     { 0x11, 0x00 },     /* SDP_INTERFACE1: I2S, 24-bit */
+    { 0x12, 0x00 },     /* SDP_INTERFACE2: not TDM -- a headset capture sets it (5206) */
     { 0x40, 0x42 },     /* ANALOG_SYS */
     { 0x41, 0x70 },     /* MICBIAS12 */
     { 0x42, 0x70 },     /* MICBIAS34 */
@@ -939,6 +942,79 @@ static const uint8_t k_es7210_on[][2] = {
     { 0x01, 0x14 },     /* CLK_ON_OFF: running */
 };
 
+/*
+ * 5206: the headset's microphone.
+ *
+ * The jack's microphone is on the ES7210, not the ES8388: M5Stack's own
+ * Tab5 firmware (M5Tab5-UserDemo, hal_audio.cpp) reads all four channels
+ * as TDM and labels the slots [MIC-L, AEC, MIC-R, MIC-HP] -- the
+ * headphone microphone is slot 3, and slot 1 is the speaker loopback the
+ * "AEC front end" is named for. In plain I2S only SDOUT1 carries MIC1 and
+ * MIC2, and SDOUT2 is not wired to anything the P4 can read, so TDM is
+ * the only way to that fourth channel.
+ *
+ * The same table as k_es7210_on, the same order, with six values
+ * changed, all of them from Espressif's es7210 driver (esp_codec_dev)
+ * for four microphones:
+ *
+ *   0x11 SDP_INTERFACE1  0x60   I2S, 16-bit (the demo's width; see below)
+ *   0x12 SDP_INTERFACE2  0x02   TDM
+ *   0x45/0x46 MIC3/4_GAIN 0x1B  PGA on, +33 dB, like MIC1 and MIC2
+ *   0x4C MIC34_PDN       0x00   powered
+ *   0x01 CLK_ON_OFF      0x00   0x14 with bits 2 and 4 cleared -- the
+ *                               two es7210_mic_select() clears for MIC3/4
+ *
+ * 16-bit, because four 32-bit slots at 48 kHz is a BCLK of MCLK/2, and
+ * the IDF's TDM driver will not receive at a divider of 2: it raises it
+ * to 3 and MCLK with it (i2s_tdm.c, "the data will go wrong"), to
+ * 18.432 MHz -- for which neither the ES7210's coefficient tables nor
+ * the ES8388's setup has an entry. 16-bit slots are BCLK = MCLK/4 at
+ * the MCLK both codecs already run, and are what the demo runs on this
+ * board. A headset capsule's own noise floor is far above 16 bits'.
+ *
+ * Nothing here says which of MIC3 and MIC4 is the jack; both are on,
+ * with gain, and the slot is what is read.
+ */
+static const uint8_t k_es7210_headset[][2] = {
+    { 0x00, 0xFF },     /* RESET_CTL: reset */
+    { 0x00, 0x41 },     /* RESET_CTL: out of reset, slave */
+    { 0x01, 0x1F },     /* CLK_ON_OFF: all off while configuring */
+    { 0x06, 0x00 },     /* DIGITAL_PDN */
+    { 0x07, 0x20 },     /* ADC_OSR */
+    { 0x08, 0x10 },     /* MODE_CFG */
+    { 0x09, 0x30 },     /* TCT0_CHPINI */
+    { 0x0A, 0x30 },     /* TCT1_CHPINI */
+    { 0x20, 0x0A },     /* ADC34_HPF2 */
+    { 0x21, 0x2A },     /* ADC34_HPF1 */
+    { 0x22, 0x0A },     /* ADC12_HPF2 */
+    { 0x23, 0x2A },     /* ADC12_HPF1 */
+    { 0x02, 0xC1 },     /* MAINCLK */
+    { 0x04, 0x01 },     /* LRCK_DIVH: MCLK / 256 */
+    { 0x05, 0x00 },     /* LRCK_DIVL */
+    { 0x11, 0x60 },     /* SDP_INTERFACE1: I2S, 16-bit */
+    { 0x12, 0x02 },     /* SDP_INTERFACE2: TDM */
+    { 0x40, 0x42 },     /* ANALOG_SYS */
+    { 0x41, 0x70 },     /* MICBIAS12 */
+    { 0x42, 0x70 },     /* MICBIAS34: 2.87 V, the headset capsule's bias */
+    { 0x43, 0x1B },     /* MIC1_GAIN: PGA on, +33 dB */
+    { 0x44, 0x1B },     /* MIC2_GAIN */
+    { 0x45, 0x1B },     /* MIC3_GAIN */
+    { 0x46, 0x1B },     /* MIC4_GAIN */
+    { 0x47, 0x00 },     /* MIC1_LP */
+    { 0x48, 0x00 },     /* MIC2_LP */
+    { 0x49, 0x00 },     /* MIC3_LP */
+    { 0x4A, 0x00 },     /* MIC4_LP */
+    { 0x4B, 0x00 },     /* MIC12_PDN: powered */
+    { 0x4C, 0x00 },     /* MIC34_PDN: powered */
+    { 0x01, 0x00 },     /* CLK_ON_OFF: running, all four */
+};
+
+/* 5206: which TDM slot is the jack. See k_es7210_headset. */
+#define HEADSET_TDM_SLOTS       (4)
+#define HEADSET_TDM_SLOT        (3)
+
+bool audio_out_headphones(void) { return s_headphones; }
+
 static void dma_line(const char *when)
 {
     const uint32_t caps = MALLOC_CAP_DMA | MALLOC_CAP_INTERNAL;
@@ -947,8 +1023,12 @@ static void dma_line(const char *when)
              (unsigned)heap_caps_get_largest_free_block(caps));
 }
 
-static esp_err_t es7210_start(void)
+static esp_err_t es7210_start(audio_capture_src_t src)
 {
+    const bool hs = (src == AUDIO_CAPTURE_HEADSET);
+    const uint8_t (*table)[2] = hs ? k_es7210_headset : k_es7210_on;
+    const size_t n = hs ? sizeof(k_es7210_headset) / sizeof(k_es7210_headset[0])
+                        : sizeof(k_es7210_on) / sizeof(k_es7210_on[0]);
     if (!s_es7210) {
         const i2c_device_config_t cfg = {
             .dev_addr_length = I2C_ADDR_BIT_LEN_7,
@@ -958,9 +1038,9 @@ static esp_err_t es7210_start(void)
         ESP_RETURN_ON_ERROR(i2c_master_bus_add_device(s_bus, &cfg, &s_es7210), TAG,
                             "es7210 add");
     }
-    for (size_t i = 0; i < sizeof(k_es7210_on) / sizeof(k_es7210_on[0]); i++) {
-        ESP_RETURN_ON_ERROR(reg_write(s_es7210, k_es7210_on[i][0], k_es7210_on[i][1]),
-                            TAG, "es7210 reg 0x%02x", k_es7210_on[i][0]);
+    for (size_t i = 0; i < n; i++) {
+        ESP_RETURN_ON_ERROR(reg_write(s_es7210, table[i][0], table[i][1]),
+                            TAG, "es7210 reg 0x%02x", table[i][0]);
     }
     return ESP_OK;
 }
@@ -981,13 +1061,44 @@ static void es7210_stop(void)
  * runs from, the ES7210's SDOUT on DIN. 32-bit slots both ways, since a
  * duplex pair shares its clock and the ES7210's 24 bits need 32-bit
  * slots; TX sends zeros (auto_clear) for the length of the recording. */
-static esp_err_t duplex_init(void)
+static esp_err_t duplex_init(audio_capture_src_t src)
 {
     i2s_chan_config_t chan = I2S_CHANNEL_DEFAULT_CONFIG(I2S_NUM_0, I2S_ROLE_MASTER);
     chan.dma_desc_num = CAPTURE_DMA_DESC;
     chan.dma_frame_num = CAPTURE_DMA_FRAMES;
     chan.auto_clear = true;
     ESP_RETURN_ON_ERROR(i2s_new_channel(&chan, &s_tx, &s_rx), TAG, "duplex new");
+
+    if (src == AUDIO_CAPTURE_HEADSET) {
+        /*
+         * 5206: four 16-bit TDM slots both ways, the config M5Stack's
+         * demo runs on this board -- which is IDF's Philips TDM default,
+         * field for field. BCLK is 3.072 MHz, MCLK / 4, MCLK still 256 x
+         * Fs. A frame is 8 bytes, as the stereo 32-bit pair's is, so the
+         * DMA costs exactly what it does for the array. TX sends zeros:
+         * the ES8388 sees TDM framing on its LRCK for the length of the
+         * recording, and plays nothing from it either way.
+         */
+        const i2s_tdm_config_t tdm = {
+            .clk_cfg = I2S_TDM_CLK_DEFAULT_CONFIG(AUDIO_CAPTURE_RATE),
+            .slot_cfg = I2S_TDM_PHILIPS_SLOT_DEFAULT_CONFIG(
+                I2S_DATA_BIT_WIDTH_16BIT, I2S_SLOT_MODE_STEREO,
+                I2S_TDM_SLOT0 | I2S_TDM_SLOT1 | I2S_TDM_SLOT2 | I2S_TDM_SLOT3),
+            .gpio_cfg = {
+                .mclk = I2S_MCLK_GPIO,
+                .bclk = I2S_BCLK_GPIO,
+                .ws   = I2S_LRCK_GPIO,
+                .dout = I2S_DOUT_GPIO,
+                .din  = I2S_DIN_GPIO,
+                .invert_flags = { false, false, false },
+            },
+        };
+        ESP_RETURN_ON_ERROR(i2s_channel_init_tdm_mode(s_tx, &tdm), TAG, "tdm tx");
+        ESP_RETURN_ON_ERROR(i2s_channel_init_tdm_mode(s_rx, &tdm), TAG, "tdm rx");
+        ESP_RETURN_ON_ERROR(i2s_channel_enable(s_tx), TAG, "tdm tx enable");
+        ESP_RETURN_ON_ERROR(i2s_channel_enable(s_rx), TAG, "tdm rx enable");
+        return ESP_OK;
+    }
 
     i2s_std_config_t std = {
         .clk_cfg = I2S_STD_CLK_DEFAULT_CONFIG(AUDIO_CAPTURE_RATE),
@@ -1018,7 +1129,7 @@ static void channels_delete(void)
 
 bool audio_out_capturing(void) { return s_capturing; }
 
-esp_err_t audio_out_capture_begin(void)
+esp_err_t audio_out_capture_begin(audio_capture_src_t src)
 {
     if (!s_i2s_lock) return ESP_ERR_INVALID_STATE;
     if (xSemaphoreTake(s_i2s_lock, pdMS_TO_TICKS(1000)) != pdTRUE) {
@@ -1029,10 +1140,10 @@ esp_err_t audio_out_capture_begin(void)
 
     dma_line("before");
     channels_delete();
-    esp_err_t err = duplex_init();
+    esp_err_t err = duplex_init(src);
     /* MCLK is running again from here, which the ES7210, like the
      * ES8388, needs before it will take a configuration. */
-    if (err == ESP_OK) err = es7210_start();
+    if (err == ESP_OK) err = es7210_start(src);
     if (err != ESP_OK) {
         ESP_LOGE(TAG, "capture: %s; putting playback back", esp_err_to_name(err));
         es7210_stop();
@@ -1041,10 +1152,17 @@ esp_err_t audio_out_capture_begin(void)
         xSemaphoreGive(s_i2s_lock);
         return err;
     }
+    s_cap_src = src;
     s_capturing = true;
     xSemaphoreGive(s_i2s_lock);
-    ESP_LOGI(TAG, "capture: ES7210 MIC1/MIC2, %d Hz, 24-bit, DMA %d x %d frames",
-             AUDIO_CAPTURE_RATE, CAPTURE_DMA_DESC, CAPTURE_DMA_FRAMES);
+    if (src == AUDIO_CAPTURE_HEADSET) {
+        ESP_LOGI(TAG, "capture: ES7210 headset microphone, TDM slot %d of %d, %d Hz, "
+                 "16-bit, DMA %d x %d frames", HEADSET_TDM_SLOT, HEADSET_TDM_SLOTS,
+                 AUDIO_CAPTURE_RATE, CAPTURE_DMA_DESC, CAPTURE_DMA_FRAMES);
+    } else {
+        ESP_LOGI(TAG, "capture: ES7210 MIC1/MIC2, %d Hz, 24-bit, DMA %d x %d frames",
+                 AUDIO_CAPTURE_RATE, CAPTURE_DMA_DESC, CAPTURE_DMA_FRAMES);
+    }
     dma_line("running");
     return ESP_OK;
 }
@@ -1057,6 +1175,24 @@ size_t audio_out_capture_read(int32_t *frames, size_t max_frames, uint32_t timeo
                                            &got, pdMS_TO_TICKS(timeout_ms));
     if (err != ESP_OK && err != ESP_ERR_TIMEOUT) return 0;
     const size_t n = got / (2 * sizeof(int32_t));
+    if (s_cap_src == AUDIO_CAPTURE_HEADSET) {
+        /*
+         * 5206: n raw frames of four int16 slots, 8 bytes each -- the same
+         * byte count as n stereo int32 frames. One slot kept, widened to
+         * int32, in place and forward: output i occupies bytes 4i..4i+3
+         * and its source is bytes 8i+6..8i+7, so nothing is overwritten
+         * before it is read. memcpy rather than an int16_t pointer into an
+         * int32_t array, which would be an aliasing violation.
+         */
+        uint8_t *raw = (uint8_t *)frames;
+        for (size_t i = 0; i < n; i++) {
+            int16_t s;
+            memcpy(&s, raw + i * HEADSET_TDM_SLOTS * sizeof(int16_t)
+                           + HEADSET_TDM_SLOT * sizeof(int16_t), sizeof(s));
+            frames[i] = s;
+        }
+        return n;
+    }
     /* 24 bits at the top of each 32-bit slot, sign-extended down. */
     for (size_t i = 0; i < n * 2; i++) frames[i] >>= 8;
     return n;

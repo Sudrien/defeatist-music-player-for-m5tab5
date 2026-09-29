@@ -17482,3 +17482,65 @@ add; those can take it if it earns its place.
 Asked for: `listeningSessionId`, a per-listen session id some stream
 hosts add, was not on 5204's list and stayed in the URL. It is now,
 matched without regard to case like the rest.
+
+### 5206 -- The headset's microphone is the ES7210's, and only TDM reaches it
+
+The README's recording target asks for an input toggle: onboard array,
+headset mic, UAC. This is the second, as far as audio_out.c.
+
+**Where the jack's microphone goes.** Not the ES8388 -- its ADC is
+powered down here and nothing says its inputs are wired. M5Stack's own
+Tab5 firmware (github.com/m5stack/M5Tab5-UserDemo) opens the ES7210 with
+all four microphones selected, reads four 16-bit TDM slots, and its
+headphone test says what they are in a comment: `[MIC-L, AEC, MIC-R,
+MIC-HP]`. The headset microphone is slot 3; slot 1 is the speaker
+loopback the "AEC front end" is named for. M5Unified only ever turns on
+MIC1 and MIC2, which is why the capture in 5106 never saw it.
+
+**Why TDM.** In plain I2S the ES7210 puts MIC1/MIC2 on SDOUT1 and
+MIC3/MIC4 on SDOUT2, and only SDOUT1 reaches the P4 (GPIO 28). TDM puts
+all four on SDOUT1.
+
+**Why 16 bits.** Four 32-bit slots at 48 kHz is a 6.144 MHz BCLK,
+MCLK/2 at the 256 x Fs both codecs run from. IDF 5.5's TDM driver will
+not receive at a divider of 2 (i2s_tdm.c: "the data will go wrong if the
+bclk_div is equal or smaller than 2") and raises it to 3, and MCLK with
+it, to 18.432 MHz -- which Espressif's ES7210 coefficient table has no
+48 kHz row for. Four 24-bit slots is not an integer divider at all.
+Four 16-bit slots is MCLK/4 at the MCLK already running, and is what the
+demo runs on this board. A headset capsule's own noise is far above
+16 bits' floor.
+
+**The change.**
+
+- `audio_out_capture_begin(src)`: AUDIO_CAPTURE_BUILTIN is 5106 as it
+  was; AUDIO_CAPTURE_HEADSET builds the duplex pair in TDM (IDF's Philips
+  TDM defaults, which are the demo's config field for field: 16-bit,
+  slots 0-3, auto WS width, bit shift) and loads `k_es7210_headset`.
+- `k_es7210_headset` is `k_es7210_on` in the same order with six values
+  from Espressif's es7210.c for four microphones: 0x11 = 0x60 (16-bit),
+  0x12 = 0x02 (TDM), MIC3/4 gain 0x1B, MIC34_PDN 0x00, and CLK_ON_OFF
+  0x00 -- M5Unified's 0x14 with bits 2 and 4 cleared, the bits
+  es7210_mic_select() clears for MIC3/4. Nothing here says which of MIC3
+  and MIC4 is the jack; both are powered, and the slot is what is read.
+- `k_es7210_on` gains `0x12 = 0x00`: the built-in capture after a
+  headset one must not inherit TDM, and whether the soft reset at the
+  head of the table clears 0x12 is not something to find out on a board.
+- `audio_out_capture_read()` returns mono for the headset: one int32 per
+  frame, the 16-bit slot sign-extended, unpacked in place from the raw
+  8-byte frames (memcpy, not an int16_t pointer into the int32 array).
+  A TDM frame is 8 bytes, as a 32-bit stereo frame is, so the DMA
+  (4 x 240 frames) costs exactly what 5106's does.
+- `audio_out_headphones()`: the jack detect, for the recorder to refuse
+  a headset recording with nothing plugged in. It cannot tell a headset
+  from plain headphones; those record silence.
+
+The recorder still asks for the built-in microphones; 5208 is the
+switch. Compiled with riscv32-esp-elf-gcc 14.2 against IDF v5.5.1's
+headers and an sdkconfig generated from sdkconfig.defaults, -O2 -Wall
+-Wextra, failing on any warning: audio_out.c and recorder.c. Not on the
+board. What to look for when it is: `capture: ES7210 headset
+microphone, TDM slot 3 of 4, 48000 Hz, 16-bit` -- and a file that is the
+voice in the headset rather than silence or the room. If it is the room,
+the slot is 0 or 2 and the demo's comment is wrong; if it is the
+speaker's own output, it is slot 1.

@@ -380,7 +380,7 @@ bool recorder_start(char *why, size_t why_len)
         REFUSE("Could not start the file.");
     }
 
-    const esp_err_t err = audio_out_capture_begin();
+    const esp_err_t err = audio_out_capture_begin(AUDIO_CAPTURE_BUILTIN);
     if (err != ESP_OK) {
         flacenc_close(s_enc, NULL);
         s_enc = NULL;

@@ -155,12 +155,33 @@ const char *audio_out_route_name(void);
  * begin, read and end in sequence, never concurrently. read returns
  * interleaved stereo frames, MIC1 left and MIC2 right, 24-bit values
  * sign-extended in int32; 0 on a timeout or when not capturing.
+ *
+ * 5206: or the headset's microphone, from the jack. It is the ES7210's
+ * fourth channel, which only reaches the P4 in TDM -- see
+ * k_es7210_headset in audio_out.c -- so that capture is four 16-bit
+ * slots, of which one is kept: read returns mono frames, one int32 each,
+ * 16-bit values sign-extended. The same rate and the same DMA bytes.
+ * The buffer handed to read must hold max_frames * 2 int32 whichever
+ * source is running; the headset's raw frames are 8 bytes too, and are
+ * unpacked in place.
  */
 #define AUDIO_CAPTURE_RATE      (48000)
 #define AUDIO_CAPTURE_BITS      (24)
 #define AUDIO_CAPTURE_CHANNELS  (2)
 
-esp_err_t audio_out_capture_begin(void);
+#define AUDIO_CAPTURE_HEADSET_BITS      (16)
+#define AUDIO_CAPTURE_HEADSET_CHANNELS  (1)
+
+typedef enum {
+    AUDIO_CAPTURE_BUILTIN = 0,  /* the two array microphones, 24-bit stereo */
+    AUDIO_CAPTURE_HEADSET,      /* the jack's microphone, 16-bit mono (5206) */
+} audio_capture_src_t;
+
+/* Something is in the jack. Not proof of a microphone: a plain pair of
+ * headphones is detected the same way and records silence. */
+bool      audio_out_headphones(void);
+
+esp_err_t audio_out_capture_begin(audio_capture_src_t src);
 size_t    audio_out_capture_read(int32_t *frames, size_t max_frames, uint32_t timeout_ms);
 void      audio_out_capture_end(void);
 bool      audio_out_capturing(void);

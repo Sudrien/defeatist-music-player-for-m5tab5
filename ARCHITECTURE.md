@@ -17935,3 +17935,30 @@ announced; the rest always).
 
 Compiled as before, no warnings: settings.c, recorder.c, panel.c.
 texttest all passes. Not on the board.
+
+### 5217 -- Record from OFF: no record position at all
+
+A seventh choice, asked for on the board: "disabled", which renders no
+record toggle. `SETTINGS_REC_OFF` is added last, so the numbers 5216
+stored keep their meaning.
+
+- The transport switch (ui.c draw_play_pause()) draws only its right
+  half -- pause to play, a two-way switch -- with the pause and play
+  detents where they always are, so nothing else on the row moves. No
+  record dot, no X. A slide cannot land left of pause: the knob is
+  clamped while dragged and a release that would have been RECORD is
+  pause.
+- Not while a recording is running: `st.rec_off` is false then, so a
+  recording started before the switch went OFF keeps its knob on the
+  left and can still be stopped.
+- RECORD from anywhere else (the remote page's action, a queued ui
+  action) is ignored with a log line, not refused with a card -- the
+  listener turned it off. recorder_start() refuses OFF too, as the last
+  guard.
+- The remote page gets `recoff` and hides its record mark. It never
+  could start a recording.
+- Panel: OFF is the seventh tap, drawn unlit.
+
+Compiled as before, no warnings: ui.c, panel.c, player.c, recorder.c,
+settings.c, remote.c, remoteproto.c. texttest all passes (remoteproto:
+137 checks). Not on the board.

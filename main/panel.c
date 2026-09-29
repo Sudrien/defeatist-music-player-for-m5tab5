@@ -1191,11 +1191,13 @@ static int draw_audio(void)
             [SETTINGS_REC_MONO] = "MONO",       [SETTINGS_REC_STEREO] = "STEREO",
             [SETTINGS_REC_FOCUSED] = "FOCUSED", [SETTINGS_REC_HEADSET] = "HEADSET",
             [SETTINGS_REC_UAC] = "UAC",         [SETTINGS_REC_AUTO] = "AUTO",
+            [SETTINGS_REC_OFF] = "OFF",
         };
         const settings_rec_from_t in = settings_rec_from();
         const char *label = k_label[in < SETTINGS_REC_COUNT ? in : SETTINGS_REC_AUTO];
         const bool there = in == SETTINGS_REC_HEADSET ? audio_out_headphones()
                          : in == SETTINGS_REC_UAC     ? uac_mic_announced()
+                         : in == SETTINGS_REC_OFF     ? false     /* 5217 */
                          :                              true;
         int pw = gfx_text_w(label, NAME_SCALE) + 48;
         if (pw < 200) pw = 200;
@@ -1206,7 +1208,7 @@ static int draw_audio(void)
         "Mono/stereo: the two by the screen.",
         "Focused: those two aimed out of it.",
         "Headset, UAC: the jack, a USB mic.",
-        "Auto: USB, then jack, then mono.",
+        "Auto: USB, jack, mono. Off: no record.",
     };
     const int used = draw_note(y + bh + AUDIO_NOTE_GAP, input_note, INPUT_NOTE_LINES);
 
@@ -1613,7 +1615,7 @@ bool panel_touch(bool down, int x, int y)
                 (settings_rec_from_t)((settings_rec_from() + 1) % SETTINGS_REC_COUNT);
             settings_set_rec_from(in);
             static const char *const k_name[SETTINGS_REC_COUNT] = {
-                "mono", "stereo", "focused", "headset", "UAC", "auto",
+                "mono", "stereo", "focused", "headset", "UAC", "auto", "off",
             };
             ESP_LOGI(TAG, "record from: %s (next recording)", k_name[in]);
             s_dirty = true;

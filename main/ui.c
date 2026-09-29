@@ -709,6 +709,9 @@ static void draw_play_tri(int x, int y, int h, uint16_t c)
     }
 }
 
+/* 5217: set from ui_state_t::rec_off by ui_draw() and ui_touch(). */
+static bool s_rec_off;
+
 static void draw_play_pause(bool playing, bool recording, bool rec_ok)
 {
     int cx, cy;
@@ -720,6 +723,30 @@ static void draw_play_pause(bool playing, bool recording, bool rec_ok)
     /* The knob overhangs the track, so the band it sweeps is cleared
      * first -- the track alone would not cover where it was. */
     gfx_fill_rect(cx - PILL_W / 2, cy - PILL_H / 2, PILL_W, PILL_H, C_BG);
+    if (s_rec_off) {
+        /*
+         * 5217: Record from OFF. The right half of the track only --
+         * pause to play, a two-way switch -- in the same place, so the
+         * knob sits where it always does and nothing else on the row
+         * moves. No record mark, no X: there is no third position.
+         */
+        fill_rrect(cx - SW_TRACK_H / 2, cy - SW_TRACK_H / 2, KNOB_THROW + SW_TRACK_H,
+                   SW_TRACK_H, SW_TRACK_H / 2, trough);
+        if (pos != 0) draw_pause_bars(cx, cy, 10, playing ? C_BG : C_ICON_OFF);
+        if (pos != 1) draw_play_tri(cx + KNOB_THROW, cy, 10, C_PLAY_ON);
+        int kx = cx + pos * KNOB_THROW, shown = pos;
+        if (s_drag == 2) {
+            int off = s_sw_from * KNOB_THROW + (s_drag_x - s_sw_x0);
+            if (off < 0) off = 0;
+            if (off > KNOB_THROW) off = KNOB_THROW;
+            kx = cx + off;
+            shown = sw_detent(off);
+        }
+        gfx_fill_circle(kx, cy, KNOB_R, C_THUMB);
+        if (shown == 0) draw_pause_bars(kx, cy, 20, C_BG);
+        else            draw_play_tri(kx, cy, 20, C_PLAY_ON);
+        return;
+    }
     fill_rrect(cx - SW_TRACK_W / 2, cy - SW_TRACK_H / 2, SW_TRACK_W, SW_TRACK_H,
                SW_TRACK_H / 2, trough);
 
@@ -2251,6 +2278,7 @@ void ui_draw(const ui_state_t *st)
     draw_skip(cx, cy, false, true);
     next_centre(&cx, &cy);
     draw_skip(cx, cy, true, st->has_next);
+    s_rec_off = st->rec_off;                            /* 5217 */
     draw_play_pause(st->playing, st->recording, st->rec_ok);
 
     ui_blit_bar();
@@ -2324,7 +2352,8 @@ ui_action_t ui_touch(const ui_state_t *st, bool down, int x, int y)
             act.kind = (s_sw_from == 0) ? UI_ACTION_PLAY : UI_ACTION_PAUSE;
             return act;
         }
-        const int to = sw_detent(s_sw_from * KNOB_THROW + dx);
+        int to = sw_detent(s_sw_from * KNOB_THROW + dx);
+        if (st->rec_off && to < 0) to = 0;              /* 5217: no record detent */
         if (to != s_sw_from) {
             act.kind = to < 0 ? UI_ACTION_RECORD
                      : to > 0 ? UI_ACTION_PLAY : UI_ACTION_PAUSE;
@@ -2380,6 +2409,7 @@ ui_action_t ui_touch(const ui_state_t *st, bool down, int x, int y)
         /* Nothing fires on the press: whether this is a tap or a slide
          * is only known at release. See PILL_W. */
         s_drag = 2;
+        s_rec_off = st->rec_off;                        /* 5217 */
         s_sw_x0 = s_drag_x = x;
         s_sw_from = st->recording ? -1 : (st->playing ? 1 : 0);
         return act;

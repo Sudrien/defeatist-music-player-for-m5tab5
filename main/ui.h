@@ -237,6 +237,9 @@ typedef struct {
      * The REC pill says MUTED; the art square's microphone is crossed
      * out (ui_show_rec_art()). */
     bool rec_silent;
+    /* 5217: Record from is OFF -- the switch is drawn as two positions,
+     * pause and play, and cannot be slid to record. */
+    bool rec_off;
 } ui_state_t;
 
 /* What a touch produced. The player acts on these; the UI never acts. */

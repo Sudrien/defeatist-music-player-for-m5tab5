@@ -1165,6 +1165,7 @@ void remote_publish(const ui_state_t *st, const char *art_path, int rec_count)
     c->recording = st->recording;
     c->rec_count = rec_count;
     c->rec_ok = st->rec_ok;
+    c->rec_off = st->rec_off;                           /* 5217 */
     c->batt_pct = st->battery_pct;
     c->charging = st->battery_charging;
     c->wave = gen;

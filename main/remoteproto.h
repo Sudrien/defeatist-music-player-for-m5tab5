@@ -132,6 +132,7 @@ typedef struct {
     bool     recording;
     int      rec_count;     /* 3..1 while counting down, 0 otherwise */
     bool     rec_ok;
+    bool     rec_off;       /* 5217: Record from OFF -- no record mark */
     int      batt_pct;      /* -1 unknown */
     bool     charging;
     uint32_t wave;          /* the envelope's generation, see below */

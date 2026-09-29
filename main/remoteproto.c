@@ -284,6 +284,7 @@ size_t remoteproto_state_json(const remote_state_t *s, char *out, size_t cap)
     key(&b, "rec", false);      put_bool(&b, s->recording);
     key(&b, "count", false);    putf(&b, "%lld", (long long)s->rec_count);
     key(&b, "recok", false);    put_bool(&b, s->rec_ok);
+    key(&b, "recoff", false);   put_bool(&b, s->rec_off);           /* 5217 */
     key(&b, "batt", false);     putf(&b, "%lld", (long long)s->batt_pct);
     key(&b, "chg", false);      put_bool(&b, s->charging);
     key(&b, "wave", false);     putf(&b, "%lld", (long long)s->wave);

@@ -327,6 +327,7 @@ function onState(m) {
   const sw = $("sw");
   sw.dataset.s = (m.rec || m.count > 0) ? "rec" : m.playing ? "play" : "pause";
   knobGlyph(sw.dataset.s);
+  $("hrec").hidden = !!m.recoff;   // 5217: Record from OFF, no record mark
   $("hrec").innerHTML = m.recok
     ? '<circle cx="10" cy="10" r="10" fill="var(--fill)"/>'
     : '<path d="M2 2L18 18M18 2L2 18" stroke="var(--fill)" stroke-width="5"/>';

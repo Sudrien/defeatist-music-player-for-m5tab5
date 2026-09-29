@@ -279,6 +279,8 @@ void settings_set_crossfade_album(bool on);
  *   UAC      a USB microphone, at its own rate and channels
  *   AUTO     USB if a microphone is announced, else the headset if the
  *            jack is in use, else MONO -- and always mono
+ *   OFF      (5217) no recording: the transport switch has no record
+ *            position, and RECORD from anywhere is ignored
  */
 typedef enum {
     SETTINGS_REC_MONO = 0,
@@ -287,6 +289,7 @@ typedef enum {
     SETTINGS_REC_HEADSET,
     SETTINGS_REC_UAC,
     SETTINGS_REC_AUTO,
+    SETTINGS_REC_OFF,           /* 5217: last, so stored numbers keep their meaning */
     SETTINGS_REC_COUNT
 } settings_rec_from_t;
 

@@ -8308,6 +8308,14 @@ static void ui_task(void *arg)
                 s_rec_count = (int)((left + 999999) / 1000000);
             }
         }
+        /* 5217: Record from OFF. The switch has no record position,
+         * so this is the remote page or MPD asking; ignored, not
+         * refused with a card -- the listener turned it off. */
+        if (act.kind == UI_ACTION_RECORD && !recorder_active() && !s_rec_at_us &&
+            settings_rec_from() == SETTINGS_REC_OFF) {
+            ESP_LOGI(TAG, "record ignored: Record from is OFF");
+            act.kind = UI_ACTION_NONE;
+        }
         /* Nothing to record to: say so now, not after the countdown,
          * and leave the switch on pause. */
         if (act.kind == UI_ACTION_RECORD && !recorder_active() && !s_rec_at_us &&
@@ -8671,6 +8679,10 @@ static void ui_task(void *arg)
         recording_overlay(&st);         /* 5106: pos_sec was just rewritten */
         if (s_rec_count > 0) st.recording = true;   /* the knob stays on record */
         st.rec_ok = recorder_can_start();
+        /* 5217: no record position at all. Not while recording: a
+         * recording started before the switch was turned OFF still has
+         * its knob on the left, and stopping it must stay possible. */
+        st.rec_off = settings_rec_from() == SETTINGS_REC_OFF && !st.recording;
         /* 5117: what the panel is about to draw is what the browser is
          * told, so the two cannot disagree. Before ui_draw(), which
          * returns early with the screen off -- a remote is most useful

@@ -462,6 +462,7 @@ bool recorder_start(char *why, size_t why_len)
      * rather than refusing: AUTO promised "whatever is there".
      */
     settings_rec_from_t want = settings_rec_from();
+    if (want == SETTINGS_REC_OFF) REFUSE("Recording is off (AUDIO, Record from).");  /* 5217 */
     const bool autom = (want == SETTINGS_REC_AUTO);
     if (autom) {
         want = uac_mic_announced() ? SETTINGS_REC_UAC

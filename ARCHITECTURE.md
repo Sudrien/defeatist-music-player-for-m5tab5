@@ -18767,3 +18767,34 @@ passed when it should not have.
 
 Compiled -O2 -Wall -Wextra on the host stubs: mpd.c, no warnings.
 texttest all passes. Not on the board.
+
+### 5244 -- mpdfilter and mpdcheck: folding beyond ASCII
+
+The other half of 5243. Filter expressions (5238) folded with their
+own ASCII fold_c(), so `search "(file contains 'BÔA')"` would still have
+missed "Bôa" after 5243 -- and worse, the pre-filter (the search file,
+folded by casefold.h) and the exact stage (fold_c) could now disagree.
+str_eq() and str_has() compare folded code points with casefold.h, a
+character at a time: no folded copies, since this runs on the MPD task
+and a copy of a tag is a stack buffer CLAUDE.md rules out. A `contains`
+match now starts on a character, never inside a UTF-8 sequence, which
+the byte-wise version could.
+
+mpdfiltertest: the board's "BÔA"/"Bôa", find staying exact, `any`,
+Greek with both sigmas, Cyrillic with Ё, and a continuation byte that
+must not match inside "é" -- 178 checks.
+
+mpdcheck: the case-folding checks upper-case a name a character at a
+time and leave a character whose upper case is longer than one (ß to
+"SS") as it is: simple folding, the player's and MPD's, maps one to
+one, and "SS" would not find "ß" in either. Against stock MPD 0.23.5
+with a usb/Bôa - Get There folder -- the board's case -- every folding
+check passes.
+
+MPD.md says what folds and what does not.
+
+Compiled -O2 -Wall -Wextra on the host stubs: mpd.c, no warnings.
+texttest all passes. Not on the board. What the board run should show:
+the four failures of the last run (search folds case, expression
+search, playlistsearch, expression playlistsearch) pass -- after the
+automatic reindex has written .defeatist.sr2 on each volume.

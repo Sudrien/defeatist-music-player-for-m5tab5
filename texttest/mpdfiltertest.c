@@ -81,6 +81,26 @@ int main(void)
     match("(artist == '')", BARE, false, true);
     match("(artist != '')", BARE, false, false);
 
+    /* ---- 5244: folding beyond ASCII, as the search file folds --------- */
+    {
+        static const char *const U[MPDF_NFIELDS] = {
+            "Angry", "Bôa", "Get There", "usb/Bôa - Get There/01 Angry.mp3",
+        };
+        match("(artist == 'BÔA')", U, true, true);
+        match("(artist == 'BÔA')", U, false, false);        /* find stays exact */
+        match("(file contains 'BÔA ')", U, true, true);
+        match("(any contains 'bÔa')", U, true, true);
+        static const char *const G[MPDF_NFIELDS] = { "Οδός", "ΜΆΝΟΣ", "x", "sd/x" };
+        match("(artist == 'μάνος')", G, true, true);          /* Σ and ς both σ */
+        match("(title contains 'ΟΔΌΣ')", G, true, true);
+        static const char *const C[MPDF_NFIELDS] = { "Ёлка", "Кино", "Группа крови", "sd/x" };
+        match("(album contains 'КРОВИ')", C, true, true);
+        match("(title == 'ёЛКА')", C, true, true);
+        /* A match starts on a character, never inside one. */
+        static const char *const M[MPDF_NFIELDS] = { "é", "x", "x", "sd/x" };
+        match("(title contains '\xa9')", M, true, false);
+    }
+
     /* ---- base ---------------------------------------------------------- */
     match("(base 'sd/Beatles')", SONG, false, true);
     match("(base 'sd/Beatles/Abbey Road')", SONG, false, true);

@@ -214,6 +214,14 @@ def sq(s):
     return "'" + s.replace("\\", "\\\\").replace("'", "\\'") + "'"
 
 
+def up4(name):
+    """5244: the first four characters of a name in upper case, for the
+    case-folding checks -- a character at a time, and one whose upper case
+    is more than one character (ß) left alone, since simple folding, the
+    player's and MPD's, maps one to one."""
+    return "".join(c.upper() if len(c.upper()) == 1 else c for c in name[:4])
+
+
 def files_of(lines):
     return [v for k, v in pairs(lines) if k == "file"]
 
@@ -494,7 +502,7 @@ class Checker:
         base = f0.rsplit("/", 1)[1]
         r = self.expect_ok("search file <part of name>", f"search file {q(base[:max(3, len(base) // 2)])}") or []
         self.ok("search file finds it", f0 in files_of(r))
-        r = self.expect_ok("search file <PART OF NAME, upper case>", f"search file {q(base[:4].upper())}") or []
+        r = self.expect_ok("search file <PART OF NAME, upper case>", f"search file {q(up4(base))}") or []
         self.ok("search folds case", f0 in files_of(r))
         r = self.expect_ok("find base <folder>", f"find base {q(folder)}") or []
         self.ok("find base finds it", f0 in files_of(r))
@@ -512,12 +520,12 @@ class Checker:
         r = self.expect_ok("find (file == uri)", f"find {fx(f'(file == {sq(f0)})')}") or []
         self.ok("expression find gives exactly that file", files_of(r) == [f0], repr(r))
         r = self.expect_ok("search (file contains PART) folds case",
-                           f"search {fx(f'(file contains {sq(base[:4].upper())})')}") or []
+                           f"search {fx(f'(file contains {sq(up4(base))})')}") or []
         self.ok("expression search finds it", f0 in files_of(r))
         r = self.expect_ok("find (file contains PART) is exact",
-                           f"find {fx(f'(file contains {sq(base[:4].upper())})')}") or []
+                           f"find {fx(f'(file contains {sq(up4(base))})')}") or []
         self.ok("expression find does not fold case",
-                base[:4].upper() == base[:4] or f0 not in files_of(r), repr(r[:4]))
+                up4(base) == base[:4] or f0 not in files_of(r), repr(r[:4]))
         r = self.expect_ok("find (base folder)", f"find {fx(f'(base {sq(folder)})')}") or []
         self.ok("expression base finds it", f0 in files_of(r))
         r = self.expect_ok("find ((base) AND (!(file == uri)))",
@@ -773,14 +781,14 @@ class Checker:
         self.ok("playlistfind finds it at its position",
                 str(self.base + 1) in [s.get("Pos") for s in songs(r)], repr(r))
         base = f[1].rsplit("/", 1)[1]
-        r = self.expect_ok("playlistsearch file <PART>", f"playlistsearch file {q(base[:4].upper())}") or []
+        r = self.expect_ok("playlistsearch file <PART>", f"playlistsearch file {q(up4(base))}") or []
         self.ok("playlistsearch finds it", f[1] in files_of(r), repr(r))
         r = self.expect_ok("playlistfind (file == uri)",                     # 5239
                            f"playlistfind {q(f'(file == {sq(f[1])})')}") or []
         self.ok("expression playlistfind finds it at its position",
                 str(self.base + 1) in [s.get("Pos") for s in songs(r)], repr(r))
         r = self.expect_ok("playlistsearch (file contains PART)",
-                           f"playlistsearch {q(f'(file contains {sq(base[:4].upper())})')}") or []
+                           f"playlistsearch {q(f'(file contains {sq(up4(base))})')}") or []
         self.ok("expression playlistsearch finds it", f[1] in files_of(r), repr(r))
         r = self.expect_ok("playlistfind genre x (not held)", 'playlistfind genre "x"') or []
         self.ok("playlistfind on an unheld tag is empty", r == [], repr(r))

@@ -39,9 +39,10 @@
  *     no format. A refusal says so; a match that silently ignored them
  *     would answer a different question.
  *
- * CASE. find's commands compare exactly; search's fold ASCII case, as
- * 0.21's doc says ("find commands are case sensitive, which search and
- * related commands ignore case") and as mediasearch_fold() folds.
+ * CASE. find's commands compare exactly; search's fold case, as 0.21's
+ * doc says ("find commands are case sensitive, which search and related
+ * commands ignore case") -- 5244: with casefold.h, the folding the
+ * search file is written with (5243), accented letters included.
  *
  * PURE: no ESP-IDF, no allocation. The tree lives in the caller's
  * mpdfilter_t, and the values are unescaped into its own buffer.

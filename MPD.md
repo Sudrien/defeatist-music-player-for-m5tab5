@@ -546,6 +546,12 @@ crossfade and MixRamp other than off, a second partition, mounting,
 database), a shuffle of part of the queue, `load` of a range, `group`
 on `find`. `listfiles` gives no `size` (a 32-bit off_t, 5228).
 
+**Case-insensitive search folds accented letters** (5243-5244): Latin
+with its diacritics, Vietnamese, Greek, Cyrillic and Armenian, by
+casefold.h's ranges -- simple folding, so ß does not match "ss". Other
+scripts (Georgian, Greek Extended, CJK, which has no case) compare as
+they are.
+
 **The greeting claims 0.21.0** (5241). 0.21's two -- filter
 expressions (5238-5239, in every command that filters) and `albumart`
 (5240, a cover file in the song's folder) -- are done, with `tagtypes`'

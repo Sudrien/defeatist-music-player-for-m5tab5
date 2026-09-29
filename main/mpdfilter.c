@@ -7,6 +7,8 @@
 
 #include <string.h>
 
+#include "casefold.h"       /* 5244: the index's folding, so they agree */
+
 /* ---- the parser ---------------------------------------------------------- */
 
 typedef struct {
@@ -236,24 +238,41 @@ bool mpdfilter_parse(const char *s, mpdfilter_t *f)
 
 /* ---- evaluation ------------------------------------------------------------ */
 
-static char fold_c(char c) { return (c >= 'A' && c <= 'Z') ? (char)(c + 32) : c; }
-
+/*
+ * 5244: folded comparison a code point at a time, by casefold.h -- the
+ * folding the search file is written with, so a filter and the pass that
+ * pre-filters for it cannot disagree. No buffers: this runs on the MPD
+ * task, and a folded copy of a tag is a stack allocation CLAUDE.md says
+ * not to make.
+ */
 static bool str_eq(const char *a, const char *b, bool fold)
 {
     if (!fold) return strcmp(a, b) == 0;
-    for (; *a && *b; a++, b++) if (fold_c(*a) != fold_c(*b)) return false;
-    return *a == *b;
+    for (;;) {
+        const uint32_t x = casefold_next(&a), y = casefold_next(&b);
+        if (casefold_cp(x) != casefold_cp(y)) return false;
+        if (!x) return true;
+    }
+}
+
+/* Whether `needle`, folded, starts at `hay`, folded. */
+static bool starts(const char *hay, const char *needle)
+{
+    for (;;) {
+        const uint32_t y = casefold_next(&needle);
+        if (!y) return true;
+        const uint32_t x = casefold_next(&hay);
+        if (!x || casefold_cp(x) != casefold_cp(y)) return false;
+    }
 }
 
 static bool str_has(const char *hay, const char *needle, bool fold)
 {
     if (!*needle) return true;
     if (!fold) return strstr(hay, needle) != NULL;
-    const size_t n = strlen(needle);
-    for (; *hay; hay++) {
-        size_t k = 0;
-        while (k < n && hay[k] && fold_c(hay[k]) == fold_c(needle[k])) k++;
-        if (k == n) return true;
+    while (*hay) {
+        if (starts(hay, needle)) return true;
+        (void)casefold_next(&hay);          /* on by a whole character */
     }
     return false;
 }

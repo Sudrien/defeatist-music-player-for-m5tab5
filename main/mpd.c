@@ -576,6 +576,17 @@ static void put_entry(conn_t *c, int i)
         .id = s_list->id[i],
     };
     if (!cur) (void)lib_tags(s.uri, &s);
+    /* 5187: the playing song's own tags are the player's, and a field the
+     * player has none for is filled from the catalog -- Cantata showed
+     * unknown artist and album on the playing entry and nowhere else. */
+    else if (!(s.title && s.title[0]) || !(s.artist && s.artist[0]) || !(s.album && s.album[0])) {
+        mpd_song_t k = { 0 };
+        if (lib_tags(s.uri, &k)) {
+            if (!(s.title && s.title[0]))   s.title = k.title;
+            if (!(s.artist && s.artist[0])) s.artist = k.artist;
+            if (!(s.album && s.album[0]))   s.album = k.album;
+        }
+    }
     const size_t n = mpdproto_song(&s, s_body, MPD_BODY_MAX);
     if (n) put(c, s_body, n);
 }
@@ -2172,7 +2183,8 @@ static result_t run_cmd(conn_t *c, const mpd_cmd_t *cmd, int idx)
          * catalog. Not while a reindex runs: then they print as before,
          * without, rather than being refused. */
         const bool tags = cmd->kind == MPD_CMD_PLAYLISTINFO || cmd->kind == MPD_CMD_PLAYLISTID
-                       || cmd->kind == MPD_CMD_PLCHANGES;
+                       || cmd->kind == MPD_CMD_PLCHANGES
+                       || cmd->kind == MPD_CMD_CURRENTSONG;     /* 5187 */
         if (tags && !medialib_busy()) {
             static const storage_id_t vols[MEDIALIST_VOLS] = { STORAGE_SD, STORAGE_USB };
             for (int v = 0; v < MEDIALIST_VOLS; v++)

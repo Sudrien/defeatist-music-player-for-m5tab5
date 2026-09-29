@@ -17157,3 +17157,17 @@ playable in" and leaves the queue empty.
 
 The row is not marked as playing afterwards: the chooser marks the
 file that is playing, and that is a track, not the list.
+
+### 5187 -- mpd: the playing entry falls back to the catalog's tags
+
+After 5185 the queue's other entries had their tags and the playing
+one, the last added in v0.4.0-208's run, showed unknown artist and
+album in Cantata. put_entry() gives the playing song the player's own
+tags (the snapshot from mpd_publish()), and 5185 left it there. Where
+the player has a field empty, the catalog's is used now, and
+`currentsong` opens the library for that as the queue listings do.
+
+The player's title is never empty -- it falls back to the file name --
+so a file the catalog has a title for and the player did not still
+shows the file name. If a field is empty in both, the file has no such
+tag, and unknown is the true answer.

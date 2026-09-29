@@ -8385,6 +8385,12 @@ static void ui_task(void *arg)
             playlist_unlock();
             if (have) {
                 request_track(idpath);
+                /* 5197: and plays it. MPD's play and playid start playback,
+                 * and the remote page's queue row means the same; from a
+                 * paused state the track loaded paused, and Cantata had to
+                 * follow every play with a `pause 0`. Not while network
+                 * setup or a recording holds playback (PLAY_PAUSE's rules). */
+                if (!s_playing && !portal_running() && !recorder_active()) s_playing = true;
             } else {
                 ESP_LOGI(TAG, "queue entry %d is gone; nothing to play", act.value);
             }

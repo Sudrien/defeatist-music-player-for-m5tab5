@@ -17327,3 +17327,16 @@ distinct values, and the time, which is the number to watch on a large
 drive (the search file is read start to finish per query). A `list` of
 a tag the catalog does not hold (genre, date, ...) says so rather than
 logging a bare zero.
+
+### 5197 -- player: playing a queue entry starts playback
+
+v0.4.0-217, and every run before it: the board boots with the last track
+"ready to resume ... (paused)", Cantata's clear, add and play land, the
+entry opens -- and stays paused until a `pause 0` four seconds later.
+UI_ACTION_PLAY_ID set the cursor and requested the track, and a track
+requested while paused opens paused; that is right for a tap on the
+chooser from a paused screen, which is the device's own model, and
+wrong for MPD's `play POS` and `playid ID`, which mean "play". The
+action now also sets s_playing, under PLAY_PAUSE's two refusals
+(network setup, a recording). It is also the remote page's queue-row
+play, which means the same.

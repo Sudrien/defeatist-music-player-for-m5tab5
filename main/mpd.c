@@ -736,6 +736,7 @@ static bool answered(mpd_cmd_kind_t k)
     case MPD_CMD_DELPARTITION: case MPD_CMD_MOVEOUTPUT:
     case MPD_CMD_LISTMOUNTS: case MPD_CMD_LISTNEIGHBORS:
     case MPD_CMD_GETVOL: case MPD_CMD_PASSWORD: case MPD_CMD_CROSSFADE:   /* 5218 */
+    case MPD_CMD_ENABLEOUTPUT: case MPD_CMD_DISABLEOUTPUT: case MPD_CMD_TOGGLEOUTPUT:   /* 5219 */
         return true;
     default:
         return false;
@@ -743,7 +744,7 @@ static bool answered(mpd_cmd_kind_t k)
 }
 
 /* The last kind in mpdproto.h's enum, for walking the table. */
-#define MPD_CMD_LAST    MPD_CMD_CROSSFADE
+#define MPD_CMD_LAST    MPD_CMD_TOGGLEOUTPUT
 
 /*
  * 5166: the commands that read the list, over the pinned copy. Called
@@ -2820,6 +2821,30 @@ static result_t run_cmd(conn_t *c, const mpd_cmd_t *cmd, int idx)
          * DAC are one output here, switched by what is plugged in. */
         putf(c, "outputid: 0\noutputname: %s\noutputenabled: 1\n", MPD_OUTPUT_NAME);
         return RES_OK;
+
+    case MPD_CMD_ENABLEOUTPUT:
+    case MPD_CMD_DISABLEOUTPUT:
+    case MPD_CMD_TOGGLEOUTPUT: {
+        /*
+         * 5219: the one output, id 0, which is always on. Enabling it is
+         * what already is. Turning it off is refused rather than done:
+         * there is nothing between the decoder and the amplifier that
+         * could hold audio back without it being pause, and a client
+         * shown "off" while the speaker plays is worse than a refusal.
+         * MPD's handle_enableoutput and siblings say "No such audio
+         * output" (NO_EXIST) for an id that is not there.
+         */
+        unsigned long id;
+        if (!arg_unsigned(&x, a0, UINT32_MAX, &id)) return RES_ERR;
+        if (id != 0) {
+            ack(c, MPD_ACK_NO_EXIST, idx, cmd->verb, "No such audio output");
+            return RES_ERR;
+        }
+        if (cmd->kind == MPD_CMD_ENABLEOUTPUT) return RES_OK;
+        ack(c, MPD_ACK_UNKNOWN, idx, cmd->verb,
+            "the one output cannot be turned off; pause instead");
+        return RES_ERR;
+    }
 
     /* ---- the transport ------------------------------------------------ */
 

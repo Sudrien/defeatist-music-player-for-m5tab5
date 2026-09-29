@@ -324,6 +324,11 @@ static const cmd_def_t s_cmds[] = {
     { "getvol",           MPD_CMD_GETVOL,           0, 0 },
     { "password",         MPD_CMD_PASSWORD,         1, 1 },
     { "crossfade",        MPD_CMD_CROSSFADE,        1, 1 },
+
+    /* 5219: arities from AllCommands.cxx */
+    { "enableoutput",     MPD_CMD_ENABLEOUTPUT,        1,  1 },
+    { "disableoutput",    MPD_CMD_DISABLEOUTPUT,       1,  1 },
+    { "toggleoutput",     MPD_CMD_TOGGLEOUTPUT,        1,  1 },
 };
 
 #define N_CMDS  (sizeof(s_cmds) / sizeof(s_cmds[0]))

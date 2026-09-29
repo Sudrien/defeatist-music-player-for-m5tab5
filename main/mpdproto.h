@@ -185,6 +185,9 @@ typedef enum {
      * a client that gates it on the greeting never asks, and one that
      * does not is better answered than refused. */
     MPD_CMD_GETVOL, MPD_CMD_PASSWORD, MPD_CMD_CROSSFADE,
+
+    /* 5219: the one output, switched. outputset (0.22) is not here. */
+    MPD_CMD_ENABLEOUTPUT, MPD_CMD_DISABLEOUTPUT, MPD_CMD_TOGGLEOUTPUT,
 } mpd_cmd_kind_t;
 
 /*

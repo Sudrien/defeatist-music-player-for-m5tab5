@@ -17988,3 +17988,16 @@ Three verbs from doc/protocol.rst that were unknown commands:
 Compiled -O2 -Wall -Wextra on the host stubs: mpd.c, no warnings.
 texttest all passes (mpdprototest gains the three verbs and loses the
 getvol-is-unknown check). Not on the board.
+
+### 5219 -- mpd: enableoutput, disableoutput, toggleoutput
+
+The one output, id 0 (`outputs` has always listed it, always on).
+`enableoutput 0` is OK. `disableoutput 0` and `toggleoutput 0` are
+ACK 5 "the one output cannot be turned off; pause instead": nothing
+between the decoder and the amplifier can hold audio back except pause,
+and a client showing the output off while the speaker plays is worse
+than being told no. Any other id is ACK 50 "No such audio output", MPD's
+wording. `outputset` (0.22) is not added.
+
+Compiled -O2 -Wall -Wextra on the host stubs: mpd.c, no warnings.
+texttest all passes. Not on the board.

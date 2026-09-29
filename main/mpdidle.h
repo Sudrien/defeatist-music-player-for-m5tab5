@@ -71,7 +71,7 @@ enum {
     MPD_IDLE_SUBSCRIPTION    = 1u << 9,
     MPD_IDLE_MESSAGE         = 1u << 10,
     MPD_IDLE_NEIGHBOR        = 1u << 11,
-    MPD_IDLE_MOUNT           = 1u << 12,
+    MPD_IDLE_MOUNT           = 1u << 12,  /* raised (5192): a volume in or out */
 };
 #define MPD_IDLE_COUNT      (13)
 

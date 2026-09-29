@@ -108,6 +108,10 @@ int mpd_clients(void);
  */
 void mpd_publish(const ui_state_t *st, const char *path, bool streaming);
 
+/* 5192: ui_task, when a volume was put in or taken out: raises MPD's
+ * database, mount and stored_playlist idle events. */
+void mpd_media_changed(void);
+
 #ifdef __cplusplus
 }
 #endif

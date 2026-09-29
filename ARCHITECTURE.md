@@ -17258,3 +17258,26 @@ The index, the catalog, the search file, the on-device chooser and the
 remote page are unchanged -- the prefix exists only in MPD's URIs.
 texttest/mpduritest.c's shadowing cases are rewritten to the new rule:
 each volume's copy resolves under its own name and never the other's.
+
+### 5192 -- a volume taken out leaves the queue, and MPD is told
+
+With the volumes separate folders (5191), taking one out is something
+a client can see, and should be told about. ui_task now watches
+storage_present() for each volume every pass. When one goes:
+
+- its entries leave the queue (playlist_remove(), under the lock) --
+  what MPD does with the songs of a storage that is gone, and what
+  keeps a client from playing into "no such file". Logged as "queue:
+  /usb is out; N entries on it dropped". Playback on it has already
+  stopped where it always did, in the decoder ("media removed").
+
+When one goes or comes, mpd_media_changed() raises `database`, `mount`
+and `stored_playlist`: the library root's folder, `listmounts` and the
+volume's Playlists folder all changed with it. MPD_IDLE_MOUNT is raised
+for the first time. The pass counts as an edit (5189), so it is
+published at once even with a page up.
+
+Nothing is put back when the volume returns: the queue it left is
+gone, as it is in MPD. A drive that drops off the bus for a moment
+empties its part of the queue -- the cost of not holding entries whose
+files cannot be opened.

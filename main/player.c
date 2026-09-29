@@ -7310,6 +7310,42 @@ static void ui_task(void *arg)
                 edited = true;                          /* 5189 */
             }
         }
+        /*
+         * 5192: A VOLUME TAKEN OUT OR PUT IN. Its entries leave the queue
+         * when it goes -- MPD drops the songs of a storage that is gone,
+         * and an entry whose file cannot be opened is one a client would
+         * play into "no such file" -- and MPD's clients are told the
+         * library, the mounts and the stored playlists changed, since the
+         * volume's folder and its Playlists folder came or went with it.
+         * Playback on it has already stopped (the decoder's "media
+         * removed"). The first pass only learns what is in.
+         */
+        {
+            static bool seen, was[STORAGE_COUNT];
+            for (int v = 0; v < STORAGE_COUNT; v++) {
+                const bool now = storage_present((storage_id_t)v);
+                if (seen && now != was[v]) {
+                    if (!now) {
+                        const char *m = storage_mount_path((storage_id_t)v);
+                        const size_t ml = strlen(m);
+                        int dropped = 0;
+                        playlist_lock();
+                        for (int i = playlist_count() - 1; i >= 0; i--) {
+                            const char *pp = playlist_path(i);
+                            if (pp && strncmp(pp, m, ml) == 0 && pp[ml] == '/' && playlist_remove(i))
+                                dropped++;
+                        }
+                        playlist_unlock();
+                        ESP_LOGI(TAG, "queue: %s is out; %d entr%s on it dropped",
+                                 m, dropped, dropped == 1 ? "y" : "ies");
+                    }
+                    mpd_media_changed();
+                    edited = true;      /* so a page up does not hold the publish */
+                }
+                was[v] = now;
+            }
+            seen = true;
+        }
         /* The media index on mount. Here because this loop runs whether
          * or not anything is playing; see medialib.h. */
         medialib_poll();

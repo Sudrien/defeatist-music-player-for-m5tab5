@@ -2965,6 +2965,14 @@ static bool ready(void)
     return true;
 }
 
+void mpd_media_changed(void)
+{
+    if (!s_mu) return;
+    xSemaphoreTake(s_mu, portMAX_DELAY);
+    s_events |= MPD_IDLE_DATABASE | MPD_IDLE_MOUNT | MPD_IDLE_STORED_PLAYLIST;
+    xSemaphoreGive(s_mu);
+}
+
 void mpd_poll(bool want)
 {
     if (!ready()) return;

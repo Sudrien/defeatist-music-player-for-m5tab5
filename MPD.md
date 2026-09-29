@@ -525,8 +525,19 @@ Known and left:
   a folder, partial `shuffle` and `load` of a range are refused too.
 - One partition, `default`; mounts are the two volumes and cannot be
   made from a client.
+- Refused with a reason, or still unknown (5218-5223 filled in the rest
+  of doc/protocol.rst's list): `albumart` and `readpicture` (a feature,
+  and why the greeting stays 0.20), `prio`/`prioid`, `rangeid`,
+  `addtagid`/`cleartagid`, `outputset`, the sticker, message and
+  subscribe verbs, `readcomments`, `getfingerprint`, `config`,
+  `binarylimit`, `mixrampdb`/`mixrampdelay`. Crossfade other than 0,
+  and turning the one output off, are refused rather than ignored.
 - Not yet driven on the board: `list` (5182), `search`/`find` (5180),
-  and Cantata's stored-playlists view (5184).
+  Cantata's stored-playlists view (5184), and everything from 5218 on:
+  `getvol`, `findadd`/`searchadd`/`searchaddpl`,
+  `playlistfind`/`playlistsearch`, `swap`/`swapid`, and editing a
+  stored playlist (`playlistdelete`, `playlistmove`, `playlistclear`,
+  `rename`).
 
 
 ## What would make this not worth building

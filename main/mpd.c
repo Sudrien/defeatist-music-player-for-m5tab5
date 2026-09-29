@@ -772,6 +772,7 @@ static bool answered(mpd_cmd_kind_t k)
     case MPD_CMD_PLAYLISTCLEAR: case MPD_CMD_PLAYLISTMOVE: case MPD_CMD_RENAME:   /* 5223 */
     case MPD_CMD_LISTFILES:   /* 5228 */
     case MPD_CMD_SUBSCRIBE: case MPD_CMD_UNSUBSCRIBE: case MPD_CMD_READMESSAGES: case MPD_CMD_SENDMESSAGE:   /* 5230 */
+    case MPD_CMD_PRIO: case MPD_CMD_PRIOID: case MPD_CMD_RANGEID: case MPD_CMD_ADDTAGID: case MPD_CMD_CLEARTAGID: case MPD_CMD_READCOMMENTS: case MPD_CMD_MIXRAMPDB: case MPD_CMD_MIXRAMPDELAY: case MPD_CMD_KILL: case MPD_CMD_CONFIG: case MPD_CMD_STICKER:   /* 5231 */
         return true;
     default:
         return false;
@@ -779,7 +780,7 @@ static bool answered(mpd_cmd_kind_t k)
 }
 
 /* The last kind in mpdproto.h's enum, for walking the table. */
-#define MPD_CMD_LAST    MPD_CMD_SENDMESSAGE
+#define MPD_CMD_LAST    MPD_CMD_STICKER
 
 /*
  * 5166: the commands that read the list, over the pinned copy. Called
@@ -2223,7 +2224,10 @@ static bool lib_scan_offs(int v, const qpair_t *pairs, int np,
     return true;
 }
 
-static result_t lib_list(const ctx_t *x, const mpd_cmd_t *cmd)
+/* 5231: `counting` -- `count ... group TAG` answered through the same
+ * scan: the type is the group's tag, and each value is printed with how
+ * many songs have it, instead of once. See lib_count(). */
+static result_t lib_list(const ctx_t *x, const mpd_cmd_t *cmd, bool counting)
 {
     conn_t *const c = x->c;
     const int64_t t0 = esp_timer_get_time();       /* 5196 */
@@ -2304,7 +2308,7 @@ static result_t lib_list(const ctx_t *x, const mpd_cmd_t *cmd)
             /* 5191: both volumes' copies count; a value they share is
              * one line anyway, since the set is deduplicated. */
             const char *val = l_value(r, s_lib->uri, type.field);
-            if (!val[0]) continue;
+            if (!val[0] && !counting) continue;     /* count: untagged is a group too */
             if (!lset_add(&set, group.field >= 0 ? l_value(r, s_lib->uri, group.field) : "", val)) {
                 full = true;
                 break;
@@ -2323,6 +2327,18 @@ static result_t lib_list(const ctx_t *x, const mpd_cmd_t *cmd)
             const char *v = g + strlen(g) + 1;
             const bool new_g = !last_g || strcmp(g, last_g) != 0;
             if (!new_g && strcmp(v, last_v) == 0) continue;         /* a repeat */
+            if (counting) {
+                /* 5231: the run of equal values is the group's songs. */
+                size_t j = i + 1;
+                while (j < set.n && strcmp(v, set.arena + set.at[j] + 1) == 0) j++;
+                const size_t kn = mpdproto_kv(type.label, v, s_body, MPD_BODY_MAX);
+                if (kn) put(c, s_body, kn);
+                putf(c, "songs: %u\nplaytime: 0\n", (unsigned)(j - i));
+                n_out++;
+                last_g = g;
+                last_v = v;
+                continue;
+            }
             if (group.field >= 0 && new_g) {
                 const size_t n = mpdproto_kv(group.label, g, s_body, MPD_BODY_MAX);
                 if (n) put(c, s_body, n);
@@ -2346,6 +2362,99 @@ static result_t lib_list(const ctx_t *x, const mpd_cmd_t *cmd)
     }
     log_query(x, cmd, n_out, n_out == 1 ? "value" : "values", t0);   /* 5196 */
     return RES_OK;
+}
+
+/*
+ * 5231: `count FILTERS... group TAG` -- songs per value of TAG among the
+ * songs the filters match, MPD's handle_count with a group. Asked as
+ * `list TAG FILTERS...` with counting on: the same scan, the same
+ * filters, the values sorted, each followed by `songs:` and `playtime:
+ * 0` (the catalog has no lengths, as plain `count` already says). Songs
+ * without the tag count under an empty value. Without `group`, find's
+ * count as before.
+ */
+static result_t lib_count(const ctx_t *x, const mpd_cmd_t *cmd)
+{
+    int gi = -1;
+    for (int i = 0; i + 1 < cmd->argc; i += 2)
+        if (strcasecmp(cmd->argv[i], "group") == 0) gi = i;
+    if (gi < 0) return lib_find(x, cmd, Q_COUNT, QS_PRINT, NULL);
+    static mpd_cmd_t l;                 /* not on the task stack */
+    ltype_t g;
+    if (!l_type(cmd->argv[gi + 1], &g)) {
+        /* A tag the library does not hold: every song is in the one,
+         * empty, group -- the group's line, then count without it. */
+        l = *cmd;
+        l.argc = 0;
+        for (int i = 0; i < cmd->argc; i++)
+            if (i != gi && i != gi + 1) l.argv[l.argc++] = cmd->argv[i];
+        putf(x->c, "%s: \n", cmd->argv[gi + 1]);
+        return lib_find(x, &l, Q_COUNT, QS_PRINT, NULL);
+    }
+    l = *cmd;
+    l.argc = 0;
+    l.argv[l.argc++] = cmd->argv[gi + 1];
+    for (int i = 0; i < cmd->argc; i++) {
+        if (i == gi || i == gi + 1) continue;
+        if (l.argc >= MPDPROTO_MAX_ARGS) break;
+        l.argv[l.argc++] = cmd->argv[i];
+    }
+    return lib_list(x, &l, true);
+}
+
+/*
+ * 5231: `stats`'s library counts -- songs, distinct artists, distinct
+ * albums -- over both volumes' catalogs, a song on both counted twice as
+ * `list` counts it. A whole-catalog pass, so kept until the index
+ * changes: deliver_events() clears s_stats_ok on `database`. While a
+ * reindex runs there are none, and `stats` leaves the lines out.
+ */
+static bool     s_stats_ok;
+static uint32_t s_stats_songs, s_stats_artists, s_stats_albums;
+
+static uint32_t lset_distinct(lset_t *set)
+{
+    s_lset_arena = set->arena;
+    qsort(set->at, set->n, sizeof(uint32_t), cmp_entry);
+    uint32_t n = 0;
+    for (size_t i = 0; i < set->n; i++)
+        if (i == 0 || cmp_entry(&set->at[i], &set->at[i - 1]) != 0) n++;
+    return n;
+}
+
+static void lib_stats(void)
+{
+    if (s_stats_ok || medialib_busy()) return;
+    static const storage_id_t vols[MEDIALIST_VOLS] = { STORAGE_SD, STORAGE_USB };
+    for (int v = 0; v < MEDIALIST_VOLS; v++) s_rd_open[v] = medialib_rd_open(vols[v], &s_rd[v]);
+    lset_t ar = { 0 }, al = { 0 };
+    uint32_t *offs = NULL;
+    size_t noffs = 0, capoffs = 0;
+    uint32_t songs = 0;
+    bool ok = true;
+    for (int v = 0; v < MEDIALIST_VOLS && ok; v++) {
+        if (!s_rd_open[v]) continue;
+        noffs = 0;
+        if (!lib_scan_offs(v, NULL, 0, &offs, &noffs, &capoffs)) { ok = false; break; }
+        qsort(offs, noffs, sizeof(uint32_t), cmp_u32);
+        for (size_t i = 0; i < noffs && ok; i++) {
+            if (!medialib_rd_cat(&s_rd[v], offs[i])) continue;
+            const mediacat_rec_t *r = s_rd[v].rec;
+            songs++;
+            if (r->artist[0] && !lset_add(&ar, "", r->artist)) ok = false;
+            if (r->album[0] && !lset_add(&al, "", r->album)) ok = false;
+        }
+    }
+    lib_close();
+    free(offs);
+    if (ok) {
+        s_stats_songs = songs;
+        s_stats_artists = lset_distinct(&ar);
+        s_stats_albums = lset_distinct(&al);
+        s_stats_ok = true;
+    }
+    free(ar.arena); free(ar.at);
+    free(al.arena); free(al.at);
 }
 
 /* ---- stored playlists (5184, MPD.md step 13) ------------------------------ */
@@ -3240,7 +3349,7 @@ static result_t run_cmd(conn_t *c, const mpd_cmd_t *cmd, int idx)
     /* 5180: search, find and count. */
     case MPD_CMD_FIND:   return lib_find(&x, cmd, Q_FIND, QS_PRINT, NULL);
     case MPD_CMD_SEARCH: return lib_find(&x, cmd, Q_SEARCH, QS_PRINT, NULL);
-    case MPD_CMD_COUNT:  return lib_find(&x, cmd, Q_COUNT, QS_PRINT, NULL);
+    case MPD_CMD_COUNT:  return lib_count(&x, cmd);                /* 5231 */
     /* 5221 */
     case MPD_CMD_FINDADD:   return lib_find(&x, cmd, Q_FIND, QS_QUEUE, NULL);
     case MPD_CMD_SEARCHADD: return lib_find(&x, cmd, Q_SEARCH, QS_QUEUE, NULL);
@@ -3262,7 +3371,7 @@ static result_t run_cmd(conn_t *c, const mpd_cmd_t *cmd, int idx)
         memmove(rest.argv, cmd->argv + 1, (size_t)rest.argc * sizeof(rest.argv[0]));
         return lib_find(&x, &rest, Q_SEARCH, QS_PLAYLIST, a0);
     }
-    case MPD_CMD_LIST:   return lib_list(&x, cmd);                 /* 5182 */
+    case MPD_CMD_LIST:   return lib_list(&x, cmd, false);          /* 5182 */
 
     /* 5177: the library. */
     case MPD_CMD_LSINFO:
@@ -3390,10 +3499,107 @@ static result_t run_cmd(conn_t *c, const mpd_cmd_t *cmd, int idx)
     }
 
     case MPD_CMD_STATS:
-        /* `playtime` and the database counts are left out, not zeroed:
-         * nothing counts play time, and the counts are step 12's. */
+        /* `playtime` and `db_playtime` are left out, not zeroed: nothing
+         * counts play time and the catalog has no lengths. 5231: the
+         * library counts, while there is an index to count. */
+        lib_stats();
+        if (s_stats_ok)
+            putf(c, "artists: %" PRIu32 "\nalbums: %" PRIu32 "\nsongs: %" PRIu32 "\n",
+                 s_stats_artists, s_stats_albums, s_stats_songs);
         putf(c, "uptime: %" PRIu32 "\n", (uint32_t)(esp_timer_get_time() / 1000000));
         return RES_OK;
+
+    /* ---- 5231: the rest of 0.20's table -------------------------------- */
+
+    case MPD_CMD_PRIO:
+    case MPD_CMD_PRIOID: {
+        /* Priorities order MPD's random mode. This player's random is
+         * its own shuffle of the queue (mpdq_shuffle()), which has no
+         * place for them, so they are refused -- after the arguments are
+         * checked, so a malformed one gets MPD's own error. */
+        unsigned long p;
+        if (!arg_unsigned(&x, a0, 255, &p)) return RES_ERR;
+        ack(c, MPD_ACK_UNKNOWN, idx, cmd->verb,
+            "priorities are not supported: this player's random order does not use them");
+        return RES_ERR;
+    }
+
+    case MPD_CMD_RANGEID:
+        ack(c, MPD_ACK_UNKNOWN, idx, cmd->verb,
+            "playing part of a song is not supported by this player");
+        return RES_ERR;
+
+    case MPD_CMD_ADDTAGID:
+    case MPD_CMD_CLEARTAGID:
+        /* MPD edits the tags of a queued stream only. Streams are played
+         * here, not queued (5201), so every queue entry is a file. */
+        ack(c, MPD_ACK_UNKNOWN, idx, cmd->verb,
+            "only a stream's tags can be edited, and streams are not queued on this player");
+        return RES_ERR;
+
+    case MPD_CMD_READCOMMENTS: {
+        /* The file's tags as the index read them -- title, artist and
+         * album are what it keeps -- under the tag names a file uses. */
+        if (!mpduri_ok(a0, false) || !lib_open(&x)) {
+            if (!mpduri_ok(a0, false)) ack(c, MPD_ACK_NO_EXIST, idx, cmd->verb, "No such file");
+            return RES_ERR;
+        }
+        midx_rec_t *const r = &s_lib->rec;
+        const int v = lib_file(a0, r);
+        if (v < 0 || !medialib_rd_cat(&s_rd[v], r->cat_off)) {
+            lib_close();
+            ack(c, MPD_ACK_NO_EXIST, idx, cmd->verb, "No such file");
+            return RES_ERR;
+        }
+        const mediacat_rec_t *m = s_rd[v].rec;
+        const char *const k[3] = { "TITLE", "ARTIST", "ALBUM" };
+        const char *const val[3] = { m->title, m->artist, m->album };
+        for (int i = 0; i < 3; i++) {
+            if (!val[i][0]) continue;
+            const size_t n = mpdproto_kv(k[i], val[i], s_body, MPD_BODY_MAX);
+            if (n) put(c, s_body, n);
+        }
+        lib_close();
+        return RES_OK;
+    }
+
+    case MPD_CMD_MIXRAMPDB:
+    case MPD_CMD_MIXRAMPDELAY: {
+        /* MixRamp overlaps tracks, which this player does not (5218,
+         * crossfade). What is already so is OK: a threshold of 0 dB,
+         * MPD's default, and a delay of "nan" or below zero, which is
+         * MPD's "off". Anything else is refused with the reason. */
+        char *end;
+        const float f = strtof(a0, &end);
+        const bool nan_ = strcasecmp(a0, "nan") == 0;
+        if (!nan_ && (end == a0 || *end)) {
+            ack(c, MPD_ACK_ARG, idx, cmd->verb, "Float expected: %s", a0);
+            return RES_ERR;
+        }
+        const bool off = cmd->kind == MPD_CMD_MIXRAMPDB ? (!nan_ && f == 0.0f)
+                                                        : (nan_ || f < 0.0f);
+        if (off) return RES_OK;
+        ack(c, MPD_ACK_UNKNOWN, idx, cmd->verb, "MixRamp is not supported by this player");
+        return RES_ERR;
+    }
+
+    case MPD_CMD_KILL:
+        /* MPD stops itself. This server is part of the player, and a
+         * client stopping the player is not something to allow. */
+        ack(c, MPD_ACK_PERMISSION, idx, cmd->verb, "you don't have permission for \"kill\"");
+        return RES_ERR;
+
+    case MPD_CMD_CONFIG:
+        /* MPD's handle_config: only over a local socket, and there is
+         * none here -- every client is TCP. Its own words. */
+        ack(c, MPD_ACK_PERMISSION, idx, cmd->verb, "Command only permitted to local clients");
+        return RES_ERR;
+
+    case MPD_CMD_STICKER:
+        /* MPD without a sticker database answers every sticker command
+         * this way. There is no database to keep them in here. */
+        ack(c, MPD_ACK_UNKNOWN, idx, cmd->verb, "sticker database is disabled");
+        return RES_ERR;
 
 
     case MPD_CMD_CHANNELS:
@@ -3870,6 +4076,7 @@ static void deliver_events(void)
     const uint32_t ev = s_events;
     s_events = 0;
     xSemaphoreGive(s_mu);
+    if (ev & MPD_IDLE_DATABASE) s_stats_ok = false;                 /* 5231 */
 
     for (int i = 0; i < MPD_CLIENTS; i++) {
         conn_t *c = &s_conn[i];

@@ -206,6 +206,9 @@ typedef enum {
 
     /* 5230: client-to-client messages (MessageCommands.cxx) */
     MPD_CMD_SUBSCRIBE, MPD_CMD_UNSUBSCRIBE, MPD_CMD_READMESSAGES, MPD_CMD_SENDMESSAGE,
+
+    /* 5231: the rest of 0.20's table, each with MPD's answer or a reason */
+    MPD_CMD_PRIO, MPD_CMD_PRIOID, MPD_CMD_RANGEID, MPD_CMD_ADDTAGID, MPD_CMD_CLEARTAGID, MPD_CMD_READCOMMENTS, MPD_CMD_MIXRAMPDB, MPD_CMD_MIXRAMPDELAY, MPD_CMD_KILL, MPD_CMD_CONFIG, MPD_CMD_STICKER,
 } mpd_cmd_kind_t;
 
 /*

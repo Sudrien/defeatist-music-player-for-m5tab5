@@ -18320,3 +18320,48 @@ but it now finds that out the way it does with MPD.
 
 Compiled -O2 -Wall -Wextra on the host stubs: mpd.c, no warnings.
 texttest all passes. Not on the board.
+
+### 5231 -- mpd: the rest of 0.20's command table
+
+Every verb MPD 0.20 has that was still "unknown command" now answers,
+either by doing it or with MPD's own refusal for a server without the
+feature, and `count` and `stats` gain what they were missing.
+
+Done:
+- `count FILTERS... group TAG` -- songs per value of TAG. Asked as
+  `list TAG FILTERS...` with a counting flag on lib_list(): the same
+  scan and filters, each value followed by `songs:` and `playtime: 0`,
+  songs without the tag under an empty value. A group on a tag the
+  catalog does not hold is one empty group holding every match. Plain
+  `count` is find's count as before (lib_count() routes).
+- `stats` gains `artists`, `albums` and `songs`: a whole-catalog pass,
+  distinct values through the lset machinery, cached until `database`
+  is raised (deliver_events() clears s_stats_ok). Left out while a
+  reindex runs, and `db_playtime` left out always -- the catalog has no
+  lengths.
+- `readcomments URI` -- the file's tags as the index read them: TITLE,
+  ARTIST and ALBUM, where present. NO_EXIST for a file not indexed.
+
+Refused, each saying why:
+- `prio`, `prioid` -- priorities order MPD's random mode, and this
+  player's random is its own shuffle with no place for them. The
+  priority is checked first (0-255, MPD's error for a bad one).
+- `rangeid` -- playing part of a song.
+- `addtagid`, `cleartagid` -- MPD edits a queued stream's tags only;
+  streams are not queued here (5201).
+- `mixrampdb`, `mixrampdelay` -- OK for the values that mean off (0 dB;
+  a delay of nan or below zero), refused otherwise, as crossfade is
+  (5218).
+- `kill` -- PERMISSION: a client does not stop the player.
+- `config` -- PERMISSION "Command only permitted to local clients",
+  MPD's own answer to a TCP client; there is no local socket here.
+- `sticker` -- "sticker database is disabled", what MPD says built
+  without one.
+
+With 5227-5231 every verb in MPD 0.20's command table is in this one.
+What remains between this server and 0.20 is behaviour, not verbs:
+the play modes (repeat-all, consume), seek resolution, and the tags
+the index does not keep. MPD.md has the list.
+
+Compiled -O2 -Wall -Wextra on the host stubs: mpd.c, no warnings.
+texttest all passes. Not on the board.

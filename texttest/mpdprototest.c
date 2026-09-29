@@ -356,6 +356,8 @@ int main(void)
             "listfiles",
             /* 5230 */
             "subscribe", "unsubscribe", "readmessages", "sendmessage",
+            /* 5231 */
+            "prio", "prioid", "rangeid", "addtagid", "cleartagid", "readcomments", "mixrampdb", "mixrampdelay", "kill", "config", "sticker",
         };
         const size_t n = sizeof(verbs) / sizeof(verbs[0]);
         for (size_t i = 0; i < n; i++) {

@@ -356,6 +356,19 @@ static const cmd_def_t s_cmds[] = {
     { "unsubscribe",      MPD_CMD_UNSUBSCRIBE,         1,  1 },
     { "readmessages",     MPD_CMD_READMESSAGES,        0,  0 },
     { "sendmessage",      MPD_CMD_SENDMESSAGE,         2,  2 },
+
+    /* 5231: arities from AllCommands.cxx */
+    { "prio",             MPD_CMD_PRIO,                2, -1 },
+    { "prioid",           MPD_CMD_PRIOID,              2, -1 },
+    { "rangeid",          MPD_CMD_RANGEID,             2,  2 },
+    { "addtagid",         MPD_CMD_ADDTAGID,            3,  3 },
+    { "cleartagid",       MPD_CMD_CLEARTAGID,          1,  2 },
+    { "readcomments",     MPD_CMD_READCOMMENTS,        1,  1 },
+    { "mixrampdb",        MPD_CMD_MIXRAMPDB,           1,  1 },
+    { "mixrampdelay",     MPD_CMD_MIXRAMPDELAY,        1,  1 },
+    { "kill",             MPD_CMD_KILL,               -1, -1 },
+    { "config",           MPD_CMD_CONFIG,              0,  0 },
+    { "sticker",          MPD_CMD_STICKER,             3, -1 },
 };
 
 #define N_CMDS  (sizeof(s_cmds) / sizeof(s_cmds[0]))

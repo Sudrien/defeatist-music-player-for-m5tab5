@@ -18696,3 +18696,29 @@ Compiled -O2 -Wall -Wextra on the host stubs: mpd.c, no warnings.
 texttest all passes. Not on the board. What a board run should show:
 `OK MPD 0.21.0`, and Cantata using expressions in its library views --
 its console log shows `find "(...)"` where it sent pairs before.
+
+### 5242 -- mpdcheck: test files from the USB drive when there is one
+
+Board runs took their test files from the first three the walk found,
+which on this card are voice recordings in sd/Recordings: no tags, and
+the first three are 13, 5 and 5 seconds. So `find artist/album/title`
+and the seek checks (5229's seek of a song not playing among them) have
+been skipped on every board run.
+
+find_files() now starts from the USB drive's folder when `lsinfo`
+lists one, the SD's otherwise, and --volume sd|usb chooses (a name the
+player does not list is noted and the whole library searched). It
+gathers up to 40 candidates and puts the tagged ones -- Title, Artist
+and Album all present -- first, and prints which three it chose and
+where from. The player's `lsinfo` carries no lengths (the catalog has
+none), so length cannot be chosen for; a drive of music gets past the
+10-second seek threshold without being asked.
+
+With --reindex, `update <volume>` is sent as well as `update` and
+`rescan`: the path in 5236 that reindexes one named volume rather than
+both.
+
+Against stock MPD 0.23.5 with a `usb` folder added to its library:
+the files come from usb/, `update usb` passes, and with 60-second files
+the seek checks ran; --volume sd takes the SD's. The failures are the
+player's deliberate differences, as before. No firmware change.

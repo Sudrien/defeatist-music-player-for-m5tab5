@@ -56,6 +56,7 @@ USAGE
     ./tools/mpdcheck.py 192.168.1.50
     ./tools/mpdcheck.py 192.168.1.50 --read-only
     ./tools/mpdcheck.py 192.168.1.50 --destructive
+    ./tools/mpdcheck.py 192.168.1.50 --volume sd      # the SD even with a USB drive in
     ./tools/mpdcheck.py 192.168.1.50 --port 6600 -v
 
 Exit status is the number of failed checks (0 is a clean run), capped
@@ -427,10 +428,26 @@ class Checker:
 
     # ---- the library -------------------------------------------------------
 
-    def find_files(self, want=3, max_dirs=60):
-        """A breadth-first walk of lsinfo until `want` files are found."""
-        found, dirs, seen = [], [""], 0
-        while dirs and len(found) < want and seen < max_dirs:
+    def find_files(self, want=3, max_dirs=60, pool=40):
+        """A breadth-first walk of lsinfo for the files the tests use.
+
+        5242: from the USB drive when the player lists one (--volume auto,
+        the default), else the SD; --volume sd|usb chooses. Up to `pool`
+        candidates are gathered and the tagged ones -- Title, Artist and
+        Album all present -- put first, so the tag checks have something
+        to find. The first file's folder is the one the folder checks use.
+        """
+        roots = [v for k, v in pairs(self.c.cmd("lsinfo")) if k == "directory"]
+        vol = self.a.volume
+        if vol == "auto":
+            vol = "usb" if "usb" in roots else "sd" if "sd" in roots else ""
+        elif vol not in roots:
+            print(f"  note  --volume {vol}: the player lists no such volume ({roots}); "
+                  "searching the whole library")
+            vol = ""
+        self.volume = vol
+        found, dirs, seen = [], [vol], 0
+        while dirs and len(found) < pool and seen < max_dirs:
             d = dirs.pop(0)
             seen += 1
             try:
@@ -440,9 +457,18 @@ class Checker:
             for k, v in pairs(r):
                 if k == "directory":
                     dirs.append(v)
-                elif k == "file" and not v.startswith(("http://", "https://")):
-                    found.append(v)
-        return found
+            for song in songs(r):
+                if not song["file"].startswith(("http://", "https://")):
+                    found.append(song)
+        tagged = [x for x in found if x.get("Title") and x.get("Artist") and x.get("Album")]
+        rest = [x for x in found if x not in tagged]
+        chosen = (tagged + rest)[:want]
+        if chosen:
+            print(f"  info  test files from {vol or 'the library'}"
+                  f"{'' if not tagged else f', {len(tagged)} tagged of {len(found)} looked at'}:")
+            for x in chosen:
+                print(f"        {x['file']}")
+        return [x["file"] for x in chosen]
 
     def library(self):
         self.section("library")
@@ -528,7 +554,10 @@ class Checker:
             # 5236: a job id, and the run waited out -- while it runs the
             # library answers "being indexed", and every check after
             # this one reads it.
-            for verb in ("update", "rescan"):
+            # 5242: and the volume the test files came from, by name --
+            # the path that reindexes one volume rather than both.
+            verbs = ["update", "rescan"] + ([f"update {self.volume}"] if self.volume else [])
+            for verb in verbs:
                 r = self.expect_ok(verb, verb) or []
                 self.ok(f"{verb} answers updating_db: N", "updating_db" in kv(r), repr(r))
                 # 5237: done is status without updating_db AND the library
@@ -1187,6 +1216,9 @@ def main():
     p.add_argument("--timeout", type=float, default=15.0, help="seconds per answer (default 15)")
     p.add_argument("--read-only", action="store_true", help="only checks that change nothing")
     p.add_argument("--reindex", action="store_true", help="also send update and rescan")
+    p.add_argument("--volume", choices=("auto", "sd", "usb"), default="auto",
+                   help="where the test files come from: the USB drive if one is in "
+                        "(auto, the default), or the one named")
     p.add_argument("--destructive", action="store_true",
                    help="also clear and shuffle the whole queue (saved and reloaded), "
                         "jump the volume, cycle the modes and replay gain")

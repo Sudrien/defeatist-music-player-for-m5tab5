@@ -1003,12 +1003,11 @@ static void ack_done(const ctx_t *x, uireq_done_t how)
 }
 
 /*
- * `add` and `addid`: a URI onto the queue. The URI is a path below a
- * volume, and which volume is not in it (mpduri.h), so SD is tried first
- * and USB when SD has no such file -- the shadowing mpduri.h describes,
- * decided by the file rather than by the index, since the index can lag
- * the card. ui_task checks the file (it already reads the card; this
- * task's stack is in PSRAM and is kept off the filesystem).
+ * `add` and `addid`: a URI onto the queue. 5191: the URI names its
+ * volume ("sd/...", "usb/...", mpduri.h), so there is one path to try;
+ * before, SD was tried and then USB. ui_task checks the file (it already
+ * reads the card; this task's stack is in PSRAM and is kept off the
+ * filesystem).
  */
 static bool add_uri(const ctx_t *x, const char *uri, int pos, uint32_t *id_out)
 {
@@ -1020,10 +1019,11 @@ static bool add_uri(const ctx_t *x, const char *uri, int pos, uint32_t *id_out)
     }
     const uireq_edit_t e = { .kind = UIREQ_EDIT_ADD, .pos = pos };
     uireq_done_t how = UIREQ_DONE_NO_FILE;
-    for (int v = 0; v < MPDURI_VOLS && how == UIREQ_DONE_NO_FILE; v++) {
-        const char *m = mpduri_mount(v);
-        const int k = m ? snprintf(vfs, sizeof(s_lib->vfs), "%s/%s", m, uri) : -1;
-        if (k <= 0 || (size_t)k >= sizeof(s_lib->vfs) || (size_t)k >= UIREQ_PATH_MAX) continue;
+    const char *rel = "";
+    const int v = mpduri_split(uri, &rel);
+    const int k = (v >= 0 && rel[0])
+                ? snprintf(vfs, sizeof(s_lib->vfs), "%s/%s", mpduri_mount(v), rel) : -1;
+    if (k > 0 && (size_t)k < sizeof(s_lib->vfs) && (size_t)k < UIREQ_PATH_MAX) {
         if (!ask_edit(x, &e, vfs, &how, id_out)) return false;
     }
     if (how != UIREQ_DONE_OK) { ack_done(x, how); return false; }
@@ -1209,14 +1209,37 @@ static void put_dir(conn_t *c, const char *uri)
  * A URI that names a FILE, on the preferred volume that has it live.
  * lsinfo and listall of a file show that one song, as MPD's do.
  */
+static void ack_no_dir(const ctx_t *x, const char *uri);
+
 static int lib_file(const char *uri, midx_rec_t *r)
 {
-    for (int v = 0; v < MEDIALIST_VOLS; v++) {
-        midx_src_t *s = lib_src(v);
-        if (!s) continue;
-        if (midx_find(s, uri, r) >= 0 && !(r->flags & MIDX_F_DEAD)) return v;
-    }
+    /* 5191: on the volume the URI names, and no other. */
+    const char *rel = "";
+    const int v = mpduri_split(uri, &rel);
+    midx_src_t *s = v >= 0 ? lib_src(v) : NULL;
+    if (!s || !rel[0]) return -1;
+    if (midx_find(s, rel, r) >= 0 && !(r->flags & MIDX_F_DEAD)) return v;
+    s->err = false;                 /* a miss is not a failure */
     return -1;
+}
+
+/*
+ * 5191: a folder URI taken apart for listing: the volume, and the index
+ * directory below it into s_lib->dir ("" for the volume itself). -1 for
+ * the root -- which lists the volumes -- and -2, ACKed, for a URI that
+ * is not a folder of either.
+ */
+static int lib_dir(const ctx_t *x, const char *uri)
+{
+    if (!mpduri_ok(uri, true)) { ack_no_dir(x, uri); return -2; }
+    if (!uri[0]) return -1;
+    const char *rel = "";
+    const int v = mpduri_split(uri, &rel);
+    if (v < 0 || !mpduri_dir(rel, s_lib->dir, sizeof(s_lib->dir))) {
+        ack_no_dir(x, uri);
+        return -2;
+    }
+    return v;
 }
 
 /*
@@ -1251,43 +1274,55 @@ static void ack_no_dir(const ctx_t *x, const char *uri)
     ack(x->c, MPD_ACK_NO_EXIST, x->idx, x->verb, "No such directory");
 }
 
-/* `lsinfo [URI]`: one folder, both volumes merged. */
+/* `lsinfo [URI]`: one folder. 5191: the root is the two volumes, as
+ * folders, and below them each volume's own -- no longer merged. */
 static result_t lib_lsinfo(const ctx_t *x, const char *uri)
 {
     conn_t *const c = x->c;
     /* 5179: "/" is the root as well as "", as MPD takes it -- Cantata
      * asks for "/" on connect, and was told No such directory. */
     if (!uri || strcmp(uri, "/") == 0) uri = "";
-    if (!mpduri_ok(uri, true) || !mpduri_dir(uri, s_lib->dir, sizeof(s_lib->dir))) {
-        ack_no_dir(x, uri);
-        return RES_ERR;
-    }
+    const int v = lib_dir(x, uri);
+    if (v == -2) return RES_ERR;
     if (!lib_open(x)) return RES_ERR;
 
+    if (v < 0) {
+        /* The root: a folder per volume with an index open. */
+        for (int k = 0; k < MEDIALIST_VOLS; k++) if (lib_src(k)) put_dir(c, mpduri_name(k));
+        lib_close();
+        return RES_OK;
+    }
+
     medialist_ent_t *const ent = &s_lib->ent;
+    const char *const name = mpduri_name(v);
     bool any = false;
-    if (medialist_open(&s_lib->ml, lib_src(0), lib_src(1), s_lib->dir)) {
+    if (lib_src(v) && medialist_open(&s_lib->ml, v == 0 ? lib_src(0) : NULL,
+                                     v == 1 ? lib_src(1) : NULL, s_lib->dir)) {
         while (!c->broken && medialist_next(&s_lib->ml, ent)) {
             any = true;
-            const int k = snprintf(s_lib->uri, sizeof(s_lib->uri), "%s%s", s_lib->dir, ent->name);
+            const int k = snprintf(s_lib->uri, sizeof(s_lib->uri), "%s/%s%s", name, s_lib->dir, ent->name);
             if (k <= 0 || (size_t)k >= sizeof(s_lib->uri)) continue;
             if (ent->is_dir) put_dir(c, s_lib->uri);
-            else            put_lib_file(c, ent->vol, &ent->rec, s_lib->uri, true);
+            else            put_lib_file(c, v, &ent->rec, s_lib->uri, true);
         }
     }
-    const bool err = s_lib->ml.err;
+    const bool err = lib_src(v) && s_lib->ml.err;
 
-    /* Nothing listed under it: a file, or nothing at all. The root with
-     * nothing in it is an empty library, which MPD answers with OK. */
-    if (!any && !err && uri[0]) {
+    /* Nothing listed under it: a file, an empty volume, or nothing. A
+     * volume with nothing in it is an empty folder, which MPD answers
+     * with OK; a volume not in is not a folder. */
+    if (!any && !err && s_lib->dir[0]) {
         midx_rec_t *const r = &s_lib->rec;
-        const int v = lib_file(uri, r);
-        if (v < 0) {
+        if (lib_file(uri, r) < 0) {
             lib_close();
             ack_no_dir(x, uri);
             return RES_ERR;
         }
         put_lib_file(c, v, r, uri, true);
+    } else if (!lib_src(v)) {
+        lib_close();
+        ack_no_dir(x, uri);
+        return RES_ERR;
     }
     lib_close();
     if (err) {
@@ -1326,39 +1361,26 @@ static void walk_fill(lib_walk_t *w)
     }
 }
 
-static result_t lib_listall(const ctx_t *x, const char *uri, bool info)
+/*
+ * 5191: one volume's files below `dir` (an index directory, "" for all
+ * of it), each written under the volume's name. What used to be a merge
+ * of two walks is one walk per volume now that the volumes are separate
+ * folders. False on a read failure.
+ */
+static bool listall_vol(conn_t *c, int v, const char *dir, bool info, bool *any)
 {
-    conn_t *const c = x->c;
-    /* 5179: "/" is the root as well as "", as MPD takes it -- Cantata
-     * asks for "/" on connect, and was told No such directory. */
-    if (!uri || strcmp(uri, "/") == 0) uri = "";
-    if (!mpduri_ok(uri, true) || !mpduri_dir(uri, s_lib->dir, sizeof(s_lib->dir))) {
-        ack_no_dir(x, uri);
-        return RES_ERR;
-    }
-    if (!lib_open(x)) return RES_ERR;
-
-    lib_walk_t *const w = s_lib->w;
+    lib_walk_t *const w = &s_lib->w[0];
     char *const last = s_lib->last;         /* the folder of the last file, with '/' */
-    bool any = false, err = false;
-    snprintf(last, sizeof(s_lib->last), "%s", s_lib->dir);
-    for (int v = 0; v < MEDIALIST_VOLS; v++) {
-        w[v] = (lib_walk_t){ .s = lib_src(v) };
-        if (!w[v].s) continue;
-        w[v].i = midx_seek(w[v].s, s_lib->dir, MIDX_AT);
-        w[v].end = s_lib->dir[0] ? midx_seek(w[v].s, s_lib->dir, MIDX_PAST_PREFIX) : w[v].s->n;
-        walk_fill(&w[v]);
-    }
-    while (!c->broken && (w[0].valid || w[1].valid)) {
-        int take = w[0].valid ? 0 : 1;
-        bool both = false;
-        if (w[0].valid && w[1].valid) {
-            const int cmp = midx_path_cmp(w[0].path, w[1].path);
-            take = cmp <= 0 ? 0 : 1;
-            both = cmp == 0;
-        }
-        const char *p = w[take].path;
-        any = true;
+    const char *const name = mpduri_name(v);
+    snprintf(last, sizeof(s_lib->last), "%s", dir);
+    *w = (lib_walk_t){ .s = lib_src(v) };
+    if (!w->s) return true;
+    w->i = midx_seek(w->s, dir, MIDX_AT);
+    w->end = dir[0] ? midx_seek(w->s, dir, MIDX_PAST_PREFIX) : w->s->n;
+    walk_fill(w);
+    while (!c->broken && w->valid) {
+        const char *p = w->path;
+        *any = true;
         /* Each folder between the last one written and this file's. */
         const char *slash = strrchr(p, '/');
         const size_t dl = slash ? (size_t)(slash - p) + 1 : 0;
@@ -1367,26 +1389,49 @@ static result_t lib_listall(const ctx_t *x, const char *uri, bool info)
         while (k > 0 && p[k - 1] != '/') k--;            /* back to a boundary */
         for (size_t j = k; j < dl; j++) {
             if (p[j] != '/') continue;
-            memcpy(s_lib->uri, p, j);
-            s_lib->uri[j] = '\0';
+            snprintf(s_lib->uri, sizeof(s_lib->uri), "%s/%.*s", name, (int)j, p);
             put_dir(c, s_lib->uri);
         }
         memcpy(last, p, dl);
         last[dl] = '\0';
-        if (info) put_lib_file(c, take, &w[take].r, p, true);
-        else {
-            const size_t n = mpdproto_kv("file", p, s_body, MPD_BODY_MAX);
-            if (n) put(c, s_body, n);
+        const int n = snprintf(s_lib->uri, sizeof(s_lib->uri), "%s/%s", name, p);
+        if (n > 0 && (size_t)n < sizeof(s_lib->uri)) {
+            if (info) put_lib_file(c, v, &w->r, s_lib->uri, true);
+            else {
+                const size_t m = mpdproto_kv("file", s_lib->uri, s_body, MPD_BODY_MAX);
+                if (m) put(c, s_body, m);
+            }
         }
-        walk_fill(&w[take]);
-        if (both) walk_fill(&w[1]);
+        walk_fill(w);
     }
-    for (int v = 0; v < MEDIALIST_VOLS; v++) if (w[v].s && w[v].s->err) err = true;
+    return !w->s->err;
+}
 
-    if (!any && !err && uri[0]) {
+static result_t lib_listall(const ctx_t *x, const char *uri, bool info)
+{
+    conn_t *const c = x->c;
+    /* 5179: "/" is the root as well as "", as MPD takes it -- Cantata
+     * asks for "/" on connect, and was told No such directory. */
+    if (!uri || strcmp(uri, "/") == 0) uri = "";
+    const int v = lib_dir(x, uri);
+    if (v == -2) return RES_ERR;
+    if (!lib_open(x)) return RES_ERR;
+
+    bool any = false, err = false;
+    if (v < 0) {
+        /* The root: each volume's folder, then everything in it. */
+        for (int k = 0; k < MEDIALIST_VOLS && !c->broken && !err; k++) {
+            if (!lib_src(k)) continue;
+            put_dir(c, mpduri_name(k));
+            if (!listall_vol(c, k, "", info, &any)) err = true;
+        }
+    } else if (lib_src(v)) {
+        if (!listall_vol(c, v, s_lib->dir, info, &any)) err = true;
+    }
+
+    if (v >= 0 && !any && !err && (s_lib->dir[0] || !lib_src(v))) {
         midx_rec_t *const r = &s_lib->rec;
-        const int v = lib_file(uri, r);
-        if (v < 0) {
+        if (lib_file(uri, r) < 0) {
             lib_close();
             ack_no_dir(x, uri);
             return RES_ERR;
@@ -1432,9 +1477,8 @@ static result_t lib_listall(const ctx_t *x, const char *uri, bool info)
  * Filter expressions, "(artist == 'x')", are MPD 0.21's newer form and
  * are refused by name.
  *
- * A path on both volumes is answered once, from the SD, as everywhere in
- * the library (medialist.h): a USB hit whose path the SD's index holds
- * live is skipped.
+ * 5191: a path on both volumes is answered twice, once under each
+ * volume's name -- they are separate folders of the library now.
  */
 typedef enum { Q_FIELD, Q_BASE, Q_NONE } qkind_t;
 typedef struct {
@@ -1466,21 +1510,43 @@ static bool q_tag(const char *t, qpair_t *p)
 }
 
 /* One catalog record against one pair, exactly (find) or as the folded
- * stage already found it (search). */
-static bool q_exact(const qpair_t *p, const mediacat_rec_t *r, qmode_t mode)
+ * stage already found it (search). 5191: `uri` is the record's URI, with
+ * its volume -- what `file` and `base` are compared against. */
+static bool q_exact(const qpair_t *p, const mediacat_rec_t *r, const char *uri, qmode_t mode)
 {
     if (p->kind == Q_BASE) {
         const size_t n = strlen(p->value);
-        return n == 0 || (strncmp(r->path, p->value, n) == 0 &&
-                          (r->path[n] == '/' || r->path[n] == '\0'));
+        return n == 0 || (strncmp(uri, p->value, n) == 0 &&
+                          (uri[n] == '/' || uri[n] == '\0'));
     }
     if (mode != Q_FIND) return true;
-    const char *const f[4] = { r->title, r->artist, r->album, r->path };
+    const char *const f[4] = { r->title, r->artist, r->album, uri };
     if (p->field == MEDIASEARCH_ANY) {
         for (int i = 0; i < 4; i++) if (strcmp(f[i], p->value) == 0) return true;
         return false;
     }
     return strcmp(f[(int)p->field - 1], p->value) == 0;
+}
+
+/*
+ * 5191: what the folded stage looks for. The search file holds each
+ * path below its volume, so a `file` value that starts with a volume
+ * ("usb/Album/...") is looked for without it; the exact stage then
+ * compares the whole URI.
+ */
+static const char *q_fold_src(const qpair_t *p, const char *v)
+{
+    if (p->field != MEDIASEARCH_FILE) return v;
+    const char *rel = "";
+    return (mpduri_split(v, &rel) >= 0 && rel[0]) ? rel : v;
+}
+
+/* 5191: a record's URI, its volume's name and its path, into s_lib->uri.
+ * False when it will not fit. */
+static bool q_uri(int v, const mediacat_rec_t *r)
+{
+    const int k = snprintf(s_lib->uri, sizeof(s_lib->uri), "%s/%s", mpduri_name(v), r->path);
+    return k > 0 && (size_t)k < sizeof(s_lib->uri);
 }
 
 static result_t lib_find(const ctx_t *x, const mpd_cmd_t *cmd, qmode_t mode)
@@ -1519,7 +1585,7 @@ static result_t lib_find(const ctx_t *x, const mpd_cmd_t *cmd, qmode_t mode)
         p->value = v;
         p->folded = NULL;
         if (p->kind == Q_FIELD) {
-            if (mediasearch_fold(v, s_lib->needle[np], sizeof(s_lib->needle[np])) < 0) never = true;
+            if (mediasearch_fold(q_fold_src(p, v), s_lib->needle[np], sizeof(s_lib->needle[np])) < 0) never = true;
             p->folded = s_lib->needle[np];
         }
         np++;
@@ -1563,17 +1629,14 @@ static result_t lib_find(const ctx_t *x, const mpd_cmd_t *cmd, qmode_t mode)
 
                     if (!medialib_rd_cat(&s_rd[v], l.cat_off)) continue;
                     const mediacat_rec_t *r = s_rd[v].rec;
-                    for (int k = 0; k < np && pass; k++) pass = q_exact(&pairs[k], r, mode);
+                    if (!q_uri(v, r)) continue;
+                    for (int k = 0; k < np && pass; k++) pass = q_exact(&pairs[k], r, s_lib->uri, mode);
                     if (!pass) continue;
-                    if (v > 0 && s_rd_open[0]) {
-                        midx_rec_t *ir = &s_lib->rec;
-                        if (midx_find(&s_rd[0].src, r->path, ir) >= 0 && !(ir->flags & MIDX_F_DEAD))
-                            continue;           /* the SD's copy answered already */
-                        s_rd[0].src.err = false;    /* a miss is not a failure */
-                    }
+                    /* 5191: a path on both volumes is two songs now,
+                     * one under each; the SD's no longer hides the USB's. */
                     if (mode != Q_COUNT && n_hit >= w_lo && n_hit < w_hi) {
                         const mpd_song_t sg = {
-                            .uri = r->path, .duration_ms = -1, .pos = -1,
+                            .uri = s_lib->uri, .duration_ms = -1, .pos = -1,
                             .title = r->title[0] ? r->title : NULL,
                             .artist = r->artist[0] ? r->artist : NULL,
                             .album = r->album[0] ? r->album : NULL,
@@ -1624,7 +1687,7 @@ static result_t lib_find(const ctx_t *x, const mpd_cmd_t *cmd, qmode_t mode)
  * empty headings. The old form `list album ARTIST` -- one argument after
  * the type -- is the artist filter it has always meant.
  *
- * A path on both volumes counts once, from the SD, as everywhere.
+ * 5191: both volumes' copies count, as separate songs.
  */
 typedef struct {
     int         field;          /* 0 title, 1 artist, 2 album, 3 path; -1 none */
@@ -1649,13 +1712,13 @@ static bool l_type(const char *t, ltype_t *out)
     return false;
 }
 
-static const char *l_value(const mediacat_rec_t *r, int field)
+static const char *l_value(const mediacat_rec_t *r, const char *uri, int field)
 {
     switch (field) {
     case 0: return r->title;
     case 1: return r->artist;
     case 2: return r->album;
-    case 3: return r->path;
+    case 3: return uri;                 /* 5191: with its volume */
     default: return "";
     }
 }
@@ -1811,7 +1874,7 @@ static result_t lib_list(const ctx_t *x, const mpd_cmd_t *cmd)
             p->value = v;
             p->folded = NULL;
             if (p->kind == Q_FIELD) {
-                if (mediasearch_fold(v, s_lib->needle[np], sizeof(s_lib->needle[np])) < 0) never = true;
+                if (mediasearch_fold(q_fold_src(p, v), s_lib->needle[np], sizeof(s_lib->needle[np])) < 0) never = true;
                 p->folded = s_lib->needle[np];
             }
             np++;
@@ -1832,18 +1895,15 @@ static result_t lib_list(const ctx_t *x, const mpd_cmd_t *cmd)
         for (size_t i = 0; i < noffs; i++) {
             if (!medialib_rd_cat(&s_rd[v], offs[i])) continue;
             const mediacat_rec_t *r = s_rd[v].rec;
+            if (!q_uri(v, r)) continue;
             bool pass = true;
-            for (int k = 0; k < np && pass; k++) pass = q_exact(&pairs[k], r, Q_FIND);
+            for (int k = 0; k < np && pass; k++) pass = q_exact(&pairs[k], r, s_lib->uri, Q_FIND);
             if (!pass) continue;
-            if (v > 0 && s_rd_open[0]) {
-                midx_rec_t *ir = &s_lib->rec;
-                if (midx_find(&s_rd[0].src, r->path, ir) >= 0 && !(ir->flags & MIDX_F_DEAD))
-                    continue;
-                s_rd[0].src.err = false;
-            }
-            const char *val = l_value(r, type.field);
+            /* 5191: both volumes' copies count; a value they share is
+             * one line anyway, since the set is deduplicated. */
+            const char *val = l_value(r, s_lib->uri, type.field);
             if (!val[0]) continue;
-            if (!lset_add(&set, group.field >= 0 ? l_value(r, group.field) : "", val)) {
+            if (!lset_add(&set, group.field >= 0 ? l_value(r, s_lib->uri, group.field) : "", val)) {
                 full = true;
                 break;
             }
@@ -1889,9 +1949,9 @@ static result_t lib_list(const ctx_t *x, const mpd_cmd_t *cmd)
 /*
  * `<mount>/Playlists/<name>.m3u`, beside the recorder's `Recordings`
  * folder, made the first time something is saved. One URI a line, the
- * library URI (`Album/01 Track.mp3`): no volume in it, so a playlist
- * survives an album moving between the card and the drive, and the SD
- * is tried first when it is loaded, as `add` does. A line starting '#'
+ * library URI -- since 5191 with its volume (`usb/Album/01 Track.mp3`);
+ * a line from before, with none, is tried on the SD and then the USB
+ * when it is loaded, as `add` did then. A line starting '#'
  * is a comment; a VFS path ("/usb/...") is read too, so a file written
  * by hand works.
  *
@@ -1941,6 +2001,30 @@ static void put_mtime(conn_t *c, time_t t)
 static int cmp_str(const void *a, const void *b)
 {
     return strcmp(*(char *const *)a, *(char *const *)b);
+}
+
+/*
+ * 5191: a line saved before 5191 has no volume in it ("Album/01.mp3").
+ * It is shown under the first volume that has the file, SD first -- what
+ * `load` has always done with one -- or under `sd` when neither does,
+ * so a client still sees a URI of today's shape.
+ */
+static void pl_legacy(const char *line, char *uri)
+{
+    for (int v = 0; v < MPDURI_VOLS; v++) {
+        const storage_id_t id = v == MPDURI_VOL_SD ? STORAGE_SD : STORAGE_USB;
+        storage_hold_brief(id);
+        struct stat st;
+        const int k = snprintf(s_lib->vfs, sizeof(s_lib->vfs), "%s/%s", mpduri_mount(v), line);
+        const bool is = storage_present(id) && k > 0 && (size_t)k < sizeof(s_lib->vfs) &&
+                        stat(s_lib->vfs, &st) == 0;
+        storage_release_brief(id);
+        if (is) {
+            snprintf(uri, sizeof(s_lib->uri), "%s/%s", mpduri_name(v), line);
+            return;
+        }
+    }
+    snprintf(uri, sizeof(s_lib->uri), "%s/%s", mpduri_name(MPDURI_VOL_SD), line);
 }
 
 static result_t pl_list(const ctx_t *x)
@@ -2040,6 +2124,7 @@ static result_t pl_contents(const ctx_t *x, const char *name, bool info)
         if (!n || line[0] == '#') continue;
         /* A VFS path is shown as its URI; a station URL as itself. */
         if (line[0] == '/' && mpduri_from_vfs(line, uri, sizeof(s_lib->uri))) { /* uri set */ }
+        else if (!strstr(line, "://") && mpduri_split(line, NULL) < 0) pl_legacy(line, uri);
         else snprintf(uri, sizeof(s_lib->uri), "%s", line);
         midx_rec_t *const r = &s_lib->rec;
         const int lv = info ? lib_file(uri, r) : -1;
@@ -2433,26 +2518,22 @@ static result_t run_cmd(conn_t *c, const mpd_cmd_t *cmd, int idx)
 
     /*
      * ONE LIBRARY, TWO VOLUMES. MPD's mounts attach storage at a folder of
-     * the library; here the SD card and the USB drive are both laid over
-     * the library's root, merged, the SD winning a path both have
-     * (medialist.h). That is one mount, at the root -- `mount: ` with an
-     * empty path is MPD's root -- whose storage is the volumes that are in
-     * right now, listed in the order they win. Nothing is mounted from a
+     * the library; since 5191 the SD card is the folder `sd` and the USB
+     * drive `usb`, each listed while it is in. Nothing is mounted from a
      * client: the volumes mount themselves when they are put in, so
      * `mount` and `unmount` say that. No neighbours: nothing is browsed
      * for on the network.
      */
-    case MPD_CMD_LISTMOUNTS: {
-        char vols[24] = "";
-        if (storage_present(STORAGE_SD)) strcat(vols, STORAGE_SD_MOUNT);
-        if (storage_present(STORAGE_USB)) {
-            if (vols[0]) strcat(vols, " ");
-            strcat(vols, STORAGE_USB_MOUNT);
-        }
+    case MPD_CMD_LISTMOUNTS:
+        /* 5191: each volume is its own folder of the library now, so
+         * each is a mount at that folder, as MPD lists one. The root
+         * itself has no storage. */
         puts_(c, "mount: \n");
-        if (vols[0]) putf(c, "storage: %s\n", vols);
+        for (int v = 0; v < MPDURI_VOLS; v++) {
+            if (!storage_present(v == MPDURI_VOL_SD ? STORAGE_SD : STORAGE_USB)) continue;
+            putf(c, "mount: %s\nstorage: %s\n", mpduri_name(v), mpduri_mount(v));
+        }
         return RES_OK;
-    }
     case MPD_CMD_MOUNT:
     case MPD_CMD_UNMOUNT:
         ack(c, MPD_ACK_UNKNOWN, idx, cmd->verb,

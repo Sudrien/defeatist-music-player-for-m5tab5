@@ -17225,3 +17225,36 @@ then an 8.5 s seek on an mp3 with no table). Such a pass now runs
 whatever the finger is doing. The page loses that pass's touch sample:
 a drag or a hold continues from the next, and only a tap shorter than
 one pass could go unseen.
+
+### 5191 -- mpd: the SD card and the USB drive are separate folders
+
+Asked for on the board. MPD's library was one tree, the two volumes
+merged and the SD winning a path both held (mpduri.h, MEDIA-INDEX.md
+point 3). That left the USB copy of such a path unreachable, and every
+`add` was tried on the SD first -- the "queue: no such file, not
+added: /sd/..." line before each real add in every Cantata log.
+
+Now a URI starts with its volume: `sd/Album/01.mp3`, `usb/Album/01.mp3`.
+
+- `lsinfo /` lists `sd` and `usb` as folders, for each volume whose
+  index is open; below them each volume is listed on its own.
+- `listall` and `listallinfo` walk one volume at a time (listall_vol());
+  from the root, each volume's folder comes first.
+- `find`, `search`, `count` and `list` answer from both volumes, each
+  song under its own volume's name. A path on both is two songs. `base
+  sd` limits to a volume; a `file` value is compared whole, and its
+  volume is dropped for the folded stage, since the search file holds
+  paths below the volume.
+- `add` resolves the one path the URI names.
+- `listmounts` lists `sd` and `usb` as mounts, with their storage.
+- The queue's URIs (mpduri_from_vfs()) carry the volume, so what a
+  client is shown is what it sends back.
+- Stored playlists save the new URIs. A line from before, with no
+  volume, still loads (SD, then USB) and is shown under the first volume
+  that has it.
+
+The cost: an album on both volumes is two albums in a client's views.
+The index, the catalog, the search file, the on-device chooser and the
+remote page are unchanged -- the prefix exists only in MPD's URIs.
+texttest/mpduritest.c's shadowing cases are rewritten to the new rule:
+each volume's copy resolves under its own name and never the other's.

@@ -196,59 +196,79 @@ int main(void)
         char p[MPDURI_VFS_MAX];
         int vol;
 
-        /* SD preferred -- MEDIA-INDEX.md point 3, and the reason the
-         * index paths are relative at all. */
-        CHECK(mpduri_to_vfs("Both/same.flac", both, p, sizeof(p), &vol) &&
+        /*
+         * 5191: THE URI NAMES ITS VOLUME. The same relative path on both
+         * is two URIs, each resolving to its own copy -- the USB one was
+         * unreachable before, which is why this changed.
+         */
+        CHECK(mpduri_to_vfs("sd/Both/same.flac", both, p, sizeof(p), &vol) &&
               strcmp(p, "/sd/Both/same.flac") == 0 && vol == MPDURI_VOL_SD,
-              "a path on both volumes gave [%s] vol %d", p, vol);
+              "sd/ on both volumes gave [%s] vol %d", p, vol);
+        CHECK(mpduri_to_vfs("usb/Both/same.flac", both, p, sizeof(p), &vol) &&
+              strcmp(p, "/usb/Both/same.flac") == 0 && vol == MPDURI_VOL_USB,
+              "usb/ on both volumes gave [%s] vol %d", p, vol);
 
-        /* Each volume's own files still resolve, to their own mount. */
-        CHECK(mpduri_to_vfs("OnlySD/a.flac", both, p, sizeof(p), &vol) &&
+        CHECK(mpduri_to_vfs("sd/OnlySD/a.flac", both, p, sizeof(p), &vol) &&
               strcmp(p, "/sd/OnlySD/a.flac") == 0 && vol == MPDURI_VOL_SD,
               "sd-only gave [%s]", p);
-        CHECK(mpduri_to_vfs("OnlyUSB/b.flac", both, p, sizeof(p), &vol) &&
+        CHECK(mpduri_to_vfs("usb/OnlyUSB/b.flac", both, p, sizeof(p), &vol) &&
               strcmp(p, "/usb/OnlyUSB/b.flac") == 0 && vol == MPDURI_VOL_USB,
               "usb-only gave [%s]", p);
+        /* A file on the other volume is not found under this one's name:
+         * there is no falling back any more. */
+        CHECK(!mpduri_to_vfs("sd/OnlyUSB/b.flac", both, p, sizeof(p), NULL),
+              "sd/ found a usb-only file at [%s]", p);
+        CHECK(!mpduri_to_vfs("usb/OnlySD/a.flac", both, p, sizeof(p), NULL),
+              "usb/ found an sd-only file at [%s]", p);
 
-        /*
-         * A TOMBSTONE IS NOT A FILE. "Gone/dead.flac" is dead on the SD
-         * and live on the USB stick, so it must resolve to the USB copy
-         * -- returning the SD path would hand the player something to
-         * open that is not on the card. This is the one direction the
-         * shadowing rule usefully runs in.
-         */
-        CHECK(mpduri_to_vfs("Gone/dead.flac", both, p, sizeof(p), &vol) &&
-              strcmp(p, "/usb/Gone/dead.flac") == 0 && vol == MPDURI_VOL_USB,
-              "a tombstone on sd gave [%s] vol %d", p, vol);
-
-        /* Not in either index. The caller's answer is NO_EXIST. */
-        CHECK(!mpduri_to_vfs("Nope/x.flac", both, p, sizeof(p), &vol),
-              "a path in neither index resolved to [%s]", p);
+        /* A tombstone is not a file, and the live copy on the other
+         * volume is its own URI, not a fallback. */
+        CHECK(!mpduri_to_vfs("sd/Gone/dead.flac", both, p, sizeof(p), &vol),
+              "a tombstone on sd resolved to [%s]", p);
         CHECK(p[0] == '\0', "a failed resolve left [%s] behind", p);
         CHECK(vol == -1, "a failed resolve left vol %d behind", vol);
+        CHECK(mpduri_to_vfs("usb/Gone/dead.flac", both, p, sizeof(p), &vol) &&
+              strcmp(p, "/usb/Gone/dead.flac") == 0, "usb/Gone gave [%s]", p);
 
-        /* The root and a malformed uri are not resolvable. */
+        /* No volume, an unknown one, a volume itself, the root. */
+        CHECK(!mpduri_to_vfs("Both/same.flac", both, p, sizeof(p), NULL),
+              "a uri with no volume resolved to [%s]", p);
+        CHECK(!mpduri_to_vfs("sdx/Both/same.flac", both, p, sizeof(p), NULL),
+              "[sdx/...] was read as sd");
+        CHECK(!mpduri_to_vfs("sd", both, p, sizeof(p), NULL), "a volume resolved as a file");
+        CHECK(!mpduri_to_vfs("Nope/x.flac", both, p, sizeof(p), NULL), "Nope resolved");
         CHECK(!mpduri_to_vfs("", both, p, sizeof(p), NULL), "the root resolved");
         CHECK(!mpduri_to_vfs("/sd/Both/same.flac", both, p, sizeof(p), NULL),
               "an absolute path resolved");
-        CHECK(!mpduri_to_vfs("Both/../Both/same.flac", both, p, sizeof(p), NULL),
+        CHECK(!mpduri_to_vfs("sd/Both/../Both/same.flac", both, p, sizeof(p), NULL),
               "a traversal resolved");
 
-        /* One volume mounted: it goes in slot 0 and slot 1 is NULL,
-         * medialist.h's rule. A NULL slot is skipped, not dereferenced. */
+        /* A volume not mounted is a NULL slot, skipped, not dereferenced. */
         {
             midx_src_t *const sd_only[MPDURI_VOLS] = { &a, NULL };
-            CHECK(mpduri_to_vfs("OnlySD/a.flac", sd_only, p, sizeof(p), &vol) &&
+            CHECK(mpduri_to_vfs("sd/OnlySD/a.flac", sd_only, p, sizeof(p), &vol) &&
                   strcmp(p, "/sd/OnlySD/a.flac") == 0, "sd alone gave [%s]", p);
-            CHECK(!mpduri_to_vfs("OnlyUSB/b.flac", sd_only, p, sizeof(p), NULL),
+            CHECK(!mpduri_to_vfs("usb/OnlyUSB/b.flac", sd_only, p, sizeof(p), NULL),
                   "a usb file resolved with no usb volume");
             midx_src_t *const none[MPDURI_VOLS] = { NULL, NULL };
-            CHECK(!mpduri_to_vfs("OnlySD/a.flac", none, p, sizeof(p), NULL),
+            CHECK(!mpduri_to_vfs("sd/OnlySD/a.flac", none, p, sizeof(p), NULL),
                   "a file resolved with nothing mounted");
         }
 
+        /* The split itself. */
+        {
+            const char *rel = NULL;
+            CHECK(mpduri_split("sd/a/b.flac", &rel) == MPDURI_VOL_SD && strcmp(rel, "a/b.flac") == 0,
+                  "split sd/a/b.flac gave [%s]", rel);
+            CHECK(mpduri_split("usb", &rel) == MPDURI_VOL_USB && rel[0] == '\0',
+                  "split usb gave [%s]", rel);
+            CHECK(mpduri_split("", &rel) == -1, "split of the root named a volume");
+            CHECK(mpduri_split("usbx/a", &rel) == -1, "split [usbx/a] named a volume");
+            CHECK(mpduri_split("Music/a", &rel) == -1, "split [Music/a] named a volume");
+        }
+
         /* A buffer that cannot hold the answer is a refusal. */
-        CHECK(!mpduri_to_vfs("OnlySD/a.flac", both, p, 10, NULL),
+        CHECK(!mpduri_to_vfs("sd/OnlySD/a.flac", both, p, 10, NULL),
               "a resolve fitted 10 bytes");
     }
 
@@ -263,11 +283,11 @@ int main(void)
         char u[MPDURI_MAX + 1];
 
         CHECK(mpduri_from_vfs("/sd/Artist/x.flac", u, sizeof(u)) &&
-              strcmp(u, "Artist/x.flac") == 0, "from_vfs gave [%s]", u);
+              strcmp(u, "sd/Artist/x.flac") == 0, "from_vfs gave [%s]", u);
         CHECK(mpduri_from_vfs("/usb/Artist/x.flac", u, sizeof(u)) &&
-              strcmp(u, "Artist/x.flac") == 0, "from_vfs gave [%s]", u);
+              strcmp(u, "usb/Artist/x.flac") == 0, "from_vfs gave [%s]", u);
         CHECK(mpduri_from_vfs("/sd/Album.cue#03", u, sizeof(u)) &&
-              strcmp(u, "Album.cue#03") == 0, "a cue uri gave [%s]", u);
+              strcmp(u, "sd/Album.cue#03") == 0, "a cue uri gave [%s]", u);
 
         /* A volume root is not a file. */
         CHECK(!mpduri_from_vfs("/sd", u, sizeof(u)), "[/sd] became a uri");
@@ -293,30 +313,38 @@ int main(void)
         for (size_t i = 0; i < sizeof(uris) / sizeof(uris[0]); i++) {
             for (int v = 0; v < MPDURI_VOLS; v++) {
                 char vfs[MPDURI_VFS_MAX], back[MPDURI_MAX + 1];
+                char want[MPDURI_MAX + 1];
                 snprintf(vfs, sizeof(vfs), "%s/%s", mpduri_mount(v), uris[i]);
+                snprintf(want, sizeof(want), "%s/%s", mpduri_name(v), uris[i]);
                 CHECK(mpduri_from_vfs(vfs, back, sizeof(back)) &&
-                      strcmp(back, uris[i]) == 0,
-                      "[%s] round-tripped to [%s]", uris[i], back);
+                      strcmp(back, want) == 0,
+                      "[%s] round-tripped to [%s]", vfs, back);
+                /* 5191: and the uri names the volume the path came from. */
+                const char *rel = NULL;
+                CHECK(mpduri_split(back, &rel) == v && strcmp(rel, uris[i]) == 0,
+                      "[%s] split to vol %d [%s]", back, mpduri_split(back, NULL), rel);
             }
         }
 
         /* A buffer one short is a refusal, not a truncated uri that would
          * name a different file. */
-        /* "abcd.flac" is nine bytes, so it needs ten and not eleven. */
-        CHECK(!mpduri_from_vfs("/sd/abcd.flac", u, 9), "from_vfs truncated");
-        CHECK(mpduri_from_vfs("/sd/abcd.flac", u, 10) && strcmp(u, "abcd.flac") == 0,
+        /* "sd/abcd.flac" is twelve bytes, so it needs thirteen. */
+        CHECK(!mpduri_from_vfs("/sd/abcd.flac", u, 12), "from_vfs truncated");
+        CHECK(mpduri_from_vfs("/sd/abcd.flac", u, 13) && strcmp(u, "sd/abcd.flac") == 0,
               "from_vfs did not fit its exact size");
     }
 
     /* ---- the mounts ------------------------------------------------- */
     CHECK(strcmp(mpduri_mount(MPDURI_VOL_SD), "/sd") == 0, "slot 0 is not /sd");
     CHECK(strcmp(mpduri_mount(MPDURI_VOL_USB), "/usb") == 0, "slot 1 is not /usb");
+    CHECK(strcmp(mpduri_name(MPDURI_VOL_SD), "sd") == 0 && strcmp(mpduri_name(MPDURI_VOL_USB), "usb") == 0,
+          "the volume names are not sd and usb");
     CHECK(mpduri_mount(-1) == NULL && mpduri_mount(MPDURI_VOLS) == NULL,
           "a slot that does not exist named a mount");
     /* The ceiling must hold the longest mount, a slash, a max uri and the
      * NUL -- otherwise a legal file is unresolvable at the far end of the
      * card and nothing says why. */
-    CHECK(MPDURI_VFS_MAX >= strlen("/usb") + 1 + MPDURI_MAX + 1,
+    CHECK(MPDURI_VFS_MAX >= strlen("/usb") + 1 + MPDURI_REL_MAX + 1,
           "MPDURI_VFS_MAX cannot hold a maximum path");
 
     /* ---- malformed bytes ------------------------------------------- */

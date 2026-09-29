@@ -7077,11 +7077,16 @@ static bool queue_load_m3u(const char *path, int *added_out)
         if (!n || line[0] == '#') continue;
         if (strstr(line, "://")) { skipped++; continue; }          /* a station */
         bool found = false;
-        static const char *const mounts[] = { STORAGE_SD_MOUNT, STORAGE_USB_MOUNT };
-        for (int m = 0; m < 2 && !found; m++) {
+        /* 5191: a line that names its volume ("usb/Album/x.mp3", as MPD
+         * saves since then) is that volume's first; one from before, with
+         * no volume, is tried on each. The "/" in front of the list is
+         * the named volume's attempt, made only for a line that names one. */
+        static const char *const mounts[] = { "", STORAGE_SD_MOUNT, STORAGE_USB_MOUNT };
+        const bool named = strncmp(line, "sd/", 3) == 0 || strncmp(line, "usb/", 4) == 0;
+        for (int m = named ? 0 : 1; m < 3 && !found; m++) {
             int k;
             if (line[0] == '/') {
-                if (m) break;                                       /* a VFS path: as it is */
+                if (m > 1) break;                                   /* a VFS path: as it is */
                 k = snprintf(vfs, 1024, "%s", line);
             } else {
                 k = snprintf(vfs, 1024, "%s/%s", mounts[m], line);

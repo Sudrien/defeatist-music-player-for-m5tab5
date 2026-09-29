@@ -18,6 +18,29 @@ const char *mpduri_mount(int vol)
     }
 }
 
+const char *mpduri_name(int vol)
+{
+    const char *m = mpduri_mount(vol);
+    return m ? m + 1 : NULL;                /* the mount without its '/' */
+}
+
+int mpduri_split(const char *uri, const char **rel)
+{
+    if (rel) *rel = "";
+    if (!uri || !uri[0]) return -1;
+    for (int v = 0; v < MPDURI_VOLS; v++) {
+        const char *n = mpduri_name(v);
+        const size_t nl = strlen(n);
+        if (strncmp(uri, n, nl) != 0) continue;
+        if (uri[nl] == '\0') return v;
+        if (uri[nl] == '/') {
+            if (rel) *rel = uri + nl + 1;
+            return v;
+        }
+    }
+    return -1;
+}
+
 bool mpduri_is_root(const char *uri)
 {
     return uri && uri[0] == '\0';
@@ -89,36 +112,31 @@ bool mpduri_to_vfs(const char *uri, midx_src_t *const src[MPDURI_VOLS],
     /* Files only, so the root is not a resolvable uri. */
     if (!mpduri_ok(uri, false)) return false;
 
-    for (int v = 0; v < MPDURI_VOLS; v++) {
-        midx_src_t *s = src[v];
-        if (!s) continue;
+    /* 5191: the volume the URI names, and only that one. */
+    const char *rel = "";
+    const int v = mpduri_split(uri, &rel);
+    if (v < 0 || !rel[0] || !src[v]) return false;
+    midx_src_t *s = src[v];
 
-        midx_rec_t r;
-        if (midx_find(s, uri, &r) < 0) continue;
-        /* A tombstone is not a file on the card. Skipped rather than
-         * returned, so a track deleted from the SD still resolves to the
-         * USB copy -- which is the shadowing rule running in the only
-         * direction it can usefully run. */
-        if (r.flags & MIDX_F_DEAD) continue;
+    midx_rec_t r;
+    if (midx_find(s, rel, &r) < 0) return false;
+    /* A tombstone is not a file on the card. */
+    if (r.flags & MIDX_F_DEAD) return false;
 
-        const char *const mount = mpduri_mount(v);
-        const size_t ml = strlen(mount), ul = strlen(uri);
-        if (ml + 1 + ul + 1 > cap) return false;
-        memcpy(out, mount, ml);
-        out[ml] = '/';
-        memcpy(out + ml + 1, uri, ul + 1);
+    const char *const mount = mpduri_mount(v);
+    const size_t ml = strlen(mount), ul = strlen(rel);
+    if (ml + 1 + ul + 1 > cap) return false;
+    memcpy(out, mount, ml);
+    out[ml] = '/';
+    memcpy(out + ml + 1, rel, ul + 1);
 
-        /* MPD.md's reuse, arriving where it fits. */
-        if (!remoteproto_path_ok(out, ml + 1 + ul)) {
-            out[0] = '\0';
-            return false;
-        }
-        if (vol_out) *vol_out = v;
-        return true;
+    /* MPD.md's reuse, arriving where it fits. */
+    if (!remoteproto_path_ok(out, ml + 1 + ul)) {
+        out[0] = '\0';
+        return false;
     }
-
-    out[0] = '\0';
-    return false;
+    if (vol_out) *vol_out = v;
+    return true;
 }
 
 bool mpduri_from_vfs(const char *vfs, char *out, size_t cap)
@@ -136,9 +154,10 @@ bool mpduri_from_vfs(const char *vfs, char *out, size_t cap)
          * slash test is for. */
         if (strncmp(vfs, mount, ml) != 0 || vfs[ml] != '/') continue;
 
-        const char *const rel = vfs + ml + 1;
+        /* 5191: "/usb/x" is "usb/x" -- the mount without its '/'. */
+        const char *const rel = vfs + 1;
         const size_t rl = strlen(rel);
-        if (rl == 0 || rl + 1 > cap) return false;
+        if (rl <= ml || rl + 1 > cap) return false;
         memcpy(out, rel, rl + 1);
         /* What comes out must be a uri, or the two directions disagree
          * and a client sends back something that will not resolve. */

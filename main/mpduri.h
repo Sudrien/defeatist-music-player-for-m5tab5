@@ -43,6 +43,18 @@
  * be chosen. That is why `mpduri_to_vfs()` is documented as files-only
  * rather than as the general mapping.
  *
+ * 5191: SUPERSEDED. The URI now starts with its volume -- "sd/Artist/
+ * x.flac", "usb/Artist/x.flac" -- and the library root holds two folders,
+ * `sd` and `usb`, as MPD shows a mount (and as `listmounts` already said).
+ * Asked for on the board: the USB copy of a path both volumes hold was
+ * unreachable, and every add from Cantata was tried on the SD first and
+ * logged "no such file" before the USB copy was found. The cost written
+ * down above is now the other one: an album on both volumes is two
+ * albums to a client. The index paths are unchanged -- relative to the
+ * volume, which the prefix now names -- and so is everything below
+ * mpduri_split(). What is said above about the index being the thing
+ * listed, and a directory never being mapped to a VFS path, still holds.
+ *
  * PURE, and host-tested against a synthetic index (texttest/mpduritest.c)
  * for the reason `medialist.h` is: everything comes through
  * `midx_src_t`'s callbacks, so nothing here opens a file or needs IDF.
@@ -65,7 +77,8 @@ extern "C" {
  * not by remoteproto.h's 512 -- which is MIDX_PATH_MAX plus room for a
  * mount, and the arithmetic below is why those two numbers differ.
  */
-#define MPDURI_MAX      MIDX_PATH_MAX               /* 506 */
+#define MPDURI_REL_MAX  MIDX_PATH_MAX               /* 506: below the volume */
+#define MPDURI_MAX      (4 + MPDURI_REL_MAX)        /* 5191: "usb/" + that */
 
 /*
  * The mounts, matching `remoteproto.c`'s vols[] because they are the same
@@ -75,7 +88,7 @@ extern "C" {
  */
 #define MPDURI_MOUNT_SD     "/sd"
 #define MPDURI_MOUNT_USB    "/usb"
-#define MPDURI_VFS_MAX      (5 + 1 + MPDURI_MAX)    /* "/usb" + '/' + uri + NUL */
+#define MPDURI_VFS_MAX      (5 + 1 + MPDURI_REL_MAX)    /* "/usb" + '/' + path + NUL */
 
 /*
  * The volume slots, in `medialist.h`'s order, which is the order that
@@ -90,6 +103,17 @@ enum {
 
 /* The mount for a slot, or NULL. Static storage. */
 const char *mpduri_mount(int vol);
+
+/* 5191: the slot's name at the top of a URI -- "sd", "usb" -- or NULL. */
+const char *mpduri_name(int vol);
+
+/*
+ * 5191: the volume a URI names, and the index path below it (into `uri`;
+ * "" when the URI is the volume itself). -1 for the root, and for a URI
+ * whose first segment is neither volume -- which names nothing. `uri`
+ * must already have passed mpduri_ok().
+ */
+int mpduri_split(const char *uri, const char **rel);
 
 /*
  * Whether `uri` (NUL-terminated) is a URI this server may accept.
@@ -129,10 +153,9 @@ bool mpduri_is_root(const char *uri);
 bool mpduri_dir(const char *uri, char *out, size_t cap);
 
 /*
- * Resolve a FILE uri to a VFS path, choosing the volume.
- *
- * Each mounted volume's index is asked in slot order, so SD wins -- the
- * shadowing described at the top of this file. A DEAD record does not
+ * Resolve a FILE uri to a VFS path, on the volume it names (5191; it
+ * used to try each in slot order, SD first -- the shadowing described at
+ * the top of this file). A DEAD record does not
  * count as found: a tombstone is a file that is no longer on the card
  * (`mediaindex.h` keeps them so reconcile can revive them), and resolving
  * to one would hand the player a path to open that is not there.
@@ -152,7 +175,8 @@ bool mpduri_to_vfs(const char *uri, midx_src_t *const src[MPDURI_VOLS],
                    char *out, size_t cap, int *vol_out);
 
 /*
- * The URI for a VFS path: the part below a known mount.
+ * The URI for a VFS path: the volume's name, then the part below its
+ * mount (5191: "/usb/a/b.flac" is "usb/a/b.flac").
  *
  * This is the direction `currentsong` and `playlistinfo` need, because
  * what the player holds is a VFS path and what a client must be told is a

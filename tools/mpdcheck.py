@@ -467,10 +467,22 @@ class Checker:
             for verb in ("update", "rescan"):
                 r = self.expect_ok(verb, verb) or []
                 self.ok(f"{verb} answers updating_db: N", "updating_db" in kv(r), repr(r))
-                t = time.time()
-                while "updating_db" in self.status() and time.time() - t < 60:
+                # 5237: done is status without updating_db AND the library
+                # answering -- the board's first status after update said
+                # no run (a stale snapshot, fixed in 5237) and the checks
+                # after it met "being indexed". Either alone can be early.
+                t, done = time.time(), False
+                while not done and time.time() - t < 60:
                     time.sleep(0.5)
-                self.ok(f"the {verb} run finishes", "updating_db" not in self.status())
+                    if "updating_db" in self.status():
+                        continue
+                    try:
+                        self.c.cmd("count base " + q(self.files[0].rsplit("/", 1)[0]))
+                        done = True
+                    except Ack as e:
+                        if e.code != 52:
+                            done = True
+                self.ok(f"the {verb} run finishes", done)
         else:
             self.skip("update/rescan", "starts a reindex; pass --reindex")
         return True

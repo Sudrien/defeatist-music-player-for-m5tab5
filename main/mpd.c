@@ -304,6 +304,15 @@ static uint32_t          s_pub_gen; /* 5235: publishes so far; under s_mu */
  * started from mpd_publish() when that run ends. Under s_mu. */
 static int               s_update_next = -1;    /* storage_id_t, or -1 */
 static uint32_t          s_update_job;          /* this task's: the last id given */
+
+/* 5237: a USB run is still to follow the SD's. */
+static bool update_waiting(void)
+{
+    xSemaphoreTake(s_mu, portMAX_DELAY);
+    const bool w = s_update_next >= 0;
+    xSemaphoreGive(s_mu);
+    return w;
+}
 static mpd_idle_track_t  s_track;   /* ui_task's */
 static medialib_state_t  s_db_was[STORAGE_COUNT];  /* ui_task's */
 
@@ -3551,7 +3560,12 @@ static result_t run_cmd(conn_t *c, const mpd_cmd_t *cmd, int idx)
             .duration_ms = v->duration_ms,
             .bitrate = -1,
             .sample_rate = 0,
-            .updating_db = v->updating ? (s_update_job ? s_update_job : 1u) : 0u,   /* 5236 */
+            /* 5237: live, not the snapshot's. Straight after `update` the
+             * last publish predates the run, and the board's first
+             * `status` said none was going; MPD's says so at once. And a
+             * USB run still to follow the SD's (5236) counts. */
+            .updating_db = (medialib_busy() || v->updating || update_waiting())
+                         ? (s_update_job ? s_update_job : 1u) : 0u,
             .error = NULL,
             .partition = MPD_PARTITION,                     /* 5180 */
         };

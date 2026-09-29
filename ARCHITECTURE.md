@@ -18510,3 +18510,29 @@ rescan among the verbs `commands` must name.
 Compiled -O2 -Wall -Wextra on the host stubs: mpd.c, no warnings.
 texttest all passes. mpdcheck --destructive --reindex against stock
 MPD 0.23.5: update, rescan and clear pass. Not on the board.
+
+### 5237 -- mpd: updating_db from the indexer, not the snapshot
+
+The board run of 5236 with --destructive --reindex: `update` and
+`rescan` answered, and then readcomments and `count ... group` met
+"the library is being indexed" and the run ended.
+
+`status`'s `updating_db` came from the published snapshot (n->updating,
+set in mpd_publish()). Straight after `update` the last publish is from
+before the run -- behind a page, up to half a second before -- so the
+first `status` said no run was going, and mpdcheck's wait for the run to
+end was over before the run had begun. MPD's `status` carries
+`updating_db` from the answer to `update` on. It is now read live:
+medialib_busy(), or the snapshot's flag, or a USB run still waiting to
+follow the SD's (update_waiting(), s_update_next under s_mu, 5236).
+
+mpdcheck no longer trusts either sign alone. A reindex is done when
+`status` has no `updating_db` AND a library command (`count base` of
+the test's folder) answers with something other than ACK 52, polled
+every half second for up to 60 s. On a small library a run can end
+before the next `status`, so "status shows it at once" is not checked
+as such -- it would fail a correct server.
+
+Compiled -O2 -Wall -Wextra on the host stubs: mpd.c, no warnings.
+texttest all passes. mpdcheck --destructive --reindex against stock
+MPD 0.23.5 unchanged (update, rescan, clear pass). Not on the board.

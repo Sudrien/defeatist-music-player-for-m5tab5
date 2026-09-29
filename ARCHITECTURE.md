@@ -17646,3 +17646,50 @@ look for: `record from: headset (next recording)` on the tap, then
 `recording to ... (headset microphone, mono, 48000 Hz, 16-bit)`, or for
 USB `(USB microphone, 48000 Hz, 16-bit, stereo, folded to mono)` after
 `microphone streaming: alt N, ...`.
+
+### 5209 -- Capture keeps the playback channel; only RX is new
+
+5208 on the board, radio up, headset selected:
+
+    capture before: DMA-capable internal 17223 free (largest 8192)
+    allocation failed: 1920 bytes ... i2s_alloc_dma_desc, task ui
+    E i2s_tdm: i2s_channel_init_tdm_mode(309): initialize channel failed ...
+    E tab5_audio: capture: ESP_ERR_NO_MEM; putting playback back
+    E i2s_std: i2s_channel_init_std_mode(327): ... failed while setting slot
+    E tab5_audio: capture: playback channel NOT restored
+
+Not the headset's fault -- the built-in pair asks for the same bytes.
+5106's swap freed playback's 8 x 1920 bytes and allocated the duplex
+pair's 8 x 1920 in their place, and put playback back the same way. With
+the station up the DMA pool's low-water mark is 12 bytes; between the
+free and the allocation the radio took most of what was freed (DMA free
+went from ~32 KB expected to 19039, largest 1920), so the pair failed,
+and so did playback's return. Mute until a reboot. 5106 was measured on
+the board before Wi-Fi competed for that pool the way it does now.
+
+**Nothing is freed now.** Playback's TX channel keeps its buffers for
+the length of a recording and is re-clocked in place (`tx_reclock()`):
+48 kHz, MCLK 256 x Fs, 16-bit data in 32-bit slots. That is 64 BCLKs a
+frame with a 50% WS -- exactly the framing of both ES7210 layouts, 2 x 32
+stereo and 4 x 16 TDM (whose auto WS width is half the frame). IDF sizes
+a channel's buffers from the data width alone (i2s_get_buf_size()), so
+the slot change reallocates nothing, and auto_clear sends zeros while
+the writer's blocks are dropped.
+
+The ES7210's data comes in on a **separate RX channel, role SLAVE**, on
+the same port: registered alone (not as a pair, so not full-duplex), it
+takes BCLK and WS as inputs from the pins TX drives (i2s_std.c/i2s_tdm.c
+route a slave RX to s_rx_bck_sig/s_rx_ws_sig) and is given no MCLK or
+DOUT, so it touches neither. It is the only new DMA: 4 x 1920 bytes,
+allocated *first*, so if it fails the capture is refused with nothing
+else moved. Putting playback back at the end, or after any failure, is a
+re-clock, which allocates nothing and cannot fail for memory.
+
+Restructures duplex_init()/capture_begin()/capture_end() rather than
+patching them: the swap was the defect. i2s_init() is boot-only now.
+
+Compiled as 5206 was, no warnings. Not on the board. What to look for:
+`capture running` with DMA free lower than `capture before` by about
+7.7 KB -- not 15 -- and after `capture: ended`, playback working at the
+track's rate. A failure now reads `capture: ESP_ERR_NO_MEM; playback left
+as it was`, and the next track plays.

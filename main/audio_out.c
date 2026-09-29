@@ -61,6 +61,9 @@ static const char *TAG = "tab5_audio";
  * (16-bit stereo) is 15 KB for TX, and 4 x 240 x 8 (32-bit stereo) is
  * 7.5 KB each way. 4 x 240 frames is 20 ms at 48 kHz, which the reader
  * task drains a 5 ms buffer at a time into a PSRAM ring.
+ * 5209: no pair any more. Playback's TX channel is kept and re-clocked,
+ * and only the RX channel is new -- 4 x 240 x 8, 7.5 KB, on top of what
+ * playback holds, never in place of it. See tx_reclock().
  */
 #define CAPTURE_DMA_DESC        (4)
 #define CAPTURE_DMA_FRAMES      (240)
@@ -150,6 +153,8 @@ static i2c_master_dev_handle_t s_es7210;
  * the duplex TX is clocked for 32-bit slots, and 16-bit audio written to
  * it would reach the DAC as noise. The player holds playback paused for
  * a recording, so what is dropped is at most the end of a fade.
+ * (5209: there is no pair; TX is re-clocked in place, 48 kHz in 32-bit
+ * slots, and the drop stands for the same reason.)
  */
 static SemaphoreHandle_t       s_i2s_lock;
 static volatile bool           s_capturing;
@@ -1058,74 +1063,96 @@ static void es7210_stop(void)
     reg_write(s_es7210, 0x00, 0xFF);
 }
 
-/* The duplex pair on I2S_NUM_0: the same MCLK, BCLK and LRCK the ES8388
- * runs from, the ES7210's SDOUT on DIN. 32-bit slots both ways, since a
- * duplex pair shares its clock and the ES7210's 24 bits need 32-bit
- * slots; TX sends zeros (auto_clear) for the length of the recording. */
-static esp_err_t duplex_init(audio_capture_src_t src)
+/*
+ * 5209: capture never frees the playback channel.
+ *
+ * 5106 deleted the playback TX channel and built a duplex pair in its
+ * place, and put playback back by building TX again. On the board with
+ * the radio up that is a race it loses: the DMA-capable pool is down to
+ * a few KB ("min-ever 12"), and the moment the playback channel's 15 KB
+ * is freed the Wi-Fi driver's RX path takes some of it -- so the pair
+ * could not allocate, and then neither could playback:
+ *
+ *   E i2s_tdm: i2s_channel_init_tdm_mode(309): ... failed while setting slot
+ *   E tab5_audio: capture: playback channel NOT restored
+ *
+ * and the player was mute until a reboot. Now the TX channel and its
+ * buffers stay where they are. For a capture it is re-clocked in place --
+ * 48 kHz, 16-bit data in 32-bit slots, which is 64 BCLKs a frame and
+ * the framing both ES7210 layouts use (2 x 32 stereo, 4 x 16 TDM) -- and
+ * the IDF's buffer size depends on the data width alone, so nothing is
+ * reallocated. auto_clear sends zeros while the writer's blocks are
+ * dropped. The ES7210's data comes in on a separate RX channel, a SLAVE
+ * on the same port, taking BCLK and WS as inputs from the pins TX drives
+ * and leaving MCLK and DOUT alone. That channel is the only new DMA:
+ * 4 x 1920 bytes. If it cannot be had, the capture is refused and
+ * playback was never touched; putting TX back is a re-clock, which
+ * allocates nothing and so cannot fail for memory.
+ */
+static esp_err_t tx_reclock(uint32_t rate, bool capture)
 {
-    i2s_chan_config_t chan = I2S_CHANNEL_DEFAULT_CONFIG(I2S_NUM_0, I2S_ROLE_MASTER);
+    i2s_std_clk_config_t clk = I2S_STD_CLK_DEFAULT_CONFIG(rate);
+    clk.mclk_multiple = I2S_MCLK_MULTIPLE_256;
+    i2s_std_slot_config_t slot = I2S_STD_PHILIPS_SLOT_DEFAULT_CONFIG(I2S_DATA_BIT_WIDTH_16BIT,
+                                                                      I2S_SLOT_MODE_STEREO);
+    if (capture) slot.slot_bit_width = I2S_SLOT_BIT_WIDTH_32BIT;
+    esp_err_t err = i2s_channel_disable(s_tx);
+    if (err == ESP_OK) err = i2s_channel_reconfig_std_slot(s_tx, &slot);
+    if (err == ESP_OK) err = i2s_channel_reconfig_std_clock(s_tx, &clk);
+    const esp_err_t en = i2s_channel_enable(s_tx);
+    return err != ESP_OK ? err : en;
+}
+
+/* The ES7210's SDOUT on DIN, clocked by TX. See above. */
+static esp_err_t rx_init(audio_capture_src_t src)
+{
+    i2s_chan_config_t chan = I2S_CHANNEL_DEFAULT_CONFIG(I2S_NUM_0, I2S_ROLE_SLAVE);
     chan.dma_desc_num = CAPTURE_DMA_DESC;
     chan.dma_frame_num = CAPTURE_DMA_FRAMES;
-    chan.auto_clear = true;
-    ESP_RETURN_ON_ERROR(i2s_new_channel(&chan, &s_tx, &s_rx), TAG, "duplex new");
+    ESP_RETURN_ON_ERROR(i2s_new_channel(&chan, NULL, &s_rx), TAG, "rx new");
 
+    const i2s_std_gpio_config_t pins = {
+        .mclk = I2S_GPIO_UNUSED,
+        .bclk = I2S_BCLK_GPIO,
+        .ws   = I2S_LRCK_GPIO,
+        .dout = I2S_GPIO_UNUSED,
+        .din  = I2S_DIN_GPIO,
+        .invert_flags = { false, false, false },
+    };
     if (src == AUDIO_CAPTURE_HEADSET) {
         /*
-         * 5206: four 16-bit TDM slots both ways, the config M5Stack's
-         * demo runs on this board -- which is IDF's Philips TDM default,
-         * field for field. BCLK is 3.072 MHz, MCLK / 4, MCLK still 256 x
-         * Fs. A frame is 8 bytes, as the stereo 32-bit pair's is, so the
-         * DMA costs exactly what it does for the array. TX sends zeros:
-         * the ES8388 sees TDM framing on its LRCK for the length of the
-         * recording, and plays nothing from it either way.
+         * 5206: four 16-bit TDM slots, IDF's Philips TDM default, which is
+         * M5Stack's demo config field for field. Its auto WS width is half
+         * the 64-BCLK frame, which is TX's 50% WS in 32-bit slots.
          */
-        const i2s_tdm_config_t tdm = {
+        i2s_tdm_config_t tdm = {
             .clk_cfg = I2S_TDM_CLK_DEFAULT_CONFIG(AUDIO_CAPTURE_RATE),
             .slot_cfg = I2S_TDM_PHILIPS_SLOT_DEFAULT_CONFIG(
                 I2S_DATA_BIT_WIDTH_16BIT, I2S_SLOT_MODE_STEREO,
                 I2S_TDM_SLOT0 | I2S_TDM_SLOT1 | I2S_TDM_SLOT2 | I2S_TDM_SLOT3),
-            .gpio_cfg = {
-                .mclk = I2S_MCLK_GPIO,
-                .bclk = I2S_BCLK_GPIO,
-                .ws   = I2S_LRCK_GPIO,
-                .dout = I2S_DOUT_GPIO,
-                .din  = I2S_DIN_GPIO,
-                .invert_flags = { false, false, false },
-            },
         };
-        ESP_RETURN_ON_ERROR(i2s_channel_init_tdm_mode(s_tx, &tdm), TAG, "tdm tx");
+        memcpy(&tdm.gpio_cfg, &pins, sizeof(pins));
         ESP_RETURN_ON_ERROR(i2s_channel_init_tdm_mode(s_rx, &tdm), TAG, "tdm rx");
-        ESP_RETURN_ON_ERROR(i2s_channel_enable(s_tx), TAG, "tdm tx enable");
-        ESP_RETURN_ON_ERROR(i2s_channel_enable(s_rx), TAG, "tdm rx enable");
-        return ESP_OK;
+    } else {
+        /* 24 bits in 32-bit slots, as 5106. */
+        const i2s_std_config_t std = {
+            .clk_cfg = I2S_STD_CLK_DEFAULT_CONFIG(AUDIO_CAPTURE_RATE),
+            .slot_cfg = I2S_STD_PHILIPS_SLOT_DEFAULT_CONFIG(I2S_DATA_BIT_WIDTH_32BIT,
+                                                            I2S_SLOT_MODE_STEREO),
+            .gpio_cfg = pins,
+        };
+        ESP_RETURN_ON_ERROR(i2s_channel_init_std_mode(s_rx, &std), TAG, "std rx");
     }
-
-    i2s_std_config_t std = {
-        .clk_cfg = I2S_STD_CLK_DEFAULT_CONFIG(AUDIO_CAPTURE_RATE),
-        .slot_cfg = I2S_STD_PHILIPS_SLOT_DEFAULT_CONFIG(I2S_DATA_BIT_WIDTH_32BIT,
-                                                        I2S_SLOT_MODE_STEREO),
-        .gpio_cfg = {
-            .mclk = I2S_MCLK_GPIO,
-            .bclk = I2S_BCLK_GPIO,
-            .ws   = I2S_LRCK_GPIO,
-            .dout = I2S_DOUT_GPIO,
-            .din  = I2S_DIN_GPIO,
-            .invert_flags = { false, false, false },
-        },
-    };
-    std.clk_cfg.mclk_multiple = I2S_MCLK_MULTIPLE_256;
-    ESP_RETURN_ON_ERROR(i2s_channel_init_std_mode(s_tx, &std), TAG, "duplex tx");
-    ESP_RETURN_ON_ERROR(i2s_channel_init_std_mode(s_rx, &std), TAG, "duplex rx");
-    ESP_RETURN_ON_ERROR(i2s_channel_enable(s_tx), TAG, "duplex tx enable");
-    ESP_RETURN_ON_ERROR(i2s_channel_enable(s_rx), TAG, "duplex rx enable");
+    ESP_RETURN_ON_ERROR(i2s_channel_enable(s_rx), TAG, "rx enable");
     return ESP_OK;
 }
 
-static void channels_delete(void)
+static void rx_delete(void)
 {
-    if (s_rx) { i2s_channel_disable(s_rx); i2s_del_channel(s_rx); s_rx = NULL; }
-    if (s_tx) { i2s_channel_disable(s_tx); i2s_del_channel(s_tx); s_tx = NULL; }
+    if (!s_rx) return;
+    i2s_channel_disable(s_rx);      /* "not enabled" on a failed init: harmless */
+    i2s_del_channel(s_rx);
+    s_rx = NULL;
 }
 
 bool audio_out_capturing(void) { return s_capturing; }
@@ -1137,19 +1164,23 @@ esp_err_t audio_out_capture_begin(audio_capture_src_t src)
         ESP_LOGE(TAG, "capture: the writer held the output for a second");
         return ESP_ERR_TIMEOUT;
     }
-    if (s_capturing) { xSemaphoreGive(s_i2s_lock); return ESP_ERR_INVALID_STATE; }
+    if (s_capturing || !s_tx) { xSemaphoreGive(s_i2s_lock); return ESP_ERR_INVALID_STATE; }
 
     dma_line("before");
-    channels_delete();
-    esp_err_t err = duplex_init(src);
-    /* MCLK is running again from here, which the ES7210, like the
-     * ES8388, needs before it will take a configuration. */
+    /* The RX channel first: it is the only allocation, and if it fails
+     * nothing else has moved. */
+    esp_err_t err = rx_init(src);
+    if (err == ESP_OK) err = tx_reclock(AUDIO_CAPTURE_RATE, true);
+    /* MCLK is at 256 x 48 kHz from here, which the ES7210 needs before
+     * it will take a configuration. */
     if (err == ESP_OK) err = es7210_start(src);
     if (err != ESP_OK) {
-        ESP_LOGE(TAG, "capture: %s; putting playback back", esp_err_to_name(err));
+        ESP_LOGE(TAG, "capture: %s; playback left as it was", esp_err_to_name(err));
         es7210_stop();
-        channels_delete();
-        if (i2s_init(s_rate) != ESP_OK) ESP_LOGE(TAG, "capture: playback channel NOT restored");
+        rx_delete();
+        const esp_err_t back = tx_reclock(s_rate, false);
+        if (back != ESP_OK) ESP_LOGE(TAG, "capture: playback re-clock at %" PRIu32 " Hz: %s",
+                                     s_rate, esp_err_to_name(back));
         xSemaphoreGive(s_i2s_lock);
         return err;
     }
@@ -1195,10 +1226,10 @@ void audio_out_capture_end(void)
     xSemaphoreTake(s_i2s_lock, portMAX_DELAY);
     if (!s_capturing) { xSemaphoreGive(s_i2s_lock); return; }
     es7210_stop();
-    channels_delete();
-    const esp_err_t err = i2s_init(s_rate);
-    if (err != ESP_OK) ESP_LOGE(TAG, "capture end: playback channel NOT restored: %s",
-                                esp_err_to_name(err));
+    rx_delete();
+    const esp_err_t err = tx_reclock(s_rate, false);
+    if (err != ESP_OK) ESP_LOGE(TAG, "capture end: playback re-clock at %" PRIu32 " Hz: %s",
+                                s_rate, esp_err_to_name(err));
     s_capturing = false;
     xSemaphoreGive(s_i2s_lock);
     ESP_LOGI(TAG, "capture: ended; playback channel back at %" PRIu32 " Hz", s_rate);

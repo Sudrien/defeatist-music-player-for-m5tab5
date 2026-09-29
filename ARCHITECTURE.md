@@ -17212,3 +17212,16 @@ out MPD_ASK_WAIT_MS for the publish on every command, and `play`
 resolved its position against the list from before the clear, whose
 ids were gone. A pass that applied an edit is now a pass behind the
 page too (5188's), so it publishes that same pass.
+
+### 5190 -- player: the pass behind a page runs with a finger down too
+
+5188 skipped its pass behind a page while a finger was down, so a drag
+would not lose a sample. v0.4.0-211 showed the cost: a finger rested on
+the chooser for 12.9 s, and Cantata's clear, add, add and play were
+applied but not published for all of it -- a second's wait each, and
+the `play` resolved against the list from before the clear, landed on
+the song that was playing, and became a restart ("play -> seek 0%",
+then an 8.5 s seek on an mp3 with no table). Such a pass now runs
+whatever the finger is doing. The page loses that pass's touch sample:
+a drag or a hold continues from the next, and only a tap shorter than
+one pass could go unseen.

@@ -7536,8 +7536,12 @@ static void ui_task(void *arg)
          * waited out MPD_ASK_WAIT_MS on each (a second a command), and a
          * `play` read the old list: "queue entry 8 is gone".
          */
-        const bool behind = !bdown &&
-                            (sleeppage_is_open() || panel_is_open() || browser_is_open()) &&
+        /* 5190: not only with no finger down. v0.4.0-211 had a finger
+         * resting on the chooser for 12.9 s, and Cantata's clear, add,
+         * add and play waited it out a second each, the play reading the
+         * list from before the clear. Such a pass costs the page one
+         * touch sample, which a drag or a hold does not notice. */
+        const bool behind = (sleeppage_is_open() || panel_is_open() || browser_is_open()) &&
                             (s_hid_action >= 0 || uireq_press_waiting() || edited);
 
         if (!behind && sleeppage_is_open()) {

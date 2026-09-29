@@ -18024,3 +18024,34 @@ bumps it once. Nothing is known to care.
 
 Compiled -O2 -Wall -Wextra on the host stubs: mpd.c, no warnings.
 texttest all passes. Not on the board.
+
+### 5221 -- mpd: findadd, searchadd, searchaddpl
+
+"Add all results" in a client. lib_find() (5180) gains where a hit
+goes -- printed, added to the queue, or appended to a stored playlist
+-- and the scan, the two stages and `window` are find's and search's
+unchanged: findadd matches as find does, searchadd and searchaddpl as
+search does.
+
+- A queue add is add_uri(), the one `add` uses: one uireq edit per hit,
+  waited for. That is a ui_task pass per song, so a few hundred hits
+  take seconds, not milliseconds; the client is waiting on the answer,
+  as MPD makes it wait.
+- A playlist add is pl_append() (5200), the one `playlistadd` uses: one
+  line per hit, the file opened and closed for each. searchaddpl on
+  "[Radio Streams]" is refused -- that playlist is the station list and
+  holds no library songs.
+- The first refusal (a full queue, a playlist that will not write) has
+  been ACKed by the function that refused, and ends the command. What
+  was added before it stays, as MPD's add loop leaves it.
+
+Not done: MPD 0.23's position argument on findadd/searchadd, and
+`sort` (ignored, as find ignores it). searchaddpl with a name, all four
+tag pairs and a `window` is eleven arguments against
+MPDPROTO_MAX_ARGS's ten, and is "Too many arguments"; nothing real
+sends that.
+
+Compiled -O2 -Wall -Wextra on the host stubs: mpd.c, no warnings.
+texttest all passes. Not on the board -- on the board, `mpc findadd
+artist X` then `mpc playlist`, and Cantata's "add to play queue" on a
+search result, are the ones to try.

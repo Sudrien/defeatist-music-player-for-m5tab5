@@ -333,6 +333,11 @@ static const cmd_def_t s_cmds[] = {
     /* 5220: arities from AllCommands.cxx */
     { "swap",             MPD_CMD_SWAP,                2,  2 },
     { "swapid",           MPD_CMD_SWAPID,              2,  2 },
+
+    /* 5221: arities from AllCommands.cxx */
+    { "findadd",          MPD_CMD_FINDADD,             1, -1 },
+    { "searchadd",        MPD_CMD_SEARCHADD,           1, -1 },
+    { "searchaddpl",      MPD_CMD_SEARCHADDPL,         2, -1 },
 };
 
 #define N_CMDS  (sizeof(s_cmds) / sizeof(s_cmds[0]))

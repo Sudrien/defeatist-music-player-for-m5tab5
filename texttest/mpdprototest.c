@@ -345,6 +345,8 @@ int main(void)
             "enableoutput", "disableoutput", "toggleoutput",
             /* 5220 */
             "swap", "swapid",
+            /* 5221 */
+            "findadd", "searchadd", "searchaddpl",
         };
         const size_t n = sizeof(verbs) / sizeof(verbs[0]);
         for (size_t i = 0; i < n; i++) {

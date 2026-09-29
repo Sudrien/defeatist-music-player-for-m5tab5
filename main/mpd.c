@@ -738,6 +738,7 @@ static bool answered(mpd_cmd_kind_t k)
     case MPD_CMD_GETVOL: case MPD_CMD_PASSWORD: case MPD_CMD_CROSSFADE:   /* 5218 */
     case MPD_CMD_ENABLEOUTPUT: case MPD_CMD_DISABLEOUTPUT: case MPD_CMD_TOGGLEOUTPUT:   /* 5219 */
     case MPD_CMD_SWAP: case MPD_CMD_SWAPID:   /* 5220 */
+    case MPD_CMD_FINDADD: case MPD_CMD_SEARCHADD: case MPD_CMD_SEARCHADDPL:   /* 5221 */
         return true;
     default:
         return false;
@@ -745,7 +746,7 @@ static bool answered(mpd_cmd_kind_t k)
 }
 
 /* The last kind in mpdproto.h's enum, for walking the table. */
-#define MPD_CMD_LAST    MPD_CMD_SWAPID
+#define MPD_CMD_LAST    MPD_CMD_SEARCHADDPL
 
 /*
  * 5166: the commands that read the list, over the pinned copy. Called
@@ -1577,6 +1578,12 @@ typedef struct {
 
 typedef enum { Q_FIND, Q_SEARCH, Q_COUNT } qmode_t;
 
+/* 5221: where a hit goes. Printed (find, search), added to the queue
+ * (findadd, searchadd) or appended to a stored playlist (searchaddpl). */
+typedef enum { QS_PRINT, QS_QUEUE, QS_PLAYLIST } qsink_t;
+
+static result_t pl_append(const ctx_t *x, const char *name, const char *uri);
+
 static bool q_tag(const char *t, qpair_t *p)
 {
     static const struct { const char *name; mediasearch_field_t f; } tags[] = {
@@ -1658,7 +1665,8 @@ static void log_query(const ctx_t *x, const mpd_cmd_t *cmd, long n, const char *
              (long long)((esp_timer_get_time() - t0) / 1000));
 }
 
-static result_t lib_find(const ctx_t *x, const mpd_cmd_t *cmd, qmode_t mode)
+static result_t lib_find(const ctx_t *x, const mpd_cmd_t *cmd, qmode_t mode,
+                         qsink_t sink, const char *pl)
 {
     conn_t *const c = x->c;
     const int64_t t0 = esp_timer_get_time();       /* 5196 */
@@ -1705,7 +1713,8 @@ static result_t lib_find(const ctx_t *x, const mpd_cmd_t *cmd, qmode_t mode)
     if (!never) {
         if (!lib_open(x)) return RES_ERR;
         bool err = false;
-        for (int v = 0; v < MEDIALIST_VOLS && !c->broken && !err; v++) {
+        bool refused = false;       /* 5221: an add was ACKed; stop there */
+        for (int v = 0; v < MEDIALIST_VOLS && !c->broken && !err && !refused; v++) {
             if (!s_rd_open[v]) continue;
             FILE *f = medialib_rd_search(&s_rd[v]);
             if (!f) continue;
@@ -1717,7 +1726,7 @@ static result_t lib_find(const ctx_t *x, const mpd_cmd_t *cmd, qmode_t mode)
             char *const buf = s_lib->sbuf;
             size_t have = 0;
             bool eof = false, skipping = false;
-            while (!eof && !c->broken && !err) {
+            while (!eof && !c->broken && !err && !refused) {
                 const size_t got = storage_io_fread(buf + have, SEARCH_CHUNK, f, STORAGE_IO_BACKGROUND);
                 if (got == 0) eof = true;
                 have += got;
@@ -1744,7 +1753,20 @@ static result_t lib_find(const ctx_t *x, const mpd_cmd_t *cmd, qmode_t mode)
                     if (!pass) continue;
                     /* 5191: a path on both volumes is two songs now,
                      * one under each; the SD's no longer hides the USB's. */
-                    if (mode != Q_COUNT && n_hit >= w_lo && n_hit < w_hi) {
+                    /*
+                     * 5221: an add is one uireq edit, waited for as
+                     * `add` waits (add_uri()), or one line on the end of
+                     * the playlist file (pl_append()). The first refusal
+                     * -- a full queue, a playlist that will not write --
+                     * has been ACKed there and ends the command, with
+                     * what was added before it left in place, as MPD's
+                     * own add loop leaves it.
+                     */
+                    if (sink != QS_PRINT && n_hit >= w_lo && n_hit < w_hi) {
+                        const bool ok = sink == QS_QUEUE ? add_uri(x, s_lib->uri, -1, NULL)
+                                                         : pl_append(x, pl, s_lib->uri) == RES_OK;
+                        if (!ok) { refused = true; break; }
+                    } else if (mode != Q_COUNT && n_hit >= w_lo && n_hit < w_hi) {
                         const mpd_song_t sg = {
                             .uri = s_lib->uri, .duration_ms = -1, .pos = -1,
                             .title = r->title[0] ? r->title : NULL,
@@ -1764,6 +1786,7 @@ static result_t lib_find(const ctx_t *x, const mpd_cmd_t *cmd, qmode_t mode)
             }
         }
         lib_close();
+        if (refused) return RES_ERR;
         if (err) {
             ack(c, MPD_ACK_SYSTEM, x->idx, x->verb, "the library could not be read; reindex it");
             return RES_ERR;
@@ -2597,9 +2620,30 @@ static result_t run_cmd(conn_t *c, const mpd_cmd_t *cmd, int idx)
     case MPD_CMD_LOAD:             return pl_load(&x, a0, cmd->argc > 1 ? cmd->argv[1] : NULL);
 
     /* 5180: search, find and count. */
-    case MPD_CMD_FIND:   return lib_find(&x, cmd, Q_FIND);
-    case MPD_CMD_SEARCH: return lib_find(&x, cmd, Q_SEARCH);
-    case MPD_CMD_COUNT:  return lib_find(&x, cmd, Q_COUNT);
+    case MPD_CMD_FIND:   return lib_find(&x, cmd, Q_FIND, QS_PRINT, NULL);
+    case MPD_CMD_SEARCH: return lib_find(&x, cmd, Q_SEARCH, QS_PRINT, NULL);
+    case MPD_CMD_COUNT:  return lib_find(&x, cmd, Q_COUNT, QS_PRINT, NULL);
+    /* 5221 */
+    case MPD_CMD_FINDADD:   return lib_find(&x, cmd, Q_FIND, QS_QUEUE, NULL);
+    case MPD_CMD_SEARCHADD: return lib_find(&x, cmd, Q_SEARCH, QS_QUEUE, NULL);
+    case MPD_CMD_SEARCHADDPL: {
+        /* The playlist's name first, then the filters find takes: the
+         * same command without its first argument. [Radio Streams] is
+         * the station list and holds no library songs. */
+        if (is_streams(a0)) {
+            ack(c, MPD_ACK_ARG, idx, cmd->verb, "the station list holds streams, not songs");
+            return RES_ERR;
+        }
+        if (!pl_name_ok(a0)) {
+            ack(c, MPD_ACK_ARG, idx, cmd->verb, "Bad playlist name");
+            return RES_ERR;
+        }
+        static mpd_cmd_t rest;          /* not on the task stack */
+        rest = *cmd;
+        rest.argc = cmd->argc - 1;
+        memmove(rest.argv, cmd->argv + 1, (size_t)rest.argc * sizeof(rest.argv[0]));
+        return lib_find(&x, &rest, Q_SEARCH, QS_PLAYLIST, a0);
+    }
     case MPD_CMD_LIST:   return lib_list(&x, cmd);                 /* 5182 */
 
     /* 5177: the library. */

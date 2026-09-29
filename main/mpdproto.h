@@ -191,6 +191,9 @@ typedef enum {
 
     /* 5220: swap, as two of the queue's moves */
     MPD_CMD_SWAP, MPD_CMD_SWAPID,
+
+    /* 5221: find and search, into the queue or a stored playlist */
+    MPD_CMD_FINDADD, MPD_CMD_SEARCHADD, MPD_CMD_SEARCHADDPL,
 } mpd_cmd_kind_t;
 
 /*

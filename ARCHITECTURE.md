@@ -18195,3 +18195,34 @@ modes and playing song are as they were and it is still playing, at
 untouched. Failures are the same deliberate differences as 5225's, plus
 one from stock MPD keeping a partition an earlier run's `newpartition`
 made. Not yet run against the board.
+
+### 5227 -- mpd: add and playlistadd of a folder
+
+`add DIR` was refused ("adding a folder ... is not supported"), and it
+is the first thing a client does with an album: MPD adds every song
+below the folder, recursively. It does here now, and so does
+`playlistadd NAME DIR`, which until now wrote the folder's path into
+the playlist as if it were a song.
+
+uri_is_dir() stats the URI's VFS path under a brief hold -- a volume's
+own name ("sd", "usb") counts, so `add sd` is the whole card. A folder
+goes to add_folder(), which is `findadd base DIR` (5221) under another
+verb: the same scan of the search file, path order with SD's volume
+first, one uireq edit (or one playlist line) per song, and a stop at
+the first refusal with what was added kept. Everything that is not a
+folder -- a file, a stream URL -- goes exactly the way it did, through
+add_uri() and pl_append(), so a file copied to the card but not yet
+indexed is still added.
+
+The songs added are the INDEXED ones: a folder copied since the last
+reindex adds nothing, and says "No indexed songs in that directory"
+(NO_EXIST). A folder of a thousand songs is a thousand ui_task passes
+and fills the queue at MPDQ_MAX with PLAYLIST_MAX, as MPD's own
+max_playlist_length does. `addid` of a folder is still refused, as MPD
+refuses it.
+
+lib_find() records its hit count in s_find_hits so add_folder() can
+tell "nothing below it" from "added".
+
+Compiled -O2 -Wall -Wextra on the host stubs: mpd.c, no warnings.
+texttest all passes. Not on the board.

@@ -1674,6 +1674,8 @@ static void log_query(const ctx_t *x, const mpd_cmd_t *cmd, long n, const char *
              (long long)((esp_timer_get_time() - t0) / 1000));
 }
 
+static long s_find_hits;     /* 5227: the last lib_find()'s count */
+
 static result_t lib_find(const ctx_t *x, const mpd_cmd_t *cmd, qmode_t mode,
                          qsink_t sink, const char *pl)
 {
@@ -1802,6 +1804,7 @@ static result_t lib_find(const ctx_t *x, const mpd_cmd_t *cmd, qmode_t mode,
         }
     }
     if (mode == Q_COUNT) putf(c, "songs: %ld\nplaytime: 0\n", n_hit);
+    s_find_hits = n_hit;                                            /* 5227 */
     log_query(x, cmd, n_hit, n_hit == 1 ? "song" : "songs", t0);     /* 5196 */
     return RES_OK;
 }
@@ -1886,6 +1889,51 @@ static result_t queue_find(const ctx_t *x, const mpd_cmd_t *cmd)
     }
     log_query(x, cmd, hits, hits == 1 ? "song" : "songs", t0);
     return RES_OK;
+}
+
+/*
+ * 5227: a folder, added whole -- `add DIR` to the queue, `playlistadd
+ * NAME DIR` to a stored playlist -- as MPD adds one: every song below it,
+ * recursively. That is `findadd base DIR` (5221), so it is that: the same
+ * scan, the same path order (SD's volume first), the same stop at the
+ * first refusal. False, with nothing sent, when the index has no song
+ * below it, so the caller can answer as it would for a file.
+ */
+static bool add_folder(const ctx_t *x, const char *uri, qsink_t sink, const char *pl,
+                       result_t *r)
+{
+    static char base[] = "base";
+    static mpd_cmd_t f;                 /* not on the task stack */
+    memset(&f, 0, sizeof(f));
+    f.kind = MPD_CMD_FINDADD;
+    f.verb = (char *)x->verb;
+    f.argc = 2;
+    f.argv[0] = base;
+    f.argv[1] = (char *)uri;
+    s_find_hits = 0;
+    *r = lib_find(x, &f, Q_FIND, sink, pl);
+    return *r != RES_OK || s_find_hits > 0;
+}
+
+/* 5227: whether a library URI names a folder on its volume -- a volume's
+ * own name ("sd", "usb") included. By stat, under a brief hold. */
+static bool uri_is_dir(const char *uri)
+{
+    if (!uri || !uri[0] || strncmp(uri, "http://", 7) == 0 || strncmp(uri, "https://", 8) == 0 ||
+        !mpduri_ok(uri, true))
+        return false;
+    const char *rel = "";
+    const int v = mpduri_split(uri, &rel);
+    if (v < 0) return false;
+    const storage_id_t id = v == MPDURI_VOL_SD ? STORAGE_SD : STORAGE_USB;
+    const int k = rel[0] ? snprintf(s_lib->vfs, sizeof(s_lib->vfs), "%s/%s", mpduri_mount(v), rel)
+                         : snprintf(s_lib->vfs, sizeof(s_lib->vfs), "%s", mpduri_mount(v));
+    if (k <= 0 || (size_t)k >= sizeof(s_lib->vfs)) return false;
+    storage_hold_brief(id);
+    struct stat st;
+    const bool is = storage_present(id) && stat(s_lib->vfs, &st) == 0 && S_ISDIR(st.st_mode);
+    storage_release_brief(id);
+    return is;
 }
 
 /* ---- list (5182, MPD.md step 12) ------------------------------------------ */
@@ -2906,6 +2954,16 @@ static result_t run_cmd(conn_t *c, const mpd_cmd_t *cmd, int idx)
             return RES_ERR;
         }
         if (is_streams(a0)) return streams_add(&x, cmd->argv[1]);
+        if (uri_is_dir(cmd->argv[1])) {                             /* 5227 */
+            result_t r;
+            if (!pl_name_ok(a0)) {
+                ack(c, MPD_ACK_ARG, idx, cmd->verb, "Bad playlist name");
+                return RES_ERR;
+            }
+            if (add_folder(&x, cmd->argv[1], QS_PLAYLIST, a0, &r)) return r;
+            ack(c, MPD_ACK_NO_EXIST, idx, cmd->verb, "No such directory");
+            return RES_ERR;
+        }
         return pl_append(&x, a0, cmd->argv[1]);
     case MPD_CMD_PLAYLISTDELETE:
     case MPD_CMD_PLAYLISTMOVE:                                      /* 5223 */
@@ -2962,8 +3020,19 @@ static result_t run_cmd(conn_t *c, const mpd_cmd_t *cmd, int idx)
     case MPD_CMD_LISTALLINFO:
         return lib_listall(&x, a0, cmd->kind == MPD_CMD_LISTALLINFO);
 
+    /* 5227: `add` of a folder adds the songs below it; a file, and
+     * everything else, goes as it always has. */
+    case MPD_CMD_ADD:
+        if (uri_is_dir(a0)) {
+            result_t r;
+            if (add_folder(&x, a0, QS_QUEUE, NULL, &r)) return r;
+            ack(c, MPD_ACK_NO_EXIST, idx, cmd->verb, "No indexed songs in that directory");
+            return RES_ERR;
+        }
+        return run_queue_cmd(c, cmd, idx);
+
     /* 5175: the queue's edits. */
-    case MPD_CMD_ADD: case MPD_CMD_ADDID:
+    case MPD_CMD_ADDID:
     case MPD_CMD_DELETE: case MPD_CMD_DELETEID:
     case MPD_CMD_MOVE: case MPD_CMD_MOVEID:
     case MPD_CMD_CLEAR: case MPD_CMD_SHUFFLE:

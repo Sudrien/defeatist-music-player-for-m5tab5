@@ -194,7 +194,7 @@ void browser_open(const char *start);
 void browser_close(void);
 bool browser_is_open(void);
 
-/* 5186: whether a name or path ends in .m3u -- a stored playlist, when
+/* 5186: whether a name or path ends in .m3u (5198: or .m3u8) -- a stored playlist, when
  * the chooser returns one (BROWSER_PLAY_FILE from a Playlists folder). */
 bool browser_is_m3u(const char *name);
 

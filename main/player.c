@@ -116,6 +116,7 @@
 #include "remote.h"          /* 5117 */
 #include "mpd.h"             /* 5158 */
 #include "uireq.h"           /* MPD.md step 5 */
+#include "m3uline.h"         /* 5198 */
 #include "mpdqueue.h"        /* 5166 */
 
 static const char *TAG = "tab5_mp3";
@@ -7071,9 +7072,13 @@ static bool queue_load_m3u(const char *path, int *added_out)
         return false;
     }
     int added = 0, skipped = 0;
+    /* 5198: a playlist another program wrote -- .m3u8, #EXTENC, a BOM,
+     * backslashes, Latin-1 (m3uline.h). */
+    m3u_enc_t enc = m3u_enc_of_name(path);
     while (fgets(line, 1024, f)) {
-        size_t n = strlen(line);
-        while (n && (line[n - 1] == '\n' || line[n - 1] == '\r' || line[n - 1] == ' ')) line[--n] = '\0';
+        if (m3u_directive(line, &enc)) continue;
+        const int n = m3u_line_clean(line, 1024, enc);
+        if (n < 0) { skipped++; continue; }
         if (!n || line[0] == '#') continue;
         if (strstr(line, "://")) { skipped++; continue; }          /* a station */
         bool found = false;

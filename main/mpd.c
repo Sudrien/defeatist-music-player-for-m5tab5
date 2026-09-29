@@ -95,6 +95,7 @@
 #include "playlist.h"         /* 5166 */
 #include "mpdproto.h"
 #include "mpduri.h"
+#include "m3uline.h"            /* 5198 */
 #include "uireq.h"            /* MPD.md step 5 */
 #include "stationlist.h"
 #include "settings.h"         /* 5161: settings_rg_enabled() */
@@ -2009,11 +2010,17 @@ static bool pl_name_ok(const char *n)
 
 static const storage_id_t s_pl_vols[MEDIALIST_VOLS] = { STORAGE_SD, STORAGE_USB };
 
-/* "<mount>/Playlists/<name>.m3u", or false if it does not fit. */
+/* "<mount>/Playlists/<name><ext>", or false if it does not fit. 5198:
+ * the extension is ".m3u" or ".m3u8"; what this player saves is .m3u. */
+static bool pl_path_ext(storage_id_t v, const char *name, const char *ext, char *out, size_t cap)
+{
+    const int k = snprintf(out, cap, "%s/" PL_DIR "/%s%s", storage_mount_path(v), name, ext);
+    return k > 0 && (size_t)k < cap;
+}
+
 static bool pl_path(storage_id_t v, const char *name, char *out, size_t cap)
 {
-    const int k = snprintf(out, cap, "%s/" PL_DIR "/%s" PL_EXT, storage_mount_path(v), name);
-    return k > 0 && (size_t)k < cap;
+    return pl_path_ext(v, name, PL_EXT, out, cap);
 }
 
 static void pl_changed(void)
@@ -2079,18 +2086,20 @@ static result_t pl_list(const ctx_t *x)
         struct dirent *e;
         while (d && n < MAXN && (e = readdir(d)) != NULL) {
             const size_t l = strlen(e->d_name);
-            if (e->d_type == DT_DIR || l <= 4 || e->d_name[0] == '.' ||
-                strcasecmp(e->d_name + l - 4, PL_EXT) != 0) continue;
-            char *nm = heap_caps_malloc(l - 3, MALLOC_CAP_SPIRAM | MALLOC_CAP_8BIT);
+            /* 5198: .m3u8 as well, its name without the longer tail. */
+            if (e->d_type == DT_DIR || e->d_name[0] == '.' || !m3u_is_name(e->d_name)) continue;
+            const size_t xl = (e->d_name[l - 1] == '8') ? 5 : 4;
+            char *nm = heap_caps_malloc(l - xl + 1, MALLOC_CAP_SPIRAM | MALLOC_CAP_8BIT);
             if (!nm) break;
-            memcpy(nm, e->d_name, l - 4);
-            nm[l - 4] = '\0';
+            memcpy(nm, e->d_name, l - xl);
+            nm[l - xl] = '\0';
             bool dup = false;
             for (int k = 0; k < n && !dup; k++) dup = strcmp(names[k], nm) == 0;
             if (dup) { free(nm); continue; }       /* the SD's already */
             char *const p = s_lib->uri;
             struct stat st;
-            mt[n] = (pl_path(s_pl_vols[v], nm, p, sizeof(s_lib->uri)) && stat(p, &st) == 0) ? st.st_mtime : 0;
+            const int pk = snprintf(p, sizeof(s_lib->uri), "%s/%s", dir, e->d_name);
+            mt[n] = (pk > 0 && (size_t)pk < sizeof(s_lib->uri) && stat(p, &st) == 0) ? st.st_mtime : 0;
             names[n++] = nm;
         }
         if (d) closedir(d);
@@ -2124,8 +2133,12 @@ static int pl_find(const char *name, char *out, size_t cap)
          * says what name was asked for. */
         storage_hold_brief(s_pl_vols[v]);
         struct stat st;
-        const bool is = storage_present(s_pl_vols[v]) && pl_path(s_pl_vols[v], name, out, cap) &&
-                        stat(out, &st) == 0 && S_ISREG(st.st_mode);
+        bool is = false;
+        /* 5198: <name>.m3u, then <name>.m3u8. */
+        for (int x = 0; x < 2 && !is; x++)
+            is = storage_present(s_pl_vols[v]) &&
+                 pl_path_ext(s_pl_vols[v], name, x ? ".m3u8" : PL_EXT, out, cap) &&
+                 stat(out, &st) == 0 && S_ISREG(st.st_mode);
         storage_release_brief(s_pl_vols[v]);
         if (is) return v;
     }
@@ -2151,10 +2164,12 @@ static result_t pl_contents(const ctx_t *x, const char *name, bool info)
     FILE *f = storage_present(s_pl_vols[v]) ? fopen(path, "r") : NULL;
     char *const line = s_lib->sbuf;
     char *const uri = s_lib->uri;
+    /* 5198: as the player loads it (m3uline.h). */
+    m3u_enc_t enc = m3u_enc_of_name(path);
     while (f && !c->broken && fgets(line, MEDIASEARCH_LINE_MAX, f)) {
-        size_t n = strlen(line);
-        while (n && (line[n - 1] == '\n' || line[n - 1] == '\r' || line[n - 1] == ' ')) line[--n] = '\0';
-        if (!n || line[0] == '#') continue;
+        if (m3u_directive(line, &enc)) continue;
+        const int n = m3u_line_clean(line, MEDIASEARCH_LINE_MAX, enc);
+        if (n <= 0 || line[0] == '#') continue;
         /* A VFS path is shown as its URI; a station URL as itself. */
         if (line[0] == '/' && mpduri_from_vfs(line, uri, sizeof(s_lib->uri))) { /* uri set */ }
         else if (!strstr(line, "://") && mpduri_split(line, NULL) < 0) pl_legacy(line, uri);
@@ -2190,6 +2205,8 @@ static result_t pl_save(const ctx_t *x, const char *name, const char *mode)
         return RES_ERR;
     }
     const int have = pl_find(name, path, sizeof(s_lib->vfs));
+    /* 5198: an existing .m3u8 is written as itself, not beside itself. */
+    const char *const ext = (have >= 0 && path[strlen(path) - 1] == '8') ? ".m3u8" : PL_EXT;
     if (have >= 0 && !append && !replace) {
         ack(c, MPD_ACK_EXIST, x->idx, x->verb, "Playlist already exists");
         return RES_ERR;
@@ -2209,7 +2226,7 @@ static result_t pl_save(const ctx_t *x, const char *name, const char *mode)
         ack(c, MPD_ACK_SYSTEM, x->idx, x->verb, "could not make the " PL_DIR " folder");
         return RES_ERR;
     }
-    FILE *f = (storage_present(vol) && pl_path(vol, name, path, sizeof(s_lib->vfs)))
+    FILE *f = (storage_present(vol) && pl_path_ext(vol, name, ext, path, sizeof(s_lib->vfs)))
             ? fopen(path, append ? "a" : "w") : NULL;
     int wrote = 0;
     bool ok = f != NULL;
@@ -2245,8 +2262,10 @@ static result_t pl_rm(const ctx_t *x, const char *name)
     int gone = 0;
     for (int v = 0; v < MEDIALIST_VOLS; v++) {
         storage_hold_brief(s_pl_vols[v]);
-        if (storage_present(s_pl_vols[v]) && pl_path(s_pl_vols[v], name, path, sizeof(s_lib->vfs)) &&
-            remove(path) == 0) gone++;
+        for (int k = 0; k < 2; k++)         /* 5198: either extension */
+            if (storage_present(s_pl_vols[v]) &&
+                pl_path_ext(s_pl_vols[v], name, k ? ".m3u8" : PL_EXT, path, sizeof(s_lib->vfs)) &&
+                remove(path) == 0) gone++;
         storage_release_brief(s_pl_vols[v]);
     }
     if (!gone) {

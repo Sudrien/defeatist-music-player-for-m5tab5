@@ -17340,3 +17340,29 @@ wrong for MPD's `play POS` and `playid ID`, which mean "play". The
 action now also sets s_playing, under PLAY_PAUSE's two refusals
 (network setup, a recording). It is also the remote page's queue-row
 play, which means the same.
+
+### 5198 -- playlists from elsewhere: .m3u8, backslashes, Latin-1
+
+Asked for on the board: the player's own .m3u files load, but a
+playlist exported from a desktop player may not. main/m3uline.c (pure,
+texttest/m3ulinetest.c) cleans one line of one, and every reader of a
+stored playlist -- queue_load_m3u() in player.c, MPD's
+listplaylist(info) -- uses it:
+
+- `.m3u8` is listed, found, loaded and removed like `.m3u`: in the
+  chooser's Playlists folder (browser_is_m3u()), and by MPD's
+  listplaylists, load, rm and save. `save` writes .m3u, or the existing
+  file's own name when there is one, so a .m3u8 is not shadowed by a
+  new .m3u beside it.
+- A run of backslashes -- `Album\01.mp3`, `Album\\01.mp3` -- is one
+  '/'. FAT and exFAT hold no backslash in a name, so nothing is lost.
+- A UTF-8 byte-order mark and CR line endings go.
+- Encoding: `.m3u8` is UTF-8 by its name, and an `#EXTENC:` line
+  declares one (UTF-8, or ISO-8859-1/Latin-1/CP1252 as Latin-1). With
+  neither -- a plain .m3u, whose encoding M3U never fixed and which
+  Winamp-era players wrote in the system code page -- a line that is
+  valid UTF-8 is UTF-8, and one that is not is Latin-1 and converted.
+  A line that no longer fits once converted is skipped, not cut.
+
+Not done: lines relative to the playlist's own folder. They are still
+read from a volume's root, as `sd/...`/`usb/...`, or as a VFS path.

@@ -18,6 +18,7 @@
 
 #include "browser.h"
 #include "cuedir.h"
+#include "m3uline.h"
 #include "favorites.h"
 #include "starred.h"
 #include "radiobrowser.h"
@@ -357,8 +358,7 @@ static bool is_playlists_dir(const char *dir)
 
 bool browser_is_m3u(const char *name)
 {
-    const size_t n = strlen(name);
-    return n > 4 && strcasecmp(name + n - 4, ".m3u") == 0;
+    return m3u_is_name(name);           /* 5198: and .m3u8 */
 }
 
 static void load_dir_locked(const char *dir)

@@ -18111,3 +18111,41 @@ was run outside the repository under ASan on a nine-line playlist with
 #EXTM3U, #EXTINF, a comment and no final newline: delete first and
 last, move first to last, last to first, down one and up one, move to
 itself, a position past the end, clear. Not on the board.
+
+### 5225 -- tools/mpdcheck.py: every MPD verb, from a PC
+
+`./tools/mpdcheck.py <ip>` connects to port 6600 and checks every verb
+`commands` should list (5224's set), against MPD's documented answers
+and, where this player deliberately differs, against the player's:
+stop is a pause, one output that will not turn off, one partition,
+crossfade only at 0, "[Radio Streams]" is the station list. Framing
+(quoting, arity ACKs, both command-list forms and a failing list's
+index), introspection, status/getvol, idle and noidle, idle waking
+another connection (playlist, mixer, stored_playlist), the library
+(lsinfo walk, listall, find/search/count/list, window, base, refused
+filter expressions), every queue edit including swap, findadd,
+searchadd, playlistfind and playlistsearch, the transport, volume,
+modes and replay gain, and stored playlists end to end (save, load,
+playlistadd, playlistmove, playlistdelete, rename, searchaddpl,
+playlistclear, rm).
+
+It changes things and puts them back: the queue is saved as
+"__mpdcheck_saved" and reloaded, volume, modes and replay gain are
+reset, and its own playlists (prefix "__mpdcheck") removed. A playing
+station is not restored. `--read-only` skips everything that changes
+state; `update`/`rescan` only with `--reindex`. Needs three indexed
+files. Exit status is the failure count. Standard library only.
+
+The modes are not judged: MPD's four flags map onto the player's four
+orders (MPD.md), so what `random 1` comes back as is printed, not
+checked.
+
+Checked against stock MPD 0.23.5 (null output, software mixer, the
+repository's test_audio_files as the library): 227 pass, and the 14
+that fail are exactly the places the player differs on purpose --
+disable/toggle output, newpartition, delpartition's code, mount and
+unmount, listneighbors with no plugin, crossfade 5, filter
+expressions, a shuffle range, seek of a song not playing, and the two
+"[Radio Streams]" refusals. So the queue, transport, volume and stored
+playlist sequences are right as MPD defines them, and the restore
+works. Not yet run against the board.

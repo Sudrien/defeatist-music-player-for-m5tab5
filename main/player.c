@@ -7515,7 +7515,25 @@ static void ui_task(void *arg)
             continue;
         }
 
-        if (sleeppage_is_open()) {
+        /*
+         * 5188: A PASS BEHIND THE PAGE. A press from MPD, the remote page
+         * or a HID remote was taken only on the transport screen's pass,
+         * which every page (sleep, panel, chooser) `continue`s before --
+         * so with the chooser up after boot, Cantata's replay_gain_mode
+         * sat at the head of uireq's ring, the clear and add behind it
+         * waited (uireq.h: edits do not pass a press), and MPD answered
+         * "player busy" until someone tapped cancel. Now, when one is
+         * waiting and no finger is down, this pass skips the page and
+         * runs the transport half for the press alone: no touch, and no
+         * ui_draw(), so the page stays on the glass untouched. What is
+         * published is published, so MPD sees it land. The page and a
+         * remote can fight; the last press wins, as on the glass.
+         */
+        const bool behind = !bdown &&
+                            (sleeppage_is_open() || panel_is_open() || browser_is_open()) &&
+                            (s_hid_action >= 0 || uireq_press_waiting());
+
+        if (!behind && sleeppage_is_open()) {
             sleeppage_set_timer(s_sleep_step,
                                 sleeptimer_seconds_left(esp_timer_get_time(),
                                                         s_sleep_deadline_us));
@@ -7595,7 +7613,7 @@ static void ui_task(void *arg)
             continue;
         }
 
-        if (panel_is_open()) {
+        if (!behind && panel_is_open()) {
             if (panel_touch(bdown, bx, by)) {
                 panel_close();
                 touch_swallow();
@@ -7610,7 +7628,7 @@ static void ui_task(void *arg)
             continue;
         }
 
-        if (browser_is_open()) {
+        if (!behind && browser_is_open()) {
             const browser_result_t r = browser_touch(bdown, bx, by);
             switch (r.kind) {
             case BROWSER_PLAY_FILE:
@@ -8048,7 +8066,9 @@ static void ui_task(void *arg)
         const bool down = bdown;
         recording_overlay(&st);         /* 5106: before the touch, see there */
         if (s_rec_count > 0) st.recording = true;   /* so a tap reads as leaving record */
-        ui_action_t act = ui_touch(&st, down, bx, by);
+        /* 5188: behind a page the glass is the page's, not the bar's. */
+        ui_action_t act = behind ? (ui_action_t){ .kind = UI_ACTION_NONE }
+                                 : ui_touch(&st, down, bx, by);
 
         /*
          * The remote, when the panel had nothing to say.
@@ -8193,6 +8213,13 @@ static void ui_task(void *arg)
             } else {
                 act.kind = UI_ACTION_PLAY_PAUSE;
             }
+        }
+
+        /* 5188: behind a page, nothing opens another -- the screens are
+         * never two at once (see the panel's branch). */
+        if (behind && (act.kind == UI_ACTION_CHOOSE_FILE || act.kind == UI_ACTION_SETTINGS ||
+                       act.kind == UI_ACTION_SCREEN_OFF)) {
+            act.kind = UI_ACTION_NONE;
         }
 
         switch (act.kind) {
@@ -8505,7 +8532,7 @@ static void ui_task(void *arg)
         remote_publish(&st, s_shown_path, s_rec_count);
         /* 5158: and what an MPD client is told, from the same st. */
         mpd_publish(&st, s_shown_path, s_streaming);
-        ui_draw(&st);
+        if (!behind) ui_draw(&st);      /* 5188: the page keeps the glass */
 
         /* 50 Hz under a finger, 25 Hz while the title is travelling, 10 Hz
          * otherwise. The middle rate exists because a marquee stepped at
@@ -8535,7 +8562,7 @@ static void ui_task(void *arg)
         }
 
         int period = 100;
-        if (down) period = 20;
+        if (down || behind) period = 20;    /* 5188: back to the page soon */
         else if (!s_screen_off && ui_animating()) period = 40;
         vTaskDelay(pdMS_TO_TICKS(period));
     }

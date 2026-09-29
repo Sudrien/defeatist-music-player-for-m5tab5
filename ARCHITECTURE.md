@@ -17171,3 +17171,32 @@ The player's title is never empty -- it falls back to the file name --
 so a file the catalog has a title for and the player did not still
 shows the file name. If a field is empty in both, the file has no such
 tag, and unknown is the true answer.
+
+### 5188 -- player: presses from elsewhere land behind an open page
+
+v0.4.0-209: the chooser opened itself at boot, Cantata connected and
+sent `replay_gain_mode`, and its `clear` and `add` were answered
+"player busy; the change is queued and may still happen" -- and
+happened eleven seconds later, when cancel was tapped. The press was
+taken only on the transport screen's pass, which the sleep page, the
+panel and the chooser each `continue` before; the edits behind it wait
+for it, because uireq keeps presses and edits in the order they came.
+
+Now a pass with a page up, no finger down, and a press waiting from
+MPD, the remote page or a HID remote (uireq_press_waiting(),
+s_hid_action) skips the page's branch and runs the transport half for
+that press: no ui_touch(), and no ui_draw(), so the page is not
+painted over and its own next pass carries on. remote_publish() and
+mpd_publish() run, so the press counts as serviced and MPD answers
+from what actually happened. A press that would open a screen
+(chooser, panel, sleep page) is dropped on such a pass, since two
+screens are never up at once.
+
+Taken as asked, with the fight it allows: someone on the chooser and
+someone in Cantata both act, and the last press wins -- as two hands
+on the glass would. The pass is skipped while a finger is down, so a
+drag on the panel is not cut in half.
+
+Not tried: letting edits pass a waiting press (breaks `play` then
+`clear` into `clear` then `play`), or closing the chooser on a remote
+press (loses the page under someone using it).

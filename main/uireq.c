@@ -179,6 +179,15 @@ bool uireq_take_press(ui_action_t *out)
     return had;
 }
 
+bool uireq_press_waiting(void)
+{
+    if (!s_mu) return false;
+    xSemaphoreTake(s_mu, portMAX_DELAY);
+    const bool w = s_n && !s_ring[s_head].is_edit;
+    xSemaphoreGive(s_mu);
+    return w;
+}
+
 void uireq_published(void)
 {
     if (!s_mu) return;

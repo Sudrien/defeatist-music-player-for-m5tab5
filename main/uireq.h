@@ -134,6 +134,10 @@ uint32_t uireq_press(uireq_source_t src, const ui_action_t *act);
  * taken first, by uireq_take_edit(). */
 bool uireq_take_press(ui_action_t *out);
 
+/* 5188: ui_task: whether the oldest thing waiting is a press -- for a
+ * pass behind a page (player.c), which takes it only if there is one. */
+bool uireq_press_waiting(void);
+
 /*
  * 5173: queue an edit. `path` is for the two adds (need not be
  * terminated; `len` is the truth) and ignored otherwise. The sequence

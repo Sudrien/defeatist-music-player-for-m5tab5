@@ -312,9 +312,32 @@ typedef struct {
     bool        broken;     /* a send failed; close after this read */
     int64_t     last_us;
     bool        after_stream;   /* 5202: the last command was add of a stream */
+    uint32_t    pending;        /* 5230: idle events for this connection only */
 } conn_t;
 
+/*
+ * 5230: client-to-client messages, MPD's subscribe/sendmessage. Per
+ * connection, in PSRAM: the channels it is subscribed to and the messages
+ * waiting for it. Only the server task touches these -- every connection
+ * is its -- so there is no lock. MPD's own limits are 16 subscriptions
+ * and 64 messages a client with no length limit; here 16 and 16, a
+ * channel name under 64 bytes and a message under 256, refused past
+ * that rather than cut.
+ */
+#define MPD_SUBS_MAX    (16)
+#define MPD_CHAN_MAX    (64)
+#define MPD_MSGS_MAX    (16)
+#define MPD_MSG_MAX     (256)
+
+typedef struct {
+    int  nsubs;
+    char subs[MPD_SUBS_MAX][MPD_CHAN_MAX];
+    int  nmsgs;
+    struct { char ch[MPD_CHAN_MAX]; char text[MPD_MSG_MAX]; } msg[MPD_MSGS_MAX];
+} msgbox_t;
+
 static conn_t             s_conn[MPD_CLIENTS];
+static msgbox_t          *s_box;            /* 5230: MPD_CLIENTS of them, PSRAM */
 static char              *s_out;            /* MPD_OUT_MAX, PSRAM */
 static size_t             s_out_len;
 static char              *s_body;           /* MPD_BODY_MAX, PSRAM */
@@ -748,6 +771,7 @@ static bool answered(mpd_cmd_kind_t k)
     case MPD_CMD_PLAYLISTFIND: case MPD_CMD_PLAYLISTSEARCH:   /* 5222 */
     case MPD_CMD_PLAYLISTCLEAR: case MPD_CMD_PLAYLISTMOVE: case MPD_CMD_RENAME:   /* 5223 */
     case MPD_CMD_LISTFILES:   /* 5228 */
+    case MPD_CMD_SUBSCRIBE: case MPD_CMD_UNSUBSCRIBE: case MPD_CMD_READMESSAGES: case MPD_CMD_SENDMESSAGE:   /* 5230 */
         return true;
     default:
         return false;
@@ -755,7 +779,7 @@ static bool answered(mpd_cmd_kind_t k)
 }
 
 /* The last kind in mpdproto.h's enum, for walking the table. */
-#define MPD_CMD_LAST    MPD_CMD_LISTFILES
+#define MPD_CMD_LAST    MPD_CMD_SENDMESSAGE
 
 /*
  * 5166: the commands that read the list, over the pinned copy. Called
@@ -2993,6 +3017,135 @@ static result_t pl_load(const ctx_t *x, const char *name, const char *range)
     return RES_OK;
 }
 
+/* ---- messages (5230) ------------------------------------------------------ */
+
+/* MPD's client_message_valid_channel_name(): ASCII letters and digits,
+ * '_', '-', '.', ':', and not empty. Under MPD_CHAN_MAX here. */
+static bool chan_ok(const char *n)
+{
+    const size_t len = strlen(n);
+    if (len == 0 || len >= MPD_CHAN_MAX) return false;
+    for (size_t i = 0; i < len; i++) {
+        const char ch = n[i];
+        if (!((ch >= 'a' && ch <= 'z') || (ch >= 'A' && ch <= 'Z') || (ch >= '0' && ch <= '9') ||
+              ch == '_' || ch == '-' || ch == '.' || ch == ':'))
+            return false;
+    }
+    return true;
+}
+
+static int sub_find(const msgbox_t *b, const char *ch)
+{
+    for (int i = 0; i < b->nsubs; i++) if (strcmp(b->subs[i], ch) == 0) return i;
+    return -1;
+}
+
+static int cmp_cstr(const void *a, const void *b)
+{
+    return strcmp(*(const char *const *)a, *(const char *const *)b);
+}
+
+static result_t run_msg_cmd(const ctx_t *x, const mpd_cmd_t *cmd)
+{
+    conn_t *const c = x->c;
+    msgbox_t *const me = &s_box[c - s_conn];
+    const char *const a0 = cmd->argc > 0 ? cmd->argv[0] : NULL;
+
+    switch (cmd->kind) {
+    case MPD_CMD_CHANNELS: {
+        /* Every channel any connection is subscribed to, once, sorted --
+         * MPD collects them into a std::set. */
+        static const char *all[MPD_CLIENTS * MPD_SUBS_MAX];
+        int n = 0;
+        for (int i = 0; i < MPD_CLIENTS; i++) {
+            if (s_conn[i].fd < 0) continue;
+            for (int k = 0; k < s_box[i].nsubs; k++) all[n++] = s_box[i].subs[k];
+        }
+        qsort(all, (size_t)n, sizeof(all[0]), cmp_cstr);
+        for (int i = 0; i < n; i++)
+            if (i == 0 || strcmp(all[i], all[i - 1]) != 0) putf(c, "channel: %s\n", all[i]);
+        return RES_OK;
+    }
+
+    case MPD_CMD_SUBSCRIBE:
+        if (!chan_ok(a0)) {
+            ack(c, MPD_ACK_ARG, x->idx, x->verb, "invalid channel name");
+            return RES_ERR;
+        }
+        if (sub_find(me, a0) >= 0) {
+            ack(c, MPD_ACK_EXIST, x->idx, x->verb, "already subscribed to this channel");
+            return RES_ERR;
+        }
+        if (me->nsubs >= MPD_SUBS_MAX) {
+            ack(c, MPD_ACK_EXIST, x->idx, x->verb, "subscription list is full");
+            return RES_ERR;
+        }
+        memcpy(me->subs[me->nsubs++], a0, strlen(a0) + 1);
+        xSemaphoreTake(s_mu, portMAX_DELAY);
+        s_events |= MPD_IDLE_SUBSCRIPTION;
+        xSemaphoreGive(s_mu);
+        return RES_OK;
+
+    case MPD_CMD_UNSUBSCRIBE: {
+        const int i = sub_find(me, a0);
+        if (i < 0) {
+            ack(c, MPD_ACK_NO_EXIST, x->idx, x->verb, "not subscribed to this channel");
+            return RES_ERR;
+        }
+        memmove(me->subs[i], me->subs[i + 1], (size_t)(me->nsubs - i - 1) * MPD_CHAN_MAX);
+        me->nsubs--;
+        xSemaphoreTake(s_mu, portMAX_DELAY);
+        s_events |= MPD_IDLE_SUBSCRIPTION;
+        xSemaphoreGive(s_mu);
+        return RES_OK;
+    }
+
+    case MPD_CMD_READMESSAGES:
+        for (int i = 0; i < me->nmsgs && !c->broken; i++) {
+            putf(c, "channel: %s\n", me->msg[i].ch);
+            const size_t k = mpdproto_kv("message", me->msg[i].text, s_body, MPD_BODY_MAX);
+            if (k) put(c, s_body, k);
+        }
+        me->nmsgs = 0;
+        return RES_OK;
+
+    case MPD_CMD_SENDMESSAGE: {
+        const char *const text = cmd->argv[1];
+        if (!chan_ok(a0)) {
+            ack(c, MPD_ACK_ARG, x->idx, x->verb, "invalid channel name");
+            return RES_ERR;
+        }
+        const size_t tl = strlen(text);
+        if (tl >= MPD_MSG_MAX) {
+            ack(c, MPD_ACK_ARG, x->idx, x->verb, "message too long for this player (%d bytes)",
+                MPD_MSG_MAX - 1);
+            return RES_ERR;
+        }
+        /* To every connection subscribed, the sender included if it is.
+         * A full box drops the message for that one, as MPD's
+         * PushMessage() does; "nobody" only when no box took it. */
+        bool sent = false;
+        for (int i = 0; i < MPD_CLIENTS; i++) {
+            msgbox_t *b = &s_box[i];
+            if (s_conn[i].fd < 0 || sub_find(b, a0) < 0 || b->nmsgs >= MPD_MSGS_MAX) continue;
+            memcpy(b->msg[b->nmsgs].ch, a0, strlen(a0) + 1);
+            memcpy(b->msg[b->nmsgs].text, text, tl + 1);
+            b->nmsgs++;
+            s_conn[i].pending |= MPD_IDLE_MESSAGE;
+            sent = true;
+        }
+        if (!sent) {
+            ack(c, MPD_ACK_NO_EXIST, x->idx, x->verb, "nobody is subscribed to this channel");
+            return RES_ERR;
+        }
+        return RES_OK;
+    }
+
+    default:
+        return RES_ERR;     /* not reached */
+    }
+}
+
 static result_t run_cmd(conn_t *c, const mpd_cmd_t *cmd, int idx)
 {
     const ctx_t x = { c, idx, cmd->verb };
@@ -3244,15 +3397,11 @@ static result_t run_cmd(conn_t *c, const mpd_cmd_t *cmd, int idx)
 
 
     case MPD_CMD_CHANNELS:
-        /*
-         * 5163: MPD's handle_channels lists every channel any client has
-         * subscribed to. `subscribe` is not a verb here, so no client can
-         * have, and the empty list is exact rather than a stand-in -- it
-         * is what MPD says with nobody subscribed. Cantata reads it to
-         * look for its dynamic-playlist helper and, finding none, turns
-         * that feature off, which is the right answer too.
-         */
-        return RES_OK;
+    case MPD_CMD_SUBSCRIBE:
+    case MPD_CMD_UNSUBSCRIBE:
+    case MPD_CMD_READMESSAGES:
+    case MPD_CMD_SENDMESSAGE:
+        return run_msg_cmd(&x, cmd);                                /* 5230 */
 
     case MPD_CMD_REPLAY_GAIN_STATUS:
         /* 5161: handle_replay_gain_status. "track" or "off": see
@@ -3607,6 +3756,15 @@ static void conn_close(conn_t *c, const char *why)
     close(c->fd);
     c->fd = -1;
     c->fill = 0;
+    /* 5230: its subscriptions go with it, and `channels` changes. */
+    msgbox_t *b = &s_box[c - s_conn];
+    if (b->nsubs) {
+        xSemaphoreTake(s_mu, portMAX_DELAY);
+        s_events |= MPD_IDLE_SUBSCRIPTION;
+        xSemaphoreGive(s_mu);
+    }
+    b->nsubs = 0;
+    b->nmsgs = 0;
     if (s_nclients > 0) s_nclients--;
 }
 
@@ -3646,6 +3804,9 @@ static void conn_accept(int ls)
     c->list_dead = false;
     c->list_idle = false;
     mpdidle_init(&c->idle);         /* 5160: nothing from before it came */
+    c->pending = 0;                 /* 5230 */
+    s_box[c - s_conn].nsubs = 0;
+    s_box[c - s_conn].nmsgs = 0;
     c->broken = false;
     c->last_us = esp_timer_get_time();
     s_nclients++;
@@ -3709,12 +3870,14 @@ static void deliver_events(void)
     const uint32_t ev = s_events;
     s_events = 0;
     xSemaphoreGive(s_mu);
-    if (!ev) return;
 
     for (int i = 0; i < MPD_CLIENTS; i++) {
         conn_t *c = &s_conn[i];
         if (c->fd < 0) continue;
-        if (!mpdidle_add(&c->idle, ev)) continue;
+        /* 5230: and what was raised for this connection alone. */
+        const uint32_t e = ev | c->pending;
+        c->pending = 0;
+        if (!e || !mpdidle_add(&c->idle, e)) continue;
         s_out_len = 0;
         idle_answer(c);
         flush(c);
@@ -3810,6 +3973,7 @@ void mpd_init(void)
     const uint32_t ps = MALLOC_CAP_SPIRAM | MALLOC_CAP_8BIT;
     s_mu = xSemaphoreCreateMutex();
     s_lib  = heap_caps_calloc(1, sizeof(*s_lib), ps);     /* 5178 */
+    s_box  = heap_caps_calloc(MPD_CLIENTS, sizeof(msgbox_t), ps);  /* 5230 */
     s_pub  = heap_caps_calloc(1, sizeof(snap_t), ps);
     s_next = heap_caps_calloc(1, sizeof(snap_t), ps);
     s_view = heap_caps_calloc(1, sizeof(snap_t), ps);
@@ -3823,7 +3987,7 @@ void mpd_init(void)
         s_ql[i].off = heap_caps_calloc(MPDQ_MAX, sizeof(uint32_t), ps);
     }
     bool ok = s_mu && s_lib && s_pub && s_next && s_view && s_out && s_body && s_text &&
-              s_stack;
+              s_stack && s_box;
     for (int i = 0; i < 2; i++) ok = ok && s_ql[i].id && s_ql[i].ver && s_ql[i].off;
     for (int i = 0; i < MPD_CLIENTS; i++) {
         s_conn[i].fd = -1;
@@ -3847,7 +4011,7 @@ void mpd_init(void)
 static bool ready(void)
 {
     if (!s_mu || !s_lib || !s_pub || !s_next || !s_view || !s_out || !s_body || !s_text ||
-        !s_stack) return false;
+        !s_stack || !s_box) return false;
     for (int i = 0; i < 2; i++) if (!s_ql[i].id || !s_ql[i].ver || !s_ql[i].off) return false;
     for (int i = 0; i < MPD_CLIENTS; i++) if (!s_conn[i].in) return false;
     return true;

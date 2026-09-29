@@ -248,9 +248,10 @@ int main(void)
               "ACK [2@0] {password} wrong number of arguments for \"password\"\n");
     bad_parse("channels x", MPD_ACK_ARG,
               "ACK [2@0] {channels} wrong number of arguments for \"channels\"\n");
-    /* Not built, and so still unknown: channels is answerable without
-     * them only because nobody can subscribe. */
-    bad_parse("subscribe x", MPD_ACK_UNKNOWN, "ACK [5@0] {} unknown command \"subscribe\"\n");
+    ok_parse("subscribe x", MPD_CMD_SUBSCRIBE, 1);                  /* 5230 */
+    ok_parse("sendmessage x \"hello there\"", MPD_CMD_SENDMESSAGE, 2);
+    bad_parse("readmessages x", MPD_ACK_ARG,
+              "ACK [2@0] {readmessages} wrong number of arguments for \"readmessages\"\n");
     ok_parse("replay_gain_mode track", MPD_CMD_REPLAY_GAIN_MODE, 1);
     bad_parse("replay_gain_mode", MPD_ACK_ARG,
               "ACK [2@0] {replay_gain_mode} wrong number of arguments for \"replay_gain_mode\"\n");
@@ -353,6 +354,8 @@ int main(void)
             "playlistclear", "playlistmove", "rename",
             /* 5228 */
             "listfiles",
+            /* 5230 */
+            "subscribe", "unsubscribe", "readmessages", "sendmessage",
         };
         const size_t n = sizeof(verbs) / sizeof(verbs[0]);
         for (size_t i = 0; i < n; i++) {

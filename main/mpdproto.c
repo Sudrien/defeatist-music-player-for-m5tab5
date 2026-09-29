@@ -350,6 +350,12 @@ static const cmd_def_t s_cmds[] = {
 
     /* 5228: arities from AllCommands.cxx */
     { "listfiles",        MPD_CMD_LISTFILES,           0,  1 },
+
+    /* 5230: arities from AllCommands.cxx */
+    { "subscribe",        MPD_CMD_SUBSCRIBE,           1,  1 },
+    { "unsubscribe",      MPD_CMD_UNSUBSCRIBE,         1,  1 },
+    { "readmessages",     MPD_CMD_READMESSAGES,        0,  0 },
+    { "sendmessage",      MPD_CMD_SENDMESSAGE,         2,  2 },
 };
 
 #define N_CMDS  (sizeof(s_cmds) / sizeof(s_cmds[0]))

@@ -18279,3 +18279,44 @@ every list command; the publisher writes the other half of s_ql[].
 
 Compiled -O2 -Wall -Wextra on the host stubs: mpd.c, no warnings.
 texttest all passes. Not on the board.
+
+### 5230 -- mpd: subscribe, unsubscribe, readmessages, sendmessage
+
+MPD 0.17's client-to-client messages, as src/command/MessageCommands.cxx
+has them. A client subscribes to a named channel; `sendmessage CH TEXT`
+queues TEXT for every connection subscribed to CH (the sender too, if it
+is) and raises `message` for those connections only; `readmessages`
+returns and empties the connection's queue as `channel:`/`message:`
+pairs; `channels` lists every channel any connection is subscribed to,
+once, sorted (MPD's std::set). 5163's `channels` answered an empty list
+because nobody could subscribe -- the test that recorded `subscribe` as
+deliberately unknown is replaced by ones that parse it.
+
+MPD's words and codes: a bad channel name (not ASCII letters, digits,
+'_', '-', '.', ':') is ARG "invalid channel name"; subscribing twice is
+EXIST "already subscribed to this channel", a full list EXIST
+"subscription list is full"; unsubscribing from a channel not
+subscribed is NO_EXIST; a message nobody takes is NO_EXIST "nobody is
+subscribed to this channel". A connection's full queue drops the
+message for that connection, as MPD's PushMessage() drops it.
+
+Per connection, in PSRAM (msgbox_t, s_box[MPD_CLIENTS], about 5.3 KB
+each): 16 subscriptions (MPD's own limit), 16 messages (MPD's is 64),
+channel names under 64 bytes and messages under 256 -- a longer message
+is refused with ARG naming the limit rather than cut. Only the server
+task touches them, since every connection is its, so there is no lock.
+A connection's subscriptions go when it closes, and `subscription` is
+raised then too.
+
+`message` has to reach some connections and not others, and s_events
+reaches them all, so conn_t gains `pending`: events for that connection
+alone, OR'd in by deliver_events() on the next pass (MPD_SELECT_MS at
+most). deliver_events() no longer returns early when s_events is empty.
+
+What this makes possible: Cantata's dynamic playlists look for their
+helper on a channel. The helper is a script that runs beside a real
+MPD; there is none here, so Cantata still finds nothing to talk to --
+but it now finds that out the way it does with MPD.
+
+Compiled -O2 -Wall -Wextra on the host stubs: mpd.c, no warnings.
+texttest all passes. Not on the board.

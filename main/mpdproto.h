@@ -203,6 +203,9 @@ typedef enum {
 
     /* 5228: a folder as the card has it, indexed or not */
     MPD_CMD_LISTFILES,
+
+    /* 5230: client-to-client messages (MessageCommands.cxx) */
+    MPD_CMD_SUBSCRIBE, MPD_CMD_UNSUBSCRIBE, MPD_CMD_READMESSAGES, MPD_CMD_SENDMESSAGE,
 } mpd_cmd_kind_t;
 
 /*

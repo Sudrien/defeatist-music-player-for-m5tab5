@@ -28,9 +28,11 @@
 #include "beam.h"
 #include "flacenc.h"
 #include "heapmap.h"
+#include "micpcm.h"           /* 5208 */
 #include "settings.h"
 #include "storage.h"
 #include "storage_io.h"
+#include "uac.h"              /* 5208 */
 
 static const char *TAG = "tab5_rec";
 
@@ -39,7 +41,10 @@ static const char *TAG = "tab5_rec";
 
 /* Two seconds of capture between the microphones and the card. A card's
  * worst ordinary stall (a FAT allocation, a wear-levelling pause) is a
- * few hundred ms; two seconds is the margin, at 768 KB of PSRAM. */
+ * few hundred ms; two seconds is the margin, at 768 KB of PSRAM.
+ * 5208: sized for the largest frame, the built-in pair's. The headset's
+ * mono frames get four seconds of it; a USB microphone's at 48 kHz get
+ * two or four, and at 96 kHz stereo one. */
 #define REC_RING_BYTES      (2u * AUDIO_CAPTURE_RATE * REC_FRAME_BYTES)
 
 /*
@@ -89,6 +94,19 @@ static int32_t             *s_in_buf;       /* REC_IN_FRAMES frames */
 static int32_t             *s_enc_buf;      /* REC_BLOCK frames */
 static beam_t              *s_beam;         /* 5109: ~1.2 KB, PSRAM with the rest */
 static bool                 s_use_beam;     /* this recording's choice */
+
+/*
+ * 5208: this recording's input and its format. s_in_ch is the frame in
+ * the ring, as the source delivers it; s_fold folds a USB microphone's
+ * stereo to mono on rec_enc. s_rate is what every seconds and ms figure
+ * divides by: a USB microphone's own rate, not AUDIO_CAPTURE_RATE.
+ */
+static settings_mic_input_t s_src;
+static uint32_t             s_rate = AUDIO_CAPTURE_RATE;
+static unsigned             s_in_ch = AUDIO_CAPTURE_CHANNELS;
+static unsigned             s_bits = AUDIO_CAPTURE_BITS;
+static bool                 s_fold;
+static volatile bool        s_src_gone;     /* the USB microphone was unplugged */
 
 static FILE      *s_file;
 static flacenc_t *s_enc;
@@ -247,9 +265,18 @@ static void rec_in_task(void *arg)
 {
     (void)arg;
     uint32_t reads = 0;
-    uint32_t settle = (uint32_t)AUDIO_CAPTURE_RATE * REC_SETTLE_MS / 1000u;
+    uint32_t settle = s_rate * REC_SETTLE_MS / 1000u;
+    const bool usb = (s_src == SETTINGS_MIC_USB);
     while (!s_stop) {
-        const size_t n = audio_out_capture_read(s_in_buf, REC_IN_FRAMES, 100);
+        /* 5208: the USB microphone, or the ES7210 (either input). The
+         * same buffer, sized for REC_IN_FRAMES of the widest frame. */
+        const size_t n = usb ? uac_mic_read(s_in_buf, REC_IN_FRAMES, 100)
+                             : audio_out_capture_read(s_in_buf, REC_IN_FRAMES, 100);
+        if (usb && uac_mic_gone()) {
+            s_src_gone = true;
+            s_stop = true;
+            break;
+        }
         if (!n) continue;
         reads++;
         if (settle) {                           /* 5113 */
@@ -258,7 +285,7 @@ static void rec_in_task(void *arg)
         }
         /* All of a read or none of it: a partial send would split a
          * frame and swap left and right for the rest of the file. */
-        const size_t want = n * REC_FRAME_BYTES;
+        const size_t want = n * s_in_ch * sizeof(int32_t);
         if (xStreamBufferSpacesAvailable(s_ring) >= want) {
             xStreamBufferSend(s_ring, s_in_buf, want, 0);
         } else {
@@ -267,7 +294,10 @@ static void rec_in_task(void *arg)
             portEXIT_CRITICAL(&s_mux);
         }
     }
-    audio_out_capture_end();
+    /* 5208: the USB microphone is closed on rec_enc, whose stack has
+     * room for the driver's control transfers; rec_in's has not been
+     * measured against them. */
+    if (!usb) audio_out_capture_end();
     ESP_LOGI(TAG, "microphones off after %" PRIu32 " reads (the first %d ms dropped: "
              "the ADC settling)", reads, REC_SETTLE_MS);
     s_in_done = true;
@@ -281,13 +311,16 @@ static void rec_enc_task(void *arg)
     for (;;) {
         /* Whole frames: rec_in sends only whole reads, one writer, so
          * what is available is always a multiple of a frame. */
+        const size_t fbytes = s_in_ch * sizeof(int32_t);
         const size_t got = xStreamBufferReceive(s_ring, s_enc_buf,
-                                                REC_BLOCK * REC_FRAME_BYTES,
+                                                REC_BLOCK * fbytes,
                                                 pdMS_TO_TICKS(100));
-        const unsigned frames = (unsigned)(got / REC_FRAME_BYTES);
+        const unsigned frames = (unsigned)(got / fbytes);
         if (frames && !s_write_failed) {
             /* 5109: the beam, in place -- two channels in, one out. */
             if (s_use_beam) beam_process(s_beam, s_enc_buf, s_enc_buf, frames);
+            /* 5208: a USB microphone's two channels, folded. */
+            if (s_fold) micpcm_mono(s_enc_buf, frames);
             if (!flacenc_write(s_enc, s_enc_buf, frames)) s_stop = true;
             portENTER_CRITICAL(&s_mux);
             s_frames += frames;
@@ -297,24 +330,35 @@ static void rec_enc_task(void *arg)
         }
         if (s_dropped_frames != last_drop_logged) {
             ESP_LOGW(TAG, "ring full: %" PRIu64 " ms of audio dropped so far",
-                     s_dropped_frames * 1000 / AUDIO_CAPTURE_RATE);
+                     s_dropped_frames * 1000 / s_rate);
             last_drop_logged = s_dropped_frames;
         }
         if (s_in_done && xStreamBufferIsEmpty(s_ring)) break;
     }
 
+    if (s_src == SETTINGS_MIC_USB) uac_mic_close();     /* 5208: see rec_in */
     finish_file();
 
-    const uint32_t secs = (uint32_t)(s_frames / AUDIO_CAPTURE_RATE);
+    const uint32_t secs = (uint32_t)(s_frames / s_rate);
     ESP_LOGI(TAG, "recorded %s: %" PRIu32 " s, %" PRIu64 " bytes, %" PRIu64 " ms dropped%s",
-             s_path, secs, s_bytes, s_dropped_frames * 1000 / AUDIO_CAPTURE_RATE,
-             s_write_failed ? ", ended by a write failure" : "");
+             s_path, secs, s_bytes, s_dropped_frames * 1000 / s_rate,
+             s_write_failed ? ", ended by a write failure" :
+             s_src_gone ? ", ended by the USB microphone going" : "");
     if (s_use_beam) {
         const int g = beam_gain_centi(s_beam);
         ESP_LOGI(TAG, "beam: canceller adapted on %u%% of it; MIC2 matched to MIC1 by %s%d.%d dB",
                  beam_adapt_pct(s_beam), g < 0 ? "-" : "+", abs(g) / 10, abs(g) % 10);
     }
-    if (!s_write_failed) {
+    if (s_src_gone && !s_write_failed) {
+        /* 5208: saved, and says why it stopped. The file up to the
+         * unplug is whole: rec_in stopped, rec_enc drained the ring. */
+        char body[96];
+        const storage_id_t vol = storage_of_path(s_path);
+        snprintf(body, sizeof(body), "The USB microphone was unplugged.\n"
+                 "%" PRIu32 ":%02" PRIu32 " on %s", secs / 60, secs % 60,
+                 vol < STORAGE_COUNT ? storage_label(vol) : "?");
+        notice("Recording stopped", body);
+    } else if (!s_write_failed) {
         char body[96];
         /* Which volume, first: with a card and a drive both in, "saved"
          * alone does not say where to look. */
@@ -361,39 +405,89 @@ bool recorder_start(char *why, size_t why_len)
     if (vol == STORAGE_COUNT) REFUSE("Insert a card or a USB drive to record to.");
 
     if (!buffers()) REFUSE("Not enough memory to record.");
-    if (!pick_path(storage_mount_path(vol))) REFUSE("Could not make the Recordings folder.");
+
+    /*
+     * 5208: the input, and the format it decides. A USB microphone is
+     * opened here, before the file, because its rate and channels are
+     * the FLAC header's and are not known until it is -- so every
+     * refusal from here on closes it again (ABANDON).
+     */
+    const bool stereo = settings_mic_stereo();
+    s_src = settings_mic_input();
+    s_src_gone = false;
+    s_use_beam = false;
+    s_fold = false;
+    if (s_src == SETTINGS_MIC_USB) {
+        if (!uac_mic_announced()) REFUSE("No USB microphone is plugged in.");
+        uint32_t rate = 0;
+        uint8_t ch = 0;
+        const esp_err_t e = uac_mic_open(&rate, &ch);
+        if (e == ESP_ERR_NOT_FOUND) REFUSE("The USB microphone is not there any more.");
+        if (e == ESP_ERR_NOT_SUPPORTED) REFUSE("The USB microphone has no 16-bit format.");
+        if (e != ESP_OK) REFUSE("The USB microphone did not start (%s).", esp_err_to_name(e));
+        s_rate = rate;
+        s_in_ch = ch;
+        s_bits = 16;
+        s_fold = (ch == 2 && !stereo);
+    } else if (s_src == SETTINGS_MIC_HEADSET) {
+        /* The jack detect cannot tell a headset from headphones; plain
+         * headphones record silence, and nothing here can know. */
+        if (!audio_out_headphones()) REFUSE("Nothing is plugged into the headset jack.");
+        s_rate = AUDIO_CAPTURE_RATE;
+        s_in_ch = AUDIO_CAPTURE_HEADSET_CHANNELS;
+        s_bits = AUDIO_CAPTURE_HEADSET_BITS;
+    } else {
+        s_rate = AUDIO_CAPTURE_RATE;
+        s_in_ch = AUDIO_CAPTURE_CHANNELS;
+        s_bits = AUDIO_CAPTURE_BITS;
+        /* 5109: the beam is mono; stereo is the microphones as they are. */
+        s_use_beam = !stereo;
+    }
+#define ABANDON() do { if (s_src == SETTINGS_MIC_USB) uac_mic_close(); } while (0)
+
+    if (!pick_path(storage_mount_path(vol))) {
+        ABANDON();
+        REFUSE("Could not make the Recordings folder.");
+    }
 
     s_file = storage_io_open(s_path, "wb");
-    if (!s_file) REFUSE("Could not create %s.", s_name);
+    if (!s_file) {
+        ABANDON();
+        REFUSE("Could not create %s.", s_name);
+    }
 
     s_frames = 0; s_bytes = 0; s_dropped_frames = 0;
     s_stop = false; s_in_done = false; s_write_failed = false;
-    /* 5109: the beam is mono; stereo is the microphones as they are. */
-    s_use_beam = !settings_mic_stereo();
     if (s_use_beam) beam_init(s_beam);
-    s_enc = flacenc_open(s_use_beam ? 1 : AUDIO_CAPTURE_CHANNELS, AUDIO_CAPTURE_BITS,
-                         AUDIO_CAPTURE_RATE, REC_BLOCK, file_write, NULL);
+    s_enc = flacenc_open((s_use_beam || s_fold) ? 1 : s_in_ch, s_bits,
+                         s_rate, REC_BLOCK, file_write, NULL);
     if (!s_enc) {
         storage_io_close(s_file);
         s_file = NULL;
         remove(s_path);
+        ABANDON();
         REFUSE("Could not start the file.");
     }
 
-    const esp_err_t err = audio_out_capture_begin(AUDIO_CAPTURE_BUILTIN);
-    if (err != ESP_OK) {
-        flacenc_close(s_enc, NULL);
-        s_enc = NULL;
-        storage_io_close(s_file);
-        s_file = NULL;
-        remove(s_path);
-        REFUSE("The microphones did not start (%s).", esp_err_to_name(err));
+    if (s_src != SETTINGS_MIC_USB) {
+        const esp_err_t err = audio_out_capture_begin(s_src == SETTINGS_MIC_HEADSET
+                                                      ? AUDIO_CAPTURE_HEADSET
+                                                      : AUDIO_CAPTURE_BUILTIN);
+        if (err != ESP_OK) {
+            flacenc_close(s_enc, NULL);
+            s_enc = NULL;
+            storage_io_close(s_file);
+            s_file = NULL;
+            remove(s_path);
+            REFUSE("The microphones did not start (%s).", esp_err_to_name(err));
+        }
     }
 
     xStreamBufferReset(s_ring);
     s_active = true;
     if (xTaskCreate(rec_enc_task, "rec_enc", REC_ENC_STACK, NULL, REC_ENC_PRIO, NULL) != pdPASS) {
-        audio_out_capture_end();
+        if (s_src != SETTINGS_MIC_USB) audio_out_capture_end();
+        ABANDON();
         flacenc_close(s_enc, NULL);
         s_enc = NULL;
         storage_io_close(s_file);
@@ -403,15 +497,21 @@ bool recorder_start(char *why, size_t why_len)
         REFUSE("No memory for the recording task.");
     }
     if (xTaskCreate(rec_in_task, "rec_in", REC_IN_STACK, NULL, REC_IN_PRIO, NULL) != pdPASS) {
-        /* rec_enc is running: let it close the (empty) file. */
-        audio_out_capture_end();
+        /* rec_enc is running: let it close the (empty) file -- and, for
+         * 5208, the USB microphone. */
+        if (s_src != SETTINGS_MIC_USB) audio_out_capture_end();
         s_write_failed = true;
         s_stop = true;
         s_in_done = true;
         REFUSE("No memory for the recording task.");
     }
-    ESP_LOGI(TAG, "recording to %s (%s)%s", s_path,
+    ESP_LOGI(TAG, "recording to %s (%s, %" PRIu32 " Hz, %u-bit%s%s)%s", s_path,
+             s_src == SETTINGS_MIC_USB ? "USB microphone" :
+             s_src == SETTINGS_MIC_HEADSET ? "headset microphone, mono" :
              s_use_beam ? "beam, mono" : "stereo, MIC1 left",
+             s_rate, s_bits,
+             s_src == SETTINGS_MIC_USB ? (s_in_ch == 2 ? ", stereo" : ", mono") : "",
+             s_fold ? ", folded to mono" : "",
              settings_time_verified() ? "" : "; the time is a guess until NTP, "
                                              "the name follows it if it moves");
     /* 5114: remembered for repair while the time is unverified. */
@@ -423,6 +523,7 @@ bool recorder_start(char *why, size_t why_len)
     }
     heapmap_log("recording started");
     return true;
+#undef ABANDON
 #undef REFUSE
 }
 
@@ -447,9 +548,9 @@ void recorder_status(recorder_status_t *out)
     out->active = s_active;
     out->stopping = s_active && s_stop;
     portENTER_CRITICAL(&s_mux);
-    out->seconds = (uint32_t)(s_frames / AUDIO_CAPTURE_RATE);
+    out->seconds = (uint32_t)(s_frames / s_rate);
     out->bytes = s_bytes;
-    out->dropped_ms = (uint32_t)(s_dropped_frames * 1000 / AUDIO_CAPTURE_RATE);
+    out->dropped_ms = (uint32_t)(s_dropped_frames * 1000 / s_rate);
     portEXIT_CRITICAL(&s_mux);
     snprintf(out->name, sizeof(out->name), "%s", s_name);
 }

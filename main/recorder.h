@@ -16,9 +16,16 @@
  * file. A card that stalls for a second costs ring, not samples; a ring
  * that fills is counted and logged as dropped audio, never silently.
  *
+ * 5208: or from the headset's microphone (48 kHz, 16-bit, mono; 5206)
+ * or a USB microphone (its own rate, 16-bit, its own channels, folded to
+ * mono unless STEREO; 5207) -- the AUDIO tab's Record from switch,
+ * settings_mic_input(), read at start. An input that is not there is a
+ * refusal with the reason, not a silent file.
+ *
  * Playback is held paused while this runs (the player's side of it):
  * the microphones take the I2S port away from the DAC. See
- * audio_out_capture_begin().
+ * audio_out_capture_begin(). A USB microphone does not, and playback is
+ * held paused for it anyway: one rule for "recording".
  *
  * All of it from ui_task except the tasks themselves.
  */

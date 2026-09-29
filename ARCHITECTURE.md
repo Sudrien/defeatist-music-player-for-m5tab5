@@ -17595,3 +17595,54 @@ warnings): uac.c, audio_out.c. Not on the board. The recorder does not
 call any of this until 5208. What to look for: `USB microphone
 announced (itf N, addr M); opened only to record` when a headset is
 plugged in, in place of the old `input interface (itf N) ignored`.
+
+### 5208 -- Record from: built-in, headset, USB
+
+The README's input toggle, done: AUDIO tab, under Microphones, "Record
+from BUILT-IN / HEADSET / USB", a tap cycling it. Saved as
+`"mic_input":N` (0 built-in, the default; out of range reads as 0);
+SETTINGS_MAX_LINE 552 -> 568 for the 14 bytes. Read when a recording
+starts, like mic_stereo. The pill is lit when the input is there --
+something in the jack (5206's detect, which cannot tell a headset from
+headphones), a USB microphone announced (5207) -- so the panel says
+before the record button does that the recording would be refused.
+
+**What each records.**
+
+| input | rate | bits | channels |
+|---|---|---|---|
+| built-in | 48 kHz | 24 | beam mono, or STEREO as 5109 |
+| headset | 48 kHz | 16 | mono |
+| USB | the device's | 16 | its own; folded to mono unless STEREO |
+
+The USB fold is micpcm_mono() (5207) on rec_enc, in place of the beam,
+which is built for the array's geometry and nothing else. A mono USB
+microphone is mono whatever the switch says.
+
+**recorder.c.** The format is per recording now -- s_rate, s_in_ch,
+s_bits -- and every seconds and ms figure divides by s_rate, not
+AUDIO_CAPTURE_RATE. A USB microphone is opened *before* the file, because
+its rate and channels are the FLAC header's; so every refusal after that
+closes it again (ABANDON()). Refusals, each with its reason on the card:
+nothing in the jack; no USB microphone; the one announced is gone (the
+open fails -- 5207's stale case); no 16-bit format. The ring is sized
+for the widest frame as before: two seconds of the array, four of the
+headset, one of a 96 kHz stereo USB microphone.
+
+rec_in reads the USB microphone with uac_mic_read(), and stops the
+recording when uac_mic_gone(): the file up to the unplug is finished and
+kept, and the card says "The USB microphone was unplugged." The
+microphone is closed on rec_enc, not rec_in -- rec_in's 3 KB has been
+measured against audio_out_capture_end() but not against the driver's
+stop and close, and rec_enc has 6 KB. Playback is still held paused for
+a USB recording, though it takes no I2S: one rule for "recording".
+
+The 250 ms settle (5113) applies to every input, at the input's rate.
+Whether a USB microphone needs it is for a recording to say.
+
+Compiled as 5206 was: recorder.c, settings.c, panel.c, ui.c, uac.c,
+audio_out.c, no warnings. texttest all passes. Not on the board. What to
+look for: `record from: headset (next recording)` on the tap, then
+`recording to ... (headset microphone, mono, 48000 Hz, 16-bit)`, or for
+USB `(USB microphone, 48000 Hz, 16-bit, stereo, folded to mono)` after
+`microphone streaming: alt N, ...`.

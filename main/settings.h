@@ -275,6 +275,24 @@ bool settings_mic_stereo(void);
 void settings_set_mic_stereo(bool on);
 
 /*
+ * 5208: what the recorder records from. BUILTIN is the pair above the
+ * screen (and settings_mic_stereo() says beam or both); HEADSET is the
+ * microphone in the jack, mono; USB is a USB microphone at its own rate,
+ * folded to mono unless settings_mic_stereo(). Stored as its number,
+ * "mic_input":N; anything out of range reads as BUILTIN. Read when a
+ * recording starts, like mic_stereo.
+ */
+typedef enum {
+    SETTINGS_MIC_BUILTIN = 0,
+    SETTINGS_MIC_HEADSET,
+    SETTINGS_MIC_USB,
+    SETTINGS_MIC_COUNT
+} settings_mic_input_t;
+
+settings_mic_input_t settings_mic_input(void);
+void settings_set_mic_input(settings_mic_input_t in);
+
+/*
  * 5117: the browser remote -- see remote.h. Off by default: it is a web
  * server with no password on whatever network the player is on. Stored
  * on the card only, like the audio settings; a card-less radio starts

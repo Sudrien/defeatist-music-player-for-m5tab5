@@ -177,7 +177,8 @@ static bool        s_prefs_nvs_known;
 /* And from 504 for "mic_stereo" (5109): 19 more bytes of key and value. */
 /* And from 524 for "remote" (5117): 16 more. */
 /* And from 540 for "mpd" (5158): 12 more. */
-#define SETTINGS_MAX_LINE       (552)
+/* And from 552 for "mic_input" (5208): 14 more. */
+#define SETTINGS_MAX_LINE       (568)
 
 /*
  * The file is append-only, and this is where it stops growing.
@@ -219,6 +220,9 @@ static bool       s_crossfade_album;
  * the README asks for mono by default, and it is the one aimed at whoever
  * is in front of the screen. */
 static bool       s_mic_stereo;
+/* 5208: what the recorder records from. The built-in pair by default --
+ * the one input that is always there. See settings.h. */
+static uint8_t    s_mic_input;
 static bool       s_remote;           /* 5117: see settings.h */
 static bool       s_mpd;              /* 5158: see settings.h */
 static uint8_t    s_brightness = SETTINGS_BRIGHTNESS_DEFAULT;
@@ -452,6 +456,17 @@ void settings_set_mic_stereo(bool on)
 {
     if (on == s_mic_stereo) return;
     s_mic_stereo = on;
+    s_dirty = true;
+    s_dirty_since = xTaskGetTickCount();
+}
+
+settings_mic_input_t settings_mic_input(void) { return (settings_mic_input_t)s_mic_input; }
+
+void settings_set_mic_input(settings_mic_input_t in)
+{
+    if ((unsigned)in >= SETTINGS_MIC_COUNT) in = SETTINGS_MIC_BUILTIN;
+    if ((uint8_t)in == s_mic_input) return;
+    s_mic_input = (uint8_t)in;
     s_dirty = true;
     s_dirty_since = xTaskGetTickCount();
 }
@@ -939,6 +954,13 @@ static bool parse_line(char *line, storage_id_t id, bool take_settings,
             any = true;
         }
 
+        const cJSON *mi = cJSON_GetObjectItemCaseSensitive(root, "mic_input");
+        if (take_settings && cJSON_IsNumber(mi)) {
+            const int v = mi->valueint;
+            s_mic_input = (uint8_t)((v >= 0 && v < SETTINGS_MIC_COUNT) ? v : SETTINGS_MIC_BUILTIN);
+            any = true;
+        }
+
         const cJSON *rm = cJSON_GetObjectItemCaseSensitive(root, "remote");
         if (take_settings && cJSON_IsBool(rm)) {
             s_remote = cJSON_IsTrue(rm);
@@ -1068,6 +1090,11 @@ static bool parse_line(char *line, storage_id_t id, bool take_settings,
     }
     if (strcmp(key, "mic_stereo") == 0) {
         s_mic_stereo = !(strcmp(val, "0") == 0 || strcasecmp(val, "false") == 0);
+        return true;
+    }
+    if (strcmp(key, "mic_input") == 0) {
+        const int v = atoi(val);
+        s_mic_input = (uint8_t)((v >= 0 && v < SETTINGS_MIC_COUNT) ? v : SETTINGS_MIC_BUILTIN);
         return true;
     }
     if (strcmp(key, "remote") == 0) {
@@ -1249,13 +1276,14 @@ static int record_line(storage_id_t id, char *out, size_t out_len)
                             "\"wifi\":%s,\"ntp\":%s," \
                             "\"ntp_epoch\":%s,\"ntp_boot_us\":%s," \
                             "\"mic_stereo\":%s,\"remote\":%s," \
-                            "\"mpd\":%s"
+                            "\"mpd\":%s,\"mic_input\":%u"
 #define SETTINGS_FIELDS_ARGS s_volume, rg, (unsigned)s_crossfade_sec, xa, \
                              (unsigned)s_brightness, \
                              (unsigned)s_dim_step, \
                              (unsigned)s_off_step, fl, \
                              (unsigned)s_screen_rot, \
-                             wf, np, nte, ntb, ms, rc, md
+                             wf, np, nte, ntb, ms, rc, md, \
+                             (unsigned)s_mic_input
 
     if (id >= STORAGE_COUNT || !s_track[id][0]) {
         return snprintf(out, out_len, "{" SETTINGS_FIELDS_FMT "}\n",

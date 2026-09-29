@@ -540,6 +540,21 @@ static void mic_switch_box(int *x, int *y, int *w, int *h)
     *h = AUDIO_SWITCH_H;
 }
 
+/* 5208: what the recorder records from, under the microphones' note. */
+#define INPUT_NOTE_LINES    (3)
+static int input_y(void)  { return mic_y() + AUDIO_SWITCH_H
+                                   + AUDIO_NOTE_GAP
+                                   + MIC_NOTE_LINES * AUDIO_NOTE_STEP
+                                   + AUDIO_GAP; }
+
+static void input_switch_box(int *x, int *y, int *w, int *h)
+{
+    *x = 0;
+    *y = input_y();
+    *w = gfx_w();
+    *h = AUDIO_SWITCH_H;
+}
+
 static void rg_switch_box(int *x, int *y, int *w, int *h)
 {
     *x = 0;
@@ -1194,7 +1209,39 @@ static int draw_audio(void)
         "quieter to either side. Stereo: both",
         "microphones as they are. Next recording.",
     };
-    const int used = draw_note(y + bh + AUDIO_NOTE_GAP, mic_note, MIC_NOTE_LINES);
+    (void)draw_note(y + bh + AUDIO_NOTE_GAP, mic_note, MIC_NOTE_LINES);
+
+    /* --- Record from (5208) ------------------------------------------ */
+    input_switch_box(&x, &y, &bw, &bh);
+    gfx_fill_rect(x, y, bw, bh, C_ROW);
+    gfx_draw_text(24, y + (bh - GFX_GLYPH_H(NAME_SCALE)) / 2, "Record from",
+                  NAME_SCALE, 400, C_TEXT);
+    {
+        /*
+         * Lit when the input is there to record from, so the switch says
+         * before the record button does that a headset recording with
+         * nothing in the jack will be refused. The jack cannot tell a
+         * headset from headphones, so lit is "something plugged in",
+         * not "a microphone". Built-in is always there.
+         */
+        const settings_mic_input_t in = settings_mic_input();
+        const char *label = in == SETTINGS_MIC_HEADSET ? "HEADSET"
+                          : in == SETTINGS_MIC_USB     ? "USB"
+                          :                              "BUILT-IN";
+        const bool there = in == SETTINGS_MIC_HEADSET ? audio_out_headphones()
+                         : in == SETTINGS_MIC_USB     ? uac_mic_announced()
+                         :                              true;
+        int pw = gfx_text_w(label, NAME_SCALE) + 48;
+        if (pw < 200) pw = 200;
+        const int ph = 56;
+        draw_pill(w - 24 - pw, y + (bh - ph) / 2, pw, ph, label, there, NAME_SCALE);
+    }
+    static const char *const input_note[INPUT_NOTE_LINES] = {
+        "Headset: the microphone in the jack,",
+        "mono. USB: a USB microphone at its own",
+        "rate, both channels only on STEREO.",
+    };
+    const int used = draw_note(y + bh + AUDIO_NOTE_GAP, input_note, INPUT_NOTE_LINES);
 
     /* See draw_net(): the check is panel_draw()'s now. */
     return used;
@@ -1598,6 +1645,19 @@ bool panel_touch(bool down, int x, int y)
             settings_set_mic_stereo(stereo);
             ESP_LOGI(TAG, "microphones: %s (next recording)",
                      stereo ? "stereo" : "beam");
+            s_dirty = true;
+            return false;
+        }
+
+        /* 5208: built-in, headset, USB, and round. */
+        input_switch_box(&bx, &by, &bw, &bh);
+        if (y >= by && y < by + bh) {
+            const settings_mic_input_t in =
+                (settings_mic_input_t)((settings_mic_input() + 1) % SETTINGS_MIC_COUNT);
+            settings_set_mic_input(in);
+            ESP_LOGI(TAG, "record from: %s (next recording)",
+                     in == SETTINGS_MIC_HEADSET ? "headset" :
+                     in == SETTINGS_MIC_USB ? "USB" : "built-in");
             s_dirty = true;
             return false;
         }

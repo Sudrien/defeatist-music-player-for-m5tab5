@@ -17459,3 +17459,20 @@ station is made current, as a tap on the list does, and its name is
 used if the client sent none. The lookup copies each station into a
 PSRAM station_t kept for it -- 600 bytes that are not for ui_task's
 stack.
+
+### 5204 -- mpd: tracking parameters come off a stream URL
+
+Asked for with 5203. A stream URL copied from a station's web player
+often carries parameters about the listener or the ad campaign rather
+than the stream -- AdsWizz's aw_0_*, Triton's lsid and tdtok, utm_*,
+click ids -- and once saved in stations.m3u they go out on every
+connect. main/urlclean.c (pure; texttest/urlcleantest.c) drops the
+ones on its list and keeps every other parameter in order, and the
+'#' fragment with it (Cantata's "#StreamName=").
+
+It runs on MPD's `add` of a URL, on `playlistadd "[Radio Streams]"`,
+and on a URL `playlistadd`ed to any stored playlist, and logs how many
+it dropped. The same cleaned URL is what 5203 compares against the
+station list, so a stream saved and then played matches its station.
+Not applied to stations the portal, the remote page or the directory
+add; those can take it if it earns its place.

@@ -96,6 +96,7 @@
 #include "mpdproto.h"
 #include "mpduri.h"
 #include "m3uline.h"            /* 5198 */
+#include "urlclean.h"           /* 5204 */
 #include "uireq.h"            /* MPD.md step 5 */
 #include "stationlist.h"
 #include "settings.h"         /* 5161: settings_rg_enabled() */
@@ -1047,8 +1048,19 @@ static bool is_stream_url(const char *u)
     return u && (strncmp(u, "http://", 7) == 0 || strncmp(u, "https://", 8) == 0);
 }
 
-static result_t add_stream(const ctx_t *x, const char *url)
+static result_t add_stream(const ctx_t *x, const char *in)
 {
+    /* 5204: trackers out first (urlclean.h). */
+    char *const url = s_lib->vfs;
+    const size_t il = strlen(in);
+    if (il >= sizeof(s_lib->vfs)) {
+        ack(x->c, MPD_ACK_ARG, x->idx, x->verb, "Bad stream URL");
+        return RES_ERR;
+    }
+    memcpy(url, in, il + 1);
+    const int dropped = urlclean_strip(url);
+    if (dropped) ESP_LOGI(TAG, "client %d: %d tracking parameter%s dropped", x->c->fd,
+                          dropped, dropped == 1 ? "" : "s");
     const size_t n = strlen(url);
     if (strpbrk(url, "\r\n") || !uireq_open(url, n, false)) {
         ack(x->c, MPD_ACK_ARG, x->idx, x->verb, "Bad stream URL");
@@ -2360,7 +2372,14 @@ static result_t pl_append(const ctx_t *x, const char *name, const char *uri)
     }
     FILE *f = (storage_present(vol) && pl_path_ext(vol, name, ext, path, sizeof(s_lib->vfs)))
             ? fopen(path, "a") : NULL;
-    bool ok = f && fprintf(f, "%s\n", uri) > 0;
+    /* 5204: a stream URL without its trackers. s_lib->uri is free here. */
+    const char *line = uri;
+    if (url && strlen(uri) < sizeof(s_lib->uri)) {
+        memcpy(s_lib->uri, uri, strlen(uri) + 1);
+        urlclean_strip(s_lib->uri);
+        line = s_lib->uri;
+    }
+    bool ok = f && fprintf(f, "%s\n", line) > 0;
     if (f) ok = (fclose(f) == 0) && ok;
     storage_release_brief(vol);
     if (!ok) {
@@ -2425,6 +2444,9 @@ static result_t streams_add(const ctx_t *x, const char *uri)
     }
     memcpy(url, uri, ul);
     url[ul] = '\0';
+    const int dropped = urlclean_strip(url);                         /* 5204 */
+    if (dropped) ESP_LOGI(TAG, "client %d: %d tracking parameter%s dropped", c->fd,
+                          dropped, dropped == 1 ? "" : "s");
     const char *name = hash ? hash + 1 : "";
     /* 5202: Cantata writes "#StreamName=Name"; the name is after it. */
     if (strncmp(name, "StreamName=", 11) == 0) name += 11;

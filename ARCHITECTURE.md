@@ -17719,3 +17719,47 @@ What to look for: no `sample rate is too large`, and `capture: ES7210
 headset microphone, TDM slot 3 of 4` followed by `capture running`. If
 APLL lands under 48.9 MHz the same error comes back, and IDF logs its
 real frequency at debug level.
+
+### 5211 -- A probe of what the capture slots carry
+
+5210 on the board: the capture started (`capture running`), ran 16 s
+with 3271 reads and nothing dropped, and wrote a 16 s file of **2184
+bytes** that plays at -inf. A 48 kHz 16-bit mono FLAC is about 1.5 MB for
+that; 2184 bytes is almost every block stored as a CONSTANT subframe,
+i.e. exact digital zero -- which is not what a live ADC gives even in a
+silent room. So the clocks work (the reads arrive at 48 kHz on the slave
+RX), and what arrives in slot 3 is nothing. Either the ES7210 is sending
+nothing on SDOUT in this setup, or it is sending, in a slot other than 3.
+The WS framing was checked against IDF: TX's std WS is 50% of a 64-BCLK
+frame, and TDM's auto WS width is half the frame (i2s_hal.c), the same.
+
+Rather than guess again: for the first 5 s of any capture,
+`capture_probe()` logs once a second each slot's peak and how many of
+its samples were non-zero -- all four raw TDM slots for the headset, L
+and R (24-bit) for the built-in pair -- before anything is unpacked.
+
+Reading it:
+
+- every slot 0/0: the ES7210 is not driving the data line, or the slave
+  RX is not reading GPIO 28. A BUILT-IN take on the same build says
+  which: if L/R are also 0, it is the slave RX path (5209), not TDM.
+- slot 1 alive, the rest 0: 0x12 put the ES7210 in some mode, but the
+  mics' channels are not where the demo said.
+- slot 0 and 2 alive, 3 at 0: the array works in TDM and the jack's
+  capsule is not getting there -- bias, gain, or which of MIC3/MIC4.
+- slot 3 alive: 5206 is right and the zeros came from after the read.
+
+Compiled as before, no warnings. Diagnostic only; it can come out once
+the headset records.
+
+**From the Tab5 schematic (page 3), after the above was written.** The
+wiring 5206 assumed is right, from the board rather than the demo: ES7210
+MIC4P is `HPMIC` (C154), MIC4N is AC-grounded (C155); `HPMIC` is biased
+at the jack from AUDIO_VDD through R123, 3.3 K -- not from MICBIAS34,
+which only has its decoupling cap (C71) -- so the capsule is powered
+whatever the ES7210 is told. MIC3P is `AEC_P`, which is HPOUT_L through
+R41 (0 R): the loopback. The two MEMS mics (U16, U17) run from MIC_VDD,
+which is MICBIAS12 through R42 (10 R), so 0x41 is their supply, not just
+a bias. SDOUT1/TDMOUT is the only data pin that reaches GPIO 28;
+SDOUT2/TDMIN is unconnected. So nothing analog explains exact zeros; the
+probe is about the digital side.

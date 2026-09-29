@@ -1063,6 +1063,12 @@ static void es7210_stop(void)
     reg_write(s_es7210, 0x00, 0xFF);
 }
 
+/* 5211: the capture probe's state; see capture_probe(). */
+#define CAPTURE_PROBE_S         (5)
+static uint32_t s_probe_frames, s_probe_secs;
+static int32_t  s_probe_peak[HEADSET_TDM_SLOTS];
+static uint32_t s_probe_nz[HEADSET_TDM_SLOTS];
+
 /*
  * 5209: capture never frees the playback channel.
  *
@@ -1197,6 +1203,9 @@ esp_err_t audio_out_capture_begin(audio_capture_src_t src)
         return err;
     }
     s_cap_src = src;
+    s_probe_frames = 0; s_probe_secs = 0;               /* 5211 */
+    memset(s_probe_peak, 0, sizeof(s_probe_peak));
+    memset(s_probe_nz, 0, sizeof(s_probe_nz));
     s_capturing = true;
     xSemaphoreGive(s_i2s_lock);
     if (src == AUDIO_CAPTURE_HEADSET) {
@@ -1211,6 +1220,56 @@ esp_err_t audio_out_capture_begin(audio_capture_src_t src)
     return ESP_OK;
 }
 
+/*
+ * 5211: what is actually in the slots, for the first CAPTURE_PROBE_S
+ * seconds of a capture, once a second: each slot's peak and how many of
+ * its samples were not zero. 5210's first headset take was 16 s of
+ * exact digital zero -- a FLAC of 2184 bytes -- and zero is not what a
+ * live ADC produces even in a silent room, so the question is whether
+ * the ES7210 is sending nothing, or sending into a slot other than the
+ * one read. The raw frames, before the unpack. Reset by capture_begin.
+ */
+
+static void capture_probe(const int32_t *frames, size_t n)
+{
+    if (s_probe_secs >= CAPTURE_PROBE_S) return;
+    const bool hs = (s_cap_src == AUDIO_CAPTURE_HEADSET);
+    const unsigned slots = hs ? HEADSET_TDM_SLOTS : 2;
+    const uint8_t *raw = (const uint8_t *)frames;
+    for (size_t i = 0; i < n; i++) {
+        for (unsigned k = 0; k < slots; k++) {
+            int32_t v;
+            if (hs) {
+                int16_t s16;
+                memcpy(&s16, raw + (i * slots + k) * sizeof(int16_t), sizeof(s16));
+                v = s16;
+            } else {
+                v = frames[i * 2 + k] >> 8;     /* 24 bits, as the read below */
+            }
+            if (v) s_probe_nz[k]++;
+            if (v < 0) v = -v;
+            if (v > s_probe_peak[k]) s_probe_peak[k] = v;
+        }
+    }
+    s_probe_frames += (uint32_t)n;
+    if (s_probe_frames < AUDIO_CAPTURE_RATE) return;
+    s_probe_secs++;
+    if (hs) {
+        ESP_LOGI(TAG, "capture probe %" PRIu32 " s: slot peak/nonzero  0: %" PRId32 "/%" PRIu32
+                 "  1: %" PRId32 "/%" PRIu32 "  2: %" PRId32 "/%" PRIu32 "  3: %" PRId32 "/%" PRIu32
+                 " of %" PRIu32, s_probe_secs,
+                 s_probe_peak[0], s_probe_nz[0], s_probe_peak[1], s_probe_nz[1],
+                 s_probe_peak[2], s_probe_nz[2], s_probe_peak[3], s_probe_nz[3], s_probe_frames);
+    } else {
+        ESP_LOGI(TAG, "capture probe %" PRIu32 " s: L peak %" PRId32 " nonzero %" PRIu32
+                 ", R peak %" PRId32 " nonzero %" PRIu32 " of %" PRIu32, s_probe_secs,
+                 s_probe_peak[0], s_probe_nz[0], s_probe_peak[1], s_probe_nz[1], s_probe_frames);
+    }
+    s_probe_frames = 0;
+    memset(s_probe_peak, 0, sizeof(s_probe_peak));
+    memset(s_probe_nz, 0, sizeof(s_probe_nz));
+}
+
 size_t audio_out_capture_read(int32_t *frames, size_t max_frames, uint32_t timeout_ms)
 {
     if (!s_capturing || !s_rx) return 0;
@@ -1219,6 +1278,7 @@ size_t audio_out_capture_read(int32_t *frames, size_t max_frames, uint32_t timeo
                                            &got, pdMS_TO_TICKS(timeout_ms));
     if (err != ESP_OK && err != ESP_ERR_TIMEOUT) return 0;
     const size_t n = got / (2 * sizeof(int32_t));
+    capture_probe(frames, n);                           /* 5211 */
     if (s_cap_src == AUDIO_CAPTURE_HEADSET) {
         /*
          * 5206: n raw frames of four int16 slots, 8 bytes each -- the same

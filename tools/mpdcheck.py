@@ -18,21 +18,35 @@ It checks MPD's behaviour, and where this player deliberately differs
 there is one output that cannot be turned off, one partition, crossfade
 only at 0, stored-playlist positions as `listplaylist` counts them.
 
-WHAT IT CHANGES, AND PUTS BACK
+WHAT IT CHANGES, AND PUTS BACK (5226)
 
-The queue, volume, the play modes, the replay-gain mode and stored
-playlists are changed, then restored:
+By default it works on things it made itself:
 
-  - the queue is saved as the stored playlist "__mpdcheck_saved" first
-    and loaded back at the end (a station playing is not queued, so
-    it is not restored -- start it again by hand);
-  - volume, repeat/random/single/consume and replay gain are set back;
-  - every stored playlist it makes starts with "__mpdcheck" and is
-    removed.
+  - the queue: three test entries are appended after yours, every edit
+    is made on those, and they are deleted at the end. Your entries keep
+    their order and their song ids, and the run checks that they did;
+  - playback: the test entries are played, which interrupts what was
+    playing. Afterwards the song you had is played again by its id,
+    sought to where it was (to about 1% of the track -- the player seeks
+    by percent) and paused if it was paused. A station that was playing
+    is not queued and is not restarted;
+  - volume: moved one step and back. Modes and replay gain: set to what
+    they already are. Each may be written to the card's settings;
+  - stored playlists: only its own, named "__mpdcheck*". If any exist
+    already (an interrupted run), that section is skipped rather than
+    deleting them.
 
-If a run is interrupted, "__mpdcheck_saved" is still on the card; `load`
-it by hand. `--read-only` runs only the checks that change nothing.
-`update` and `rescan` start a reindex and are only sent with --reindex.
+`--destructive` adds what cannot be scoped: `clear` and `shuffle` act
+on the whole queue, so the queue is saved as "__mpdcheck_saved" first
+and loaded back (new ids, same order), and the volume, modes and
+replay gain are cycled through their values. `clear` and `shuffle`
+also run, without saving, when the queue is empty at the start.
+
+If a run is interrupted, the test entries are the ones from your
+queue's old length on (`delete N:`), and with --destructive the queue
+is in "__mpdcheck_saved". `--read-only` runs only the checks that
+change nothing. `update` and `rescan` start a reindex and are only
+sent with --reindex.
 
 The library needs at least three playable files, indexed. Tags are
 checked only where the catalog has them.
@@ -41,6 +55,7 @@ USAGE
 
     ./tools/mpdcheck.py 192.168.1.50
     ./tools/mpdcheck.py 192.168.1.50 --read-only
+    ./tools/mpdcheck.py 192.168.1.50 --destructive
     ./tools/mpdcheck.py 192.168.1.50 --port 6600 -v
 
 Exit status is the number of failed checks (0 is a clean run), capped
@@ -299,6 +314,9 @@ class Checker:
         self.expect_ok("enableoutput 0", "enableoutput 0")
         self.expect_ack("disableoutput 0 is refused (ACK 5)", "disableoutput 0", 5)
         self.expect_ack("toggleoutput 0 is refused (ACK 5)", "toggleoutput 0", 5)
+        # If either was taken after all, the output is back on before
+        # anything else runs -- a server with no output pauses.
+        self.c.cmd("enableoutput 0")
         self.expect_ack("enableoutput 7 is NO_EXIST", "enableoutput 7", 50)
         if o.get("outputname"):
             self.expect_ok("moveoutput to the output's own partition", f"moveoutput {q(o['outputname'])}")
@@ -445,22 +463,36 @@ class Checker:
 
     # ---- snapshot and restore ----------------------------------------------
 
+    # 5226: the queue is not saved and cleared any more. The tests append
+    # their own entries after the listener's, work only on those, and
+    # delete them; the listener's entries keep their order and their ids.
+    # Only --destructive (clear, shuffle, full-range volume and modes)
+    # still saves the queue to SAVED and reloads it.
+
     def snapshot(self):
         st = self.status()
         self.saved_status = st
-        try:
-            self.c.cmd(f"rm {q(SAVED)}")
-        except Ack:
-            pass
+        self.base = int(st.get("playlistlength", "0"))
+        self.orig_files = self.queue()
+        self.orig_ids = self.ids()
+        self.saved_rg = kv(self.c.cmd("replay_gain_status")).get("replay_gain_mode", "off")
         self.queue_saved = False
-        if int(st.get("playlistlength", "0")) > 0:
+        if self.a.destructive and self.base > 0:
+            try:
+                self.c.cmd(f"rm {q(SAVED)}")
+            except Ack:
+                pass
             try:
                 self.c.cmd(f"save {q(SAVED)}")
                 self.queue_saved = True
             except Ack as e:
                 print(f"  note  could not save the queue ({e}); it will not be restored")
-        rg = kv(self.c.cmd("replay_gain_status")).get("replay_gain_mode", "off")
-        self.saved_rg = rg
+
+    def trim_tests(self):
+        """Delete everything after the listener's own entries."""
+        n = int(self.status().get("playlistlength", "0"))
+        if n > self.base:
+            self.c.cmd(f"delete {self.base}:")
 
     def restore(self):
         self.section("putting things back")
@@ -471,88 +503,134 @@ class Checker:
             except Ack:
                 pass
         try:
-            self.c.cmd("clear")
             if self.queue_saved:
+                self.c.cmd("clear")
                 self.c.cmd(f"load {q(SAVED)}")
                 self.c.cmd(f"rm {q(SAVED)}")
-                if st.get("song") is not None:
-                    self.c.cmd(f"play {st['song']}")
-                    if st.get("state") != "play":
-                        self.c.cmd("pause 1")
+            else:
+                self.trim_tests()
             for m in ("repeat", "random", "single", "consume"):
                 self.c.cmd(f"{m} {st.get(m, '0')}")
             self.c.cmd(f"setvol {st.get('volume', '50')}")
             self.c.cmd(f"replay_gain_mode {self.saved_rg}")
-            print("  done  queue, volume, modes and replay gain restored")
+
+            # What was playing, where it was: by id when the queue was not
+            # reloaded (ids survive), by position when it was.
+            if st.get("song") is not None:
+                self.c.cmd(f"playid {st['songid']}" if not self.queue_saved else f"play {st['song']}")
+                el = float(st.get("elapsed", "0") or 0)
+                if el > 1:
+                    try:
+                        self.c.cmd(f"seekcur {el:.1f}")
+                    except Ack:
+                        pass
+                if st.get("state") != "play":
+                    self.c.cmd("pause 1")
+            elif st.get("state") == "play":
+                self.c.cmd("play")
+            else:
+                self.c.cmd("pause 1")
+            print("  done  test entries removed; volume, modes, replay gain and the "
+                  "playing song put back")
         except (Ack, OSError) as e:
             print(f"  WARN  restore incomplete: {e}")
             if self.queue_saved:
                 print(f'        the queue is in the stored playlist "{SAVED}"')
+            else:
+                print(f"        entries from position {self.base} on are the test's; "
+                      f"`delete {self.base}:` removes them")
+
+        if not self.queue_saved:
+            try:
+                self.ok("the listener's entries are untouched (files)",
+                        self.queue() == self.orig_files)
+                self.ok("the listener's entries are untouched (ids)",
+                        self.ids() == self.orig_ids)
+            except (Ack, OSError) as e:
+                self.ok("the listener's entries are untouched", False, str(e))
 
     # ---- the queue -----------------------------------------------------------
 
+    def tail(self):
+        return self.queue()[self.base:]
+
+    def tail_ids(self):
+        return self.ids()[self.base:]
+
+    def refill(self):
+        self.trim_tests()
+        for i in range(3):
+            self.c.cmd(f"add {q(self.files[i])}")
+
     def queue_edits(self):
-        self.section("queue")
-        f = self.files
-        self.expect_ok("clear", "clear")
-        self.ok("clear empties the queue", self.queue() == [])
+        self.section("queue (on appended entries; yours are not touched)")
+        f, b = self.files, self.base
         for i in range(3):
             self.expect_ok(f"add file {i}", f"add {q(f[i])}")
-        self.ok("add appends in order", self.queue() == f[:3], repr(self.queue()))
+        self.ok("add appends in order", self.tail() == f[:3], repr(self.tail()))
         self.expect_ack("add of a missing file is NO_EXIST", 'add "sd/__no_such_file__.mp3"', 50)
 
-        r = self.expect_ok("addid at position 0", f"addid {q(f[2])} 0") or []
+        r = self.expect_ok("addid at a position", f"addid {q(f[2])} {b}") or []
         new_id = kv(r).get("Id")
         self.ok("addid answers Id", new_id is not None, repr(r))
-        self.ok("addid at 0 lands first", self.queue()[:1] == [f[2]], repr(self.queue()))
+        self.ok("addid lands at that position", self.tail()[:1] == [f[2]], repr(self.tail()))
 
         st = self.status()
-        self.ok("status playlistlength follows", st.get("playlistlength") == "4", st.get("playlistlength"))
+        self.ok("status playlistlength follows", st.get("playlistlength") == str(b + 4), st.get("playlistlength"))
         v0 = st.get("playlist")
 
         r = self.expect_ok("playlistid <id>", f"playlistid {new_id}") or []
         self.ok("playlistid gives that entry", songs(r) and songs(r)[0].get("Id") == new_id, repr(r))
         self.expect_ack("playlistid of a missing id is NO_EXIST", "playlistid 999999", 50)
-        r = self.expect_ok("playlistinfo 1:3", "playlistinfo 1:3") or []
+        r = self.expect_ok("playlistinfo range", f"playlistinfo {b + 1}:{b + 3}") or []
         self.ok("playlistinfo range gives two", len(songs(r)) == 2, repr(r))
         r = self.expect_ok("playlist", "playlist") or []
-        self.ok("playlist lines are N:file: uri", all(re.match(r"^\d+:file: ", l) for l in r) and len(r) == 4, repr(r))
-        self.expect_ack("playlistinfo past the end is ARG", "playlistinfo 10:12", 2)
+        self.ok("playlist lines are N:file: uri",
+                all(re.match(r"^\d+:file: ", l) for l in r) and len(r) == b + 4, f"{len(r)} lines")
+        self.expect_ack("playlistinfo past the end is ARG", f"playlistinfo {b + 10}:{b + 12}", 2)
 
         self.expect_ok("deleteid", f"deleteid {new_id}")
-        self.ok("deleteid removes it", self.queue() == f[:3], repr(self.queue()))
+        self.ok("deleteid removes it", self.tail() == f[:3], repr(self.tail()))
         r = self.expect_ok("plchanges <old version>", f"plchanges {v0}") or []
         self.ok("plchanges reports changed entries", len(songs(r)) >= 1, repr(r))
         self.expect_ok("plchangesposid <old version>", f"plchangesposid {v0}")
 
-        self.expect_ok("move 0 2", "move 0 2")
-        self.ok("move 0 2", self.queue() == [f[1], f[2], f[0]], repr(self.queue()))
-        ids = self.ids()
-        self.expect_ok("moveid <last> 0", f"moveid {ids[2]} 0")
-        self.ok("moveid", self.queue() == [f[0], f[1], f[2]], repr(self.queue()))
-        self.expect_ok("move range 0:2 1", "move 0:2 1")
-        self.ok("move range", self.queue() == [f[2], f[0], f[1]], repr(self.queue()))
-        self.expect_ack("move past the end is ARG", "move 0 9", 2)
+        self.expect_ok("move", f"move {b} {b + 2}")
+        self.ok("move", self.tail() == [f[1], f[2], f[0]], repr(self.tail()))
+        ids = self.tail_ids()
+        self.expect_ok("moveid", f"moveid {ids[2]} {b}")
+        self.ok("moveid", self.tail() == [f[0], f[1], f[2]], repr(self.tail()))
+        self.expect_ok("move range", f"move {b}:{b + 2} {b + 1}")
+        self.ok("move range", self.tail() == [f[2], f[0], f[1]], repr(self.tail()))
+        self.expect_ack("move past the end is ARG", f"move {b} {b + 9}", 2)
 
-        self.expect_ok("swap 0 2", "swap 0 2")
-        self.ok("swap", self.queue() == [f[1], f[0], f[2]], repr(self.queue()))
-        ids = self.ids()
+        self.expect_ok("swap", f"swap {b} {b + 2}")
+        self.ok("swap", self.tail() == [f[1], f[0], f[2]], repr(self.tail()))
+        ids = self.tail_ids()
         self.expect_ok("swapid", f"swapid {ids[0]} {ids[1]}")
-        self.ok("swapid", self.queue() == [f[0], f[1], f[2]], repr(self.queue()))
-        self.ok("ids survive a swap", sorted(self.ids()) == sorted(ids))
-        self.expect_ack("swap past the end is ARG", "swap 0 9", 2)
+        self.ok("swapid", self.tail() == [f[0], f[1], f[2]], repr(self.tail()))
+        self.ok("ids survive a swap", sorted(self.tail_ids()) == sorted(ids))
+        self.expect_ack("swap past the end is ARG", f"swap {b} {b + 9}", 2)
         self.expect_ack("swapid of a missing id is NO_EXIST", f"swapid {ids[0]} 999999", 50)
+        self.expect_ack("shuffle of a range is refused", f"shuffle {b}:{b + 2}", 5)
 
-        before = sorted(self.ids())
-        self.expect_ok("shuffle", "shuffle")
-        self.ok("shuffle keeps the same entries and ids", sorted(self.ids()) == before)
-        self.expect_ack("shuffle of a range is refused", "shuffle 0:2", 5)
-        self.c.cmd("clear")
-        for i in range(3):
-            self.c.cmd(f"add {q(f[i])}")
+        # clear and shuffle act on the whole queue: only with nothing of
+        # the listener's in it, or with --destructive (the queue saved).
+        if b == 0 or self.a.destructive:
+            before = sorted(self.ids())
+            self.expect_ok("shuffle", "shuffle")
+            self.ok("shuffle keeps the same entries and ids", sorted(self.ids()) == before)
+            self.expect_ok("clear", "clear")
+            self.ok("clear empties the queue", self.queue() == [])
+            self.base = 0 if self.a.destructive else self.base
+        else:
+            self.skip("clear, shuffle", "they act on your whole queue; pass --destructive, "
+                      "or run with the queue empty")
+        self.refill()
 
         r = self.expect_ok("playlistfind file <uri>", f"playlistfind file {q(f[1])}") or []
-        self.ok("playlistfind finds it at Pos 1", [s.get("Pos") for s in songs(r)] == ["1"], repr(r))
+        self.ok("playlistfind finds it at its position",
+                str(self.base + 1) in [s.get("Pos") for s in songs(r)], repr(r))
         base = f[1].rsplit("/", 1)[1]
         r = self.expect_ok("playlistsearch file <PART>", f"playlistsearch file {q(base[:4].upper())}") or []
         self.ok("playlistsearch finds it", f[1] in files_of(r), repr(r))
@@ -560,23 +638,21 @@ class Checker:
         self.ok("playlistfind on an unheld tag is empty", r == [], repr(r))
         self.expect_ack("playlistfind odd arguments is ARG", "playlistfind file", 2)
 
-        n = len(self.queue())
+        n = self.base + 3
         self.expect_ok("findadd file <uri>", f"findadd file {q(f[0])}")
-        self.ok("findadd appends one", self.queue() == f[:3] + [f[0]], repr(self.queue()))
+        self.ok("findadd appends one", self.tail() == f[:3] + [f[0]], repr(self.tail()))
         self.expect_ok("searchadd file <exact name>", f"searchadd file {q(f[1])}")
-        self.ok("searchadd appends at least one", len(self.queue()) >= n + 2, repr(self.queue()))
+        self.ok("searchadd appends at least one", len(self.queue()) >= n + 2)
         self.expect_ok("delete range to the end", f"delete {n}:")
-        self.ok("delete N: trims the end", self.queue() == f[:3], repr(self.queue()))
-        self.expect_ok("delete 0", "delete 0")
-        self.ok("delete 0", self.queue() == f[1:3], repr(self.queue()))
-        self.expect_ack("delete past the end is ARG", "delete 9", 2)
-        self.c.cmd("clear")
-        for i in range(3):
-            self.c.cmd(f"add {q(f[i])}")
+        self.ok("delete N: trims the end", self.tail() == f[:3], repr(self.tail()))
+        self.expect_ok("delete one", f"delete {self.base}")
+        self.ok("delete one", self.tail() == f[1:3], repr(self.tail()))
+        self.expect_ack("delete past the end is ARG", f"delete {self.base + 9}", 2)
+        self.refill()
 
         self.idle_wakes(lambda: self.c.cmd(f"add {q(f[0])}"), "playlist",
                         "idle playlist wakes on add from another client")
-        self.c.cmd("delete 3")
+        self.c.cmd(f"delete {self.base + 3}")
 
     # ---- the transport ---------------------------------------------------------
 
@@ -591,15 +667,17 @@ class Checker:
         return st
 
     def transport(self):
-        self.section("transport")
-        ids = self.ids()
-        self.expect_ok("play 0", "play 0")
-        st = self.wait_state(lambda s: s.get("state") == "play" and s.get("song") == "0")
-        self.ok("play 0 plays song 0", st.get("state") == "play" and st.get("song") == "0",
+        self.section("transport (plays the appended entries; interrupts what is playing)")
+        b = self.base
+        p0, p1, p2 = str(b), str(b + 1), str(b + 2)
+        ids = self.tail_ids()
+        self.expect_ok("play <pos>", f"play {b}")
+        st = self.wait_state(lambda s: s.get("state") == "play" and s.get("song") == p0)
+        self.ok("play <pos> plays it", st.get("state") == "play" and st.get("song") == p0,
                 f"{st.get('state')} song {st.get('song')}")
         self.ok("status has songid", st.get("songid") == ids[0], st.get("songid"))
         r = self.expect_ok("currentsong while playing", "currentsong") or []
-        self.ok("currentsong is song 0", kv(r).get("file") == self.files[0], repr(r))
+        self.ok("currentsong is it", kv(r).get("file") == self.files[0], repr(r))
 
         self.expect_ok("pause 1", "pause 1")
         st = self.wait_state(lambda s: s.get("state") == "pause")
@@ -613,18 +691,20 @@ class Checker:
         self.expect_ok("play (resume)", "play")
         self.wait_state(lambda s: s.get("state") == "play")
 
+        # next follows the play order; with random or single on it may not
+        # be the next position, so it is judged only when both are off.
+        mode = self.status()
         self.expect_ok("next", "next")
-        st = self.wait_state(lambda s: s.get("song") == "1")
-        self.ok("next goes to song 1", st.get("song") == "1", st.get("song"))
+        st = self.wait_state(lambda s: s.get("song") != p0)
+        if mode.get("random") == "0" and mode.get("single") == "0":
+            self.ok("next goes to the next position", st.get("song") == p1, st.get("song"))
         self.expect_ok("previous", "previous")
-        st = self.wait_state(lambda s: s.get("song") in ("0", "1"))
-        self.ok("previous answers (restart or back)", st.get("song") in ("0", "1"), st.get("song"))
 
-        self.expect_ok("playid <id of song 2>", f"playid {ids[2]}")
-        st = self.wait_state(lambda s: s.get("song") == "2")
-        self.ok("playid plays it", st.get("song") == "2", st.get("song"))
+        self.expect_ok("playid <id>", f"playid {ids[2]}")
+        st = self.wait_state(lambda s: s.get("song") == p2)
+        self.ok("playid plays it", st.get("song") == p2, st.get("song"))
         self.expect_ack("playid of a missing id is NO_EXIST", "playid 999999", 50)
-        self.expect_ack("play past the end is ARG", "play 99", 2)
+        self.expect_ack("play past the end is ARG", f"play {b + 99}", 2)
 
         time.sleep(1.0)
         st = self.status()
@@ -636,7 +716,7 @@ class Checker:
             self.expect_ok("seekcur +2", "seekcur +2")
             self.expect_ok("seekid <current> 1", f"seekid {st.get('songid')} 1")
             self.expect_ok("seek <current pos> 1", f"seek {st.get('song')} 1")
-            self.expect_ack("seek of another song is refused", f"seek {(int(st.get('song', '0')) + 1) % 3} 1", 5)
+            self.expect_ack("seek of another song is refused", f"seek {b} 1", 5)
         else:
             self.skip("seek, seekid, seekcur", "the song has no duration over 10 s")
 
@@ -646,27 +726,37 @@ class Checker:
 
     def volume_modes(self):
         self.section("volume, modes, replay gain")
-        self.expect_ok("setvol 30", "setvol 30")
-        self.ok("getvol reads 30", kv(self.c.cmd("getvol")).get("volume") == "30")
-        self.expect_ok("volume +5 (deprecated, relative)", "volume +5")
-        self.ok("volume +5 gives 35", kv(self.c.cmd("getvol")).get("volume") == "35")
+        v = int(self.saved_status.get("volume", "50"))
+        # One step, and back: the listener's volume barely moves. A full
+        # jump only with --destructive.
+        w = 30 if self.a.destructive else (v + 1 if v < 100 else v - 1)
+        self.expect_ok(f"setvol {w}", f"setvol {w}")
+        self.ok(f"getvol reads {w}", kv(self.c.cmd("getvol")).get("volume") == str(w))
+        d = -1 if w > v else 1
+        self.expect_ok(f"volume {d:+d} (deprecated, relative)", f"volume {d:+d}")
+        self.ok(f"volume {d:+d} gives {w + d}", kv(self.c.cmd("getvol")).get("volume") == str(w + d))
         self.expect_ack("setvol 101 is ARG", "setvol 101", 2)
-        self.idle_wakes(lambda: self.c.cmd("setvol 32"), "mixer", "idle mixer wakes on setvol")
+        self.idle_wakes(lambda: self.c.cmd(f"setvol {w}"), "mixer", "idle mixer wakes on setvol")
+        self.c.cmd(f"setvol {v}")
 
-        for m in ("repeat", "random", "single", "consume"):
-            self.expect_ok(f"{m} 1", f"{m} 1")
-            self.ok(f"status has {m} after setting it", m in self.status())
-            self.expect_ok(f"{m} 0", f"{m} 0")
-            self.expect_ack(f"{m} 2 is ARG", f"{m} 2", 2)
-        # The four modes map onto the player's four play orders; what
-        # comes back is what it will do (MPD.md), so report, do not judge.
-        self.c.cmd("random 1")
         st = self.status()
-        print(f"  info  random 1 -> repeat {st.get('repeat')} random {st.get('random')} "
-              f"single {st.get('single')} consume {st.get('consume')}")
-        self.c.cmd("random 0")
+        for m in ("repeat", "random", "single", "consume"):
+            if self.a.destructive:
+                self.expect_ok(f"{m} 1", f"{m} 1")
+                self.ok(f"status has {m} after setting it", m in self.status())
+                self.expect_ok(f"{m} 0", f"{m} 0")
+            else:
+                # Setting a flag to what it is changes nothing.
+                self.expect_ok(f"{m} {st.get(m, '0')} (as it is)", f"{m} {st.get(m, '0')}")
+            self.expect_ack(f"{m} 2 is ARG", f"{m} 2", 2)
+        if self.a.destructive:
+            self.c.cmd("random 1")
+            s = self.status()
+            print(f"  info  random 1 -> repeat {s.get('repeat')} random {s.get('random')} "
+                  f"single {s.get('single')} consume {s.get('consume')}")
+            self.c.cmd("random 0")
 
-        for m in ("track", "off"):
+        for m in (("track", "off") if self.a.destructive else (self.saved_rg,)):
             self.expect_ok(f"replay_gain_mode {m}", f"replay_gain_mode {m}")
             got = kv(self.c.cmd("replay_gain_status")).get("replay_gain_mode")
             self.ok(f"replay_gain_status reads {m}", got == m, got)
@@ -678,21 +768,23 @@ class Checker:
         return [l.split(": ", 1)[1] for l in self.c.cmd(f"listplaylist {q(name)}") if l.startswith("file: ")]
 
     def stored(self):
-        self.section("stored playlists")
+        self.section("stored playlists (its own, named __mpdcheck*)")
         f = self.files
-        for pl in (PL_A, PL_B, PL_C):
-            try:
-                self.c.cmd(f"rm {q(pl)}")
-            except Ack:
-                pass
+        have = {v for k, v in pairs(self.c.cmd("listplaylists")) if k == "playlist"}
+        clash = [pl for pl in (PL_A, PL_B, PL_C) if pl in have]
+        if clash:
+            self.skip("stored playlists", f"{', '.join(clash)} already exist; "
+                      "remove them by hand if they are left from an interrupted run")
+            return
+        self.refill()
 
         self.expect_ok("save", f"save {q(PL_A)}")
-        self.ok("save writes the queue", self.listed(PL_A) == self.queue(), repr(self.listed(PL_A)))
+        self.ok("save writes the queue", self.listed(PL_A) == self.queue(), repr(self.listed(PL_A)[-3:]))
         self.expect_ack("save onto an existing name is EXIST", f"save {q(PL_A)}", 56)
         r = self.expect_ok("listplaylists", "listplaylists") or []
         self.ok("listplaylists has it", PL_A in [v for k, v in pairs(r) if k == "playlist"])
         r = self.expect_ok("listplaylistinfo", f"listplaylistinfo {q(PL_A)}") or []
-        self.ok("listplaylistinfo gives songs", len(songs(r)) == 3, repr(r))
+        self.ok("listplaylistinfo gives the songs", len(songs(r)) == len(self.queue()), repr(r[-6:]))
         self.expect_ok("rm", f"rm {q(PL_A)}")
         self.expect_ack("rm of a missing playlist is NO_EXIST", f"rm {q(PL_A)}", 50)
         self.expect_ack("listplaylist of a missing playlist is NO_EXIST", f"listplaylist {q(PL_A)}", 50)
@@ -711,12 +803,14 @@ class Checker:
         r = [v for k, v in pairs(self.c.cmd("listplaylists")) if k == "playlist"]
         self.ok("rename moves the name", PL_C in r and PL_B not in r, repr(r))
         self.expect_ack("rename of a missing playlist is NO_EXIST", f"rename {q(PL_B)} {q(PL_A)}", 50)
-        self.c.cmd(f"save {q(PL_A)}")
+        self.c.cmd(f"playlistadd {q(PL_A)} {q(f[0])}")
         self.expect_ack("rename onto an existing name is EXIST", f"rename {q(PL_C)} {q(PL_A)}", 56)
 
-        self.c.cmd("clear")
+        # load appends: onto the end, after the listener's entries.
+        self.trim_tests()
         self.expect_ok("load", f"load {q(PL_C)}")
-        self.ok("load fills the queue", self.queue() == [f[1], f[0]], repr(self.queue()))
+        self.ok("load appends it", self.tail() == [f[1], f[0]], repr(self.tail()))
+        self.trim_tests()
         self.expect_ack("load of a missing playlist is NO_EXIST", 'load "__mpdcheck_none"', 50)
 
         self.expect_ok("searchaddpl file <uri>", f"searchaddpl {q(PL_C)} file {q(f[2])}")
@@ -737,35 +831,53 @@ class Checker:
     # ---- the run -------------------------------------------------------------------
 
     def run(self):
-        print(f"mpdcheck: {self.a.ip}:{self.a.port}" + ("  (read-only)" if self.a.read_only else ""))
+        print(f"mpdcheck: {self.a.ip}:{self.a.port}" + ("  (read-only)" if self.a.read_only else "")
+              + ("  (destructive)" if self.a.destructive else ""))
         try:
             self.c = self.connect()
         except OSError as e:
             print(f"cannot connect: {e}\nIs MPD switched on in the player's settings?")
             return 1
         print(f"  {self.c.greeting}")
+        snapped = False
         try:
+            # 5226: the state to put back is taken before anything is
+            # sent that could change it.
+            playing = kv(self.c.cmd("status")).get("state") == "play"
+            if not self.a.read_only:
+                self.snapshot()
+                snapped = True
             self.connection()
             self.introspection()
             self.state_reads()
             self.idle()
             have_lib = self.library()
             if self.a.read_only:
+                if playing and kv(self.c.cmd("status")).get("state") != "play":
+                    self.c.cmd("play")
                 self.skip("queue, transport, volume, stored playlists", "--read-only")
             elif not have_lib:
                 self.skip("queue, transport, stored playlists", "not enough files in the library")
             else:
-                self.snapshot()
-                try:
-                    self.queue_edits()
-                    self.transport()
-                    self.volume_modes()
-                    self.stored()
-                finally:
-                    self.restore()
-        except (OSError, ConnectionError) as e:
-            self.ok("connection stayed up", False, str(e))
+                self.queue_edits()
+                self.transport()
+                self.volume_modes()
+                self.stored()
+        except (OSError, ConnectionError, Ack) as e:
+            # An ACK nothing expected, or the connection lost: the run
+            # stops here, and what was changed is still put back.
+            self.ok("the run finished", False, str(e))
         finally:
+            if snapped:
+                try:
+                    self.restore()
+                except (OSError, ConnectionError):
+                    # The connection went: one more, for the restore.
+                    try:
+                        self.c = self.connect()
+                        self.restore()
+                    except (OSError, ConnectionError) as e:
+                        print(f"  WARN  could not put things back: {e}")
             try:
                 self.c.close()
             except OSError:
@@ -784,6 +896,9 @@ def main():
     p.add_argument("--timeout", type=float, default=15.0, help="seconds per answer (default 15)")
     p.add_argument("--read-only", action="store_true", help="only checks that change nothing")
     p.add_argument("--reindex", action="store_true", help="also send update and rescan")
+    p.add_argument("--destructive", action="store_true",
+                   help="also clear and shuffle the whole queue (saved and reloaded), "
+                        "jump the volume, cycle the modes and replay gain")
     p.add_argument("-v", "--verbose", action="count", default=0,
                    help="-v: every command and pass; -vv: every line read")
     sys.exit(Checker(p.parse_args()).run())

@@ -18149,3 +18149,49 @@ expressions, a shuffle range, seek of a song not playing, and the two
 "[Radio Streams]" refusals. So the queue, transport, volume and stored
 playlist sequences are right as MPD defines them, and the restore
 works. Not yet run against the board.
+
+### 5226 -- tools/mpdcheck.py: test on its own entries, not the queue
+
+5225 saved the listener's queue to "__mpdcheck_saved", cleared it, ran
+the queue tests on an empty queue and loaded it back -- which restores
+the order but not the song ids, not the playing song's position, and
+leaves the listener's queue on the card as a file if the run dies.
+
+Now, by default:
+
+- The queue tests append three entries after the listener's and make
+  every edit on those -- positions offset by the queue's length at the
+  start, ids read from the tail -- then delete them. At the end the run
+  checks that the listener's entries have the same files and the same
+  ids as before. Nothing is saved to the card for it.
+- `clear` and `shuffle` act on the whole queue and cannot be scoped
+  (a shuffle range is refused, 5175). They run when the queue is empty
+  at the start, or with `--destructive`, which keeps 5225's save and
+  reload for them. Otherwise they are listed as skipped.
+- Playback tests play the appended entries. That still interrupts what
+  was playing -- there is no way to test `play` that does not -- but
+  afterwards the song is played again by its id, sought to where it
+  was (to a percent of the track, the player's seek) and paused if it
+  was paused. A station is still not restarted.
+- Volume moves one step and back instead of jumping to 30; the modes
+  and replay gain are set to what they already are. `--destructive`
+  cycles them as before.
+- Stored playlists: if a "__mpdcheck*" name already exists, that
+  section is skipped rather than removing it -- it may be the listener's,
+  or an interrupted run's to look at.
+
+Two fixes found by running it against stock MPD with a queue playing:
+the state to restore is taken before the first check, not after the
+library ones (a server that accepts `disableoutput` pauses, and the
+restore then put back "paused"); and `enableoutput 0` is sent straight
+after the disable/toggle checks. The restore also runs now when the run
+stops on an unexpected ACK or a dropped connection (reconnecting once),
+and when the library has too few files.
+
+Checked against stock MPD 0.23.5 with three entries queued and the
+second playing at 4 s: after a default run the queue, ids, volume,
+modes and playing song are as they were and it is still playing, at
+5 s; after --destructive the same, with new ids; after --read-only,
+untouched. Failures are the same deliberate differences as 5225's, plus
+one from stock MPD keeping a partition an earlier run's `newpartition`
+made. Not yet run against the board.

@@ -241,6 +241,11 @@ int main(void)
     ok_parse("idle", MPD_CMD_IDLE, 0);
     ok_parse("replay_gain_status", MPD_CMD_REPLAY_GAIN_STATUS, 0);
     ok_parse("channels", MPD_CMD_CHANNELS, 0);
+    ok_parse("getvol", MPD_CMD_GETVOL, 0);                          /* 5218 */
+    ok_parse("password x", MPD_CMD_PASSWORD, 1);
+    ok_parse("crossfade 0", MPD_CMD_CROSSFADE, 1);
+    bad_parse("password", MPD_ACK_ARG,
+              "ACK [2@0] {password} wrong number of arguments for \"password\"\n");
     bad_parse("channels x", MPD_ACK_ARG,
               "ACK [2@0] {channels} wrong number of arguments for \"channels\"\n");
     /* Not built, and so still unknown: channels is answerable without
@@ -297,8 +302,6 @@ int main(void)
      * exist rather than be invited to ask. */
     bad_parse("readpicture foo 0", MPD_ACK_UNKNOWN,
               "ACK [5@0] {} unknown command \"readpicture\"\n");
-    bad_parse("getvol", MPD_ACK_UNKNOWN,
-              "ACK [5@0] {} unknown command \"getvol\"\n");
     /* `noidle` is not in MPD's command table (src/command/
      * AllCommands.cxx has "idle" and no "noidle"): the bare word is
      * caught as a raw line before tokenising, and anything that misses
@@ -336,6 +339,8 @@ int main(void)
             /* 5180 */
             "listpartitions", "partition", "newpartition", "delpartition",
             "moveoutput", "listmounts", "mount", "unmount", "listneighbors",
+            /* 5218 */
+            "getvol", "password", "crossfade",
         };
         const size_t n = sizeof(verbs) / sizeof(verbs[0]);
         for (size_t i = 0; i < n; i++) {

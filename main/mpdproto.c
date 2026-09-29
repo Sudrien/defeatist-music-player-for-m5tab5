@@ -319,6 +319,11 @@ static const cmd_def_t s_cmds[] = {
     { "mount",            MPD_CMD_MOUNT,            2, 2 },
     { "unmount",          MPD_CMD_UNMOUNT,          1, 1 },
     { "listneighbors",    MPD_CMD_LISTNEIGHBORS,    0, 0 },
+
+    /* 5218: arities from AllCommands.cxx */
+    { "getvol",           MPD_CMD_GETVOL,           0, 0 },
+    { "password",         MPD_CMD_PASSWORD,         1, 1 },
+    { "crossfade",        MPD_CMD_CROSSFADE,        1, 1 },
 };
 
 #define N_CMDS  (sizeof(s_cmds) / sizeof(s_cmds[0]))

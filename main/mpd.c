@@ -735,6 +735,7 @@ static bool answered(mpd_cmd_kind_t k)
     case MPD_CMD_PLAYLISTADD: case MPD_CMD_PLAYLISTDELETE:            /* 5200 */
     case MPD_CMD_DELPARTITION: case MPD_CMD_MOVEOUTPUT:
     case MPD_CMD_LISTMOUNTS: case MPD_CMD_LISTNEIGHBORS:
+    case MPD_CMD_GETVOL: case MPD_CMD_PASSWORD: case MPD_CMD_CROSSFADE:   /* 5218 */
         return true;
     default:
         return false;
@@ -742,7 +743,7 @@ static bool answered(mpd_cmd_kind_t k)
 }
 
 /* The last kind in mpdproto.h's enum, for walking the table. */
-#define MPD_CMD_LAST    MPD_CMD_LISTNEIGHBORS
+#define MPD_CMD_LAST    MPD_CMD_CROSSFADE
 
 /*
  * 5166: the commands that read the list, over the pinned copy. Called
@@ -2880,6 +2881,35 @@ static result_t run_cmd(conn_t *c, const mpd_cmd_t *cmd, int idx)
         if (v < 0) v = 0;
         if (v > 100) v = 100;
         return ask(&x, UI_ACTION_VOLUME, (int)v) ? RES_OK : RES_ERR;
+    }
+
+    case MPD_CMD_GETVOL:
+        /* 5218: MPD 0.23's handle_getvol, the one line `status` also
+         * carries. There is always a mixer here, so never empty. */
+        take_view();
+        putf(c, "volume: %d\n", (int)s_view->volume);
+        return RES_OK;
+
+    /* ---- 5218: settings this player has none of ---------------------- */
+
+    case MPD_CMD_PASSWORD:
+        /* No password is configured, so every one is wrong: MPD's
+         * handle_password with an empty password list says exactly this.
+         * Every connection already has every permission. */
+        ack(c, MPD_ACK_PASSWORD, idx, cmd->verb, "incorrect password");
+        return RES_ERR;
+
+    case MPD_CMD_CROSSFADE: {
+        /* Tracks are not overlapped: one decoder feeds one output.
+         * `crossfade 0` asks for what already is, and is OK; anything
+         * else is refused rather than accepted and ignored, because
+         * `status` carries no `xfade` line and a client's setting would
+         * silently not stick. */
+        unsigned long secs;
+        if (!arg_unsigned(&x, a0, UINT32_MAX, &secs)) return RES_ERR;
+        if (secs == 0) return RES_OK;
+        ack(c, MPD_ACK_UNKNOWN, idx, cmd->verb, "crossfade is not supported by this player");
+        return RES_ERR;
     }
 
     default:

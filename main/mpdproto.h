@@ -179,6 +179,12 @@ typedef enum {
     MPD_CMD_LISTPARTITIONS, MPD_CMD_PARTITION, MPD_CMD_NEWPARTITION,
     MPD_CMD_DELPARTITION, MPD_CMD_MOVEOUTPUT,
     MPD_CMD_LISTMOUNTS, MPD_CMD_MOUNT, MPD_CMD_UNMOUNT, MPD_CMD_LISTNEIGHBORS,
+
+    /* 5218: from doc/protocol.rst's list of what a client may send and
+     * this table did not have. `getvol` is 0.23 and is answered anyway:
+     * a client that gates it on the greeting never asks, and one that
+     * does not is better answered than refused. */
+    MPD_CMD_GETVOL, MPD_CMD_PASSWORD, MPD_CMD_CROSSFADE,
 } mpd_cmd_kind_t;
 
 /*

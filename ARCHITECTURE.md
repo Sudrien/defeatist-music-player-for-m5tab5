@@ -17962,3 +17962,29 @@ stored keep their meaning.
 Compiled as before, no warnings: ui.c, panel.c, player.c, recorder.c,
 settings.c, remote.c, remoteproto.c. texttest all passes (remoteproto:
 137 checks). Not on the board.
+
+### 5218 -- mpd: getvol, password, crossfade
+
+Three verbs from doc/protocol.rst that were unknown commands:
+
+- `getvol` answers `volume: N`, the line `status` carries. It is MPD
+  0.23 and the greeting still claims 0.20, which reverses what the
+  test suite had recorded (getvol was listed as unknown on purpose,
+  beside albumart and readpicture). The reason for the reversal: a
+  client that gates getvol on the version never sends it, so answering
+  costs nothing, and one that does not gate it -- asked for as "the
+  missing commands, by the documentation" -- is better answered than
+  refused. albumart and readpicture stay unknown; they are a feature,
+  not a line.
+- `password` is ACK 3 "incorrect password", which is what MPD says with
+  no passwords configured. Every connection already has every
+  permission.
+- `crossfade 0` is OK; any other value is ACK 5 with the reason. Tracks
+  are not overlapped here, `status` has no `xfade` line, and a setting
+  accepted and ignored would look to a client like it stuck.
+
+`commands` lists all three (answered() and MPD_CMD_LAST).
+
+Compiled -O2 -Wall -Wextra on the host stubs: mpd.c, no warnings.
+texttest all passes (mpdprototest gains the three verbs and loses the
+getvol-is-unknown check). Not on the board.

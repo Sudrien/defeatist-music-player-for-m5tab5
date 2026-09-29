@@ -17366,3 +17366,17 @@ listplaylist(info) -- uses it:
 
 Not done: lines relative to the playlist's own folder. They are still
 read from a volume's root, as `sd/...`/`usb/...`, or as a VFS path.
+
+### 5199 -- mpd: 5198 builds
+
+5198 did not build: `pl_path()` was left with no caller once every use
+became pl_path_ext(), and three snprintf()s in pl_contents()/pl_legacy()
+became -Werror=format-truncation errors. The playlist line they copy is
+now the return value of m3u_line_clean(), and GCC sizes it by its buffer
+(the search chunk, 17 KB) against a 512-byte URI. The copies are
+uri_join() now -- a length check, then memcpy -- and a line too long to
+be a URI is skipped rather than cut. pl_path() is gone.
+
+The host check that should have caught this ran `-fsyntax-only`, which
+does not run the optimiser that format-truncation needs; mpd.c is now
+checked with `-O2 -Werror` on the host stubs before a patch goes out.

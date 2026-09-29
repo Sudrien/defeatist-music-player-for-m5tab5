@@ -2018,10 +2018,6 @@ static bool pl_path_ext(storage_id_t v, const char *name, const char *ext, char 
     return k > 0 && (size_t)k < cap;
 }
 
-static bool pl_path(storage_id_t v, const char *name, char *out, size_t cap)
-{
-    return pl_path_ext(v, name, PL_EXT, out, cap);
-}
 
 static void pl_changed(void)
 {
@@ -2049,6 +2045,20 @@ static int cmp_str(const void *a, const void *b)
  * `load` has always done with one -- or under `sd` when neither does,
  * so a client still sees a URI of today's shape.
  */
+/* 5199: "<a>/<b>" (or "<b>" alone with `a` NULL) into s_lib->uri, false
+ * when it does not fit. By length and memcpy, not snprintf: a playlist
+ * line can be as long as the search buffer, and GCC's format-truncation
+ * check (an error in this build) cannot see that it is refused first. */
+static bool uri_join(char *uri, const char *a, const char *b)
+{
+    const size_t al = a ? strlen(a) : 0, bl = strlen(b);
+    const size_t need = al + (a ? 1 : 0) + bl + 1;
+    if (need > sizeof(s_lib->uri)) return false;
+    if (a) { memcpy(uri, a, al); uri[al] = '/'; }
+    memcpy(uri + al + (a ? 1 : 0), b, bl + 1);
+    return true;
+}
+
 static void pl_legacy(const char *line, char *uri)
 {
     for (int v = 0; v < MPDURI_VOLS; v++) {
@@ -2060,11 +2070,11 @@ static void pl_legacy(const char *line, char *uri)
                         stat(s_lib->vfs, &st) == 0;
         storage_release_brief(id);
         if (is) {
-            snprintf(uri, sizeof(s_lib->uri), "%s/%s", mpduri_name(v), line);
+            if (!uri_join(uri, mpduri_name(v), line)) uri[0] = '\0';
             return;
         }
     }
-    snprintf(uri, sizeof(s_lib->uri), "%s/%s", mpduri_name(MPDURI_VOL_SD), line);
+    if (!uri_join(uri, mpduri_name(MPDURI_VOL_SD), line)) uri[0] = '\0';
 }
 
 static result_t pl_list(const ctx_t *x)
@@ -2173,7 +2183,8 @@ static result_t pl_contents(const ctx_t *x, const char *name, bool info)
         /* A VFS path is shown as its URI; a station URL as itself. */
         if (line[0] == '/' && mpduri_from_vfs(line, uri, sizeof(s_lib->uri))) { /* uri set */ }
         else if (!strstr(line, "://") && mpduri_split(line, NULL) < 0) pl_legacy(line, uri);
-        else snprintf(uri, sizeof(s_lib->uri), "%s", line);
+        else if (!uri_join(uri, NULL, line)) uri[0] = '\0';
+        if (!uri[0]) continue;              /* 5199: too long to be a URI */
         midx_rec_t *const r = &s_lib->rec;
         const int lv = info ? lib_file(uri, r) : -1;
         if (lv >= 0) {

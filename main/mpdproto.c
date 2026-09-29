@@ -369,6 +369,9 @@ static const cmd_def_t s_cmds[] = {
     { "kill",             MPD_CMD_KILL,               -1, -1 },
     { "config",           MPD_CMD_CONFIG,              0,  0 },
     { "sticker",          MPD_CMD_STICKER,             3, -1 },
+
+    /* 5240: arities from AllCommands.cxx */
+    { "albumart",         MPD_CMD_ALBUMART,            2,  2 },
 };
 
 #define N_CMDS  (sizeof(s_cmds) / sizeof(s_cmds[0]))

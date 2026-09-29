@@ -798,6 +798,7 @@ static bool answered(mpd_cmd_kind_t k)
     case MPD_CMD_LISTFILES:   /* 5228 */
     case MPD_CMD_SUBSCRIBE: case MPD_CMD_UNSUBSCRIBE: case MPD_CMD_READMESSAGES: case MPD_CMD_SENDMESSAGE:   /* 5230 */
     case MPD_CMD_PRIO: case MPD_CMD_PRIOID: case MPD_CMD_RANGEID: case MPD_CMD_ADDTAGID: case MPD_CMD_CLEARTAGID: case MPD_CMD_READCOMMENTS: case MPD_CMD_MIXRAMPDB: case MPD_CMD_MIXRAMPDELAY: case MPD_CMD_KILL: case MPD_CMD_CONFIG: case MPD_CMD_STICKER:   /* 5231 */
+    case MPD_CMD_ALBUMART:   /* 5240 */
         return true;
     default:
         return false;
@@ -805,7 +806,7 @@ static bool answered(mpd_cmd_kind_t k)
 }
 
 /* The last kind in mpdproto.h's enum, for walking the table. */
-#define MPD_CMD_LAST    MPD_CMD_STICKER
+#define MPD_CMD_LAST    MPD_CMD_ALBUMART
 
 /*
  * 5166: the commands that read the list, over the pinned copy. Called
@@ -2135,6 +2136,85 @@ static result_t lib_listfiles(const ctx_t *x, const char *uri)
     closedir(d);
     storage_release_brief(id);
     ESP_LOGI(TAG, "client %d: listfiles \"%.64s\": %ld entries", c->fd, uri, n);
+    return RES_OK;
+}
+
+/*
+ * 5240: `albumart URI OFFSET` -- MPD 0.21's cover art, which is a FILE in
+ * the song's folder, not the picture inside the song (that is 0.22's
+ * readpicture). MPD 0.21's handle_albumart (src/command/FileCommands.cxx)
+ * looks for cover.png, cover.jpg, cover.tiff and cover.bmp in the parent
+ * of the URI, in that order, and answers one chunk of at most 8192 bytes
+ * from OFFSET:
+ *
+ *   size: <whole file>\n binary: <n>\n <n bytes> \n OK
+ *
+ * A client asks again from offset + n until it has `size`. At the end is
+ * `binary: 0`; past it is ARG "Offset too large", which is what stock MPD
+ * (0.23.5) answers -- checked, not assumed. No such file is NO_EXIST
+ * "No file exists", MPD's words. FAT matches names without regard to
+ * case, so "Cover.JPG" is found too -- which MPD on FAT would find too.
+ *
+ * Reads go through the storage arbiter at background priority, as the
+ * search file's do, so a client paging art in does not starve playback.
+ * The chunk is read into sbuf (PSRAM), free between commands. Covers are
+ * small; the size is from stat(), whose 32-bit off_t (5228) is not a
+ * limit a cover image reaches.
+ */
+#define ALBUMART_CHUNK  (8192)
+
+static result_t lib_albumart(const ctx_t *x, const char *uri, const char *off_s)
+{
+    conn_t *const c = x->c;
+    unsigned long off;
+    if (!arg_unsigned(x, off_s, UINT32_MAX, &off)) return RES_ERR;
+    const char *rel = "";
+    const int v = (uri && mpduri_ok(uri, false)) ? mpduri_split(uri, &rel) : -1;
+    if (v < 0 || !rel[0]) {
+        ack(c, MPD_ACK_NO_EXIST, x->idx, x->verb, "No file exists");
+        return RES_ERR;
+    }
+    const char *slash = strrchr(rel, '/');
+    const int dl = slash ? (int)(slash - rel) : 0;
+    const storage_id_t id = v == MPDURI_VOL_SD ? STORAGE_SD : STORAGE_USB;
+    static const char *const names[] = { "cover.png", "cover.jpg", "cover.tiff", "cover.bmp" };
+
+    storage_hold_brief(id);
+    FILE *f = NULL;
+    struct stat st;
+    for (size_t i = 0; !f && storage_present(id) && i < sizeof(names) / sizeof(names[0]); i++) {
+        const int k = dl ? snprintf(s_lib->vfs, sizeof(s_lib->vfs), "%s/%.*s/%s",
+                                    mpduri_mount(v), dl, rel, names[i])
+                         : snprintf(s_lib->vfs, sizeof(s_lib->vfs), "%s/%s", mpduri_mount(v), names[i]);
+        if (k <= 0 || (size_t)k >= sizeof(s_lib->vfs)) continue;
+        if (stat(s_lib->vfs, &st) == 0 && S_ISREG(st.st_mode)) f = fopen(s_lib->vfs, "rb");
+    }
+    if (!f) {
+        storage_release_brief(id);
+        ack(c, MPD_ACK_NO_EXIST, x->idx, x->verb, "No file exists");
+        return RES_ERR;
+    }
+    const unsigned long size = st.st_size > 0 ? (unsigned long)st.st_size : 0;
+    if (off > size) {
+        fclose(f);
+        storage_release_brief(id);
+        ack(c, MPD_ACK_ARG, x->idx, x->verb, "Offset too large");
+        return RES_ERR;
+    }
+    size_t got = 0;
+    if (off < size) {
+        storage_io_acquire(STORAGE_IO_BACKGROUND);
+        const bool ok = fseek(f, (long)off, SEEK_SET) == 0;
+        storage_io_release();
+        const size_t want = size - off < ALBUMART_CHUNK ? (size_t)(size - off) : ALBUMART_CHUNK;
+        if (ok) got = storage_io_fread(s_lib->sbuf, want, f, STORAGE_IO_BACKGROUND);
+    }
+    fclose(f);
+    storage_release_brief(id);
+    if (off == 0) ESP_LOGI(TAG, "client %d: albumart %s: %lu bytes", c->fd, s_lib->vfs, size);
+    putf(c, "size: %lu\nbinary: %u\n", size, (unsigned)got);
+    put(c, s_lib->sbuf, got);
+    puts_(c, "\n");
     return RES_OK;
 }
 
@@ -3523,6 +3603,8 @@ static result_t run_cmd(conn_t *c, const mpd_cmd_t *cmd, int idx)
     /* 5177: the library. */
     case MPD_CMD_LSINFO:
         return lib_lsinfo(&x, a0);
+    case MPD_CMD_ALBUMART:                                          /* 5240 */
+        return lib_albumart(&x, a0, cmd->argv[1]);
     case MPD_CMD_LISTFILES:                                         /* 5228 */
         return lib_listfiles(&x, a0);
     case MPD_CMD_LISTALL:

@@ -209,6 +209,9 @@ typedef enum {
 
     /* 5231: the rest of 0.20's table, each with MPD's answer or a reason */
     MPD_CMD_PRIO, MPD_CMD_PRIOID, MPD_CMD_RANGEID, MPD_CMD_ADDTAGID, MPD_CMD_CLEARTAGID, MPD_CMD_READCOMMENTS, MPD_CMD_MIXRAMPDB, MPD_CMD_MIXRAMPDELAY, MPD_CMD_KILL, MPD_CMD_CONFIG, MPD_CMD_STICKER,
+
+    /* 5240: MPD 0.21's cover art, from a file in the song's folder */
+    MPD_CMD_ALBUMART,
 } mpd_cmd_kind_t;
 
 /*

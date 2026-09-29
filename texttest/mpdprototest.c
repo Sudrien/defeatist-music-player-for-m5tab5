@@ -296,11 +296,12 @@ int main(void)
      * MPD only sets current_command once the lookup succeeds. */
     bad_parse("bogus", MPD_ACK_UNKNOWN,
               "ACK [5@0] {} unknown command \"bogus\"\n");
-    bad_parse("albumart foo 0", MPD_ACK_UNKNOWN,
-              "ACK [5@0] {} unknown command \"albumart\"\n");
-    /* The two verbs 0.21 would have implied, which is the whole reason
-     * MPDPROTO_VERSION stops at 0.20: a client must be told these do not
-     * exist rather than be invited to ask. */
+    /* 5240: albumart is 0.21 and answered now. readpicture is 0.22, the
+     * picture inside the file, and stays unknown: a client must be told
+     * it does not exist rather than be invited to ask. */
+    ok_parse("albumart foo 0", MPD_CMD_ALBUMART, 2);
+    bad_parse("albumart foo", MPD_ACK_ARG,
+              "ACK [2@0] {albumart} wrong number of arguments for \"albumart\"\n");
     bad_parse("readpicture foo 0", MPD_ACK_UNKNOWN,
               "ACK [5@0] {} unknown command \"readpicture\"\n");
     /* `noidle` is not in MPD's command table (src/command/
@@ -358,6 +359,8 @@ int main(void)
             "subscribe", "unsubscribe", "readmessages", "sendmessage",
             /* 5231 */
             "prio", "prioid", "rangeid", "addtagid", "cleartagid", "readcomments", "mixrampdb", "mixrampdelay", "kill", "config", "sticker",
+            /* 5240 */
+            "albumart",
         };
         const size_t n = sizeof(verbs) / sizeof(verbs[0]);
         for (size_t i = 0; i < n; i++) {

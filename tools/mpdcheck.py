@@ -97,6 +97,7 @@ swapid findadd searchadd searchaddpl playlistfind playlistsearch
 playlistclear playlistmove rename
 listfiles subscribe unsubscribe readmessages sendmessage prio prioid rangeid
 addtagid cleartagid readcomments mixrampdb mixrampdelay kill config sticker
+albumart
 """.split()
 
 
@@ -144,6 +145,25 @@ class Conn:
     def cmd(self, line):
         self.send(line)
         return self.read_answer()
+
+    def binary(self, line):
+        """5240: a command answered with a binary chunk -- `size:`,
+        `binary: n`, n bytes, a newline, OK. Returns (size, bytes)."""
+        self.send(line)
+        size, data = None, b""
+        while True:
+            l = self._line()
+            m = ACK_RE.match(l)
+            if m:
+                raise Ack(int(m.group(1)), int(m.group(2)), m.group(3), m.group(4))
+            if l.startswith("size: "):
+                size = int(l[6:])
+            elif l.startswith("binary: "):
+                n = int(l[8:])
+                data = self.f.read(n)
+                self.f.read(1)                          # the newline after it
+            elif l == "OK":
+                return size, data
 
     def close(self):
         try:
@@ -964,6 +984,32 @@ class Checker:
         # `kill` is in the commands check and deliberately never sent: a
         # real MPD would stop.
 
+    def albumart(self):
+        """5240: a cover file beside the first test file, fetched whole in
+        chunks, or MPD's "No file exists" when there is none."""
+        f0 = self.files[0]
+        try:
+            size, got, off = None, b"", 0
+            while True:
+                size, chunk = self.c.binary(f"albumart {q(f0)} {off}")
+                got += chunk
+                off += len(chunk)
+                if not chunk or off >= size:
+                    break
+            self.ok("albumart pages a cover in whole", size == len(got),
+                    f"size {size}, got {len(got)}")
+            _, at_end = self.c.binary(f"albumart {q(f0)} {size}")
+            self.ok("albumart at the end is binary: 0", at_end == b"")
+            try:
+                self.c.binary(f"albumart {q(f0)} {size + 10}")
+                self.ok("albumart past the end is ARG", False, "got OK")
+            except Ack as e:
+                self.ok("albumart past the end is ARG", e.code == 2, str(e))
+        except Ack as e:
+            self.ok("albumart with no cover is NO_EXIST", e.code == 50, str(e))
+        self.expect_ack("albumart of a missing song is NO_EXIST",
+                        'albumart "sd/__no_such__/x.flac" 0', 50)
+
     def messages(self):
         self.section("client messages")
         self.expect_ack("subscribe with a bad name is ARG", 'subscribe "no spaces"', 2)
@@ -1041,6 +1087,8 @@ class Checker:
             self.idle()
             have_lib = self.library()
             self.rest_read_only()                                   # 5232
+            if getattr(self, "files", None):
+                self.albumart()                                     # 5240
             self.messages()
             if self.a.read_only:
                 if playing and kv(self.c.cmd("status")).get("state") != "play":

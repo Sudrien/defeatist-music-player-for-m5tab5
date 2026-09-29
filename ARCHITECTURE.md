@@ -18623,3 +18623,36 @@ first (5240, 5241).
 
 Compiled -O2 -Wall -Wextra on the host stubs: mpd.c, no warnings.
 texttest all passes. Not on the board.
+
+### 5240 -- mpd: albumart
+
+`albumart URI OFFSET`, MPD 0.21. Not the picture inside the file (that
+is 0.22's readpicture, still unknown here) but a cover FILE in the
+song's folder: MPD 0.21's handle_albumart looks for cover.png,
+cover.jpg, cover.tiff and cover.bmp in the URI's parent, in that order.
+FAT matches names without case, so Cover.JPG is found as MPD on FAT
+would find it.
+
+The answer is one chunk of at most 8192 bytes, MPD's CHUNK_SIZE:
+`size: N`, `binary: n`, the n bytes, a newline, OK. A client asks again
+from offset + n until it has N. At the end is `binary: 0`; past it is
+ARG "Offset too large" -- stock MPD 0.23.5's answer, found by asking it,
+where 0.21's source reads as if it would give an empty chunk. No cover
+is NO_EXIST "No file exists", MPD's words.
+
+Reads go through the storage arbiter at background priority, as the
+search file's do, so a client paging covers does not starve playback;
+the chunk goes through sbuf (PSRAM). put() copies bytes, so binary goes
+out through the same buffer as text. One log line per cover (offset 0).
+
+mpdcheck reads binary answers (Conn.binary()) and fetches a cover
+beside its first test file whole, chunk by chunk, checking the total
+against `size`, the end, and past the end; or takes NO_EXIST where
+there is no cover. Against stock MPD 0.23.5 with a 20000-byte
+cover.jpg: size 20000, chunks of 8192, the end and past-the-end as
+above. mpdprototest: albumart parses (2 arguments); readpicture stays
+unknown.
+
+Compiled -O2 -Wall -Wextra on the host stubs: mpd.c, no warnings.
+texttest all passes. Not on the board -- a folder with a cover.jpg in
+it, and Cantata's album view, are what would show it.

@@ -71,9 +71,10 @@ Note: the goal of this project is to max out the potential of this hardware with
 - Starred Favorites
 - Ethernet to usb dongles: CDC-ECM (Realtek RTL8152 tested; RTL8153 same path, untested) and [ASIX AX88772](https://github.com/Sudrien/esp_usbh_asix) port, both confirmed on the board
 - Cue sheets
+- m3u/m3u8 - at least through MPD
+- Or right, [Music Player Daemon](https://mpd.readthedocs.io/en/stable/user.html) support - yes, this should mean home assistant control too. 
 
 ## v0.5.0 targets
-- zero storage internet radio scenario: the last station played and one starred station kept in flash, for a Tab5 with no card or drive (5048, needs a board run)
 - Expand web ui (is there an api to mirror/ map to local functions?)
 - Audio recording, since the hardware is  right there
   - input toggle (onboard array / headset mic / UAC)
@@ -81,15 +82,12 @@ Note: the goal of this project is to max out the potential of this hardware with
   - omnidirectional vs. GSC-directional (screen-forward) mode for onboard array
   - all captures encoded to FLAC as master (mp3 it yourself, bub), named aftere best guess for datetime.
   - match uac channels if that makes any sense
-- clean up layout, landscape layout 
 
 ## What could happen
 - I think there is nothing in dependencies stopping from using esp-idf 6.1
-- build file lists faster
 - more crash and burn handling, hey, you can always hook it up to `idf.py monitor` and see what you get.
 - Podcast over wifi downloader? Conceivable. Would want chapter support
   - there's so much. So so much.
-- m3u/m3u8 - playlists are significant potential UI
 
 ## What could not happen with current published code
 - classic BT dongle support

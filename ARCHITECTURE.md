@@ -18582,3 +18582,44 @@ Mutation-checked: NOT not negating (3 failures), folding always (1),
 base as a plain prefix (1), the pre-filter looking under NOT (3), a
 regex accepted as == (3). texttest all passes. mpdfilter.c is added to
 main/CMakeLists.txt; nothing calls it yet.
+
+### 5239 -- mpd: filter expressions in every command that filters
+
+5238's parser, wired in. A 0.21 expression is now taken wherever MPD
+takes one, in place of TAG VALUE pairs:
+
+- find, search, count, findadd, searchadd, searchaddpl -- lib_find():
+  the expression first, then only `sort` and `window` (anything else
+  after it is ARG "Unknown filter type"). `count ... group` finds its
+  group after the expression (lib_count()).
+- list TYPE (EXPR) [group G] -- lib_list().
+- playlistfind, playlistsearch -- queue_find(), the expression alone.
+
+The two stages 5180 set up stay. mpdfilter_required() gives the terms
+no match can do without; they become the folded pairs the search-file
+pass already tests, so a line lacking one is skipped before its
+catalog record is read. Every record that passes is then judged by
+mpdfilter_eval() on title, artist, album and URI -- exactly for find,
+count, findadd and list, folded for search, searchadd, searchaddpl and
+playlistsearch, as MPD 0.21 divides them. An expression with no such
+term (a NOT, an `any`, a `base` alone) reads every record, as `list`
+already does.
+
+A syntax error is ARG with the parser's message, as MPD's; a regex,
+`modified-since` or `AudioFormat` is UNKNOWN with the reason (5238).
+
+The parsed filter lives in mpd_scratch_t (PSRAM), not a static: 1.8 KB
+of internal .bss is what 5178 moved out of this file.
+
+mpdcheck: find/search/count/list/window/base/AND/NOT/playlistfind/
+playlistsearch with expressions, a syntax error, an unknown operator,
+and the two refusals. Against stock MPD 0.23.5 every expression check
+passes but the two refusals, which stock MPD answers -- so the checks
+agree with MPD's own reading of 0.21, find exact and search folded
+included.
+
+The greeting still says 0.20; albumart and the rest of 0.21 come
+first (5240, 5241).
+
+Compiled -O2 -Wall -Wextra on the host stubs: mpd.c, no warnings.
+texttest all passes. Not on the board.

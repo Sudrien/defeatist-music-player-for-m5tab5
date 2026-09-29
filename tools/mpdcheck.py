@@ -184,6 +184,12 @@ def songs(lines):
     return out
 
 
+def sq(s):
+    """5239: a value inside a filter expression, single-quoted, with
+    MPD's backslash escapes."""
+    return "'" + s.replace("\\", "\\\\").replace("'", "\\'") + "'"
+
+
 def files_of(lines):
     return [v for k, v in pairs(lines) if k == "file"]
 
@@ -445,7 +451,38 @@ class Checker:
         self.ok("count gives songs: 1", kv(r).get("songs") == "1", repr(r))
         self.expect_ok("find genre x (a tag not held) is empty OK", 'find genre "x"')
         self.expect_ack("find with an odd argument count is ARG", "find artist", 2)
-        self.expect_ack("filter expression is refused", 'find "(artist == \\"x\\")"', 5)
+        # 5239: MPD 0.21's filter expressions. The protocol quotes the
+        # whole expression; q() does that, and the expression quotes its
+        # own value with single quotes.
+        def fx(e):
+            return q(e)
+        r = self.expect_ok("find (file == uri)", f"find {fx(f'(file == {sq(f0)})')}") or []
+        self.ok("expression find gives exactly that file", files_of(r) == [f0], repr(r))
+        r = self.expect_ok("search (file contains PART) folds case",
+                           f"search {fx(f'(file contains {sq(base[:4].upper())})')}") or []
+        self.ok("expression search finds it", f0 in files_of(r))
+        r = self.expect_ok("find (file contains PART) is exact",
+                           f"find {fx(f'(file contains {sq(base[:4].upper())})')}") or []
+        self.ok("expression find does not fold case",
+                base[:4].upper() == base[:4] or f0 not in files_of(r), repr(r[:4]))
+        r = self.expect_ok("find (base folder)", f"find {fx(f'(base {sq(folder)})')}") or []
+        self.ok("expression base finds it", f0 in files_of(r))
+        r = self.expect_ok("find ((base) AND (!(file == uri)))",
+                           f"find {fx(f'((base {sq(folder)}) AND (!(file == {sq(f0)})))')}") or []
+        self.ok("AND and NOT leave the file out", f0 not in files_of(r) and len(files_of(r)) >= 0)
+        r = self.expect_ok("count (base folder)", f"count {fx(f'(base {sq(folder)})')}") or []
+        want = kv(self.c.cmd(f"count base {q(folder)}")).get("songs")
+        self.ok("expression count matches the pair form", kv(r).get("songs") == want, repr(r))
+        r = self.expect_ok("find (genre != x) with window 0:1",
+                           "find " + fx("(genre != 'x')") + " window 0:1") or []
+        self.ok("window pages an expression's answer", len(files_of(r)) <= 1, repr(r))
+        self.expect_ok("list artist (base folder)", f"list artist {fx(f'(base {sq(folder)})')}")
+        self.expect_ack("expression syntax error is ARG", "find " + fx("(artist == 'x'"), 2)
+        self.expect_ack("unknown operator is ARG", "find " + fx("(artist like 'x')"), 2)
+        # The player refuses these, with a reason; stock MPD has them.
+        self.expect_ack("a regex is refused (not supported)", "find " + fx("(artist =~ 'x')"), 5)
+        self.expect_ack("modified-since is refused (not supported)",
+                        "find " + fx("(modified-since '2020-01-01T00:00:00Z')"), 5)
 
         for t in ("artist", "album", "title"):
             if self.tags.get(t.capitalize()):
@@ -682,6 +719,13 @@ class Checker:
         base = f[1].rsplit("/", 1)[1]
         r = self.expect_ok("playlistsearch file <PART>", f"playlistsearch file {q(base[:4].upper())}") or []
         self.ok("playlistsearch finds it", f[1] in files_of(r), repr(r))
+        r = self.expect_ok("playlistfind (file == uri)",                     # 5239
+                           f"playlistfind {q(f'(file == {sq(f[1])})')}") or []
+        self.ok("expression playlistfind finds it at its position",
+                str(self.base + 1) in [s.get("Pos") for s in songs(r)], repr(r))
+        r = self.expect_ok("playlistsearch (file contains PART)",
+                           f"playlistsearch {q(f'(file contains {sq(base[:4].upper())})')}") or []
+        self.ok("expression playlistsearch finds it", f[1] in files_of(r), repr(r))
         r = self.expect_ok("playlistfind genre x (not held)", 'playlistfind genre "x"') or []
         self.ok("playlistfind on an unheld tag is empty", r == [], repr(r))
         self.expect_ack("playlistfind odd arguments is ARG", "playlistfind file", 2)

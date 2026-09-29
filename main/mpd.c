@@ -94,6 +94,7 @@
 #include "mpdqueue.h"         /* 5166 */
 #include "playlist.h"         /* 5166 */
 #include "mpdproto.h"
+#include "mpdfilter.h"          /* 5239 */
 #include "mpduri.h"
 #include "m3uline.h"            /* 5198 */
 #include "urlclean.h"           /* 5204 */
@@ -1014,6 +1015,7 @@ typedef struct {
     char            sbuf[SEARCH_CHUNK + MEDIASEARCH_LINE_MAX];
     char            needle[MPDPROTO_MAX_ARGS / 2][MEDIASEARCH_LINE_MAX];
     station_t       st;                         /* 5200: [Radio Streams] */
+    mpdfilter_t     filt;                       /* 5239: a 0.21 filter expression */
     char            hay[MEDIASEARCH_LINE_MAX];  /* 5222: queue_find() */
 } mpd_scratch_t;
 
@@ -1751,6 +1753,45 @@ static void log_query(const ctx_t *x, const mpd_cmd_t *cmd, long n, const char *
              (long long)((esp_timer_get_time() - t0) / 1000));
 }
 
+/* ---- 5239: MPD 0.21's filter expressions (mpdfilter.h) --------------------- */
+
+/* Parse `s` into s_lib->filt. False, ACKed: ARG for a syntax error, as
+ * MPD sends; UNKNOWN for something well-formed this device cannot
+ * compare (a regex, a date, a format), with the reason. */
+static bool filt_parse(const ctx_t *x, const char *s)
+{
+    if (mpdfilter_parse(s, &s_lib->filt)) return true;
+    ack(x->c, s_lib->filt.unsupported ? MPD_ACK_UNKNOWN : MPD_ACK_ARG, x->idx, x->verb,
+        "%s", s_lib->filt.err ? s_lib->filt.err : "bad filter expression");
+    return false;
+}
+
+/* The terms the expression cannot match without, as folded pairs for the
+ * search-file pass that 5180's pairs already use. Sets *never when a
+ * value will not fold, as the pairs do. */
+static int filt_pairs(qpair_t *pairs, bool *never)
+{
+    int req[MPDPROTO_MAX_ARGS / 2];
+    const int n = mpdfilter_required(&s_lib->filt, req, MPDPROTO_MAX_ARGS / 2);
+    for (int k = 0; k < n; k++) {
+        const mpdf_node_t *nd = &s_lib->filt.node[req[k]];
+        qpair_t *p = &pairs[k];
+        p->kind = Q_FIELD;
+        p->field = (mediasearch_field_t)(nd->field + 1);      /* title is 1 (q_exact) */
+        p->value = nd->value;
+        if (mediasearch_fold(q_fold_src(p, nd->value), s_lib->needle[k],
+                             sizeof(s_lib->needle[k])) < 0) *never = true;
+        p->folded = s_lib->needle[k];
+    }
+    return n;
+}
+
+static bool filt_match(const mediacat_rec_t *r, const char *uri, bool fold)
+{
+    const char *const f[MPDF_NFIELDS] = { r->title, r->artist, r->album, uri };
+    return mpdfilter_eval(&s_lib->filt, f, fold);
+}
+
 static long s_find_hits;     /* 5227: the last lib_find()'s count */
 
 static result_t lib_find(const ctx_t *x, const mpd_cmd_t *cmd, qmode_t mode,
@@ -1758,12 +1799,12 @@ static result_t lib_find(const ctx_t *x, const mpd_cmd_t *cmd, qmode_t mode,
 {
     conn_t *const c = x->c;
     const int64_t t0 = esp_timer_get_time();       /* 5196 */
-    if (cmd->argc >= 1 && cmd->argv[0][0] == '(') {
-        ack(c, MPD_ACK_UNKNOWN, x->idx, x->verb,
-            "filter expressions are not supported by this player yet; use TAG VALUE pairs");
-        return RES_ERR;
-    }
-    if (cmd->argc % 2) {
+    /* 5239: a 0.21 expression is the first argument, and what follows is
+     * `sort` and `window` pairs; find's commands exact, search's folded. */
+    const bool expr = cmd->argc >= 1 && cmd->argv[0][0] == '(';
+    if (expr && !filt_parse(x, cmd->argv[0])) return RES_ERR;
+    const int i0 = expr ? 1 : 0;
+    if ((cmd->argc - i0) % 2) {
         ack(c, MPD_ACK_ARG, x->idx, x->verb, "incorrect number of filter arguments");
         return RES_ERR;
     }
@@ -1772,7 +1813,8 @@ static result_t lib_find(const ctx_t *x, const mpd_cmd_t *cmd, qmode_t mode,
     int np = 0;
     long w_lo = 0, w_hi = INT32_MAX;
     bool never = false;                 /* a tag nothing can match */
-    for (int i = 0; i + 1 < cmd->argc; i += 2) {
+    if (expr) np = filt_pairs(pairs, &never);
+    for (int i = i0; i + 1 < cmd->argc; i += 2) {
         const char *t = cmd->argv[i], *v = cmd->argv[i + 1];
         if (strcasecmp(t, "sort") == 0) continue;
         if (strcasecmp(t, "group") == 0) {
@@ -1782,6 +1824,11 @@ static result_t lib_find(const ctx_t *x, const mpd_cmd_t *cmd, qmode_t mode,
         if (strcasecmp(t, "window") == 0) {
             if (!arg_range(x, v, &w_lo, &w_hi)) return RES_ERR;
             continue;
+        }
+        if (expr) {
+            /* After an expression only sort and window mean anything. */
+            ack(c, MPD_ACK_ARG, x->idx, x->verb, "Unknown filter type: %s", t);
+            return RES_ERR;
         }
         qpair_t *p = &pairs[np];
         if (!q_tag(t, p)) {
@@ -1837,7 +1884,9 @@ static result_t lib_find(const ctx_t *x, const mpd_cmd_t *cmd, qmode_t mode,
                     if (!medialib_rd_cat(&s_rd[v], l.cat_off)) continue;
                     const mediacat_rec_t *r = s_rd[v].rec;
                     if (!q_uri(v, r)) continue;
-                    for (int k = 0; k < np && pass; k++) pass = q_exact(&pairs[k], r, s_lib->uri, mode);
+                    if (expr) pass = filt_match(r, s_lib->uri, mode == Q_SEARCH);   /* 5239 */
+                    else
+                        for (int k = 0; k < np && pass; k++) pass = q_exact(&pairs[k], r, s_lib->uri, mode);
                     if (!pass) continue;
                     /* 5191: a path on both volumes is two songs now,
                      * one under each; the SD's no longer hides the USB's. */
@@ -1906,18 +1955,23 @@ static result_t queue_find(const ctx_t *x, const mpd_cmd_t *cmd)
     conn_t *const c = x->c;
     const int64_t t0 = esp_timer_get_time();
     const bool fold = cmd->kind == MPD_CMD_PLAYLISTSEARCH;
-    if (cmd->argc >= 1 && cmd->argv[0][0] == '(') {
-        ack(c, MPD_ACK_UNKNOWN, x->idx, x->verb,
-            "filter expressions are not supported by this player yet; use TAG VALUE pairs");
-        return RES_ERR;
+    /* 5239: the expression alone -- MPD's playlistfind takes no sort or
+     * window after one. */
+    const bool expr = cmd->argc >= 1 && cmd->argv[0][0] == '(';
+    if (expr) {
+        if (cmd->argc > 1) {
+            ack(c, MPD_ACK_ARG, x->idx, x->verb, "incorrect number of filter arguments");
+            return RES_ERR;
+        }
+        if (!filt_parse(x, cmd->argv[0])) return RES_ERR;
     }
-    if (cmd->argc % 2) {
+    if (!expr && cmd->argc % 2) {
         ack(c, MPD_ACK_ARG, x->idx, x->verb, "incorrect number of filter arguments");
         return RES_ERR;
     }
     static qpair_t pairs[MPDPROTO_MAX_ARGS / 2];
     int np = 0;
-    for (int i = 0; i + 1 < cmd->argc; i += 2) {
+    for (int i = expr ? cmd->argc : 0; i + 1 < cmd->argc; i += 2) {
         qpair_t *p = &pairs[np];
         if (!q_tag(cmd->argv[i], p) && p->kind != Q_BASE) return RES_OK;   /* matches nothing */
         p->value = cmd->argv[i + 1];
@@ -1943,6 +1997,7 @@ static result_t queue_find(const ctx_t *x, const mpd_cmd_t *cmd)
         const char *const f[4] = { t.title ? t.title : "", t.artist ? t.artist : "",
                                    t.album ? t.album : "", uri };
         bool pass = true;
+        if (expr) pass = mpdfilter_eval(&s_lib->filt, f, fold);       /* 5239 */
         for (int k = 0; k < np && pass; k++) {
             const qpair_t *p = &pairs[k];
             if (p->kind == Q_BASE) {
@@ -2258,16 +2313,30 @@ static result_t lib_list(const ctx_t *x, const mpd_cmd_t *cmd, bool counting)
     long n_out = 0;
     ltype_t type, group = { -1, NULL };
     const bool known = l_type(cmd->argv[0], &type);
-    if (cmd->argc >= 2 && cmd->argv[1][0] == '(') {
-        ack(c, MPD_ACK_UNKNOWN, x->idx, x->verb,
-            "filter expressions are not supported by this player yet; use TAG VALUE pairs");
-        return RES_ERR;
-    }
+    /* 5239: `list TYPE (EXPR) [group G]...`, exact as list's filters are. */
+    const bool expr = cmd->argc >= 2 && cmd->argv[1][0] == '(';
+    if (expr && !filt_parse(x, cmd->argv[1])) return RES_ERR;
 
     static qpair_t pairs[MPDPROTO_MAX_ARGS / 2];
     int np = 0;
     bool never = !known;
-    if (cmd->argc == 2) {
+    if (expr) {
+        if ((cmd->argc - 2) % 2) {
+            ack(c, MPD_ACK_ARG, x->idx, x->verb, "incorrect number of filter arguments");
+            return RES_ERR;
+        }
+        np = filt_pairs(pairs, &never);
+        for (int i = 2; i + 1 < cmd->argc; i += 2) {
+            ltype_t g;
+            if (strcasecmp(cmd->argv[i], "group") == 0) {
+                if (group.field < 0 && l_type(cmd->argv[i + 1], &g)) group = g;
+            } else if (strcasecmp(cmd->argv[i], "sort") != 0 &&
+                       strcasecmp(cmd->argv[i], "window") != 0) {
+                ack(c, MPD_ACK_ARG, x->idx, x->verb, "Unknown filter type: %s", cmd->argv[i]);
+                return RES_ERR;
+            }
+        }
+    } else if (cmd->argc == 2) {
         /* The old form: `list album ARTIST`. MPD took it for album only. */
         if (type.field != 2) {
             ack(c, MPD_ACK_ARG, x->idx, x->verb,
@@ -2327,7 +2396,9 @@ static result_t lib_list(const ctx_t *x, const mpd_cmd_t *cmd, bool counting)
             const mediacat_rec_t *r = s_rd[v].rec;
             if (!q_uri(v, r)) continue;
             bool pass = true;
-            for (int k = 0; k < np && pass; k++) pass = q_exact(&pairs[k], r, s_lib->uri, Q_FIND);
+            if (expr) pass = filt_match(r, s_lib->uri, false);          /* 5239 */
+            else
+                for (int k = 0; k < np && pass; k++) pass = q_exact(&pairs[k], r, s_lib->uri, Q_FIND);
             if (!pass) continue;
             /* 5191: both volumes' copies count; a value they share is
              * one line anyway, since the set is deduplicated. */
@@ -2400,7 +2471,8 @@ static result_t lib_list(const ctx_t *x, const mpd_cmd_t *cmd, bool counting)
 static result_t lib_count(const ctx_t *x, const mpd_cmd_t *cmd)
 {
     int gi = -1;
-    for (int i = 0; i + 1 < cmd->argc; i += 2)
+    const int i0 = cmd->argc >= 1 && cmd->argv[0][0] == '(' ? 1 : 0;   /* 5239 */
+    for (int i = i0; i + 1 < cmd->argc; i += 2)
         if (strcasecmp(cmd->argv[i], "group") == 0) gi = i;
     if (gi < 0) return lib_find(x, cmd, Q_COUNT, QS_PRINT, NULL);
     static mpd_cmd_t l;                 /* not on the task stack */

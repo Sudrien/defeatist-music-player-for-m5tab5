@@ -14,6 +14,7 @@ static const char *const s_exact[] = {
     "mc_cid", "mc_eid", "yclid", "twclid", "ttclid",
     "awparams", "amsparams", "listenerid", "listener_id", "lsid", "tdtok",
     "aw_0_1st.playerid", "aw_0_1st.skey",
+    "listeningsessionid",                   /* 5205: case does not matter */
 };
 /* Prefixes: a family of names. */
 static const char *const s_prefix[] = {

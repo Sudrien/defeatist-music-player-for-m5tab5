@@ -17476,3 +17476,9 @@ it dropped. The same cleaned URL is what 5203 compares against the
 station list, so a stream saved and then played matches its station.
 Not applied to stations the portal, the remote page or the directory
 add; those can take it if it earns its place.
+
+### 5205 -- urlclean: listeningSessionId
+
+Asked for: `listeningSessionId`, a per-listen session id some stream
+hosts add, was not on 5204's list and stayed in the URL. It is now,
+matched without regard to case like the rest.

@@ -40,6 +40,9 @@ int main(void)
     t("https://a.b/s?UTM_SOURCE=1", "https://a.b/s", 1);
     t("https://a.b/s?awesome=1", "https://a.b/s?awesome=1", 0);
     t("https://a.b/s?utm_source", "https://a.b/s", 1);         /* no '=' */
+    /* 5205 */
+    t("https://a.b/s.aac?listeningSessionID=7d2f-11&sid=3", "https://a.b/s.aac?sid=3", 1);
+    t("https://a.b/s.aac?listeningSessionId=x", "https://a.b/s.aac", 1);
     checks++;
     if (urlclean_strip(NULL) != 0) { failures++; printf("FAIL: NULL\n"); }
     printf("%d checks, %d failures\n", checks, failures);

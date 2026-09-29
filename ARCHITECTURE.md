@@ -17832,3 +17832,50 @@ join; the radio's DMA use spikes while it associates and falls back.
 
 What does not change: if the pool stays short past half a second the
 recording is refused, with playback as it was.
+
+### 5214 -- The recording screen: a microphone, a level strip, MUTED
+
+Asked for on the board: while recording, a big red microphone instead
+of the album art, crossed out when mute is detected, and a waveform like
+a stream's as the recording goes.
+
+**The level strip.** recorder.c keeps a `levelhist_t` -- the stream
+strip's own ring, a minute in 250 ms columns -- fed by rec_in with each
+read's peak, before the beam, scaled to 16 bits (a 24-bit read shifts
+down 8). The ms per read are carried in frames so a 44.1 kHz USB mic's
+5.44 ms reads do not drift. `recorder_level_strip()` copies it out under
+s_mux; recording_overlay() puts it in `st->strip` with no columns ahead,
+and ui.c's new `draw_rec()` draws it with draw_level_strip() after a red
+pill -- LIVE's geometry, so a recording looks like the live source it
+is. History left of the mark, nothing right of it: a recording has no
+reserve.
+
+**Mute.** `recorder_status_t::silent`: the input has been exact digital
+zero for 300 ms. A live ADC is never exactly zero, even in a quiet room
+(slot 3 with nothing in the jack reads about 100); a USB headset's mute
+switch sends zeros (5207's muted C-Media take: 7 s in 1067 bytes), and
+so does a source that is sending nothing at all. Detected from the
+samples, so it does not depend on any one headset's HID report -- the
+C-Media's bit 3 was seen but never shown to be a state. The pill says
+MUTED and the microphone is crossed out.
+
+**The microphone.** `ui_show_rec_art(muted)` paints the art band: a
+rounded capsule, a U cradle (a ring with its top half painted out), a
+stem and a base, sized to the band's shorter side so it is the same in
+portrait and landscape; muted adds a white slash edged in the
+background colour and the word MUTED under it. It takes a notice card
+down, as ui_show_art_info() does.
+
+It is drawn from service_notices() on the media task, which owns the
+square, after the countdown's card and before everything else: while
+recording nothing else takes the square. Redrawn when the mute state
+changes, and after anything that covered it (chooser, panel, sleep
+page). The two places that consume `s_repaint_art` now leave it set
+while `recorder_active()` -- that flag is how the countdown card's
+clear used to put the cover back a moment after every recording
+started ("no cover art (cached); showing the format" in each log) -- and
+the end of a recording sets it, so the cover comes back when it stops.
+
+Compiled as before, no warnings: recorder.c, ui.c, and player.c (with a
+stub for esp_lcd_st7121.h, which is registry-only; the stub affects the
+display init and nothing this touches). Not on the board.

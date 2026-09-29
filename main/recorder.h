@@ -46,6 +46,10 @@ typedef struct {
     uint64_t bytes;         /* written to the file so far */
     uint32_t dropped_ms;    /* audio lost to a full ring, total */
     char     name[40];      /* the file's name, without the folder */
+    /* 5214: the input has been exact digital zero for 300 ms -- muted
+     * (a USB headset's mute sends zeros) or sending nothing. A live
+     * microphone is never exactly zero, even in a quiet room. */
+    bool     silent;
 } recorder_status_t;
 
 /*
@@ -70,6 +74,13 @@ bool recorder_active(void);
  */
 bool recorder_can_start(void);
 void recorder_status(recorder_status_t *out);
+
+/*
+ * 5214: the last minute of input peak, oldest first, in levelhist.h's
+ * units, for the level strip -- out[LEVELHIST_COLUMNS]. False when not
+ * recording. A copy, under the lock rec_in pushes with.
+ */
+bool recorder_level_strip(uint8_t *out);
 
 /*
  * A card for the panel, once: why a recording ended by itself (the card

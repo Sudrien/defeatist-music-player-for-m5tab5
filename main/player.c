@@ -6551,7 +6551,12 @@ static void recording_overlay(ui_state_t *st)
     st->can_seek = false;
     st->fav = UI_FAV_HIDDEN;
     st->live = false;
-    st->strip_valid = false;
+    /* 5214: the input's last minute, drawn where a stream's goes, with
+     * nothing ahead of the mark -- a recording has no reserve. */
+    st->strip_valid = recorder_level_strip(st->strip);
+    st->strip_ahead_cols = 0;
+    st->strip_clipped = false;
+    st->rec_silent = rs.silent;
 }
 
 /*
@@ -6780,6 +6785,8 @@ static void service_clock_ab(void) { }
 #define REC_COUNTDOWN_S     (3)
 static volatile int s_rec_count;
 static int s_rec_card_n;
+static bool s_rec_art_up;           /* 5214: the microphone is in the square */
+static bool s_rec_art_silent;       /* 5214: drawn crossed out */
 
 static void service_notices(void)
 {
@@ -6804,6 +6811,35 @@ static void service_notices(void)
         ui_notice_clear();
         s_repaint_art = true;
         /* no return: whatever else is due can take the square now */
+    }
+
+    /*
+     * 5214: while recording, the square is a big red microphone, crossed
+     * out while the input is exact zero (recorder_status_t::silent), and
+     * nothing else takes it -- a recording is the one thing happening.
+     * Redrawn when the mute state changes or something covered it; the
+     * cover comes back through s_repaint_art when the recording ends;
+     * the two places that consume that flag leave it set while
+     * recorder_active(), so the countdown card's own repaint does not
+     * put the cover back over the microphone.
+     */
+    {
+        recorder_status_t rs;
+        recorder_status(&rs);
+        if (rs.active) {
+            if (screen_covered()) { s_rec_art_up = false; return; }
+            if (!s_rec_art_up || rs.silent != s_rec_art_silent) {
+                ui_show_rec_art(rs.silent);
+                s_rec_art_up = true;
+                s_rec_art_silent = rs.silent;
+            }
+            return;
+        }
+        if (s_rec_art_up) {
+            s_rec_art_up = false;
+            s_repaint_art = true;
+            /* no return: the "Recording saved" card is due next */
+        }
     }
 
     portal_state_t ps;
@@ -9632,7 +9668,7 @@ static track_end_t play_file(const char *path)
          * still must not be drawn early; the gate's original job is
          * intact, it just no longer takes the repaint down with it.
          */
-        if (s_repaint_art && !s_pending_ready) {
+        if (s_repaint_art && !s_pending_ready && !recorder_active()) {    /* 5214 */
             s_repaint_art = false;
             const char *const repaint = visuals_pending ? s_shown_path : path;
             if (repaint[0]) load_track_visuals(repaint);
@@ -10710,7 +10746,9 @@ static track_end_t play_file(const char *path)
              * out, because this block is half sent and breaking would
              * drop the rest of it.
              */
-            if (s_repaint_art) {
+            /* 5214: not while recording -- the microphone has the
+             * square; the flag waits and repaints when it ends. */
+            if (s_repaint_art && !recorder_active()) {
                 /* The committed track while this one is still pending --
                  * see the longer note on the same test in the main
                  * loop. Paused, this is the only loop running, so a

@@ -28,6 +28,7 @@
 #include "beam.h"
 #include "flacenc.h"
 #include "heapmap.h"
+#include "levelhist.h"        /* 5214 */
 #include "micpcm.h"           /* 5208 */
 #include "settings.h"
 #include "storage.h"
@@ -107,6 +108,20 @@ static unsigned             s_in_ch = AUDIO_CAPTURE_CHANNELS;
 static unsigned             s_bits = AUDIO_CAPTURE_BITS;
 static bool                 s_fold;
 static volatile bool        s_src_gone;     /* the USB microphone was unplugged */
+
+/*
+ * 5214: what the screen shows while recording. A minute of input peak,
+ * in the streaming strip's own units (levelhist.h), fed by rec_in from
+ * what it reads -- before the beam, so it is the microphones and not
+ * the processing. And how long the input has been exact digital zero:
+ * a live ADC never is, even in a silent room, so 300 ms of it means the
+ * source is muted (a USB headset's mute switch sends zeros) or sending
+ * nothing. Both under s_mux; levelhist_push() is a few stores.
+ */
+#define REC_SILENT_MS       (300)
+static levelhist_t          s_hist;
+static uint32_t             s_hist_frames;  /* frames not yet whole ms */
+static uint32_t             s_zero_frames;
 
 static FILE      *s_file;
 static flacenc_t *s_enc;
@@ -283,6 +298,19 @@ static void rec_in_task(void *arg)
             settle = n >= settle ? 0 : settle - (uint32_t)n;
             continue;
         }
+        /* 5214: the screen's level strip and the mute test. */
+        int32_t pk = 0;
+        for (size_t i = 0; i < n * s_in_ch; i++) {
+            const int32_t v = s_in_buf[i] < 0 ? -s_in_buf[i] : s_in_buf[i];
+            if (v > pk) pk = v;
+        }
+        portENTER_CRITICAL(&s_mux);
+        s_hist_frames += (uint32_t)n;
+        const int ms = (int)(s_hist_frames * 1000u / s_rate);
+        s_hist_frames -= (uint32_t)ms * s_rate / 1000u;
+        levelhist_push(&s_hist, (int)(pk >> (s_bits - 16)), ms);
+        s_zero_frames = pk ? 0 : s_zero_frames + (uint32_t)n;
+        portEXIT_CRITICAL(&s_mux);
         /* All of a read or none of it: a partial send would split a
          * frame and swap left and right for the rest of the file. */
         const size_t want = n * s_in_ch * sizeof(int32_t);
@@ -457,6 +485,11 @@ bool recorder_start(char *why, size_t why_len)
     }
 
     s_frames = 0; s_bytes = 0; s_dropped_frames = 0;
+    portENTER_CRITICAL(&s_mux);                         /* 5214 */
+    levelhist_reset(&s_hist);
+    s_hist_frames = 0;
+    s_zero_frames = 0;
+    portEXIT_CRITICAL(&s_mux);
     s_stop = false; s_in_done = false; s_write_failed = false;
     if (s_use_beam) beam_init(s_beam);
     s_enc = flacenc_open((s_use_beam || s_fold) ? 1 : s_in_ch, s_bits,
@@ -551,8 +584,18 @@ void recorder_status(recorder_status_t *out)
     out->seconds = (uint32_t)(s_frames / s_rate);
     out->bytes = s_bytes;
     out->dropped_ms = (uint32_t)(s_dropped_frames * 1000 / s_rate);
+    out->silent = s_zero_frames >= s_rate * REC_SILENT_MS / 1000u;     /* 5214 */
     portEXIT_CRITICAL(&s_mux);
     snprintf(out->name, sizeof(out->name), "%s", s_name);
+}
+
+bool recorder_level_strip(uint8_t *out)
+{
+    if (!out || !s_active) return false;
+    portENTER_CRITICAL(&s_mux);
+    levelhist_read(&s_hist, out);
+    portEXIT_CRITICAL(&s_mux);
+    return true;
 }
 
 /*

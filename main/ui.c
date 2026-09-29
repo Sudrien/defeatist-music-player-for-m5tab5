@@ -1345,6 +1345,28 @@ static void draw_level_strip(const ui_state_t *st, int sx, int x1, int y)
     }
 }
 
+/*
+ * 5214: the bar while recording. A red pill -- REC, or MUTED while the
+ * input is exact zero -- in LIVE's place, and the input's last minute in
+ * the stream's strip after it: history to the left of the mark, nothing
+ * ahead, because a recording has no reserve. Same geometry and units as
+ * draw_live(), so a recording looks like a live source, which it is.
+ */
+static void draw_rec(const ui_state_t *st)
+{
+    int x0, x1, y;
+    seek_bounds(&x0, &x1, &y);
+    (void)x0;
+    const char *word = st->rec_silent ? "MUTED" : "REC";
+    const int tw = gfx_text_w(word, 3);
+    const int pw = tw + 2 * LIVE_PAD_X;
+    const int ph = GFX_GLYPH_H(3) + 2 * LIVE_PAD_Y;
+    const int py = y - UI_WAVE_H / 2 - ph / 2;
+    fill_rrect(bar_x0(), py, pw, ph, ph / 2, C_LIVE);
+    gfx_draw_text(bar_x0() + LIVE_PAD_X, py + LIVE_PAD_Y, word, 3, pw, C_BG);
+    if (st->strip_valid) draw_level_strip(st, bar_x0() + pw + LIVE_GAP, x1, y);
+}
+
 static void draw_live(const ui_state_t *st)
 {
     int x0, x1, y;
@@ -1584,6 +1606,59 @@ void ui_clear_art(void)
 #define ART_INFO_HEAD_SCALE (5)
 #define ART_INFO_BODY_SCALE (3)
 #define ART_INFO_GAP        (18)
+
+/*
+ * 5214: a microphone, built from what gfx has -- a rounded capsule, a
+ * U-shaped cradle (a ring with its top half painted out), a stem and a
+ * base -- sized to the shorter side of the art band so it is the same
+ * shape in either orientation. Muted: a white slash, edged in the
+ * background colour so it reads over the red, and the word under it.
+ */
+#define C_REC_MIC   RGB(0xE0, 0x2A, 0x2A)
+
+void ui_show_rec_art(bool muted)
+{
+    if (!s_fb) return;
+    s_notice_up = false;        /* this paints the square: see below */
+
+    int aw, ah;
+    ui_art_band(NULL, NULL, &aw, &ah);
+    gfx_fill_rect(0, 0, aw, ah, C_BG);
+
+    const int s = aw < ah ? aw : ah;
+    const int cx = aw / 2;
+    const int cw = s * 24 / 100;                /* capsule */
+    const int ch = s * 40 / 100;
+    const int cy = ah / 2 - s * 36 / 100;
+    const int t  = s * 4 / 100;                 /* line weight */
+    const int ccy = cy + ch - cw / 2;           /* cradle centre */
+    const int R  = cw / 2 + s * 9 / 100;
+
+    gfx_fill_circle(cx, ccy, R, C_REC_MIC);
+    gfx_fill_circle(cx, ccy, R - t, C_BG);
+    gfx_fill_rect(cx - R - 1, ccy - R - 1, 2 * R + 2, R + 1, C_BG);
+    fill_rrect(cx - cw / 2, cy, cw, ch, cw / 2, C_REC_MIC);
+    const int stem_y = ccy + R - 1;
+    const int stem_h = s * 10 / 100;
+    gfx_fill_rect(cx - t / 2, stem_y, t, stem_h, C_REC_MIC);
+    const int bw = s * 28 / 100;
+    fill_rrect(cx - bw / 2, stem_y + stem_h, bw, t, t / 2, C_REC_MIC);
+
+    if (muted) {
+        const int x0 = cx - R - t, y0 = cy - t;
+        const int x1 = cx + R + t, y1 = stem_y + stem_h + t;
+        const int e = t * 2, w = t;             /* edge, then the slash */
+        const int edge[8]  = { x0 - e, y0, x0, y0 - e, x1 + e, y1, x1, y1 + e };
+        const int slash[8] = { x0 - w, y0, x0, y0 - w, x1 + w, y1, x1, y1 + w };
+        gfx_fill_poly(edge, 4, C_BG);
+        gfx_fill_poly(slash, 4, C_THUMB);
+        const char *word = "MUTED";
+        const int tw = gfx_text_w(word, ART_INFO_HEAD_SCALE);
+        gfx_draw_text((aw - tw) / 2, y1 + 3 * t, word, ART_INFO_HEAD_SCALE,
+                      aw - 2 * TEXT_X, C_THUMB);
+    }
+    ui_blit_art();
+}
 
 void ui_show_art_info(const char *const *lines, int n)
 {
@@ -1876,6 +1951,8 @@ void ui_draw(const ui_state_t *st)
          * -- not even the bare groove, which claims there is a position
          * and that it is unknown. See ui_state_t::live. */
         draw_live(st);
+    } else if (st->recording && !st->len_sec) {
+        draw_rec(st);                                   /* 5214 */
     } else if (stats && waveform_ready() && st->len_sec > 0) {
         /*
          * The envelope is the bar. Played columns red, unplayed grey, and

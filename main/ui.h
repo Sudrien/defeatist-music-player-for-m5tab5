@@ -233,6 +233,10 @@ typedef struct {
     /* False with no card or drive to record to: the record detent is
      * drawn as a red X instead of a red dot. */
     bool rec_ok;
+    /* 5214: while recording, the input has been exact zero -- muted.
+     * The REC pill says MUTED; the art square's microphone is crossed
+     * out (ui_show_rec_art()). */
+    bool rec_silent;
 } ui_state_t;
 
 /* What a touch produced. The player acts on these; the UI never acts. */
@@ -340,6 +344,13 @@ void ui_clear_art(void);
  * blits immediately; not part of ui_draw().
  */
 void ui_show_art_info(const char *const *lines, int n);
+
+/*
+ * 5214: the artwork square while recording -- a big red microphone,
+ * crossed out when `muted`. Draws and blits immediately, like
+ * ui_show_art_info(), and takes any card down the same way.
+ */
+void ui_show_rec_art(bool muted);
 
 /* ------------------------------------------------------------------ */
 /* The notice card                                                      */

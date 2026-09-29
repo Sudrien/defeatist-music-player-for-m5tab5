@@ -1,9 +1,13 @@
 # MPD support
 
-A plan, not a description. Nothing here is built. `ARCHITECTURE.md` is
-for code that exists, `MEDIA-INDEX.md` is the library this leans on, and
-this is the reasoning behind serving the MPD protocol so that the
-decisions already argued out do not have to be argued again.
+Written as a plan, before anything was built; kept as the reasoning, so
+the decisions already argued out do not have to be argued again.
+**It is built now** -- every step below has a first version, and the
+server has been driven from Cantata on the board (5176-5194). Where the
+plan and the code part ways the step says so, and "Where it stands", at
+the end of the staging, is the current state. `ARCHITECTURE.md` is the
+code as it is, one entry per patch; `MEDIA-INDEX.md` is the library
+this leans on.
 
 The target is **full queue semantics** -- a control client that can
 `add`, `delete`, `move`, `playid`, and see song ids and positions, not
@@ -356,6 +360,16 @@ index was built for.
 optimised for. `lsinfo` being per-directory is the saving grace already
 noted.
 
+**5191 reversed the merge, for MPD only.** Asked for on the board: the
+USB copy of a path both volumes hold could not be reached, and every
+`add` was tried on the SD first. MPD's URIs now start with the volume --
+`sd/Album/01.mp3`, `usb/Album/01.mp3` -- and the library root is two
+folders, as MPD shows two mounts. The index, the search file, the
+on-device chooser and the remote page are unchanged; `medialist.h`
+still merges, and MPD now asks it for one volume at a time. The cost is
+the one point 3 named: an album on both volumes is two albums to a
+client.
+
 
 ## The staging
 
@@ -477,8 +491,42 @@ nothing is left half-built if the series stops.
     verbs of the table, over `Playlists/<name>.m3u` at a volume's root,
     beside `Recordings/`, with library URIs in them.
 
-Nothing here has been on hardware, nothing has been built, and steps 1
-and 2 are worth doing whatever happens to the rest.
+### Where it stands
+
+Every step has a first version, and the patches after the staging were
+board reports from Cantata 2.5 against it:
+
+- **Tags on the queue** (5185, 5187): `playlistinfo` and friends read
+  each entry's title, artist and album from the catalog; the playing
+  entry falls back to it where the player has none. Genre, date, album
+  artist and track number are not in the catalog, so a client shows
+  them as unknown -- `tagtypes` says so.
+- **The chooser lists stored playlists** (5186) in a volume's
+  `Playlists` folder, and a tap loads one as MPD's `load` would.
+- **Presses and edits land behind a page** (5188-5190, 5193-5194). A
+  page on the glass -- the chooser opens itself at boot with nothing
+  to play -- used to hold every MPD press, and every edit queued behind
+  one, until it was closed. Now a pass behind the page takes them, runs
+  the amplifier's idle check and publishes, and does so twice a second
+  while a client is connected so `status` keeps time. The glass and a
+  client can fight; the last press wins.
+- **Two folders, not one library** (5191), above.
+- **Taking a volume out** (5192) drops its entries from the queue and
+  raises `database`, `mount` and `stored_playlist`.
+
+Known and left:
+
+- `status` reports elapsed in whole seconds, and a seek from a client is
+  turned into a percentage of the track (the player's own seek). A
+  client's progress bar can snap back by up to about a second on each
+  `status` and after a seek. Seen on the board and accepted for now.
+- Filter expressions (`(artist == 'x')`, MPD 0.21) are refused by name;
+  the older TAG VALUE form is what is served. `group` on `find`, adding
+  a folder, partial `shuffle` and `load` of a range are refused too.
+- One partition, `default`; mounts are the two volumes and cannot be
+  made from a client.
+- Not yet driven on the board: `list` (5182), `search`/`find` (5180),
+  and Cantata's stored-playlists view (5184).
 
 
 ## What would make this not worth building

@@ -7196,7 +7196,12 @@ static void ui_task(void *arg)
             bool folder = false;
             if (uireq_take_open(rpath, sizeof(rpath), &folder)) {
                 ESP_LOGI(TAG, "remote: %s %s", folder ? "play folder" : "open", rpath);
-                if (folder) {
+                /* 5201: a URL is a stream (MPD's `add http(s)://...`),
+                 * played as a station chosen on the glass. */
+                if (!folder && (strncmp(rpath, "http://", 7) == 0 ||
+                                strncmp(rpath, "https://", 8) == 0)) {
+                    request_stream(rpath, "");
+                } else if (folder) {
                     if (playlist_load_dir(rpath) == ESP_OK && playlist_count() > 0) {
                         playlist_set_current(0);
                         request_track(playlist_path(0));

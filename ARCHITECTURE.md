@@ -17409,3 +17409,22 @@ stations_append() runs on the MPD task, as the portal's HTTP task
 runs it: it writes a card and does not belong on ui_task. It puts a
 608-byte entry on the stack, inside MPD_STACK's 6144; the task's
 high-water line at disconnect is the number to watch.
+
+### 5201 -- mpd: http and https are URL handlers, and `add` plays one
+
+Cantata refused https://das-edge64-sa49-dal03.cdnstream.com/4550_256.aac
+as "invalid protocol" in its add-stream dialog: it checks a URL's scheme
+against `urlhandlers`, and this server answered that with nothing, so
+5200's "[Radio Streams]" could not be reached from the dialog at all.
+`urlhandlers` now lists http:// and https://.
+
+And `add URL` plays it. The queue holds library files (mpdqueue.h), so
+a stream is not queued: it is handed to ui_task through uireq_open()
+-- the remote page's "open this", which now tells a URL from a path --
+and started with request_stream(), as a station tapped on the glass.
+A client sees it as the window of one a station has always been.
+`addid` of a URL is refused and says to use `add`, since there is no
+queue id to answer with.
+
+The stream is not added to stations.m3u by playing it; Cantata's "add
+to your streams" is `playlistadd "[Radio Streams]"`, which is (5200).

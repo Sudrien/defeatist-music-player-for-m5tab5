@@ -1035,6 +1035,29 @@ static bool add_uri(const ctx_t *x, const char *uri, int pos, uint32_t *id_out)
 
 
 /*
+ * 5201: `add http(s)://...` -- a stream. The queue holds library files,
+ * so a stream is not queued: it is played at once, as a station tapped
+ * on the glass, and a client sees it as the window of one a station
+ * always was (the list above). Handed to ui_task by uireq_open(), the
+ * remote page's "open this", which tells a URL from a path.
+ */
+static bool is_stream_url(const char *u)
+{
+    return u && (strncmp(u, "http://", 7) == 0 || strncmp(u, "https://", 8) == 0);
+}
+
+static result_t add_stream(const ctx_t *x, const char *url)
+{
+    const size_t n = strlen(url);
+    if (strpbrk(url, "\r\n") || !uireq_open(url, n, false)) {
+        ack(x->c, MPD_ACK_ARG, x->idx, x->verb, "Bad stream URL");
+        return RES_ERR;
+    }
+    ESP_LOGI(TAG, "client %d: add stream %.160s", x->c->fd, url);
+    return RES_OK;
+}
+
+/*
  * Positions to ids, over the pinned list: a range [lo, hi) the client
  * named against the list it was shown. False, ACKed, when the range is
  * not inside it -- and on a window of one (a station, a file from outside
@@ -1065,6 +1088,7 @@ static result_t run_queue_cmd(conn_t *c, const mpd_cmd_t *cmd, int idx)
 
     switch (cmd->kind) {
     case MPD_CMD_ADD:
+        if (is_stream_url(a0)) return add_stream(&x, a0);          /* 5201 */
         return add_uri(&x, a0, -1, NULL) ? RES_OK : RES_ERR;
 
     case MPD_CMD_ADDID: {
@@ -1073,6 +1097,11 @@ static result_t run_queue_cmd(conn_t *c, const mpd_cmd_t *cmd, int idx)
          * taken: arg_int refuses the sign and says so. */
         if (a1 && !arg_int(&x, a1, 0, INT32_MAX, &pos)) return RES_ERR;
         uint32_t id = 0;
+        if (is_stream_url(a0)) {                                    /* 5201 */
+            ack(c, MPD_ACK_ARG, idx, cmd->verb,
+                "a stream is played, not queued, on this player; use add");
+            return RES_ERR;
+        }
         if (!add_uri(&x, a0, (int)pos, &id)) return RES_ERR;
         putf(c, "Id: %" PRIu32 "\n", id);
         return RES_OK;
@@ -2559,9 +2588,15 @@ static result_t run_cmd(conn_t *c, const mpd_cmd_t *cmd, int idx)
         return RES_OK;
 
     case MPD_CMD_URLHANDLERS:
+        /* 5201: http and https, which `add` plays as a station and
+         * `playlistadd "[Radio Streams]"` keeps. Cantata's stream dialog
+         * checks a URL's scheme against this list and said "invalid
+         * protocol" for every one while it was empty. */
+        puts_(c, "handler: http://\nhandler: https://\n");
+        return RES_OK;
     case MPD_CMD_DECODERS:
-        /* Empty, and correct: no URL can be added over MPD yet, and a
-         * decoder list is only read by clients deciding what to add. */
+        /* Empty: a decoder list is only read by clients deciding what to
+         * add, and none asks. */
         return RES_OK;
 
     case MPD_CMD_STATUS: {

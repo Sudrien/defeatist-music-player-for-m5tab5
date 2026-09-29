@@ -1967,7 +1967,7 @@ static result_t lib_find(const ctx_t *x, const mpd_cmd_t *cmd, qmode_t mode,
  * The tags are the ones put_entry() prints: the catalog's, and the
  * player's for the playing entry where it has them. So a match is on
  * what the client is shown. find compares exactly; search folds case
- * (mediasearch_fold(), ASCII as the library search does) and looks for
+ * (mediasearch_fold(), as the library search does -- 5243: casefold.h) and looks for
  * the value anywhere in the field. The same tag names as find, and the
  * same refusals: a tag the catalog does not hold matches nothing, a
  * filter expression is refused by name. While a reindex runs the

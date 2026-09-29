@@ -324,7 +324,7 @@ $(MEDIALIST_BIN): medialisttest.c ../main/medialist.h ../main/mediaindex.h
 run-medialist: $(MEDIALIST_BIN)
 	ASAN_OPTIONS=detect_leaks=1:abort_on_error=0 ./$(MEDIALIST_BIN)
 
-$(MEDIASEARCH_BIN): mediasearchtest.c ../main/mediasearch.h ../main/mediacat.h
+$(MEDIASEARCH_BIN): mediasearchtest.c ../main/mediasearch.h ../main/mediacat.h ../main/casefold.h
 	$(CC) $(WARNCFLAGS) -c mediasearchtest.c -o /dev/null
 	$(CC) $(CFLAGS) -D_GNU_SOURCE -o $@ mediasearchtest.c $(LDFLAGS)
 
@@ -353,7 +353,7 @@ run-mpduri: $(MPDURI_BIN)
 	ASAN_OPTIONS=detect_leaks=1:abort_on_error=0 ./$(MPDURI_BIN)
 
 # 5238: MPD 0.21's filter expressions.
-$(MPDFILTER_BIN): mpdfiltertest.c ../main/mpdfilter.c ../main/mpdfilter.h
+$(MPDFILTER_BIN): mpdfiltertest.c ../main/mpdfilter.c ../main/mpdfilter.h ../main/casefold.h
 	$(CC) $(WARNCFLAGS) -c ../main/mpdfilter.c -o /dev/null
 	$(CC) $(CFLAGS) -o $@ mpdfiltertest.c ../main/mpdfilter.c $(LDFLAGS)
 

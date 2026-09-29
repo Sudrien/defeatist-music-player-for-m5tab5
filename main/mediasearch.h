@@ -36,6 +36,7 @@
 #include <stdint.h>
 #include <string.h>
 
+#include "casefold.h"           /* 5243 */
 #include "mediacat.h"
 #include "mediaindex.h"
 
@@ -43,22 +44,19 @@
 extern "C" {
 #endif
 
-#define MEDIASEARCH_NAME        ".defeatist.sr1"
+#define MEDIASEARCH_NAME        ".defeatist.sr2"
 #define MEDIASEARCH_TEMP_NAME   ".defeatist.srn"
 
 /*
  * Search files an earlier build wrote, removed on the next run, the way
  * MEDIALIB_OLD_INDEX_NAMES works.
  *
- * sr1 is the first, so there is nothing here yet -- and the list holds
- * a NULL rather than nothing, which readers skip. An empty initialiser
- * is a zero-length array: a GNU extension, and it makes the obvious
- * `i < sizeof(a)/sizeof(a[0])` loop compare against 0 and warn under
- * -Wextra, which is an error in the host build. A NULL costs a pointer
- * and keeps the loop real, so the build that adds sr2 adds a name and
- * changes nothing else.
+ * sr1 folded ASCII only (5129-5138); sr2 folds with casefold.h (5243).
+ * The lines are written folded, so an sr1 read by this build would miss
+ * every accented match -- a new name is the rebuild, as for the index.
+ * The automatic reindex after each mount writes the sr2.
  */
-#define MEDIASEARCH_OLD_NAMES   { NULL }
+#define MEDIASEARCH_OLD_NAMES   { ".defeatist.sr1" }
 
 /*
  * A line: the catalog offset, then four folded fields, tab-separated.
@@ -89,15 +87,17 @@ typedef enum {
 } mediasearch_field_t;
 
 /*
- * Folding: ASCII lower case, and tabs and newlines turned into spaces.
+ * Folding: simple case folding by casefold.h, and tabs and newlines
+ * turned into spaces.
  *
- * ASCII ONLY, DELIBERATELY. There is no case table for anything else on
- * this device, so "Ä" folds to itself and a search for "ä" will not find
- * it. Doing better means a Unicode case map, which is a table this
- * player has no room for and no other feature needs; doing it wrong --
- * byte-wise |= 0x20 over UTF-8 -- would corrupt multi-byte sequences
- * into different characters, which is worse than not folding, so the
- * high half is left exactly as it is and sorts and matches by byte.
+ * 5243: NOT ASCII ONLY ANY MORE. This said there was no case table for
+ * anything else on this device and "Ä" would fold to itself; a board run
+ * with a real music drive searched for "BÔA" and found no "Bôa". The
+ * scripts a library is written in fold by ranges, not a table, and
+ * casefold.h has them: Latin (Vietnamese included), Greek, Cyrillic,
+ * Armenian. What this note warned against still holds -- byte-wise
+ * |= 0x20 over UTF-8 corrupts it -- so the fold decodes code points,
+ * and a byte that is not valid UTF-8 passes through as it is.
  *
  * The separator bytes have to go because they are the format: a tab in
  * a tag would add a field and a newline would add a record. Neither
@@ -109,12 +109,16 @@ static inline int mediasearch_fold(const char *in, char *out, size_t out_size)
 {
     if (!in || !out || out_size == 0) return -1;
     size_t n = 0;
-    for (; in[n]; n++) {
-        if (n + 1 >= out_size) return -1;
-        const unsigned char c = (unsigned char)in[n];
-        if (c == '\t' || c == '\n' || c == '\r') out[n] = ' ';
-        else if (c >= 'A' && c <= 'Z')           out[n] = (char)(c + 32);
-        else                                     out[n] = (char)c;
+    const char *p = in;
+    for (;;) {
+        uint32_t c = casefold_next(&p);
+        if (!c) break;
+        if (c == '\t' || c == '\n' || c == '\r') c = ' ';
+        char u[4];
+        const int k = casefold_put(casefold_cp(c), u);
+        if (n + (size_t)k + 1 > out_size) return -1;
+        memcpy(out + n, u, (size_t)k);
+        n += (size_t)k;
     }
     out[n] = '\0';
     return (int)n;

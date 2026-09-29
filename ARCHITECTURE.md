@@ -18722,3 +18722,48 @@ Against stock MPD 0.23.5 with a `usb` folder added to its library:
 the files come from usb/, `update usb` passes, and with 60-second files
 the seek checks ran; --volume sd takes the SD's. The failures are the
 player's deliberate differences, as before. No firmware change.
+
+### 5243 -- casefold: search folds accented Latin, Greek, Cyrillic, Armenian
+
+The first board run with a USB drive of real music (v0.4.0-265, 1203
+tracks) passed everything but case-insensitive search: "BÔA" found no
+"Bôa". mediasearch_fold() folded A-Z only, and said so on purpose --
+"there is no case table for anything else on this device ... a table
+this player has no room for". MPD folds with ICU or GLib and finds it.
+
+NO TABLE IS NEEDED. In the scripts a music library is written in,
+upper and lower case sit a fixed distance apart or alternate odd/even
+across a block, so main/casefold.h folds by ranges: Latin-1, Latin
+Extended-A, the regular runs of Extended-B with Ơ and Ư (Vietnamese),
+Latin Extended Additional, Greek with its tonos letters and final
+sigma, Cyrillic, Armenian, and µ as μ. Simple folding, one code point
+to one: ß stays ß, İ becomes i, ẞ becomes ß. Checked against Python's
+Unicode data for U+0000-U+1FFF: 494 code points fold, all as Unicode
+simple folding has them; the only differences from Python's casefold()
+are İ and ẞ, where Python gives the full folding. The first pass found
+U+0220 folded wrongly inside a run, fixed before this patch.
+
+The fold decodes UTF-8 and folds code points; a byte that does not start
+valid shortest-form UTF-8 passes through as itself, so an unconverted
+Latin-1 tag is never turned into a different character -- the corruption
+the old comment rightly warned byte-wise folding would cause. A folded
+character can be shorter (İ, 2 bytes, to i) and never longer.
+
+THE SEARCH FILE IS REBUILT. Its lines are written folded, so an old one
+would miss every accented match: .defeatist.sr1 becomes .defeatist.sr2,
+and sr1 goes into MEDIASEARCH_OLD_NAMES to be removed, as the index's
+old names are. The automatic reindex after each mount writes the new
+one -- 0.36 s for the 1203-track drive on the board run above. Until it
+has run, a search of that volume finds nothing, as with a fresh card.
+
+mediasearchtest: 22 names across the scripts (the board's "Bôa"/"BÔA"
+among them), five kinds of invalid UTF-8 unchanged, the buffer bound on
+multi-byte output, and idempotence. Mutation-checked: Latin-1 unfolded,
+invalid bytes folded as ASCII, no final sigma, overlong sequences
+accepted -- each caught. texttest's Makefile gains casefold.h as a
+dependency of the two tests that use it; without it a change to the
+header did not rebuild them, which is how the first mutation run
+passed when it should not have.
+
+Compiled -O2 -Wall -Wextra on the host stubs: mpd.c, no warnings.
+texttest all passes. Not on the board.

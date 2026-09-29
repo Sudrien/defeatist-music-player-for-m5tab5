@@ -65,13 +65,60 @@ int main(void)
         CHECK(mediasearch_fold("", fold, sizeof(fold)) == 0 && fold[0] == 0,
               "the empty string did not fold to itself");
 
-        /* A property, not an example: every byte folds to exactly one
-         * byte, so folding never changes a length or a field count. */
+        /* A property, not an example: every single byte folds to exactly
+         * one byte -- a lone high byte is not UTF-8 and passes through --
+         * so a byte is never turned into a separator. (5243: a whole code
+         * point can get shorter, İ to i, and never longer.) */
         for (int c = 1; c < 256; c++) {
             const char in[2] = { (char)c, 0 };
             char out[4];
             CHECK(mediasearch_fold(in, out, sizeof(out)) == 1,
                   "byte 0x%02x did not fold to one byte", c);
+        }
+
+        /* 5243: casefold.h. The board's case: "BÔA" must find "Bôa". */
+        static const struct { const char *in, *want; } uc[] = {
+            { "Bôa", "bôa" }, { "BÔA", "bôa" },
+            { "Björk", "björk" }, { "SIGUR RÓS", "sigur rós" },
+            { "MÖTLEY CRÜE", "mötley crüe" }, { "Ÿ", "ÿ" },
+            { "ŁÓDŹ", "łódź" }, { "ŽELJKO ČAĆIĆ", "željko čaćić" },
+            { "İSTANBUL", "istanbul" }, { "ſ", "s" },
+            { "ΜΆΝΟΣ ΧΑΤΖΙΔΆΚΙΣ", "μάνοσ χατζιδάκισ" }, { "ΟΔΟΣ", "οδοσ" },
+            { "odoς", "odoσ" },
+            { "ЖАННА АГУЗАРОВА", "жанна агузарова" }, { "ЁЛКА", "ёлка" },
+            { "ՀԱՅԱՍՏԱՆ", "հայաստան" },
+            { "ĐÀM VĨNH HƯNG", "đàm vĩnh hưng" }, { "Ơ", "ơ" },
+            { "µ-Ziq", "μ-ziq" },
+            { "ß", "ß" }, { "日本語", "日本語" }, { "Ƞ", "Ƞ" },
+        };
+        for (size_t i = 0; i < sizeof(uc) / sizeof(uc[0]); i++) {
+            const int n = mediasearch_fold(uc[i].in, fold, sizeof(fold));
+            CHECK(n == (int)strlen(uc[i].want) && strcmp(fold, uc[i].want) == 0,
+                  "\"%s\" folded to \"%s\", wanted \"%s\"", uc[i].in, fold, uc[i].want);
+        }
+
+        /* Invalid UTF-8 passes through byte for byte: a Latin-1 "é"
+         * (0xE9 alone), a truncated sequence, an overlong '/', a
+         * surrogate. None may become a different character. */
+        static const char *const raw[] = {
+            "caf\xe9", "x\xc3", "\xc0\xaf", "\xed\xa0\x80", "\xff\xfe",
+        };
+        for (size_t i = 0; i < sizeof(raw) / sizeof(raw[0]); i++) {
+            const int n = mediasearch_fold(raw[i], fold, sizeof(fold));
+            CHECK(n == (int)strlen(raw[i]) && memcmp(fold, raw[i], (size_t)n) == 0,
+                  "invalid UTF-8 %zu was changed by folding", i);
+        }
+
+        /* The buffer bound holds for multi-byte output. */
+        CHECK(mediasearch_fold("ÀÀ", fold, 4) == -1, "4 bytes of output fitted in 4");
+        CHECK(mediasearch_fold("ÀÀ", fold, 5) == 4 && strcmp(fold, "àà") == 0,
+              "two À in 5 bytes: \"%s\"", fold);
+
+        /* Folding is idempotent: what is folded folds to itself. */
+        for (size_t i = 0; i < sizeof(uc) / sizeof(uc[0]); i++) {
+            char again[64];
+            mediasearch_fold(uc[i].want, again, sizeof(again));
+            CHECK(strcmp(again, uc[i].want) == 0, "\"%s\" is not a fixed point", uc[i].want);
         }
 
         /* And nothing above ASCII is touched, so UTF-8 is not corrupted

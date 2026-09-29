@@ -102,7 +102,8 @@ static bool                 s_use_beam;     /* this recording's choice */
  * stereo to mono on rec_enc. s_rate is what every seconds and ms figure
  * divides by: a USB microphone's own rate, not AUDIO_CAPTURE_RATE.
  */
-static settings_mic_input_t s_src;
+static settings_rec_from_t  s_src;         /* 5216: resolved, never AUTO */
+static bool                 s_auto;         /* 5216: chosen by AUTO */
 static uint32_t             s_rate = AUDIO_CAPTURE_RATE;
 static unsigned             s_in_ch = AUDIO_CAPTURE_CHANNELS;
 static unsigned             s_bits = AUDIO_CAPTURE_BITS;
@@ -293,7 +294,7 @@ static void rec_in_task(void *arg)
     (void)arg;
     uint32_t reads = 0;
     uint32_t settle = s_rate * REC_SETTLE_MS / 1000u;
-    const bool usb = (s_src == SETTINGS_MIC_USB);
+    const bool usb = (s_src == SETTINGS_REC_UAC);
     while (!s_stop) {
         /* 5208: the USB microphone, or the ES7210 (either input). The
          * same buffer, sized for REC_IN_FRAMES of the widest frame. */
@@ -376,7 +377,7 @@ static void rec_enc_task(void *arg)
         if (s_in_done && xStreamBufferIsEmpty(s_ring)) break;
     }
 
-    if (s_src == SETTINGS_MIC_USB) uac_mic_close();     /* 5208: see rec_in */
+    if (s_src == SETTINGS_REC_UAC) uac_mic_close();     /* 5208: see rec_in */
     finish_file();
 
     const uint32_t secs = (uint32_t)(s_frames / s_rate);
@@ -453,38 +454,64 @@ bool recorder_start(char *why, size_t why_len)
      * the FLAC header's and are not known until it is -- so every
      * refusal from here on closes it again (ABANDON).
      */
-    const bool stereo = settings_mic_stereo();
-    s_src = settings_mic_input();
+    /*
+     * 5216: one switch, six choices (settings.h). AUTO resolves here to
+     * the best input that is there -- USB, then the jack, then the
+     * built-in pair summed -- and is always mono. A USB microphone AUTO
+     * picked that then will not open falls through to the next choice
+     * rather than refusing: AUTO promised "whatever is there".
+     */
+    settings_rec_from_t want = settings_rec_from();
+    const bool autom = (want == SETTINGS_REC_AUTO);
+    if (autom) {
+        want = uac_mic_announced() ? SETTINGS_REC_UAC
+             : audio_out_headphones() ? SETTINGS_REC_HEADSET
+             : SETTINGS_REC_MONO;
+    }
     s_src_gone = false;
     s_use_beam = false;
     s_fold = false;
-    if (s_src == SETTINGS_MIC_USB) {
+    if (want == SETTINGS_REC_UAC) {
         if (!uac_mic_announced()) REFUSE("No USB microphone is plugged in.");
         uint32_t rate = 0;
         uint8_t ch = 0;
         const esp_err_t e = uac_mic_open(&rate, &ch);
-        if (e == ESP_ERR_NOT_FOUND) REFUSE("The USB microphone is not there any more.");
-        if (e == ESP_ERR_NOT_SUPPORTED) REFUSE("The USB microphone has no 16-bit format.");
-        if (e != ESP_OK) REFUSE("The USB microphone did not start (%s).", esp_err_to_name(e));
-        s_rate = rate;
-        s_in_ch = ch;
-        s_bits = 16;
-        s_fold = (ch == 2 && !stereo);
-    } else if (s_src == SETTINGS_MIC_HEADSET) {
+        if (e == ESP_OK) {
+            s_rate = rate;
+            s_in_ch = ch;
+            s_bits = 16;
+            s_fold = (ch == 2 && autom);
+        } else if (autom) {
+            ESP_LOGW(TAG, "auto: USB microphone did not open (%s); next input",
+                     esp_err_to_name(e));
+            want = audio_out_headphones() ? SETTINGS_REC_HEADSET : SETTINGS_REC_MONO;
+        } else if (e == ESP_ERR_NOT_FOUND) {
+            REFUSE("The USB microphone is not there any more.");
+        } else if (e == ESP_ERR_NOT_SUPPORTED) {
+            REFUSE("The USB microphone has no 16-bit format.");
+        } else {
+            REFUSE("The USB microphone did not start (%s).", esp_err_to_name(e));
+        }
+    }
+    if (want == SETTINGS_REC_HEADSET) {
         /* The jack detect cannot tell a headset from headphones; plain
          * headphones record silence, and nothing here can know. */
         if (!audio_out_headphones()) REFUSE("Nothing is plugged into the headset jack.");
         s_rate = AUDIO_CAPTURE_RATE;
         s_in_ch = AUDIO_CAPTURE_HEADSET_CHANNELS;
         s_bits = AUDIO_CAPTURE_HEADSET_BITS;
-    } else {
+    } else if (want != SETTINGS_REC_UAC) {
+        /* The built-in pair: MONO sums it, STEREO keeps it, FOCUSED is
+         * 5109's beam. */
         s_rate = AUDIO_CAPTURE_RATE;
         s_in_ch = AUDIO_CAPTURE_CHANNELS;
         s_bits = AUDIO_CAPTURE_BITS;
-        /* 5109: the beam is mono; stereo is the microphones as they are. */
-        s_use_beam = !stereo;
+        s_use_beam = (want == SETTINGS_REC_FOCUSED);
+        s_fold = (want == SETTINGS_REC_MONO);
     }
-#define ABANDON() do { if (s_src == SETTINGS_MIC_USB) uac_mic_close(); } while (0)
+    s_src = want;
+    s_auto = autom;
+#define ABANDON() do { if (s_src == SETTINGS_REC_UAC) uac_mic_close(); } while (0)
 
     if (!pick_path(storage_mount_path(vol))) {
         ABANDON();
@@ -515,8 +542,8 @@ bool recorder_start(char *why, size_t why_len)
         REFUSE("Could not start the file.");
     }
 
-    if (s_src != SETTINGS_MIC_USB) {
-        const esp_err_t err = audio_out_capture_begin(s_src == SETTINGS_MIC_HEADSET
+    if (s_src != SETTINGS_REC_UAC) {
+        const esp_err_t err = audio_out_capture_begin(s_src == SETTINGS_REC_HEADSET
                                                       ? AUDIO_CAPTURE_HEADSET
                                                       : AUDIO_CAPTURE_BUILTIN);
         if (err != ESP_OK) {
@@ -532,7 +559,7 @@ bool recorder_start(char *why, size_t why_len)
     xStreamBufferReset(s_ring);
     s_active = true;
     if (xTaskCreate(rec_enc_task, "rec_enc", REC_ENC_STACK, NULL, REC_ENC_PRIO, NULL) != pdPASS) {
-        if (s_src != SETTINGS_MIC_USB) audio_out_capture_end();
+        if (s_src != SETTINGS_REC_UAC) audio_out_capture_end();
         ABANDON();
         flacenc_close(s_enc, NULL);
         s_enc = NULL;
@@ -545,19 +572,22 @@ bool recorder_start(char *why, size_t why_len)
     if (xTaskCreate(rec_in_task, "rec_in", REC_IN_STACK, NULL, REC_IN_PRIO, NULL) != pdPASS) {
         /* rec_enc is running: let it close the (empty) file -- and, for
          * 5208, the USB microphone. */
-        if (s_src != SETTINGS_MIC_USB) audio_out_capture_end();
+        if (s_src != SETTINGS_REC_UAC) audio_out_capture_end();
         s_write_failed = true;
         s_stop = true;
         s_in_done = true;
         REFUSE("No memory for the recording task.");
     }
     ESP_LOGI(TAG, "recording to %s (%s, %" PRIu32 " Hz, %u-bit%s%s)%s", s_path,
-             s_src == SETTINGS_MIC_USB ? "USB microphone" :
-             s_src == SETTINGS_MIC_HEADSET ? "headset microphone, mono" :
-             s_use_beam ? "beam, mono" : "stereo, MIC1 left",
+             s_src == SETTINGS_REC_UAC ? (s_auto ? "auto: USB microphone" : "USB microphone") :
+             s_src == SETTINGS_REC_HEADSET ? (s_auto ? "auto: headset microphone, mono"
+                                                    : "headset microphone, mono") :
+             s_use_beam ? "focused: beam, mono" :
+             s_fold ? (s_auto ? "auto: built-in pair, mono" : "built-in pair, mono") :
+             "built-in pair, stereo",
              s_rate, s_bits,
-             s_src == SETTINGS_MIC_USB ? (s_in_ch == 2 ? ", stereo" : ", mono") : "",
-             s_fold ? ", folded to mono" : "",
+             s_src == SETTINGS_REC_UAC ? (s_in_ch == 2 ? ", stereo" : ", mono") : "",
+             (s_fold && s_src == SETTINGS_REC_UAC) ? ", folded to mono" : "",
              settings_time_verified() ? "" : "; the time is a guess until NTP, "
                                              "the name follows it if it moves");
     /* 5114: remembered for repair while the time is unverified. */

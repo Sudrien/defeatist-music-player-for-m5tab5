@@ -525,26 +525,12 @@ static int slider_y(void) { return rg_y() + AUDIO_SWITCH_H
                                    + AUDIO_GAP; }
 static int album_y(void)  { return slider_y() + AUDIO_SLIDER_H + AUDIO_GAP; }
 
-/* 5109: the recorder's microphones, under the album note. */
-#define MIC_NOTE_LINES      (3)
-static int mic_y(void)    { return album_y() + AUDIO_SWITCH_H
+/* 5208: what the recorder records from. 5216: the only recording
+ * switch -- 5109's Microphones row is gone -- under the album note. */
+#define INPUT_NOTE_LINES    (4)
+static int input_y(void)  { return album_y() + AUDIO_SWITCH_H
                                    + AUDIO_NOTE_GAP
                                    + ALBUM_NOTE_LINES * AUDIO_NOTE_STEP
-                                   + AUDIO_GAP; }
-
-static void mic_switch_box(int *x, int *y, int *w, int *h)
-{
-    *x = 0;
-    *y = mic_y();
-    *w = gfx_w();
-    *h = AUDIO_SWITCH_H;
-}
-
-/* 5208: what the recorder records from, under the microphones' note. */
-#define INPUT_NOTE_LINES    (3)
-static int input_y(void)  { return mic_y() + AUDIO_SWITCH_H
-                                   + AUDIO_NOTE_GAP
-                                   + MIC_NOTE_LINES * AUDIO_NOTE_STEP
                                    + AUDIO_GAP; }
 
 static void input_switch_box(int *x, int *y, int *w, int *h)
@@ -1188,48 +1174,28 @@ static int draw_audio(void)
     };
     draw_note(y + bh + AUDIO_NOTE_GAP, album_note, ALBUM_NOTE_LINES);
 
-    /* --- Microphones (5109) ----------------------------------------- */
-    mic_switch_box(&x, &y, &bw, &bh);
-    gfx_fill_rect(x, y, bw, bh, C_ROW);
-    gfx_draw_text(24, y + (bh - GFX_GLYPH_H(NAME_SCALE)) / 2, "Microphones",
-                  NAME_SCALE, 400, C_TEXT);
-    {
-        /*
-         * Wider than the ON/OFF pills: the two states are words, and
-         * "STEREO" at the name scale needs it. Lit for the beam, the
-         * default and the one doing something.
-         */
-        const bool stereo = settings_mic_stereo();
-        const int pw = 200, ph = 56;
-        draw_pill(w - 24 - pw, y + (bh - ph) / 2, pw, ph,
-                  stereo ? "STEREO" : "BEAM", !stereo, NAME_SCALE);
-    }
-    static const char *const mic_note[MIC_NOTE_LINES] = {
-        "Beam: mono, aimed out of the screen,",
-        "quieter to either side. Stereo: both",
-        "microphones as they are. Next recording.",
-    };
-    (void)draw_note(y + bh + AUDIO_NOTE_GAP, mic_note, MIC_NOTE_LINES);
-
-    /* --- Record from (5208) ------------------------------------------ */
+    /* --- Record from (5208, 5216) ------------------------------------ */
     input_switch_box(&x, &y, &bw, &bh);
     gfx_fill_rect(x, y, bw, bh, C_ROW);
     gfx_draw_text(24, y + (bh - GFX_GLYPH_H(NAME_SCALE)) / 2, "Record from",
                   NAME_SCALE, 400, C_TEXT);
     {
         /*
-         * Lit when the input is there to record from, so the switch says
-         * before the record button does that a headset recording with
-         * nothing in the jack will be refused. The jack cannot tell a
-         * headset from headphones, so lit is "something plugged in",
-         * not "a microphone". Built-in is always there.
+         * Six words, tapped round. Lit when the input is there to record
+         * from, so the switch says before the record button does that a
+         * recording would be refused. The jack cannot tell a headset from
+         * headphones, so lit there is "something plugged in". The
+         * built-in pair and AUTO are always there.
          */
-        const settings_mic_input_t in = settings_mic_input();
-        const char *label = in == SETTINGS_MIC_HEADSET ? "HEADSET"
-                          : in == SETTINGS_MIC_USB     ? "USB"
-                          :                              "BUILT-IN";
-        const bool there = in == SETTINGS_MIC_HEADSET ? audio_out_headphones()
-                         : in == SETTINGS_MIC_USB     ? uac_mic_announced()
+        static const char *const k_label[SETTINGS_REC_COUNT] = {
+            [SETTINGS_REC_MONO] = "MONO",       [SETTINGS_REC_STEREO] = "STEREO",
+            [SETTINGS_REC_FOCUSED] = "FOCUSED", [SETTINGS_REC_HEADSET] = "HEADSET",
+            [SETTINGS_REC_UAC] = "UAC",         [SETTINGS_REC_AUTO] = "AUTO",
+        };
+        const settings_rec_from_t in = settings_rec_from();
+        const char *label = k_label[in < SETTINGS_REC_COUNT ? in : SETTINGS_REC_AUTO];
+        const bool there = in == SETTINGS_REC_HEADSET ? audio_out_headphones()
+                         : in == SETTINGS_REC_UAC     ? uac_mic_announced()
                          :                              true;
         int pw = gfx_text_w(label, NAME_SCALE) + 48;
         if (pw < 200) pw = 200;
@@ -1237,9 +1203,10 @@ static int draw_audio(void)
         draw_pill(w - 24 - pw, y + (bh - ph) / 2, pw, ph, label, there, NAME_SCALE);
     }
     static const char *const input_note[INPUT_NOTE_LINES] = {
-        "Headset: the microphone in the jack,",
-        "mono. USB: a USB microphone at its own",
-        "rate, both channels only on STEREO.",
+        "Mono/stereo: the two by the screen.",
+        "Focused: those two aimed out of it.",
+        "Headset, UAC: the jack, a USB mic.",
+        "Auto: USB, then jack, then mono.",
     };
     const int used = draw_note(y + bh + AUDIO_NOTE_GAP, input_note, INPUT_NOTE_LINES);
 
@@ -1639,25 +1606,16 @@ bool panel_touch(bool down, int x, int y)
             return false;
         }
 
-        mic_switch_box(&bx, &by, &bw, &bh);
-        if (y >= by && y < by + bh) {
-            const bool stereo = !settings_mic_stereo();
-            settings_set_mic_stereo(stereo);
-            ESP_LOGI(TAG, "microphones: %s (next recording)",
-                     stereo ? "stereo" : "beam");
-            s_dirty = true;
-            return false;
-        }
-
-        /* 5208: built-in, headset, USB, and round. */
+        /* 5216: MONO, STEREO, FOCUSED, HEADSET, UAC, AUTO, and round. */
         input_switch_box(&bx, &by, &bw, &bh);
         if (y >= by && y < by + bh) {
-            const settings_mic_input_t in =
-                (settings_mic_input_t)((settings_mic_input() + 1) % SETTINGS_MIC_COUNT);
-            settings_set_mic_input(in);
-            ESP_LOGI(TAG, "record from: %s (next recording)",
-                     in == SETTINGS_MIC_HEADSET ? "headset" :
-                     in == SETTINGS_MIC_USB ? "USB" : "built-in");
+            const settings_rec_from_t in =
+                (settings_rec_from_t)((settings_rec_from() + 1) % SETTINGS_REC_COUNT);
+            settings_set_rec_from(in);
+            static const char *const k_name[SETTINGS_REC_COUNT] = {
+                "mono", "stereo", "focused", "headset", "UAC", "auto",
+            };
+            ESP_LOGI(TAG, "record from: %s (next recording)", k_name[in]);
             s_dirty = true;
             return false;
         }

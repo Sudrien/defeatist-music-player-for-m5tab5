@@ -177,7 +177,8 @@ static bool        s_prefs_nvs_known;
 /* And from 504 for "mic_stereo" (5109): 19 more bytes of key and value. */
 /* And from 524 for "remote" (5117): 16 more. */
 /* And from 540 for "mpd" (5158): 12 more. */
-/* And from 552 for "mic_input" (5208): 14 more. */
+/* And from 552 for "mic_input" (5208): 14 more. 5216 replaced it and
+ * "mic_stereo" with "rec_from", 20 fewer; the cap is left where it is. */
 #define SETTINGS_MAX_LINE       (568)
 
 /*
@@ -215,14 +216,10 @@ static bool       s_rg_enabled = true;
  * way they were cut. See settings_crossfade_sec(). */
 static uint8_t    s_crossfade_sec;
 static bool       s_crossfade_album;
-/* 5109: the recorder's microphones. False is the beam, mono, aimed out of
- * the screen; true is both microphones as they are. The beam by default:
- * the README asks for mono by default, and it is the one aimed at whoever
- * is in front of the screen. */
-static bool       s_mic_stereo;
-/* 5208: what the recorder records from. The built-in pair by default --
- * the one input that is always there. See settings.h. */
-static uint8_t    s_mic_input;
+/* 5216: what the recorder records from -- see settings.h. AUTO by
+ * default: the best input that is there. Replaces 5109's mic_stereo and
+ * 5208's mic_input. */
+static uint8_t    s_rec_from = SETTINGS_REC_AUTO;
 static bool       s_remote;           /* 5117: see settings.h */
 static bool       s_mpd;              /* 5158: see settings.h */
 static uint8_t    s_brightness = SETTINGS_BRIGHTNESS_DEFAULT;
@@ -430,7 +427,6 @@ void settings_set_screen_rotation(int quarter_turns)
     s_dirty_since = xTaskGetTickCount();
 }
 
-bool settings_mic_stereo(void) { return s_mic_stereo; }
 
 bool settings_remote_enabled(void) { return s_remote; }
 
@@ -452,21 +448,13 @@ void settings_set_mpd_enabled(bool on)
     s_dirty_since = xTaskGetTickCount();
 }
 
-void settings_set_mic_stereo(bool on)
-{
-    if (on == s_mic_stereo) return;
-    s_mic_stereo = on;
-    s_dirty = true;
-    s_dirty_since = xTaskGetTickCount();
-}
+settings_rec_from_t settings_rec_from(void) { return (settings_rec_from_t)s_rec_from; }
 
-settings_mic_input_t settings_mic_input(void) { return (settings_mic_input_t)s_mic_input; }
-
-void settings_set_mic_input(settings_mic_input_t in)
+void settings_set_rec_from(settings_rec_from_t in)
 {
-    if ((unsigned)in >= SETTINGS_MIC_COUNT) in = SETTINGS_MIC_BUILTIN;
-    if ((uint8_t)in == s_mic_input) return;
-    s_mic_input = (uint8_t)in;
+    if ((unsigned)in >= SETTINGS_REC_COUNT) in = SETTINGS_REC_AUTO;
+    if ((uint8_t)in == s_rec_from) return;
+    s_rec_from = (uint8_t)in;
     s_dirty = true;
     s_dirty_since = xTaskGetTickCount();
 }
@@ -948,16 +936,12 @@ static bool parse_line(char *line, storage_id_t id, bool take_settings,
             any = true;
         }
 
-        const cJSON *ms = cJSON_GetObjectItemCaseSensitive(root, "mic_stereo");
-        if (take_settings && cJSON_IsBool(ms)) {
-            s_mic_stereo = cJSON_IsTrue(ms);
-            any = true;
-        }
-
-        const cJSON *mi = cJSON_GetObjectItemCaseSensitive(root, "mic_input");
-        if (take_settings && cJSON_IsNumber(mi)) {
-            const int v = mi->valueint;
-            s_mic_input = (uint8_t)((v >= 0 && v < SETTINGS_MIC_COUNT) ? v : SETTINGS_MIC_BUILTIN);
+        /* 5216: mic_stereo and mic_input are no longer read; a record
+         * without rec_from leaves AUTO. */
+        const cJSON *rf = cJSON_GetObjectItemCaseSensitive(root, "rec_from");
+        if (take_settings && cJSON_IsNumber(rf)) {
+            const int v = rf->valueint;
+            s_rec_from = (uint8_t)((v >= 0 && v < SETTINGS_REC_COUNT) ? v : SETTINGS_REC_AUTO);
             any = true;
         }
 
@@ -1086,15 +1070,6 @@ static bool parse_line(char *line, storage_id_t id, bool take_settings,
     }
     if (strcmp(key, "crossfade_album") == 0) {
         s_crossfade_album = !(strcmp(val, "0") == 0 || strcasecmp(val, "false") == 0);
-        return true;
-    }
-    if (strcmp(key, "mic_stereo") == 0) {
-        s_mic_stereo = !(strcmp(val, "0") == 0 || strcasecmp(val, "false") == 0);
-        return true;
-    }
-    if (strcmp(key, "mic_input") == 0) {
-        const int v = atoi(val);
-        s_mic_input = (uint8_t)((v >= 0 && v < SETTINGS_MIC_COUNT) ? v : SETTINGS_MIC_BUILTIN);
         return true;
     }
     if (strcmp(key, "remote") == 0) {
@@ -1232,7 +1207,6 @@ static int record_line(storage_id_t id, char *out, size_t out_len)
      */
     const char *const rg = s_rg_enabled ? "true" : "false";
     const char *const xa = s_crossfade_album ? "true" : "false";
-    const char *const ms = s_mic_stereo ? "true" : "false";
     const char *const rc = s_remote ? "true" : "false";
     const char *const md = s_mpd ? "true" : "false";
     /* Both keys. screen_flipped is what an older build reads, and it
@@ -1275,15 +1249,15 @@ static int record_line(storage_id_t id, char *out, size_t out_len)
                             "\"screen_rotation\":%u," \
                             "\"wifi\":%s,\"ntp\":%s," \
                             "\"ntp_epoch\":%s,\"ntp_boot_us\":%s," \
-                            "\"mic_stereo\":%s,\"remote\":%s," \
-                            "\"mpd\":%s,\"mic_input\":%u"
+                            "\"remote\":%s," \
+                            "\"mpd\":%s,\"rec_from\":%u"
 #define SETTINGS_FIELDS_ARGS s_volume, rg, (unsigned)s_crossfade_sec, xa, \
                              (unsigned)s_brightness, \
                              (unsigned)s_dim_step, \
                              (unsigned)s_off_step, fl, \
                              (unsigned)s_screen_rot, \
-                             wf, np, nte, ntb, ms, rc, md, \
-                             (unsigned)s_mic_input
+                             wf, np, nte, ntb, rc, md, \
+                             (unsigned)s_rec_from
 
     if (id >= STORAGE_COUNT || !s_track[id][0]) {
         return snprintf(out, out_len, "{" SETTINGS_FIELDS_FMT "}\n",

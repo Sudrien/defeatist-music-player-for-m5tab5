@@ -17900,3 +17900,38 @@ was saved or renamed (N rows, row M)`.
 
 Compiled as before, no warnings: browser.c, recorder.c. Not on the
 board.
+
+### 5216 -- One Record from switch, six choices
+
+Asked for on the board: no "Microphones" setting; one switch, "record
+from" mono / stereo / focused / headset / UAC / auto (mono). 5109's
+BEAM/STEREO switch and 5208's three-way input are replaced by
+`settings_rec_from()`:
+
+| choice | what | file |
+|---|---|---|
+| MONO | the built-in pair, summed (micpcm_mono) | 48 kHz 24-bit mono |
+| STEREO | the built-in pair as it is | 48 kHz 24-bit stereo |
+| FOCUSED | the built-in pair through the beam (5109) | 48 kHz 24-bit mono |
+| HEADSET | the jack's microphone (5206) | 48 kHz 16-bit mono |
+| UAC | a USB microphone (5207), its own channels | its rate, 16-bit |
+| AUTO | USB if announced, else the jack if in use, else MONO; mono | as picked |
+
+AUTO is the default. It resolves at the start of each recording, and a
+USB microphone it picked that will not open falls through to the jack
+or MONO rather than refusing -- AUTO promised whatever is there. The
+explicit choices still refuse with their reason. The log line says
+which, e.g. `(auto: headset microphone, mono, 48000 Hz, 16-bit)`.
+
+Settings: `"rec_from":N` replaces `"mic_stereo"` and `"mic_input"` in
+the record, which are no longer read -- so an existing card's choice
+becomes AUTO once. SETTINGS_MAX_LINE is left at 568; the record is 20
+bytes shorter.
+
+Panel: the Microphones row is gone; Record from sits under the album
+note with a four-line note, and a tap steps through the six. Lit when
+its input is there (HEADSET: something in the jack; UAC: a microphone
+announced; the rest always).
+
+Compiled as before, no warnings: settings.c, recorder.c, panel.c.
+texttest all passes. Not on the board.

@@ -266,31 +266,32 @@ bool settings_crossfade_album(void);
 void settings_set_crossfade_album(bool on);
 
 /*
- * 5109: how the recorder uses the two microphones. False (the default):
- * the beam, mono, aimed straight out of the screen -- see beam.h. True:
- * both microphones as they are, stereo. Read when a recording starts,
- * so a change applies to the next one.
- */
-bool settings_mic_stereo(void);
-void settings_set_mic_stereo(bool on);
-
-/*
- * 5208: what the recorder records from. BUILTIN is the pair above the
- * screen (and settings_mic_stereo() says beam or both); HEADSET is the
- * microphone in the jack, mono; USB is a USB microphone at its own rate,
- * folded to mono unless settings_mic_stereo(). Stored as its number,
- * "mic_input":N; anything out of range reads as BUILTIN. Read when a
- * recording starts, like mic_stereo.
+ * 5216: what the recorder records from -- the AUDIO tab's one "Record
+ * from" switch, which replaced 5109's Microphones (beam/stereo) and
+ * 5208's three-way input. Stored as its number, "rec_from":N; anything
+ * out of range reads as AUTO. Read when a recording starts.
+ *
+ *   MONO     the built-in pair, summed to mono
+ *   STEREO   the built-in pair as it is
+ *   FOCUSED  the built-in pair through the beam (5109): mono, aimed out
+ *            of the screen
+ *   HEADSET  the microphone in the jack, mono
+ *   UAC      a USB microphone, at its own rate and channels
+ *   AUTO     USB if a microphone is announced, else the headset if the
+ *            jack is in use, else MONO -- and always mono
  */
 typedef enum {
-    SETTINGS_MIC_BUILTIN = 0,
-    SETTINGS_MIC_HEADSET,
-    SETTINGS_MIC_USB,
-    SETTINGS_MIC_COUNT
-} settings_mic_input_t;
+    SETTINGS_REC_MONO = 0,
+    SETTINGS_REC_STEREO,
+    SETTINGS_REC_FOCUSED,
+    SETTINGS_REC_HEADSET,
+    SETTINGS_REC_UAC,
+    SETTINGS_REC_AUTO,
+    SETTINGS_REC_COUNT
+} settings_rec_from_t;
 
-settings_mic_input_t settings_mic_input(void);
-void settings_set_mic_input(settings_mic_input_t in);
+settings_rec_from_t settings_rec_from(void);
+void settings_set_rec_from(settings_rec_from_t in);
 
 /*
  * 5117: the browser remote -- see remote.h. Off by default: it is a web

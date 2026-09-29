@@ -17879,3 +17879,24 @@ the end of a recording sets it, so the cover comes back when it stops.
 Compiled as before, no warnings: recorder.c, ui.c, and player.c (with a
 stub for esp_lcd_st7121.h, which is registry-only; the stub affects the
 display init and nothing this touches). Not on the board.
+
+### 5215 -- The chooser re-reads Recordings when a recording changes
+
+On the board: NTP arrived while the chooser was open on Recordings, the
+recorder renamed the take by +168 s (5114), and the list still showed
+the old name. Tapped, it opened nothing (`played nothing; skipping`)
+and the player went on to the folder's other recordings.
+
+`recorder_files_changed()` is a count bumped whenever a recording is
+finished (rec_enc, after the file is closed) or renamed (fix_names(),
+5114, and the sweep, 5115) -- one atomic add, since rec_enc and ui_task
+both bump it. browser_draw() compares it, as it does
+storage_generation(), and when it has moved and the chooser is showing
+a folder named Recordings -- the only place the recorder writes -- it
+re-reads that folder in place. load_dir() resets the scroll, so s_top is
+kept across the reload and clamped if the list got shorter: the rows
+stay where the finger left them. Logged as `<dir> re-read: a recording
+was saved or renamed (N rows, row M)`.
+
+Compiled as before, no warnings: browser.c, recorder.c. Not on the
+board.

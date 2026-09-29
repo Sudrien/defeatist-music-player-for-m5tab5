@@ -26,6 +26,7 @@
 #include "decoder.h"
 #include "gfx.h"
 #include "storage.h"
+#include "recorder.h"         /* 5215 */
 
 static const char *TAG = "tab5_browser";
 
@@ -212,6 +213,7 @@ static int  s_prefix_len;
 
 static play_order_t s_order = PLAY_ORDER_ALL;
 static uint32_t s_seen_generation = UINT32_MAX;
+static uint32_t s_seen_rec_files;           /* 5215 */
 
 play_order_t browser_order(void) { return s_order; }
 
@@ -727,6 +729,7 @@ void browser_open(const char *start)
     s_scroll_drag = false;
     s_dirty = true;
     s_seen_generation = storage_generation();
+    s_seen_rec_files = recorder_files_changed();        /* 5215 */
 
     /*
      * A VOLUME TAB, WHICH MEANS NOT THE RADIO TAB.
@@ -1004,9 +1007,43 @@ static void foot_box(int i, int *x, int *w)
     *w = (i == FOOT_BUTTONS - 1) ? (gfx_w() - *x) : bw;
 }
 
+/*
+ * 5215: a Recordings folder re-read in place when the recorder has
+ * finished or renamed a file in it. The tapped row is where the finger
+ * left it: s_top survives the reload (load_dir() resets it), clamped if
+ * the list got shorter. Only a folder called Recordings, which is the
+ * only place the recorder writes -- any other folder would be re-read
+ * for nothing.
+ */
+static bool is_recordings_dir(const char *dir)
+{
+    const char *slash = strrchr(dir, '/');
+    return slash && strcmp(slash + 1, "Recordings") == 0;
+}
+
+static void recordings_refresh(void)
+{
+    const uint32_t g = recorder_files_changed();
+    if (g == s_seen_rec_files) return;
+    s_seen_rec_files = g;
+    if (s_radio || !s_dir[0] || !is_recordings_dir(s_dir)) return;
+
+    static char dir[sizeof(s_dir)];     /* load_dir() writes s_dir */
+    snprintf(dir, sizeof(dir), "%s", s_dir);
+    const int top = s_top;
+    load_dir(dir);
+    int max_top = s_count - rows_visible();
+    if (max_top < 0) max_top = 0;
+    s_top = top < max_top ? top : max_top;
+    s_dirty = true;
+    ESP_LOGI(TAG, "%s re-read: a recording was saved or renamed (%d rows, row %d)",
+             dir, s_count, s_top);
+}
+
 void browser_draw(void)
 {
     if (!s_open) return;
+    recordings_refresh();                               /* 5215 */
 
     /* A card going in or a drive coming out while the chooser is up has
      * to be visible without a touch, so the generation counter is the

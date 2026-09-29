@@ -83,6 +83,14 @@ void recorder_status(recorder_status_t *out);
 bool recorder_level_strip(uint8_t *out);
 
 /*
+ * 5215: a count that moves whenever a file in a Recordings folder is
+ * finished or renamed -- the rename when the clock moves (5114, 5115)
+ * is the one that left a stale name on screen, which played nothing
+ * when tapped. The chooser compares it, as it does storage_generation().
+ */
+uint32_t recorder_files_changed(void);
+
+/*
  * A card for the panel, once: why a recording ended by itself (the card
  * filled or went away, the 4 GB cap), or where a finished one went.
  * False when there is nothing new.

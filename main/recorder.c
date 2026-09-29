@@ -123,6 +123,18 @@ static levelhist_t          s_hist;
 static uint32_t             s_hist_frames;  /* frames not yet whole ms */
 static uint32_t             s_zero_frames;
 
+/* 5215: bumped when a recording is finished or renamed, so a folder
+ * list showing Recordings/ knows it is stale. See recorder.h. */
+static volatile uint32_t    s_files_gen;
+
+static void files_changed(void)
+{
+    /* rec_enc and ui_task both bump it: one atomic add, no lock. */
+    __atomic_add_fetch(&s_files_gen, 1, __ATOMIC_RELAXED);
+}
+
+uint32_t recorder_files_changed(void) { return s_files_gen; }
+
 static FILE      *s_file;
 static flacenc_t *s_enc;
 
@@ -397,6 +409,7 @@ static void rec_enc_task(void *arg)
         notice("Recording saved", body);
     }
     s_log_end = true;           /* the map prints from ui_task's stack */
+    files_changed();            /* 5215 */
     s_active = false;
     vTaskDelete(NULL);
 }
@@ -641,6 +654,7 @@ static void fix_names(void)
                 continue;                       /* dropped */
             }
             ESP_LOGI(TAG, "clock moved %+lld s: %s -> %s", (long long)d, old_name, name);
+            files_changed();                    /* 5215 */
             snprintf(f->path, sizeof(f->path), "%s", to);
             f->epoch += d;
             f->offset = off;
@@ -742,6 +756,7 @@ static void sweep_volume(storage_id_t vol)
         storage_io_release();
         if (ok) {
             moved++;
+            files_changed();                    /* 5215 */
             ESP_LOGI(TAG, "named in the future: %s -> %s (%+lld s, NTP's correction)",
                      names[i], name, (long long)fix);
         }

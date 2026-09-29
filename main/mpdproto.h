@@ -171,6 +171,7 @@ typedef enum {
     /* step 13, optional: stored playlists */
     MPD_CMD_LISTPLAYLISTS, MPD_CMD_LISTPLAYLIST, MPD_CMD_LISTPLAYLISTINFO,
     MPD_CMD_LOAD, MPD_CMD_SAVE, MPD_CMD_RM,
+    MPD_CMD_PLAYLISTADD, MPD_CMD_PLAYLISTDELETE,           /* 5200 */
 
     /* 5180: partitions (MPD 0.22) and mounts (0.19). This player has one
      * partition, `default`, and one library over two volumes that mount

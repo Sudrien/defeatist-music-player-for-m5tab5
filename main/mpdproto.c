@@ -306,6 +306,8 @@ static const cmd_def_t s_cmds[] = {
     { "load",             MPD_CMD_LOAD,             1, 2 },
     { "save",             MPD_CMD_SAVE,             1, 2 },
     { "rm",               MPD_CMD_RM,               1, 1 },
+    { "playlistadd",      MPD_CMD_PLAYLISTADD,      2, 3 },     /* 5200 */
+    { "playlistdelete",   MPD_CMD_PLAYLISTDELETE,   2, 2 },
 
     /* 5180: arities from AllCommands.cxx */
     { "listpartitions",   MPD_CMD_LISTPARTITIONS,   0, 0 },

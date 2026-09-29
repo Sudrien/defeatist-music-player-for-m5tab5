@@ -331,6 +331,8 @@ int main(void)
             "listallinfo", "find", "search", "list", "count", "update",
             "rescan", "listplaylists", "listplaylist", "listplaylistinfo",
             "load", "save", "rm",
+            /* 5200 */
+            "playlistadd", "playlistdelete",
             /* 5180 */
             "listpartitions", "partition", "newpartition", "delpartition",
             "moveoutput", "listmounts", "mount", "unmount", "listneighbors",

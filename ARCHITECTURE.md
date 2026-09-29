@@ -17380,3 +17380,32 @@ be a URI is skipped rather than cut. pl_path() is gone.
 The host check that should have caught this ran `-fsyntax-only`, which
 does not run the optimiser that format-truncation needs; mpd.c is now
 checked with `-O2 -Werror` on the host stubs before a patch goes out.
+
+### 5200 -- mpd: Cantata's "[Radio Streams]" is stations.m3u
+
+Asked for on the board: a stream added in Cantata should land in the
+device's stations.m3u. Cantata keeps its streams in a stored playlist
+named "[Radio Streams]" -- the `listplaylistinfo` refused on every
+connect in every log so far -- each entry "URL#Name", the name after
+the last '#'. That playlist is now the station list:
+
+- `listplaylist(info) "[Radio Streams]"` lists the stations from the
+  card's stations.m3u as "URL#Name" (with a `Name:` line for info).
+  Nothing while the list on screen is a radio-browser search, which is
+  not the person's own.
+- `playlistadd "[Radio Streams]" "URL#Name"` is stations_append() --
+  the portal's and the remote page's path, with its checks (http or
+  https, lengths, STATIONLIST_MAX, a card to write to) -- which writes
+  the file and reloads the list, so the station is on the glass at
+  once. `stored_playlist` is raised.
+- `playlistdelete "[Radio Streams]"` is refused for now: stations.c
+  has no remove, and one would be its own patch.
+
+`playlistadd` on any other stored playlist appends a library URI or a
+stream URL to its .m3u (made if missing); a position (MPD 0.23's third
+argument) is refused. `playlistdelete` on them is refused too.
+
+stations_append() runs on the MPD task, as the portal's HTTP task
+runs it: it writes a card and does not belong on ui_task. It puts a
+608-byte entry on the stack, inside MPD_STACK's 6144; the task's
+high-water line at disconnect is the number to watch.

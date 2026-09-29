@@ -730,6 +730,7 @@ static bool answered(mpd_cmd_kind_t k)
     case MPD_CMD_LISTPLAYLISTS: case MPD_CMD_LISTPLAYLIST:                 /* 5184 */
     case MPD_CMD_LISTPLAYLISTINFO: case MPD_CMD_LOAD:
     case MPD_CMD_SAVE: case MPD_CMD_RM:
+    case MPD_CMD_PLAYLISTADD: case MPD_CMD_PLAYLISTDELETE:            /* 5200 */
     case MPD_CMD_DELPARTITION: case MPD_CMD_MOVEOUTPUT:
     case MPD_CMD_LISTMOUNTS: case MPD_CMD_LISTNEIGHBORS:
         return true;
@@ -921,6 +922,7 @@ typedef struct {
     /* 5180: search, find and count */
     char            sbuf[SEARCH_CHUNK + MEDIASEARCH_LINE_MAX];
     char            needle[MPDPROTO_MAX_ARGS / 2][MEDIASEARCH_LINE_MAX];
+    station_t       st;                         /* 5200: [Radio Streams] */
 } mpd_scratch_t;
 
 static mpd_scratch_t *s_lib;        /* PSRAM, from mpd_init(); this task's */
@@ -2287,6 +2289,122 @@ static result_t pl_rm(const ctx_t *x, const char *name)
     return RES_OK;
 }
 
+/*
+ * 5200: `playlistadd NAME URI` -- one line on the end of a stored
+ * playlist, made if it is not there. A library URI or a stream URL, as
+ * `save` writes them.
+ */
+static result_t pl_append(const ctx_t *x, const char *name, const char *uri)
+{
+    conn_t *const c = x->c;
+    char *const path = s_lib->vfs;
+    if (!pl_name_ok(name)) {
+        ack(c, MPD_ACK_ARG, x->idx, x->verb, "Bad playlist name");
+        return RES_ERR;
+    }
+    const bool url = strncmp(uri, "http://", 7) == 0 || strncmp(uri, "https://", 8) == 0;
+    if (!url && (!mpduri_ok(uri, false) || mpduri_split(uri, NULL) < 0)) {
+        ack(c, MPD_ACK_NO_EXIST, x->idx, x->verb, "No such song");
+        return RES_ERR;
+    }
+    if (strpbrk(uri, "\r\n")) {
+        ack(c, MPD_ACK_ARG, x->idx, x->verb, "Bad song URI");
+        return RES_ERR;
+    }
+    const int have = pl_find(name, path, sizeof(s_lib->vfs));
+    const char *const ext = (have >= 0 && path[strlen(path) - 1] == '8') ? ".m3u8" : PL_EXT;
+    int v = have;
+    for (int k = 0; v < 0 && k < MEDIALIST_VOLS; k++) if (storage_present(s_pl_vols[k])) v = k;
+    if (v < 0) {
+        ack(c, MPD_ACK_SYSTEM, x->idx, x->verb, "no card or drive to save it on");
+        return RES_ERR;
+    }
+    const storage_id_t vol = s_pl_vols[v];
+    storage_hold_brief(vol);
+    snprintf(path, sizeof(s_lib->vfs), "%s/" PL_DIR, storage_mount_path(vol));
+    if (mkdir(path, 0777) != 0 && errno != EEXIST) {
+        storage_release_brief(vol);
+        ack(c, MPD_ACK_SYSTEM, x->idx, x->verb, "could not make the " PL_DIR " folder");
+        return RES_ERR;
+    }
+    FILE *f = (storage_present(vol) && pl_path_ext(vol, name, ext, path, sizeof(s_lib->vfs)))
+            ? fopen(path, "a") : NULL;
+    bool ok = f && fprintf(f, "%s\n", uri) > 0;
+    if (f) ok = (fclose(f) == 0) && ok;
+    storage_release_brief(vol);
+    if (!ok) {
+        ack(c, MPD_ACK_SYSTEM, x->idx, x->verb, "could not write the playlist");
+        return RES_ERR;
+    }
+    ESP_LOGI(TAG, "playlistadd \"%.64s\": %s", name, path);
+    pl_changed();
+    return RES_OK;
+}
+
+/*
+ * 5200: "[Radio Streams]" -- the stored playlist Cantata keeps its
+ * streams in, asked for on every connect -- is the device's own
+ * stations.m3u, so a stream added in Cantata is a station on the glass
+ * and a station on the glass is a stream in Cantata. Cantata writes
+ * each as "URL#Name" (the name after the last '#') and reads it back
+ * the same way.
+ */
+#define STREAMS_PL      "[Radio Streams]"
+
+static bool is_streams(const char *name)
+{
+    return name && strcmp(name, STREAMS_PL) == 0;
+}
+
+static result_t streams_list(const ctx_t *x, bool info)
+{
+    conn_t *const c = x->c;
+    /* The card's list only: a directory search on screen is not the
+     * person's stations. */
+    if (stations_volume() >= STORAGE_COUNT) return RES_OK;
+    station_t *const st = &s_lib->st;
+    const int n = stations_count();
+    for (int i = 0; i < n && !c->broken; i++) {
+        if (!stations_get(i, st)) continue;
+        const int k = st->name[0]
+            ? snprintf(s_lib->uri, sizeof(s_lib->uri), "%.*s#%.*s", 400, st->url, 100, st->name)
+            : snprintf(s_lib->uri, sizeof(s_lib->uri), "%.*s", 500, st->url);
+        if (k <= 0 || (size_t)k >= sizeof(s_lib->uri)) continue;
+        const size_t w = mpdproto_kv("file", s_lib->uri, s_body, MPD_BODY_MAX);
+        if (w) put(c, s_body, w);
+        if (info && st->name[0]) {
+            const size_t t = mpdproto_kv("Name", st->name, s_body, MPD_BODY_MAX);
+            if (t) put(c, s_body, t);
+        }
+    }
+    return RES_OK;
+}
+
+static result_t streams_add(const ctx_t *x, const char *uri)
+{
+    conn_t *const c = x->c;
+    /* "URL#Name": the name after the last '#', the URL before it. */
+    const char *hash = strrchr(uri, '#');
+    const size_t ul = hash ? (size_t)(hash - uri) : strlen(uri);
+    char *const url = s_lib->vfs;
+    if (ul == 0 || ul >= sizeof(s_lib->vfs)) {
+        ack(c, MPD_ACK_ARG, x->idx, x->verb, "Bad stream URL");
+        return RES_ERR;
+    }
+    memcpy(url, uri, ul);
+    url[ul] = '\0';
+    const char *name = hash ? hash + 1 : "";
+    if (!stations_append(name, url)) {
+        ESP_LOGI(TAG, "client %d: station \"%.64s\" %.120s refused", c->fd, name, url);
+        ack(c, MPD_ACK_SYSTEM, x->idx, x->verb,
+            "the station could not be added (not http/https, too long, the list full, or no card)");
+        return RES_ERR;
+    }
+    ESP_LOGI(TAG, "client %d: station \"%.64s\" added to %s", c->fd, name, stations_source());
+    pl_changed();
+    return RES_OK;
+}
+
 static result_t pl_load(const ctx_t *x, const char *name, const char *range)
 {
     conn_t *const c = x->c;
@@ -2345,10 +2463,25 @@ static result_t run_cmd(conn_t *c, const mpd_cmd_t *cmd, int idx)
         return r;
     }
 
-    /* 5184: stored playlists. */
+    /* 5184: stored playlists. 5200: "[Radio Streams]" is stations.m3u. */
     case MPD_CMD_LISTPLAYLISTS:    return pl_list(&x);
-    case MPD_CMD_LISTPLAYLIST:     return pl_contents(&x, a0, false);
-    case MPD_CMD_LISTPLAYLISTINFO: return pl_contents(&x, a0, true);
+    case MPD_CMD_LISTPLAYLIST:
+    case MPD_CMD_LISTPLAYLISTINFO:
+        if (is_streams(a0)) return streams_list(&x, cmd->kind == MPD_CMD_LISTPLAYLISTINFO);
+        return pl_contents(&x, a0, cmd->kind == MPD_CMD_LISTPLAYLISTINFO);
+    case MPD_CMD_PLAYLISTADD:
+        if (cmd->argc > 2) {
+            ack(c, MPD_ACK_UNKNOWN, idx, cmd->verb,
+                "adding at a position is not supported by this player yet");
+            return RES_ERR;
+        }
+        if (is_streams(a0)) return streams_add(&x, cmd->argv[1]);
+        return pl_append(&x, a0, cmd->argv[1]);
+    case MPD_CMD_PLAYLISTDELETE:
+        ack(c, MPD_ACK_UNKNOWN, idx, cmd->verb, is_streams(a0)
+            ? "stations are removed on the player (the chooser's radio list) for now"
+            : "removing from a stored playlist is not supported by this player yet");
+        return RES_ERR;
     case MPD_CMD_SAVE:             return pl_save(&x, a0, cmd->argc > 1 ? cmd->argv[1] : NULL);
     case MPD_CMD_RM:               return pl_rm(&x, a0);
     case MPD_CMD_LOAD:             return pl_load(&x, a0, cmd->argc > 1 ? cmd->argv[1] : NULL);

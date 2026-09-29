@@ -17140,3 +17140,20 @@ for brief holds, which it missed), and logs the name it did not find.
 v0.4.0-206 had `listplaylistinfo` answer No such playlist straight
 after `save "v"` wrote /sd/Playlists/v.m3u, and the refusal did not say
 what name was asked for.
+
+### 5186 -- chooser: stored playlists are listed, and a tap loads one
+
+The chooser hides every file the decoder cannot open, and an .m3u is
+not audio, so `<mount>/Playlists` (5184) showed as an empty folder on
+the glass even with /sd/Playlists/v.m3u in it. In a Playlists folder
+at a volume's root, and only there, .m3u files are listed now; the
+root's stations.m3u and starred.m3u stay hidden, since loading either
+as a queue is not what a tap on it would mean.
+
+A tap on one does what MPD's `clear` then `load` does: the queue is
+emptied, filled by the same queue_load_m3u() (5184), and its first
+entry plays. A playlist with nothing playable in it logs "nothing
+playable in" and leaves the queue empty.
+
+The row is not marked as playing afterwards: the chooser marks the
+file that is playing, and that is a track, not the list.

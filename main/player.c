@@ -7617,7 +7617,20 @@ static void ui_task(void *arg)
                 /* The folder the track came from becomes the list, so
                  * "play this one" and "then carry on" are one choice
                  * rather than two. */
-                {
+                if (browser_is_m3u(r.path)) {
+                    /* 5186: a stored playlist (browser.c lists them only
+                     * in a Playlists folder): its tracks become the
+                     * queue, as MPD's `load` after a `clear`, and the
+                     * first plays. */
+                    int added = 0;
+                    playlist_clear();
+                    if (queue_load_m3u(r.path, &added) && added > 0) {
+                        playlist_set_current(0);
+                        request_track(playlist_path(0));
+                    } else {
+                        ESP_LOGW(TAG, "nothing playable in %s", r.path);
+                    }
+                } else {
                     char dir[512];
                     snprintf(dir, sizeof(dir), "%s", r.path);
                     char *slash = strrchr(dir, '/');

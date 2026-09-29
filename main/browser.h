@@ -194,6 +194,10 @@ void browser_open(const char *start);
 void browser_close(void);
 bool browser_is_open(void);
 
+/* 5186: whether a name or path ends in .m3u -- a stored playlist, when
+ * the chooser returns one (BROWSER_PLAY_FILE from a Playlists folder). */
+bool browser_is_m3u(const char *name);
+
 /* One poll of the touch controller, same contract as ui_touch(). */
 browser_result_t browser_touch(bool down, int x, int y);
 

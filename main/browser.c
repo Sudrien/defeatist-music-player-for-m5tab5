@@ -343,6 +343,24 @@ static void load_dir(const char *dir)
     xSemaphoreGive(load_lock());
 }
 
+/*
+ * 5186: a stored playlist's folder -- "<mount>/Playlists", where MPD's
+ * `save` writes (mpd.c, 5184). Its .m3u files are listed there, and only
+ * there: stations.m3u and starred.m3u at a card's root are the player's
+ * own, and a tap on one would load stations or stars as a queue.
+ */
+static bool is_playlists_dir(const char *dir)
+{
+    return strcmp(dir, STORAGE_SD_MOUNT "/Playlists") == 0 ||
+           strcmp(dir, STORAGE_USB_MOUNT "/Playlists") == 0;
+}
+
+bool browser_is_m3u(const char *name)
+{
+    const size_t n = strlen(name);
+    return n > 4 && strcasecmp(name + n - 4, ".m3u") == 0;
+}
+
 static void load_dir_locked(const char *dir)
 {
     if (!s_entries) {
@@ -369,6 +387,7 @@ static void load_dir_locked(const char *dir)
      * there. See cuedir.h. */
     cuedir_t *cues = cuedir_load(dir, STORAGE_IO_BACKGROUND);
 
+    const bool lists = is_playlists_dir(dir);   /* 5186 */
     struct dirent *e;
     while ((e = readdir(d)) != NULL && s_count < MAX_ENTRIES) {
         const bool is_dir = (e->d_type == DT_DIR);
@@ -377,7 +396,7 @@ static void load_dir_locked(const char *dir)
          * stray .txt files, and a list where two thirds of the rows are
          * untappable is a worse list. */
         if (storage_is_hidden(e->d_name)) continue;   /* . .. and dotfiles */
-        if (!is_dir && !decoder_supports(e->d_name)) continue;
+        if (!is_dir && !decoder_supports(e->d_name) && !(lists && browser_is_m3u(e->d_name))) continue;
         if (!is_dir && cuedir_hides(cues, e->d_name)) continue;
 
         s_entries[s_count].name = strdup(e->d_name);

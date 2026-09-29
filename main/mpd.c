@@ -737,6 +737,7 @@ static bool answered(mpd_cmd_kind_t k)
     case MPD_CMD_LISTMOUNTS: case MPD_CMD_LISTNEIGHBORS:
     case MPD_CMD_GETVOL: case MPD_CMD_PASSWORD: case MPD_CMD_CROSSFADE:   /* 5218 */
     case MPD_CMD_ENABLEOUTPUT: case MPD_CMD_DISABLEOUTPUT: case MPD_CMD_TOGGLEOUTPUT:   /* 5219 */
+    case MPD_CMD_SWAP: case MPD_CMD_SWAPID:   /* 5220 */
         return true;
     default:
         return false;
@@ -744,7 +745,7 @@ static bool answered(mpd_cmd_kind_t k)
 }
 
 /* The last kind in mpdproto.h's enum, for walking the table. */
-#define MPD_CMD_LAST    MPD_CMD_TOGGLEOUTPUT
+#define MPD_CMD_LAST    MPD_CMD_SWAPID
 
 /*
  * 5166: the commands that read the list, over the pinned copy. Called
@@ -1172,6 +1173,44 @@ static result_t run_queue_cmd(conn_t *c, const mpd_cmd_t *cmd, int idx)
                                                                       : UIREQ_EDIT_MOVE,
                                  .id = (uint32_t)id, .pos = (int)to };
         if (!ask_edit(&x, &e, NULL, &how, NULL)) return RES_ERR;
+        if (how != UIREQ_DONE_OK) { ack_done(&x, how); return RES_ERR; }
+        return RES_OK;
+    }
+
+    case MPD_CMD_SWAP:
+    case MPD_CMD_SWAPID: {
+        /*
+         * 5220: two entries trade places. uireq has no swap, and one is
+         * not needed: with the earlier one at p and the later at q,
+         * moving the earlier to q shifts the later down to q-1, and
+         * moving the later to p then leaves both where they belong. By
+         * id, so the second move does not care that the first shifted
+         * it. Both are found in one pin of the list, before either moves.
+         */
+        unsigned long u0, u1;
+        if (!arg_unsigned(&x, a0, UINT32_MAX, &u0)) return RES_ERR;
+        if (!arg_unsigned(&x, a1, UINT32_MAX, &u1)) return RES_ERR;
+        const bool by_id = cmd->kind == MPD_CMD_SWAPID;
+        list_pin();
+        const int n = s_list->n;
+        const int p0 = by_id ? list_find_id((uint32_t)u0) : (u0 < (unsigned long)n ? (int)u0 : -1);
+        const int p1 = by_id ? list_find_id((uint32_t)u1) : (u1 < (unsigned long)n ? (int)u1 : -1);
+        const bool window = s_list->window;
+        const uint32_t i0 = p0 >= 0 ? s_list->id[p0] : 0, i1 = p1 >= 0 ? s_list->id[p1] : 0;
+        list_unpin();
+        if (window || p0 < 0 || p1 < 0) {
+            if (by_id && !window) ack(c, MPD_ACK_NO_EXIST, idx, cmd->verb, "No such song");
+            else ack(c, MPD_ACK_ARG, idx, cmd->verb, "Bad song index");
+            return RES_ERR;
+        }
+        if (p0 == p1) return RES_OK;
+        const int lo = p0 < p1 ? p0 : p1, hi = p0 < p1 ? p1 : p0;
+        const uint32_t id_lo = p0 < p1 ? i0 : i1, id_hi = p0 < p1 ? i1 : i0;
+        const uireq_edit_t e1 = { .kind = UIREQ_EDIT_MOVE, .id = id_lo, .pos = hi };
+        const uireq_edit_t e2 = { .kind = UIREQ_EDIT_MOVE, .id = id_hi, .pos = lo };
+        if (!ask_edit(&x, &e1, NULL, &how, NULL)) return RES_ERR;
+        if (how != UIREQ_DONE_OK) { ack_done(&x, how); return RES_ERR; }
+        if (!ask_edit(&x, &e2, NULL, &how, NULL)) return RES_ERR;
         if (how != UIREQ_DONE_OK) { ack_done(&x, how); return RES_ERR; }
         return RES_OK;
     }
@@ -2575,6 +2614,7 @@ static result_t run_cmd(conn_t *c, const mpd_cmd_t *cmd, int idx)
     case MPD_CMD_DELETE: case MPD_CMD_DELETEID:
     case MPD_CMD_MOVE: case MPD_CMD_MOVEID:
     case MPD_CMD_CLEAR: case MPD_CMD_SHUFFLE:
+    case MPD_CMD_SWAP: case MPD_CMD_SWAPID:                          /* 5220 */
         return run_queue_cmd(c, cmd, idx);
 
     case MPD_CMD_PING:

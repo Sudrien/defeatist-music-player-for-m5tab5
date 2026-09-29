@@ -343,6 +343,8 @@ int main(void)
             "getvol", "password", "crossfade",
             /* 5219 */
             "enableoutput", "disableoutput", "toggleoutput",
+            /* 5220 */
+            "swap", "swapid",
         };
         const size_t n = sizeof(verbs) / sizeof(verbs[0]);
         for (size_t i = 0; i < n; i++) {

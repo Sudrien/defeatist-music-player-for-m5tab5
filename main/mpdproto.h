@@ -188,6 +188,9 @@ typedef enum {
 
     /* 5219: the one output, switched. outputset (0.22) is not here. */
     MPD_CMD_ENABLEOUTPUT, MPD_CMD_DISABLEOUTPUT, MPD_CMD_TOGGLEOUTPUT,
+
+    /* 5220: swap, as two of the queue's moves */
+    MPD_CMD_SWAP, MPD_CMD_SWAPID,
 } mpd_cmd_kind_t;
 
 /*

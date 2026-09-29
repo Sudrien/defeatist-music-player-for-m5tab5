@@ -329,6 +329,10 @@ static const cmd_def_t s_cmds[] = {
     { "enableoutput",     MPD_CMD_ENABLEOUTPUT,        1,  1 },
     { "disableoutput",    MPD_CMD_DISABLEOUTPUT,       1,  1 },
     { "toggleoutput",     MPD_CMD_TOGGLEOUTPUT,        1,  1 },
+
+    /* 5220: arities from AllCommands.cxx */
+    { "swap",             MPD_CMD_SWAP,                2,  2 },
+    { "swapid",           MPD_CMD_SWAPID,              2,  2 },
 };
 
 #define N_CMDS  (sizeof(s_cmds) / sizeof(s_cmds[0]))

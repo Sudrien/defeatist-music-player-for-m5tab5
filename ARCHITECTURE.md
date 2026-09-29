@@ -18001,3 +18001,26 @@ wording. `outputset` (0.22) is not added.
 
 Compiled -O2 -Wall -Wextra on the host stubs: mpd.c, no warnings.
 texttest all passes. Not on the board.
+
+### 5220 -- mpd: swap and swapid
+
+Two entries of the queue trade places. uireq has no swap edit and does
+not get one: with the earlier entry at p and the later at q, moving the
+earlier to q (mpdq_move(), which closes up behind it) leaves the later
+at q-1, and moving the later to p then puts both where they belong. The
+moves are by id, so the second does not care that the first shifted
+it, and both positions are resolved in one pin of the list before
+either move is asked for.
+
+Errors as MPD's: a position outside the queue is ARG "Bad song index",
+an id not in it is NO_EXIST "No such song". On a window of one (a
+station, a file from outside the queue) both are "Bad song index", as
+`delete` and `move` already are. Swapping an entry with itself is OK
+and asks for nothing.
+
+Two edits, not one, so a client watching `idle playlist` can see the
+version go up twice and the queue in between for one publish. MPD
+bumps it once. Nothing is known to care.
+
+Compiled -O2 -Wall -Wextra on the host stubs: mpd.c, no warnings.
+texttest all passes. Not on the board.

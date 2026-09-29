@@ -17312,3 +17312,18 @@ when the last publish is 500 ms old. The page loses one touch sample
 in each such pass -- 5190's cost, at two a second -- and only while a
 client is connected. A long-term answer is publishing without the
 transport half, which needs ui_state_t built outside it.
+
+### 5196 -- mpd: library queries say what was asked and what came back
+
+A board run had Cantata's artist view in use and nothing on the console
+about it: `find`, `search`, `count` and `list` answer silently when they
+succeed, and only a refusal was logged. Each now logs one line --
+
+    client 41: list "albumartist": 212 values in 480 ms
+    client 41: find "artist" "Darren Korb": 23 songs in 350 ms
+
+-- the arguments quoted and cut at 160 bytes, the number of songs or
+distinct values, and the time, which is the number to watch on a large
+drive (the search file is read start to finish per query). A `list` of
+a tag the catalog does not hold (genre, date, ...) says so rather than
+logging a bare zero.

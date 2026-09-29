@@ -1549,9 +1549,32 @@ static bool q_uri(int v, const mediacat_rec_t *r)
     return k > 0 && (size_t)k < sizeof(s_lib->uri);
 }
 
+/*
+ * 5196: one line per library query, with what was asked, how much came
+ * back and how long it took. A board run had Cantata's artist view
+ * asking, and nothing on the console said what or whether it found
+ * anything -- these succeed silently, unlike a refusal.
+ */
+static void log_query(const ctx_t *x, const mpd_cmd_t *cmd, long n, const char *what, int64_t t0)
+{
+    char a[160];
+    size_t k = 0;
+    a[0] = '\0';
+    for (int i = 0; i < cmd->argc && k + 4 < sizeof(a); i++) {
+        const int w = snprintf(a + k, sizeof(a) - k, "%s\"%s\"", i ? " " : "", cmd->argv[i]);
+        if (w < 0) break;
+        k += (size_t)w;
+    }
+    if (k >= sizeof(a)) k = sizeof(a) - 1;
+    ESP_LOGI(TAG, "client %d: %s %s%s: %ld %s in %lld ms", x->c->fd, x->verb, a,
+             k == sizeof(a) - 1 ? "..." : "", n, what,
+             (long long)((esp_timer_get_time() - t0) / 1000));
+}
+
 static result_t lib_find(const ctx_t *x, const mpd_cmd_t *cmd, qmode_t mode)
 {
     conn_t *const c = x->c;
+    const int64_t t0 = esp_timer_get_time();       /* 5196 */
     if (cmd->argc >= 1 && cmd->argv[0][0] == '(') {
         ack(c, MPD_ACK_UNKNOWN, x->idx, x->verb,
             "filter expressions are not supported by this player yet; use TAG VALUE pairs");
@@ -1660,6 +1683,7 @@ static result_t lib_find(const ctx_t *x, const mpd_cmd_t *cmd, qmode_t mode)
         }
     }
     if (mode == Q_COUNT) putf(c, "songs: %ld\nplaytime: 0\n", n_hit);
+    log_query(x, cmd, n_hit, n_hit == 1 ? "song" : "songs", t0);     /* 5196 */
     return RES_OK;
 }
 
@@ -1831,6 +1855,8 @@ static bool lib_scan_offs(int v, const qpair_t *pairs, int np,
 static result_t lib_list(const ctx_t *x, const mpd_cmd_t *cmd)
 {
     conn_t *const c = x->c;
+    const int64_t t0 = esp_timer_get_time();       /* 5196 */
+    long n_out = 0;
     ltype_t type, group = { -1, NULL };
     const bool known = l_type(cmd->argv[0], &type);
     if (cmd->argc >= 2 && cmd->argv[1][0] == '(') {
@@ -1880,7 +1906,12 @@ static result_t lib_list(const ctx_t *x, const mpd_cmd_t *cmd)
             np++;
         }
     }
-    if (never) return RES_OK;
+    if (never) {
+        /* 5196: said, since an empty answer to `list genre` looks like a
+         * broken library from the client's side. */
+        log_query(x, cmd, 0, "values (a tag the library does not hold)", t0);
+        return RES_OK;
+    }
 
     if (!lib_open(x)) return RES_ERR;
     lset_t set = { 0 };
@@ -1927,6 +1958,7 @@ static result_t lib_list(const ctx_t *x, const mpd_cmd_t *cmd)
             }
             const size_t n = mpdproto_kv(type.label, v, s_body, MPD_BODY_MAX);
             if (n) put(c, s_body, n);
+            n_out++;
             last_g = g;
             last_v = v;
         }
@@ -1941,6 +1973,7 @@ static result_t lib_list(const ctx_t *x, const mpd_cmd_t *cmd)
         ack(c, MPD_ACK_SYSTEM, x->idx, x->verb, "out of memory for the list");
         return RES_ERR;
     }
+    log_query(x, cmd, n_out, n_out == 1 ? "value" : "values", t0);   /* 5196 */
     return RES_OK;
 }
 

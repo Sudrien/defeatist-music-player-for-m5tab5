@@ -7111,6 +7111,7 @@ static void ui_task(void *arg)
     while (1) {
         int bx = 0, by = 0;
         bool bdown = touch_get(&bx, &by);           /* 5169: not const; see below */
+        bool edited = false;    /* 5189: a queue edit applied this pass */
 
         /*
          * Any touch is the wake, and it is taken here because this is the
@@ -7301,6 +7302,7 @@ static void ui_task(void *arg)
                 }
                 }
                 uireq_edit_done(e.seq, how, new_id);
+                edited = true;                          /* 5189 */
             }
         }
         /* The media index on mount. Here because this loop runs whether
@@ -7528,10 +7530,15 @@ static void ui_task(void *arg)
          * ui_draw(), so the page stays on the glass untouched. What is
          * published is published, so MPD sees it land. The page and a
          * remote can fight; the last press wins, as on the glass.
+         *
+         * 5189: and after a queue edit, with or without a press. Edits
+         * were applied behind a page already, but not published, so MPD
+         * waited out MPD_ASK_WAIT_MS on each (a second a command), and a
+         * `play` read the old list: "queue entry 8 is gone".
          */
         const bool behind = !bdown &&
                             (sleeppage_is_open() || panel_is_open() || browser_is_open()) &&
-                            (s_hid_action >= 0 || uireq_press_waiting());
+                            (s_hid_action >= 0 || uireq_press_waiting() || edited);
 
         if (!behind && sleeppage_is_open()) {
             sleeppage_set_timer(s_sleep_step,

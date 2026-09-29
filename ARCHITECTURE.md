@@ -17200,3 +17200,15 @@ drag on the panel is not cut in half.
 Not tried: letting edits pass a waiting press (breaks `play` then
 `clear` into `clear` then `play`), or closing the chooser on a remote
 press (loses the page under someone using it).
+
+### 5189 -- player: a queue edit behind a page is published at once
+
+v0.4.0-210, chooser up: Cantata's clear, add, add and play landed a
+second apart each, and the play said "queue entry 8 is gone; nothing to
+play". 5188 took presses behind a page, and edits had been applied
+behind one since 5173 -- but publishing is the transport half's, which
+a page skips, so nothing told MPD the edit was done. ask_edit() waited
+out MPD_ASK_WAIT_MS for the publish on every command, and `play`
+resolved its position against the list from before the clear, whose
+ids were gone. A pass that applied an edit is now a pass behind the
+page too (5188's), so it publishes that same pass.

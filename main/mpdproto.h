@@ -197,6 +197,9 @@ typedef enum {
 
     /* 5222: find and search over the queue */
     MPD_CMD_PLAYLISTFIND, MPD_CMD_PLAYLISTSEARCH,
+
+    /* 5223: stored playlists edited in place */
+    MPD_CMD_PLAYLISTCLEAR, MPD_CMD_PLAYLISTMOVE, MPD_CMD_RENAME,
 } mpd_cmd_kind_t;
 
 /*

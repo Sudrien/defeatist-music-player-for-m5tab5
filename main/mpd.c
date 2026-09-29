@@ -740,6 +740,7 @@ static bool answered(mpd_cmd_kind_t k)
     case MPD_CMD_SWAP: case MPD_CMD_SWAPID:   /* 5220 */
     case MPD_CMD_FINDADD: case MPD_CMD_SEARCHADD: case MPD_CMD_SEARCHADDPL:   /* 5221 */
     case MPD_CMD_PLAYLISTFIND: case MPD_CMD_PLAYLISTSEARCH:   /* 5222 */
+    case MPD_CMD_PLAYLISTCLEAR: case MPD_CMD_PLAYLISTMOVE: case MPD_CMD_RENAME:   /* 5223 */
         return true;
     default:
         return false;
@@ -747,7 +748,7 @@ static bool answered(mpd_cmd_kind_t k)
 }
 
 /* The last kind in mpdproto.h's enum, for walking the table. */
-#define MPD_CMD_LAST    MPD_CMD_PLAYLISTSEARCH
+#define MPD_CMD_LAST    MPD_CMD_RENAME
 
 /*
  * 5166: the commands that read the list, over the pinned copy. Called
@@ -2546,6 +2547,209 @@ static result_t pl_append(const ctx_t *x, const char *name, const char *uri)
 }
 
 /*
+ * 5223: a stored playlist edited in place -- `playlistdelete NAME POS`,
+ * `playlistmove NAME FROM TO` and `playlistclear NAME`.
+ *
+ * POSITIONS ARE WHAT listplaylist SHOWS: a line pl_contents() would list
+ * (not a directive, not blank, not a comment once cleaned). Everything
+ * else in the file is kept where it is, with one exception: `#EXTINF`
+ * lines belong to the entry after them, and go where it goes -- deleted
+ * with it, moved with it. A desktop player's export keeps its titles.
+ *
+ * By rewriting: the file is read line by line into "<file>.tmp" on the
+ * same volume, the old file removed and the new one renamed over it
+ * (FAT's rename will not replace). A power cut between the two leaves
+ * the .tmp, which is not an .m3u and is not listed. The moving entry's
+ * lines are found in a first pass. Buffers are s_lib's: a line in sbuf,
+ * the moving block and the pending #EXTINF lines in the rest of it, the
+ * cleaned copy for classifying in hay. A line longer than a search line,
+ * or an entry's lines longer than half a chunk, refuse the edit rather
+ * than being cut.
+ */
+typedef enum { PLE_DELETE, PLE_MOVE, PLE_CLEAR } pl_edit_t;
+
+#define PLE_LINE    (MEDIASEARCH_LINE_MAX)
+#define PLE_HALF    (SEARCH_CHUNK / 2)
+
+/* Is this raw line (as read) an entry? `enc` follows #EXTENC. */
+static bool ple_is_entry(const char *raw, size_t len, m3u_enc_t *enc)
+{
+    if (m3u_directive(raw, enc)) return false;
+    memcpy(s_lib->hay, raw, len + 1);
+    const int n = m3u_line_clean(s_lib->hay, sizeof(s_lib->hay), *enc);
+    return n > 0 && s_lib->hay[0] != '#';
+}
+
+static bool ple_append(char *buf, size_t *have, const char *s, size_t n)
+{
+    if (*have + n > PLE_HALF) return false;
+    memcpy(buf + *have, s, n);
+    *have += n;
+    return true;
+}
+
+/* One line, as fgets gave it; false at the end of the file. A line
+ * longer than PLE_LINE comes back in pieces -- pass 1 refuses those. */
+static bool ple_read(FILE *f, char *line, size_t *len)
+{
+    if (!fgets(line, PLE_LINE, f)) return false;
+    *len = strlen(line);
+    return true;
+}
+
+static result_t pl_edit(const ctx_t *x, const char *name, pl_edit_t op, long a, long b)
+{
+    conn_t *const c = x->c;
+    char *const path = s_lib->vfs;
+    char *const tmp = s_lib->last;
+    char *const line = s_lib->sbuf;
+    char *const block = s_lib->sbuf + PLE_LINE;
+    char *const pend = block + PLE_HALF;
+    size_t n_block = 0, n_pend = 0, len = 0;
+
+    if (!pl_name_ok(name)) {
+        ack(c, MPD_ACK_ARG, x->idx, x->verb, "Bad playlist name");
+        return RES_ERR;
+    }
+    const int v = pl_find(name, path, sizeof(s_lib->vfs));
+    if (v < 0) {
+        ack(c, MPD_ACK_NO_EXIST, x->idx, x->verb, "No such playlist");
+        return RES_ERR;
+    }
+    const storage_id_t vol = s_pl_vols[v];
+    const int tk = snprintf(tmp, sizeof(s_lib->last), "%s.tmp", path);
+    if (tk <= 0 || (size_t)tk >= sizeof(s_lib->last)) {
+        ack(c, MPD_ACK_SYSTEM, x->idx, x->verb, "the playlist's name is too long to edit");
+        return RES_ERR;
+    }
+
+    const char *why = NULL;             /* an ACK 52's text */
+    bool bad_pos = false;
+    storage_hold_brief(vol);
+    if (op == PLE_CLEAR) {
+        FILE *f = storage_present(vol) ? fopen(path, "w") : NULL;
+        if (!f || fclose(f) != 0) why = "could not write the playlist";
+        goto done;
+    }
+
+    /* Pass 1: count the entries, and keep the one that moves. */
+    FILE *in = storage_present(vol) ? fopen(path, "r") : NULL;
+    if (!in) { why = "could not read the playlist"; goto done; }
+    m3u_enc_t enc = m3u_enc_of_name(path);
+    long n = 0;
+    while (!why && ple_read(in, line, &len)) {
+        if (len == PLE_LINE - 1 && line[len - 1] != '\n') { why = "a line is too long to edit"; break; }
+        const bool info = strncmp(line, "#EXTINF", 7) == 0;
+        if (info) {
+            if (!ple_append(pend, &n_pend, line, len)) why = "an entry is too long to edit";
+            continue;
+        }
+        if (!ple_is_entry(line, len, &enc)) continue;
+        if (op == PLE_MOVE && n == a) {
+            if (!ple_append(block, &n_block, pend, n_pend) ||
+                !ple_append(block, &n_block, line, len)) why = "an entry is too long to edit";
+            /* A last line with no newline would run into the next. */
+            if (!why && line[len - 1] != '\n' && !ple_append(block, &n_block, "\n", 1))
+                why = "an entry is too long to edit";
+        }
+        n_pend = 0;
+        n++;
+    }
+    fclose(in);
+    if (why) goto done;
+    if (a < 0 || a >= n || (op == PLE_MOVE && (b < 0 || b >= n))) { bad_pos = true; goto done; }
+    if (op == PLE_MOVE && a == b) goto done;
+
+    /* Pass 2: write the new file. */
+    in = fopen(path, "r");
+    FILE *out = in ? fopen(tmp, "w") : NULL;
+    if (!in || !out) {
+        if (in) fclose(in);
+        why = "could not write the playlist";
+        goto done;
+    }
+    enc = m3u_enc_of_name(path);
+    long k = 0, j = 0;
+    bool ok = true, placed = op != PLE_MOVE;
+    n_pend = 0;
+    while (ok && ple_read(in, line, &len)) {
+        if (strncmp(line, "#EXTINF", 7) == 0) { ok = ple_append(pend, &n_pend, line, len); continue; }
+        if (!ple_is_entry(line, len, &enc)) { ok = fwrite(line, 1, len, out) == len; continue; }
+        const bool drop = k == a;
+        if (!drop && !placed && j == b) {
+            ok = fwrite(block, 1, n_block, out) == n_block;
+            placed = true;
+            j++;
+        }
+        if (!drop && ok) {
+            ok = fwrite(pend, 1, n_pend, out) == n_pend && fwrite(line, 1, len, out) == len;
+            if (ok && line[len - 1] != '\n') ok = fputc('\n', out) != EOF;
+            j++;
+        }
+        n_pend = 0;
+        k++;
+    }
+    if (ok && n_pend) ok = fwrite(pend, 1, n_pend, out) == n_pend;       /* trailing #EXTINF */
+    if (ok && !placed) ok = fwrite(block, 1, n_block, out) == n_block;  /* moved to the end */
+    fclose(in);
+    ok = (fclose(out) == 0) && ok;
+    if (ok) ok = remove(path) == 0 && rename(tmp, path) == 0;
+    else remove(tmp);
+    if (!ok) why = "could not write the playlist";
+
+done:
+    storage_release_brief(vol);
+    if (bad_pos) {
+        ack(c, MPD_ACK_ARG, x->idx, x->verb, "Bad song index");
+        return RES_ERR;
+    }
+    if (why) {
+        ack(c, MPD_ACK_SYSTEM, x->idx, x->verb, "%s", why);
+        return RES_ERR;
+    }
+    ESP_LOGI(TAG, "client %d: %s \"%.64s\"", c->fd, x->verb, name);
+    pl_changed();
+    return RES_OK;
+}
+
+/*
+ * 5223: `rename FROM TO`, on the volume FROM is on and with its
+ * extension. A TO on either volume is MPD's EXIST.
+ */
+static result_t pl_rename(const ctx_t *x, const char *from, const char *to)
+{
+    conn_t *const c = x->c;
+    char *const path = s_lib->vfs;
+    char *const dst = s_lib->last;
+    if (!pl_name_ok(from) || !pl_name_ok(to)) {
+        ack(c, MPD_ACK_ARG, x->idx, x->verb, "Bad playlist name");
+        return RES_ERR;
+    }
+    if (pl_find(to, dst, sizeof(s_lib->last)) >= 0) {
+        ack(c, MPD_ACK_EXIST, x->idx, x->verb, "Playlist already exists");
+        return RES_ERR;
+    }
+    const int v = pl_find(from, path, sizeof(s_lib->vfs));
+    if (v < 0) {
+        ack(c, MPD_ACK_NO_EXIST, x->idx, x->verb, "No such playlist");
+        return RES_ERR;
+    }
+    const char *const ext = path[strlen(path) - 1] == '8' ? ".m3u8" : PL_EXT;
+    const storage_id_t vol = s_pl_vols[v];
+    storage_hold_brief(vol);
+    const bool ok = storage_present(vol) && pl_path_ext(vol, to, ext, dst, sizeof(s_lib->last)) &&
+                    rename(path, dst) == 0;
+    storage_release_brief(vol);
+    if (!ok) {
+        ack(c, MPD_ACK_SYSTEM, x->idx, x->verb, "could not rename the playlist");
+        return RES_ERR;
+    }
+    ESP_LOGI(TAG, "client %d: rename \"%.64s\" to \"%.64s\"", c->fd, from, to);
+    pl_changed();
+    return RES_OK;
+}
+
+/*
  * 5200: "[Radio Streams]" -- the stored playlist Cantata keeps its
  * streams in, asked for on every connect -- is the device's own
  * stations.m3u, so a stream added in Cantata is a station on the glass
@@ -2704,10 +2908,22 @@ static result_t run_cmd(conn_t *c, const mpd_cmd_t *cmd, int idx)
         if (is_streams(a0)) return streams_add(&x, cmd->argv[1]);
         return pl_append(&x, a0, cmd->argv[1]);
     case MPD_CMD_PLAYLISTDELETE:
-        ack(c, MPD_ACK_UNKNOWN, idx, cmd->verb, is_streams(a0)
-            ? "stations are removed on the player (the chooser's radio list) for now"
-            : "removing from a stored playlist is not supported by this player yet");
-        return RES_ERR;
+    case MPD_CMD_PLAYLISTMOVE:                                      /* 5223 */
+    case MPD_CMD_PLAYLISTCLEAR:
+    case MPD_CMD_RENAME: {
+        if (is_streams(a0) || (cmd->kind == MPD_CMD_RENAME && is_streams(cmd->argv[1]))) {
+            ack(c, MPD_ACK_UNKNOWN, idx, cmd->verb,
+                "stations are edited on the player (the chooser's radio list) for now");
+            return RES_ERR;
+        }
+        if (cmd->kind == MPD_CMD_RENAME) return pl_rename(&x, a0, cmd->argv[1]);
+        if (cmd->kind == MPD_CMD_PLAYLISTCLEAR) return pl_edit(&x, a0, PLE_CLEAR, 0, 0);
+        long from, to = 0;
+        if (!arg_int(&x, cmd->argv[1], 0, INT32_MAX, &from)) return RES_ERR;
+        if (cmd->kind == MPD_CMD_PLAYLISTDELETE) return pl_edit(&x, a0, PLE_DELETE, from, 0);
+        if (!arg_int(&x, cmd->argv[2], 0, INT32_MAX, &to)) return RES_ERR;
+        return pl_edit(&x, a0, PLE_MOVE, from, to);
+    }
     case MPD_CMD_SAVE:             return pl_save(&x, a0, cmd->argc > 1 ? cmd->argv[1] : NULL);
     case MPD_CMD_RM:               return pl_rm(&x, a0);
     case MPD_CMD_LOAD:             return pl_load(&x, a0, cmd->argc > 1 ? cmd->argv[1] : NULL);

@@ -18075,3 +18075,39 @@ name. While a reindex runs the catalog is closed and only `file` and
 
 Compiled -O2 -Wall -Wextra on the host stubs: mpd.c, no warnings.
 texttest all passes. Not on the board.
+
+### 5223 -- mpd: playlistdelete, playlistmove, playlistclear, rename
+
+Stored playlists can be edited, not only written and removed.
+`playlistdelete` on an ordinary playlist was refused (5200); it and
+`playlistmove` now rewrite the file, `playlistclear` truncates it, and
+`rename` renames it on the volume it is on, keeping .m3u or .m3u8.
+
+POSITIONS ARE listplaylist's: the lines pl_contents() lists, after
+m3u_directive() and m3u_line_clean() (5198). Everything else in the
+file stays where it is, except `#EXTINF` lines, which belong to the
+entry after them and go where it goes. A comment between two entries
+therefore stays between the same two lines of the file, not with an
+entry -- deliberate, and simplest to reason about.
+
+pl_edit() reads the file twice: once to count the entries and keep the
+moving one's lines, once to write "<file>.tmp" beside it, which is then
+renamed over the original after removing it (FAT's rename does not
+replace). A power cut between the remove and the rename leaves the .tmp
+and no playlist; the .tmp is not an .m3u and is not listed, so it can
+be recovered by hand. A line longer than MEDIASEARCH_LINE_MAX, or an
+entry whose lines (with its #EXTINF) are over 8 KB, refuses the edit
+with ACK 52 rather than being cut. Buffers are s_lib's, no new ones.
+
+Errors as MPD's: a position outside the playlist is ARG "Bad song
+index", a missing playlist NO_EXIST, `rename` onto a name either volume
+already has EXIST "Playlist already exists". "[Radio Streams]" is still
+refused for all four -- stations.c has no remove, and a rename of the
+station list would make it a different thing.
+
+Compiled -O2 -Wall -Wextra on the host stubs: mpd.c, no warnings.
+texttest all passes. pl_edit() itself, the lines from mpd.c unchanged,
+was run outside the repository under ASan on a nine-line playlist with
+#EXTM3U, #EXTINF, a comment and no final newline: delete first and
+last, move first to last, last to first, down one and up one, move to
+itself, a position past the end, clear. Not on the board.

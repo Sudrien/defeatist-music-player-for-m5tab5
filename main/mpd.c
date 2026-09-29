@@ -739,6 +739,7 @@ static bool answered(mpd_cmd_kind_t k)
     case MPD_CMD_ENABLEOUTPUT: case MPD_CMD_DISABLEOUTPUT: case MPD_CMD_TOGGLEOUTPUT:   /* 5219 */
     case MPD_CMD_SWAP: case MPD_CMD_SWAPID:   /* 5220 */
     case MPD_CMD_FINDADD: case MPD_CMD_SEARCHADD: case MPD_CMD_SEARCHADDPL:   /* 5221 */
+    case MPD_CMD_PLAYLISTFIND: case MPD_CMD_PLAYLISTSEARCH:   /* 5222 */
         return true;
     default:
         return false;
@@ -746,13 +747,15 @@ static bool answered(mpd_cmd_kind_t k)
 }
 
 /* The last kind in mpdproto.h's enum, for walking the table. */
-#define MPD_CMD_LAST    MPD_CMD_SEARCHADDPL
+#define MPD_CMD_LAST    MPD_CMD_PLAYLISTSEARCH
 
 /*
  * 5166: the commands that read the list, over the pinned copy. Called
  * only from run_cmd(), which pins before and unpins after, so a return
  * from anywhere in here cannot leave the list pinned.
  */
+static result_t queue_find(const ctx_t *x, const mpd_cmd_t *cmd);   /* 5222 */
+
 static result_t run_list_cmd(conn_t *c, const mpd_cmd_t *cmd, int idx)
 {
     const ctx_t x = { c, idx, cmd->verb };
@@ -889,6 +892,10 @@ static result_t run_list_cmd(conn_t *c, const mpd_cmd_t *cmd, int idx)
         return seek_ms(&x, ms) ? RES_OK : RES_ERR;
     }
 
+    case MPD_CMD_PLAYLISTFIND:
+    case MPD_CMD_PLAYLISTSEARCH:
+        return queue_find(&x, cmd);                                 /* 5222 */
+
     default:
         return RES_ERR;     /* not reached: run_cmd routes only the above */
     }
@@ -929,6 +936,7 @@ typedef struct {
     char            sbuf[SEARCH_CHUNK + MEDIASEARCH_LINE_MAX];
     char            needle[MPDPROTO_MAX_ARGS / 2][MEDIASEARCH_LINE_MAX];
     station_t       st;                         /* 5200: [Radio Streams] */
+    char            hay[MEDIASEARCH_LINE_MAX];  /* 5222: queue_find() */
 } mpd_scratch_t;
 
 static mpd_scratch_t *s_lib;        /* PSRAM, from mpd_init(); this task's */
@@ -1797,6 +1805,88 @@ static result_t lib_find(const ctx_t *x, const mpd_cmd_t *cmd, qmode_t mode,
     return RES_OK;
 }
 
+/*
+ * 5222: `playlistfind` and `playlistsearch` -- find and search over the
+ * queue rather than the library, answered as `playlistinfo` entries.
+ * Called from run_list_cmd() with the list pinned and the library open
+ * for tags, as `playlistinfo` is.
+ *
+ * The tags are the ones put_entry() prints: the catalog's, and the
+ * player's for the playing entry where it has them. So a match is on
+ * what the client is shown. find compares exactly; search folds case
+ * (mediasearch_fold(), ASCII as the library search does) and looks for
+ * the value anywhere in the field. The same tag names as find, and the
+ * same refusals: a tag the catalog does not hold matches nothing, a
+ * filter expression is refused by name. While a reindex runs the
+ * catalog is closed, and only `file` and `base` can match.
+ */
+static result_t queue_find(const ctx_t *x, const mpd_cmd_t *cmd)
+{
+    conn_t *const c = x->c;
+    const int64_t t0 = esp_timer_get_time();
+    const bool fold = cmd->kind == MPD_CMD_PLAYLISTSEARCH;
+    if (cmd->argc >= 1 && cmd->argv[0][0] == '(') {
+        ack(c, MPD_ACK_UNKNOWN, x->idx, x->verb,
+            "filter expressions are not supported by this player yet; use TAG VALUE pairs");
+        return RES_ERR;
+    }
+    if (cmd->argc % 2) {
+        ack(c, MPD_ACK_ARG, x->idx, x->verb, "incorrect number of filter arguments");
+        return RES_ERR;
+    }
+    static qpair_t pairs[MPDPROTO_MAX_ARGS / 2];
+    int np = 0;
+    for (int i = 0; i + 1 < cmd->argc; i += 2) {
+        qpair_t *p = &pairs[np];
+        if (!q_tag(cmd->argv[i], p) && p->kind != Q_BASE) return RES_OK;   /* matches nothing */
+        p->value = cmd->argv[i + 1];
+        p->folded = NULL;
+        if (fold && p->kind == Q_FIELD) {
+            if (mediasearch_fold(p->value, s_lib->needle[np], sizeof(s_lib->needle[np])) < 0)
+                return RES_OK;
+            p->folded = s_lib->needle[np];
+        }
+        np++;
+    }
+
+    long hits = 0;
+    for (int i = 0; i < s_list->n && !c->broken; i++) {
+        const char *const uri = list_uri(i);
+        mpd_song_t t = { 0 };
+        (void)lib_tags(uri, &t);
+        if (i == s_view->song) {
+            if (s_view->title[0])  t.title = s_view->title;
+            if (s_view->artist[0]) t.artist = s_view->artist;
+            if (s_view->album[0])  t.album = s_view->album;
+        }
+        const char *const f[4] = { t.title ? t.title : "", t.artist ? t.artist : "",
+                                   t.album ? t.album : "", uri };
+        bool pass = true;
+        for (int k = 0; k < np && pass; k++) {
+            const qpair_t *p = &pairs[k];
+            if (p->kind == Q_BASE) {
+                const size_t n = strlen(p->value);
+                pass = n == 0 || (strncmp(uri, p->value, n) == 0 &&
+                                  (uri[n] == '/' || uri[n] == '\0'));
+                continue;
+            }
+            const int lo = p->field == MEDIASEARCH_ANY ? 0 : (int)p->field - 1;
+            const int hi = p->field == MEDIASEARCH_ANY ? 3 : lo;
+            pass = false;
+            for (int j = lo; j <= hi && !pass; j++) {
+                if (!fold) pass = strcmp(f[j], p->value) == 0;
+                else pass = mediasearch_fold(f[j], s_lib->hay, sizeof(s_lib->hay)) >= 0 &&
+                            strstr(s_lib->hay, p->folded) != NULL;
+            }
+        }
+        if (!pass) continue;
+        put_entry(c, i);
+        hits++;
+    }
+    log_query(x, cmd, hits, hits == 1 ? "song" : "songs", t0);
+    return RES_OK;
+}
+
 /* ---- list (5182, MPD.md step 12) ------------------------------------------ */
 
 /*
@@ -2577,13 +2667,16 @@ static result_t run_cmd(conn_t *c, const mpd_cmd_t *cmd, int idx)
     case MPD_CMD_PLAYLISTINFO: case MPD_CMD_PLAYLISTID: case MPD_CMD_PLAYLIST:
     case MPD_CMD_PLCHANGES: case MPD_CMD_PLCHANGESPOSID:
     case MPD_CMD_PLAY: case MPD_CMD_PLAYID:
-    case MPD_CMD_SEEK: case MPD_CMD_SEEKID: {
+    case MPD_CMD_SEEK: case MPD_CMD_SEEKID:
+    case MPD_CMD_PLAYLISTFIND: case MPD_CMD_PLAYLISTSEARCH: {        /* 5222 */
         /* 5185: the commands that print entries read their tags from the
          * catalog. Not while a reindex runs: then they print as before,
          * without, rather than being refused. */
         const bool tags = cmd->kind == MPD_CMD_PLAYLISTINFO || cmd->kind == MPD_CMD_PLAYLISTID
                        || cmd->kind == MPD_CMD_PLCHANGES
-                       || cmd->kind == MPD_CMD_CURRENTSONG;     /* 5187 */
+                       || cmd->kind == MPD_CMD_CURRENTSONG      /* 5187 */
+                       || cmd->kind == MPD_CMD_PLAYLISTFIND     /* 5222 */
+                       || cmd->kind == MPD_CMD_PLAYLISTSEARCH;
         if (tags && !medialib_busy()) {
             static const storage_id_t vols[MEDIALIST_VOLS] = { STORAGE_SD, STORAGE_USB };
             for (int v = 0; v < MEDIALIST_VOLS; v++)

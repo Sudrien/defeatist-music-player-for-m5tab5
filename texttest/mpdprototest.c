@@ -347,6 +347,8 @@ int main(void)
             "swap", "swapid",
             /* 5221 */
             "findadd", "searchadd", "searchaddpl",
+            /* 5222 */
+            "playlistfind", "playlistsearch",
         };
         const size_t n = sizeof(verbs) / sizeof(verbs[0]);
         for (size_t i = 0; i < n; i++) {

@@ -18055,3 +18055,23 @@ Compiled -O2 -Wall -Wextra on the host stubs: mpd.c, no warnings.
 texttest all passes. Not on the board -- on the board, `mpc findadd
 artist X` then `mpc playlist`, and Cantata's "add to play queue" on a
 search result, are the ones to try.
+
+### 5222 -- mpd: playlistfind, playlistsearch
+
+find and search over the queue, answered as `playlistinfo` entries
+(Pos and Id included). Routed with the list commands, so the list is
+pinned and the library opened for tags exactly as `playlistinfo` does
+it, and queue_find() matches on the tags put_entry() prints: the
+catalog's, and the player's own for the playing entry where it has
+them. A match is on what the client is shown.
+
+find compares exactly; search folds ASCII case with mediasearch_fold()
+and looks for the value anywhere in the field -- the library search's
+rules, over one more buffer (`hay`, in mpd_scratch_t, PSRAM). Same tag
+names as find (q_tag()), `base` as a folder prefix, a tag the catalog
+does not hold matches nothing, and a filter expression is refused by
+name. While a reindex runs the catalog is closed and only `file` and
+`base` can match -- the entries still print, as playlistinfo's do.
+
+Compiled -O2 -Wall -Wextra on the host stubs: mpd.c, no warnings.
+texttest all passes. Not on the board.

@@ -17544,3 +17544,54 @@ microphone, TDM slot 3 of 4, 48000 Hz, 16-bit` -- and a file that is the
 voice in the headset rather than silence or the room. If it is the room,
 the slot is 0 or 2 and the demo's comment is wrong; if it is the
 speaker's own output, it is slot 1.
+
+### 5207 -- A USB microphone, opened for a recording and not before
+
+The third input the README's toggle names. uac.c ignored RX interfaces
+on purpose: an open one costs a ring and isochronous bandwidth for a
+stream nobody reads. That reasoning stands for everything but a
+recording, so an RX interface is now **remembered** when the driver
+announces it and **opened** by the recorder, for the length of one.
+
+- `uac_mic_announced()`: something announced a microphone. Not proof it
+  is still there: the driver calls nothing when an interface nobody
+  opened goes away (uac_host.c only calls an interface's own callback,
+  and an unopened one has none). So a stale announcement is found out by
+  the open failing, and forgotten then; and a speaker's detach forgets a
+  microphone announced from the same address, which covers a headset.
+  The newest announcement wins.
+- `uac_mic_open()`: 16-bit PCM, one or two channels, at 48 kHz if
+  offered, then 44.1, then the alternate's highest; two channels over
+  one. No conversion -- the file is written at the device's own rate,
+  which is the README's "match uac channels". A device with only 24-bit
+  alternates is refused, the same limit output has.
+- `uac_mic_read()`: whole frames, int32. The driver's read returns what
+  it has at its timeout, which need not be whole frames, so the partial
+  one is carried to the next call. Dropping it would shift every later
+  sample by a channel: a stereo file swapping sides at some minute of a
+  long recording.
+- `uac_mic_gone()` / `uac_mic_close()`: an unplug is published by the
+  microphone's own callback, which closes nothing -- the reader may be
+  inside the driver on that handle, output's rule since the start. The
+  recorder sees it, ends the file, and closes.
+
+Its own mutex, not s_lock: the recorder's reader blocks for up to its
+timeout, and the audio writer must never wait behind that. The driver's
+ring is 32 KB in PSRAM (5032's WithCaps), 170 ms of 48 kHz stereo; the
+raw read buffer, 1.9 KB, is PSRAM too, allocated at the first open and
+kept. Nothing in internal RAM beyond the handful of statics.
+
+**micpcm.h.** Three conversions the recorder's sources need, as a
+header so they can be tested: the TDM slot (5206's in-place loop in
+audio_out.c, moved here unchanged in effect), the 16-bit take with the
+carry, and a stereo-to-mono fold for 5208. texttest/micpcmtest.c, under
+ASan and UBSan: every slot of 2, 4, 6 and 8, 961 frames, signs
+alternating, in place; 1- and 2-channel streams fed in chunks of 1, 3,
+7, 999 and 1000 bytes coming out exact with nothing left over; the fold
+at both rails and at int32's maximum. 804 checks.
+
+Compiled as 5206 was (riscv32-esp-elf-gcc 14.2, IDF v5.5.1 headers, no
+warnings): uac.c, audio_out.c. Not on the board. The recorder does not
+call any of this until 5208. What to look for: `USB microphone
+announced (itf N, addr M); opened only to record` when a headset is
+plugged in, in place of the old `input interface (itf N) ignored`.

@@ -35,6 +35,7 @@
 
 #include "audio_out.h"
 #include "battery.h"
+#include "micpcm.h"           /* 5207 */
 #include "uac.h"
 #include "rtctask.h"          /* 5183 */
 
@@ -1179,19 +1180,9 @@ size_t audio_out_capture_read(int32_t *frames, size_t max_frames, uint32_t timeo
         /*
          * 5206: n raw frames of four int16 slots, 8 bytes each -- the same
          * byte count as n stereo int32 frames. One slot kept, widened to
-         * int32, in place and forward: output i occupies bytes 4i..4i+3
-         * and its source is bytes 8i+6..8i+7, so nothing is overwritten
-         * before it is read. memcpy rather than an int16_t pointer into an
-         * int32_t array, which would be an aliasing violation.
+         * int32, in place. 5207: micpcm.h, host-tested.
          */
-        uint8_t *raw = (uint8_t *)frames;
-        for (size_t i = 0; i < n; i++) {
-            int16_t s;
-            memcpy(&s, raw + i * HEADSET_TDM_SLOTS * sizeof(int16_t)
-                           + HEADSET_TDM_SLOT * sizeof(int16_t), sizeof(s));
-            frames[i] = s;
-        }
-        return n;
+        return micpcm_tdm_slot(frames, n, HEADSET_TDM_SLOTS, HEADSET_TDM_SLOT);
     }
     /* 24 bits at the top of each 32-bit slot, sign-extended down. */
     for (size_t i = 0; i < n * 2; i++) frames[i] >>= 8;

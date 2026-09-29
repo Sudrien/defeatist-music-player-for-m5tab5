@@ -35,6 +35,7 @@
 #include "usb/uac_host.h"
 
 #include "battery.h"
+#include "micpcm.h"           /* 5207 */
 #include "uac.h"
 #include "usbhost.h"
 
@@ -181,6 +182,43 @@ static volatile bool    s_hw_volume;
 static bool s_vol_failed;
 static bool s_vol_probed;
 static bool s_vol_narrow;
+
+/* 5207: the open output's USB address, so its detach can forget a
+ * microphone announced by the same device. */
+static uint8_t s_tx_addr;
+
+/*
+ * 5207: the microphone. Its own lock, not s_lock: the recorder's reader
+ * blocks in uac_mic_read() for up to its timeout, and the audio writer
+ * must never wait behind that.
+ *
+ * s_mic_addr/s_mic_iface are what the driver announced, written by
+ * uac_task and read by the recorder's open, under s_mic_mux. s_mic is the
+ * open handle, under s_mic_lock. s_mic_gone is published by the device
+ * callback, which -- as for output -- closes nothing.
+ *
+ * The ring is the driver's, and in PSRAM since 5032. 32 KB is 170 ms of
+ * 48 kHz stereo: the recorder drains it every 5 ms into its own 2 s ring.
+ * The raw buffer is PSRAM too, allocated at the first open and kept.
+ */
+#define UAC_MIC_BUFFER_SIZE     (32 * 1024)
+#define UAC_MIC_BUFFER_THRESHOLD (4 * 1024)
+#define UAC_MIC_READ_FRAMES     (480)       /* 10 ms at 48 kHz, per call at most */
+#define UAC_MIC_FRAME_MAX       (2 * 2)     /* 2 ch x 16-bit */
+
+static portMUX_TYPE      s_mic_mux = portMUX_INITIALIZER_UNLOCKED;
+static bool              s_mic_known;
+static uint8_t           s_mic_addr, s_mic_iface;
+
+static SemaphoreHandle_t s_mic_lock;
+static uac_host_device_handle_t s_mic;
+static volatile bool     s_mic_open;
+static volatile bool     s_mic_gone;
+static uint8_t           s_mic_ch;
+static uint8_t          *s_mic_raw;         /* UAC_MIC_READ_FRAMES frames + a carry */
+static size_t            s_mic_carry;       /* bytes of a partial frame at s_mic_raw */
+static uint32_t          s_mic_xfer_errors;
+static char              s_mic_product[64];
 
 /* Below this span a device's own control is not a volume control. 40 dB
  * is roughly where the quiet end of the slider stops being audible in a
@@ -655,6 +693,7 @@ static void handle_connect(uint8_t addr, uint8_t iface_num)
     s_channels = 0;
     s_attach_us = esp_timer_get_time();
     s_xfer_errors = 0;
+    s_tx_addr = addr;
     xSemaphoreGive(s_lock);
 
     s_present = true;
@@ -671,8 +710,250 @@ static void handle_disconnect(void)
         s_channels = 0;
         ESP_LOGI(TAG, "USB audio output removed");
     }
+    const uint8_t gone_addr = s_tx_addr;
+    s_tx_addr = 0;
     xSemaphoreGive(s_lock);
     s_product[0] = '\0';
+
+    /* 5207: a headset's microphone goes with its speaker. An open one is
+     * left to its own callback and uac_mic_close(). */
+    bool forgot = false;
+    portENTER_CRITICAL(&s_mic_mux);
+    if (s_mic_known && gone_addr && s_mic_addr == gone_addr && !s_mic_open) {
+        s_mic_known = false;
+        forgot = true;
+    }
+    portEXIT_CRITICAL(&s_mic_mux);
+    if (forgot) ESP_LOGI(TAG, "USB microphone forgotten with its device");
+}
+
+/* ------------------------------------------------------------------ */
+/* Microphone (5207)                                                   */
+/* ------------------------------------------------------------------ */
+
+bool uac_mic_announced(void)
+{
+    portENTER_CRITICAL(&s_mic_mux);
+    const bool k = s_mic_known;
+    portEXIT_CRITICAL(&s_mic_mux);
+    return k;
+}
+
+bool uac_mic_gone(void) { return s_mic_gone; }
+const char *uac_mic_product(void) { return s_mic_product; }
+
+static void mic_forget(void)
+{
+    portENTER_CRITICAL(&s_mic_mux);
+    s_mic_known = false;
+    portEXIT_CRITICAL(&s_mic_mux);
+}
+
+/* The announcement, on uac_task. The newest wins: one microphone is
+ * recorded from, and the one just plugged in is the one meant. */
+static void handle_mic_announce(uint8_t addr, uint8_t iface_num)
+{
+    portENTER_CRITICAL(&s_mic_mux);
+    s_mic_known = true;
+    s_mic_addr = addr;
+    s_mic_iface = iface_num;
+    portEXIT_CRITICAL(&s_mic_mux);
+    ESP_LOGI(TAG, "USB microphone announced (itf %u, addr %u); opened only to record",
+             iface_num, addr);
+}
+
+static void mic_event_cb(uac_host_device_handle_t dev,
+                         const uac_host_device_event_t event, void *arg)
+{
+    (void)dev;
+    (void)arg;
+    switch (event) {
+    case UAC_HOST_DRIVER_EVENT_DISCONNECTED:
+        /* Published, not closed: the reader may be inside
+         * uac_host_device_read() on this handle. The recorder sees
+         * uac_mic_gone(), ends the file, and closes. */
+        s_mic_gone = true;
+        ESP_LOGW(TAG, "USB microphone dropped (%lu transfer errors)",
+                 (unsigned long)s_mic_xfer_errors);
+        break;
+    case UAC_HOST_DEVICE_EVENT_TRANSFER_ERROR:
+        s_mic_xfer_errors++;
+        if (s_mic_xfer_errors <= 4 || (s_mic_xfer_errors % 256) == 0) {
+            ESP_LOGW(TAG, "microphone transfer error (%lu so far)",
+                     (unsigned long)s_mic_xfer_errors);
+        }
+        break;
+    default:
+        /* RX_DONE: the ring crossed its threshold. The reader polls. */
+        break;
+    }
+}
+
+/*
+ * The rate this alternate would be started at, and how much it is
+ * wanted: 48 kHz (3), then 44.1 (2), then its highest (1). 0 when it is
+ * not 16-bit PCM in one or two channels.
+ */
+static int mic_alt_score(const uac_host_dev_alt_param_t *p, uint32_t *rate)
+{
+    if (p->format != 1 /* PCM */ || p->bit_resolution != 16) return 0;
+    if (p->channels < 1 || p->channels > 2) return 0;
+    if (alt_offers_rate(p, 48000)) { *rate = 48000; return 3; }
+    if (alt_offers_rate(p, 44100)) { *rate = 44100; return 2; }
+    uint32_t hi = 0;
+    if (p->sample_freq_type == 0) {
+        hi = p->sample_freq_upper;
+    } else {
+        for (uint8_t i = 0; i < p->sample_freq_type && i < UAC_FREQ_NUM_MAX; i++) {
+            if (p->sample_freq[i] > hi) hi = p->sample_freq[i];
+        }
+    }
+    if (!hi) return 0;
+    *rate = hi;
+    return 1;
+}
+
+esp_err_t uac_mic_open(uint32_t *rate, uint8_t *channels)
+{
+    if (!s_mic_lock) return ESP_ERR_INVALID_STATE;
+    xSemaphoreTake(s_mic_lock, portMAX_DELAY);
+    esp_err_t ret = ESP_ERR_INVALID_STATE;
+    if (s_mic) goto out;
+
+    portENTER_CRITICAL(&s_mic_mux);
+    const bool known = s_mic_known;
+    const uint8_t addr = s_mic_addr, iface = s_mic_iface;
+    portEXIT_CRITICAL(&s_mic_mux);
+    ret = ESP_ERR_NOT_FOUND;
+    if (!known) goto out;
+
+    if (!s_mic_raw) {
+        s_mic_raw = heap_caps_malloc(UAC_MIC_READ_FRAMES * UAC_MIC_FRAME_MAX + UAC_MIC_FRAME_MAX,
+                                     MALLOC_CAP_SPIRAM | MALLOC_CAP_8BIT);
+        if (!s_mic_raw) { ret = ESP_ERR_NO_MEM; goto out; }
+    }
+
+    const uac_host_device_config_t cfg = {
+        .addr = addr,
+        .iface_num = iface,
+        .buffer_size = UAC_MIC_BUFFER_SIZE,
+        .buffer_threshold = UAC_MIC_BUFFER_THRESHOLD,
+        .callback = mic_event_cb,
+        .callback_arg = NULL,
+    };
+    uac_host_device_handle_t dev = NULL;
+    heap_report("before mic open");
+    esp_err_t err = uac_host_device_open(&cfg, &dev);
+    heap_report("after mic open");
+    if (err != ESP_OK) {
+        /* The usual way a microphone unplugged before it was used is
+         * found out: the driver never said. */
+        ESP_LOGW(TAG, "USB microphone (itf %u, addr %u) did not open: %s; forgotten",
+                 iface, addr, esp_err_to_name(err));
+        mic_forget();
+        goto out;
+    }
+
+    uac_host_dev_info_t info;
+    int best = 0;
+    uint32_t best_rate = 0;
+    uint8_t best_ch = 0, best_alt = 0;
+    if (uac_host_get_device_info(dev, &info) == ESP_OK) {
+        flatten(s_mic_product, sizeof(s_mic_product), info.iProduct);
+        ESP_LOGI(TAG, "USB microphone: %04X:%04X %s", info.VID, info.PID, s_mic_product);
+        for (uint8_t alt = 1; alt <= info.iface_alt_num; alt++) {
+            uac_host_dev_alt_param_t p;
+            if (uac_host_get_device_alt_param(dev, alt, &p) != ESP_OK) continue;
+            ESP_LOGI(TAG, "  mic alt %u: %u ch, %u-bit", alt, p.channels, p.bit_resolution);
+            uint32_t r = 0;
+            const int sc = mic_alt_score(&p, &r);
+            /* Rank, then channels, then rate. */
+            if (sc > best || (sc == best && sc &&
+                              (p.channels > best_ch ||
+                               (p.channels == best_ch && r > best_rate)))) {
+                best = sc; best_rate = r; best_ch = p.channels; best_alt = alt;
+            }
+        }
+    }
+    if (!best) {
+        ESP_LOGW(TAG, "USB microphone offers no 16-bit PCM in 1 or 2 channels");
+        uac_host_device_close(dev);
+        s_mic_product[0] = '\0';
+        ret = ESP_ERR_NOT_SUPPORTED;
+        goto out;
+    }
+
+    const uac_host_stream_config_t scfg = {
+        .channels = best_ch,
+        .bit_resolution = 16,
+        .sample_freq = best_rate,
+        .flags = 0,
+    };
+    err = uac_host_device_start(dev, &scfg);
+    if (err != ESP_OK) {
+        ESP_LOGE(TAG, "microphone stream start failed (%s)", esp_err_to_name(err));
+        uac_host_device_close(dev);
+        s_mic_product[0] = '\0';
+        ret = err;
+        goto out;
+    }
+
+    s_mic = dev;
+    s_mic_ch = best_ch;
+    s_mic_carry = 0;
+    s_mic_xfer_errors = 0;
+    s_mic_gone = false;
+    s_mic_open = true;
+    *rate = best_rate;
+    *channels = best_ch;
+    ESP_LOGI(TAG, "microphone streaming: alt %u, %u ch, 16-bit, %lu Hz",
+             best_alt, best_ch, (unsigned long)best_rate);
+    ret = ESP_OK;
+out:
+    xSemaphoreGive(s_mic_lock);
+    return ret;
+}
+
+size_t uac_mic_read(int32_t *frames, size_t max_frames, uint32_t timeout_ms)
+{
+    if (!s_mic_lock || !frames || !max_frames) return 0;
+    xSemaphoreTake(s_mic_lock, portMAX_DELAY);
+    size_t n = 0;
+    if (s_mic && !s_mic_gone) {
+        const size_t fb = (size_t)s_mic_ch * sizeof(int16_t);
+        if (max_frames > UAC_MIC_READ_FRAMES) max_frames = UAC_MIC_READ_FRAMES;
+        const size_t want = max_frames * fb - s_mic_carry;
+        uint32_t got = 0;
+        const esp_err_t err = uac_host_device_read(s_mic, s_mic_raw + s_mic_carry,
+                                                   (uint32_t)want, &got,
+                                                   pdMS_TO_TICKS(timeout_ms));
+        if (err != ESP_OK) got = 0;
+        /* A partial frame -- the driver returns what it had at the
+         * timeout -- is kept for the next call, or every sample after it
+         * would shift a channel and a stereo file would swap sides from
+         * there. micpcm.h, host-tested. */
+        n = micpcm_s16_take(s_mic_raw, s_mic_carry, got, s_mic_ch, frames, &s_mic_carry);
+    }
+    xSemaphoreGive(s_mic_lock);
+    return n;
+}
+
+void uac_mic_close(void)
+{
+    if (!s_mic_lock) return;
+    xSemaphoreTake(s_mic_lock, portMAX_DELAY);
+    if (s_mic) {
+        uac_host_device_stop(s_mic);
+        uac_host_device_close(s_mic);
+        s_mic = NULL;
+        ESP_LOGI(TAG, "microphone closed%s", s_mic_gone ? " (it was unplugged)" : "");
+        if (s_mic_gone) mic_forget();
+    }
+    s_mic_open = false;
+    s_mic_gone = false;
+    s_mic_carry = 0;
+    s_mic_product[0] = '\0';
+    xSemaphoreGive(s_mic_lock);
 }
 
 static void uac_task(void *arg)
@@ -706,12 +987,11 @@ static void uac_task(void *arg)
             break;
 
         case MSG_ATTACH_RX:
-            /* A microphone. Left closed on purpose: nothing in this
-             * program reads audio in, and an open RX interface costs a
-             * ring buffer and isochronous bandwidth for a stream that
-             * would only be discarded. The example opened it because it
-             * was looping mic to speaker; a music player is not. */
-            ESP_LOGI(TAG, "input interface (itf %u) ignored", msg.iface_num);
+            /* A microphone. Left closed on purpose: an open RX interface
+             * costs a ring buffer and isochronous bandwidth for a stream
+             * that would only be discarded. 5207: remembered, and opened
+             * by the recorder for the length of a recording. */
+            handle_mic_announce(msg.addr, msg.iface_num);
             break;
         }
     }
@@ -738,6 +1018,8 @@ esp_err_t uac_init(void)
 {
     s_lock = xSemaphoreCreateMutex();
     if (!s_lock) return ESP_ERR_NO_MEM;
+    s_mic_lock = xSemaphoreCreateMutex();      /* 5207 */
+    if (!s_mic_lock) return ESP_ERR_NO_MEM;
 
     s_queue = xQueueCreate(EVENT_QUEUE_DEPTH, sizeof(uac_queue_msg_t));
     if (!s_queue) return ESP_ERR_NO_MEM;

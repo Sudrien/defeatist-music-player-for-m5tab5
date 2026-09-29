@@ -54,6 +54,7 @@ texttest/streamplantest
 texttest/streamsnifftest
 texttest/tailplantest
 texttest/wifistoretest
+texttest/micpcmtest
 texttest/*.dSYM/
 
 # git format-patch output. Patch files contain trailing whitespace by

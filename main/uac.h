@@ -4,7 +4,8 @@
  * A speaker on the USB-A port. Output only: the RX (microphone) half of
  * the class is deliberately not opened, because this program has nothing
  * to do with a microphone and an open RX interface costs isochronous
- * bandwidth and a ring buffer for a stream nobody reads.
+ * bandwidth and a ring buffer for a stream nobody reads. (5207: except
+ * for the length of a recording -- see uac_mic_open().)
  *
  * The unit here is the interface, not the device. A headset enumerates
  * as two logical UAC devices -- one Audio Streaming interface each --
@@ -134,6 +135,56 @@ bool uac_has_volume_control(void);
 /* The device's product string, or "" -- for the log and the format card.
  * Never NULL. */
 const char *uac_product(void);
+
+/*
+ * 5207: a microphone, for the recorder.
+ *
+ * The RX half is still not opened at attach. What changed is that an RX
+ * interface is remembered when it is announced, and opened only for the
+ * length of a recording -- the cost the note at the top of this file
+ * objects to is a ring and isochronous bandwidth for a stream nobody
+ * reads, and during a recording somebody does.
+ *
+ * Remembered is not the same as present. The driver says nothing when an
+ * interface nobody opened goes away, so a microphone unplugged before it
+ * was ever used is still "announced" until the open fails -- which it
+ * does, cleanly, and uac_mic_open() forgets it then. A speaker detach
+ * from the same address forgets it too, which covers a headset.
+ */
+bool uac_mic_announced(void);
+
+/*
+ * Open and start the remembered microphone. 16-bit PCM only, the same
+ * limit as output; one or two channels, whichever the device offers
+ * (a device offering both gives two). The rate is 48 kHz if offered,
+ * then 44.1, then the highest offered -- the device's own rate, with no
+ * conversion: a recording is written at what it was captured at.
+ *
+ * On success *rate and *channels say what was started. The product
+ * string is uac_mic_product() until uac_mic_close().
+ *
+ *   ESP_ERR_NOT_FOUND       nothing announced, or it is gone (forgotten)
+ *   ESP_ERR_NOT_SUPPORTED   no 16-bit PCM alternate with 1 or 2 channels
+ *   ESP_ERR_INVALID_STATE   already open
+ */
+esp_err_t uac_mic_open(uint32_t *rate, uint8_t *channels);
+
+/*
+ * Up to max_frames interleaved frames, each sample a 16-bit value sign-
+ * extended in int32, in the format uac_mic_open() reported. Waits up to
+ * timeout_ms; 0 on a timeout. Whole frames only: a partial frame the
+ * driver hands back is carried to the next call.
+ */
+size_t uac_mic_read(int32_t *frames, size_t max_frames, uint32_t timeout_ms);
+
+/* The open microphone was unplugged. Sticky until uac_mic_close(). */
+bool uac_mic_gone(void);
+
+/* Stop and close. Safe when not open. */
+void uac_mic_close(void);
+
+/* The open microphone's product string, or "". Never NULL. */
+const char *uac_mic_product(void);
 
 #ifdef __cplusplus
 }

@@ -304,6 +304,7 @@ typedef struct {
     mpd_idle_t  idle;       /* 5160: this connection's latch */
     bool        broken;     /* a send failed; close after this read */
     int64_t     last_us;
+    bool        after_stream;   /* 5202: the last command was add of a stream */
 } conn_t;
 
 static conn_t             s_conn[MPD_CLIENTS];
@@ -1054,6 +1055,7 @@ static result_t add_stream(const ctx_t *x, const char *url)
         return RES_ERR;
     }
     ESP_LOGI(TAG, "client %d: add stream %.160s", x->c->fd, url);
+    x->c->after_stream = true;                                      /* 5202 */
     return RES_OK;
 }
 
@@ -2395,8 +2397,9 @@ static result_t streams_list(const ctx_t *x, bool info)
     const int n = stations_count();
     for (int i = 0; i < n && !c->broken; i++) {
         if (!stations_get(i, st)) continue;
+        /* 5202: Cantata's own form, "URL#StreamName=Name". */
         const int k = st->name[0]
-            ? snprintf(s_lib->uri, sizeof(s_lib->uri), "%.*s#%.*s", 400, st->url, 100, st->name)
+            ? snprintf(s_lib->uri, sizeof(s_lib->uri), "%.*s#StreamName=%.*s", 400, st->url, 90, st->name)
             : snprintf(s_lib->uri, sizeof(s_lib->uri), "%.*s", 500, st->url);
         if (k <= 0 || (size_t)k >= sizeof(s_lib->uri)) continue;
         const size_t w = mpdproto_kv("file", s_lib->uri, s_body, MPD_BODY_MAX);
@@ -2423,6 +2426,8 @@ static result_t streams_add(const ctx_t *x, const char *uri)
     memcpy(url, uri, ul);
     url[ul] = '\0';
     const char *name = hash ? hash + 1 : "";
+    /* 5202: Cantata writes "#StreamName=Name"; the name is after it. */
+    if (strncmp(name, "StreamName=", 11) == 0) name += 11;
     if (!stations_append(name, url)) {
         ESP_LOGI(TAG, "client %d: station \"%.64s\" %.120s refused", c->fd, name, url);
         ack(c, MPD_ACK_SYSTEM, x->idx, x->verb,
@@ -2466,6 +2471,19 @@ static result_t run_cmd(conn_t *c, const mpd_cmd_t *cmd, int idx)
 {
     const ctx_t x = { c, idx, cmd->verb };
     const char *const a0 = cmd->argc > 0 ? cmd->argv[0] : NULL;
+
+    /*
+     * 5202: Cantata plays a stream as `add URL` then `move` of the new
+     * entry to where it wants it, in one command list. A stream is never
+     * queued here (5201), so there is no entry to move, and the `move`
+     * failed the list with Bad song index. A move right after such an
+     * add is answered OK and does nothing.
+     */
+    if (c->after_stream && (cmd->kind == MPD_CMD_MOVE || cmd->kind == MPD_CMD_MOVEID)) {
+        ESP_LOGI(TAG, "client %d: %s after a stream: nothing queued to move", c->fd, cmd->verb);
+        return RES_OK;
+    }
+    c->after_stream = false;
 
     switch (cmd->kind) {
     /* 5166: everything that reads the list, pinned for its length. */

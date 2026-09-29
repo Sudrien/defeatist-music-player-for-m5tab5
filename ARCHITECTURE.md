@@ -17428,3 +17428,23 @@ queue id to answer with.
 
 The stream is not added to stations.m3u by playing it; Cantata's "add
 to your streams" is `playlistadd "[Radio Streams]"`, which is (5200).
+
+### 5202 -- mpd: Cantata's stream play, and its "#StreamName="
+
+The board run after 5201: WDET played from Cantata -- AAC at 22050 Hz over TLS, the
+stream path unchanged -- but Cantata said "MPD reported bad song
+index". It plays a stream as a command list of `add URL` and a `move`
+of the new entry to where it wants it. 5201 does not queue a stream,
+so there was no entry to move and the list failed at the move. A
+`move` or `moveid` straight after an `add` of a stream on the same
+connection is now answered OK and does nothing (conn_t.after_stream,
+cleared by any other command).
+
+The URL arrived as ".../4550_256.aac#StreamName=WDET". That fragment is
+Cantata's way of carrying the stream's name; the request dropped it on
+the wire, but it was the station's whole URL to the player. ui_task now
+cuts it off and passes the name to request_stream(). And 5200's
+"[Radio Streams]" had the form wrong -- the name is after
+"#StreamName=", not after the '#' -- so a station saved from Cantata
+would have been called "StreamName=WDET". Both directions now use
+Cantata's form.

@@ -7200,7 +7200,15 @@ static void ui_task(void *arg)
                  * played as a station chosen on the glass. */
                 if (!folder && (strncmp(rpath, "http://", 7) == 0 ||
                                 strncmp(rpath, "https://", 8) == 0)) {
-                    request_stream(rpath, "");
+                    /* 5202: Cantata's "#StreamName=Name" is the station's
+                     * name, not part of the address. */
+                    char *hash = strrchr(rpath, '#');
+                    const char *name = "";
+                    if (hash && strncmp(hash + 1, "StreamName=", 11) == 0) {
+                        *hash = '\0';
+                        name = hash + 12;
+                    }
+                    request_stream(rpath, name);
                 } else if (folder) {
                     if (playlist_load_dir(rpath) == ESP_OK && playlist_count() > 0) {
                         playlist_set_current(0);

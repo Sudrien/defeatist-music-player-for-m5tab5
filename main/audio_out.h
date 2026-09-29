@@ -164,6 +164,10 @@ const char *audio_out_route_name(void);
  * The buffer handed to read must hold max_frames * 2 int32 whichever
  * source is running; the headset's raw frames are 8 bytes too, and are
  * unpacked in place.
+ *
+ * 5212: the built-in pair comes through the same TDM capture too, slots
+ * 1 and 2, 16 bits shifted to 24-bit scale: still stereo int32 at 24-bit
+ * scale to the caller, with the low 8 bits zero.
  */
 #define AUDIO_CAPTURE_RATE      (48000)
 #define AUDIO_CAPTURE_BITS      (24)

@@ -907,46 +907,12 @@ esp_err_t audio_out_write(const void *data, size_t len)
 /* ------------------------------------------------------------------ */
 
 /*
- * The ES7210's setup, from M5Unified's Tab5 microphone callback with one
- * change: SDP_INTERFACE1 (0x11) is 0x00, 24-bit I2S, where M5Unified
- * asks for 16. MIC1 and MIC2 are the two array microphones and come out
- * as left and right on SDOUT1; MIC3 and MIC4 are powered down. The PGA
- * is M5Unified's 0x1B, +33 dB. MCLK is 256 x Fs, the same multiple the
- * ES8388 already gets, which is what LRCK_DIV 0x0100 (0x04/0x05) says.
+ * 5212: there is one ES7210 setup now, k_es7210_headset below, TDM for
+ * both inputs. 5106's plain-I2S table (k_es7210_on, M5Unified's list at
+ * 24 bits) is gone: read by 5209's slave RX channel it gave the right
+ * channel pinned at the negative rail and the left some 18 dB too hot --
+ * a misaligned read -- where TDM on the same clocks and pins records.
  */
-static const uint8_t k_es7210_on[][2] = {
-    { 0x00, 0xFF },     /* RESET_CTL: reset */
-    { 0x00, 0x41 },     /* RESET_CTL: out of reset, slave */
-    { 0x01, 0x1F },     /* CLK_ON_OFF: all off while configuring */
-    { 0x06, 0x00 },     /* DIGITAL_PDN */
-    { 0x07, 0x20 },     /* ADC_OSR */
-    { 0x08, 0x10 },     /* MODE_CFG */
-    { 0x09, 0x30 },     /* TCT0_CHPINI */
-    { 0x0A, 0x30 },     /* TCT1_CHPINI */
-    { 0x20, 0x0A },     /* ADC34_HPF2 */
-    { 0x21, 0x2A },     /* ADC34_HPF1 */
-    { 0x22, 0x0A },     /* ADC12_HPF2 */
-    { 0x23, 0x2A },     /* ADC12_HPF1 */
-    { 0x02, 0xC1 },     /* MAINCLK */
-    { 0x04, 0x01 },     /* LRCK_DIVH: MCLK / 256 */
-    { 0x05, 0x00 },     /* LRCK_DIVL */
-    { 0x11, 0x00 },     /* SDP_INTERFACE1: I2S, 24-bit */
-    { 0x12, 0x00 },     /* SDP_INTERFACE2: not TDM -- a headset capture sets it (5206) */
-    { 0x40, 0x42 },     /* ANALOG_SYS */
-    { 0x41, 0x70 },     /* MICBIAS12 */
-    { 0x42, 0x70 },     /* MICBIAS34 */
-    { 0x43, 0x1B },     /* MIC1_GAIN: PGA on, +33 dB */
-    { 0x44, 0x1B },     /* MIC2_GAIN */
-    { 0x45, 0x00 },     /* MIC3_GAIN */
-    { 0x46, 0x00 },     /* MIC4_GAIN */
-    { 0x47, 0x00 },     /* MIC1_LP */
-    { 0x48, 0x00 },     /* MIC2_LP */
-    { 0x49, 0x00 },     /* MIC3_LP */
-    { 0x4A, 0x00 },     /* MIC4_LP */
-    { 0x4B, 0x00 },     /* MIC12_PDN: powered */
-    { 0x4C, 0xFF },     /* MIC34_PDN: off */
-    { 0x01, 0x14 },     /* CLK_ON_OFF: running */
-};
 
 /*
  * 5206: the headset's microphone.
@@ -1018,6 +984,11 @@ static const uint8_t k_es7210_headset[][2] = {
 /* 5206: which TDM slot is the jack. See k_es7210_headset. */
 #define HEADSET_TDM_SLOTS       (4)
 #define HEADSET_TDM_SLOT        (3)
+/* 5212: the array's two microphones, by 5211's probe on the board:
+ * alike in level, both loud at a fan held to the tablet. Which is left
+ * is the demo's order (MIC-L before MIC-R) and not yet checked. */
+#define BUILTIN_TDM_L           (1)
+#define BUILTIN_TDM_R           (2)
 
 bool audio_out_headphones(void) { return s_headphones; }
 
@@ -1031,10 +1002,9 @@ static void dma_line(const char *when)
 
 static esp_err_t es7210_start(audio_capture_src_t src)
 {
-    const bool hs = (src == AUDIO_CAPTURE_HEADSET);
-    const uint8_t (*table)[2] = hs ? k_es7210_headset : k_es7210_on;
-    const size_t n = hs ? sizeof(k_es7210_headset) / sizeof(k_es7210_headset[0])
-                        : sizeof(k_es7210_on) / sizeof(k_es7210_on[0]);
+    (void)src;          /* 5212: TDM, all four, for either input */
+    const uint8_t (*table)[2] = k_es7210_headset;
+    const size_t n = sizeof(k_es7210_headset) / sizeof(k_es7210_headset[0]);
     if (!s_es7210) {
         const i2c_device_config_t cfg = {
             .dev_addr_length = I2C_ADDR_BIT_LEN_7,
@@ -1135,7 +1105,8 @@ static esp_err_t rx_init(audio_capture_src_t src)
         .din  = I2S_DIN_GPIO,
         .invert_flags = { false, false, false },
     };
-    if (src == AUDIO_CAPTURE_HEADSET) {
+    (void)src;
+    {
         /*
          * 5206: four 16-bit TDM slots, IDF's Philips TDM default, which is
          * M5Stack's demo config field for field. Its auto WS width is half
@@ -1150,16 +1121,6 @@ static esp_err_t rx_init(audio_capture_src_t src)
         memcpy(&tdm.gpio_cfg, &pins, sizeof(pins));
         tdm.clk_cfg.clk_src = I2S_CLK_SRC_APLL;         /* 5210 */
         ESP_RETURN_ON_ERROR(i2s_channel_init_tdm_mode(s_rx, &tdm), TAG, "tdm rx");
-    } else {
-        /* 24 bits in 32-bit slots, as 5106. */
-        i2s_std_config_t std = {
-            .clk_cfg = I2S_STD_CLK_DEFAULT_CONFIG(AUDIO_CAPTURE_RATE),
-            .slot_cfg = I2S_STD_PHILIPS_SLOT_DEFAULT_CONFIG(I2S_DATA_BIT_WIDTH_32BIT,
-                                                            I2S_SLOT_MODE_STEREO),
-            .gpio_cfg = pins,
-        };
-        std.clk_cfg.clk_src = I2S_CLK_SRC_APLL;         /* 5210 */
-        ESP_RETURN_ON_ERROR(i2s_channel_init_std_mode(s_rx, &std), TAG, "std rx");
     }
     ESP_RETURN_ON_ERROR(i2s_channel_enable(s_rx), TAG, "rx enable");
     return ESP_OK;
@@ -1213,8 +1174,9 @@ esp_err_t audio_out_capture_begin(audio_capture_src_t src)
                  "16-bit, DMA %d x %d frames", HEADSET_TDM_SLOT, HEADSET_TDM_SLOTS,
                  AUDIO_CAPTURE_RATE, CAPTURE_DMA_DESC, CAPTURE_DMA_FRAMES);
     } else {
-        ESP_LOGI(TAG, "capture: ES7210 MIC1/MIC2, %d Hz, 24-bit, DMA %d x %d frames",
-                 AUDIO_CAPTURE_RATE, CAPTURE_DMA_DESC, CAPTURE_DMA_FRAMES);
+        ESP_LOGI(TAG, "capture: ES7210 array microphones, TDM slots %d and %d of %d, "
+                 "%d Hz, 16-bit to 24, DMA %d x %d frames", BUILTIN_TDM_L, BUILTIN_TDM_R,
+                 HEADSET_TDM_SLOTS, AUDIO_CAPTURE_RATE, CAPTURE_DMA_DESC, CAPTURE_DMA_FRAMES);
     }
     dma_line("running");
     return ESP_OK;
@@ -1233,19 +1195,13 @@ esp_err_t audio_out_capture_begin(audio_capture_src_t src)
 static void capture_probe(const int32_t *frames, size_t n)
 {
     if (s_probe_secs >= CAPTURE_PROBE_S) return;
-    const bool hs = (s_cap_src == AUDIO_CAPTURE_HEADSET);
-    const unsigned slots = hs ? HEADSET_TDM_SLOTS : 2;
+    const unsigned slots = HEADSET_TDM_SLOTS;          /* 5212: TDM either way */
     const uint8_t *raw = (const uint8_t *)frames;
     for (size_t i = 0; i < n; i++) {
         for (unsigned k = 0; k < slots; k++) {
-            int32_t v;
-            if (hs) {
-                int16_t s16;
-                memcpy(&s16, raw + (i * slots + k) * sizeof(int16_t), sizeof(s16));
-                v = s16;
-            } else {
-                v = frames[i * 2 + k] >> 8;     /* 24 bits, as the read below */
-            }
+            int16_t s16;
+            memcpy(&s16, raw + (i * slots + k) * sizeof(int16_t), sizeof(s16));
+            int32_t v = s16;
             if (v) s_probe_nz[k]++;
             if (v < 0) v = -v;
             if (v > s_probe_peak[k]) s_probe_peak[k] = v;
@@ -1254,16 +1210,12 @@ static void capture_probe(const int32_t *frames, size_t n)
     s_probe_frames += (uint32_t)n;
     if (s_probe_frames < AUDIO_CAPTURE_RATE) return;
     s_probe_secs++;
-    if (hs) {
+    {
         ESP_LOGI(TAG, "capture probe %" PRIu32 " s: slot peak/nonzero  0: %" PRId32 "/%" PRIu32
                  "  1: %" PRId32 "/%" PRIu32 "  2: %" PRId32 "/%" PRIu32 "  3: %" PRId32 "/%" PRIu32
                  " of %" PRIu32, s_probe_secs,
                  s_probe_peak[0], s_probe_nz[0], s_probe_peak[1], s_probe_nz[1],
                  s_probe_peak[2], s_probe_nz[2], s_probe_peak[3], s_probe_nz[3], s_probe_frames);
-    } else {
-        ESP_LOGI(TAG, "capture probe %" PRIu32 " s: L peak %" PRId32 " nonzero %" PRIu32
-                 ", R peak %" PRId32 " nonzero %" PRIu32 " of %" PRIu32, s_probe_secs,
-                 s_probe_peak[0], s_probe_nz[0], s_probe_peak[1], s_probe_nz[1], s_probe_frames);
     }
     s_probe_frames = 0;
     memset(s_probe_peak, 0, sizeof(s_probe_peak));
@@ -1287,9 +1239,9 @@ size_t audio_out_capture_read(int32_t *frames, size_t max_frames, uint32_t timeo
          */
         return micpcm_tdm_slot(frames, n, HEADSET_TDM_SLOTS, HEADSET_TDM_SLOT);
     }
-    /* 24 bits at the top of each 32-bit slot, sign-extended down. */
-    for (size_t i = 0; i < n * 2; i++) frames[i] >>= 8;
-    return n;
+    /* 5212: the array's two slots, as stereo, carried to 24-bit scale --
+     * the width recorder.c, beam.c (FULL_SCALE 2^23) and the file expect. */
+    return micpcm_tdm_pair(frames, n, HEADSET_TDM_SLOTS, BUILTIN_TDM_L, BUILTIN_TDM_R, 8);
 }
 
 void audio_out_capture_end(void)

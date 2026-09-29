@@ -17763,3 +17763,46 @@ which is MICBIAS12 through R42 (10 R), so 0x41 is their supply, not just
 a bias. SDOUT1/TDMOUT is the only data pin that reaches GPIO 28;
 SDOUT2/TDMIN is unconnected. So nothing analog explains exact zeros; the
 probe is about the digital side.
+
+### 5212 -- The built-in pair through TDM too
+
+The first BUILT-IN take on 5211 (STEREO):
+
+    capture probe 2 s: L peak 1163279 nonzero 47978, R peak 8388608 nonzero 47792
+    recorded ...: 3 s, 938660 bytes
+    loudness: -1.63 LUFS, peak 0.00 dBFS ... output peak 32768/32768 -- at the rail
+
+R at exactly -2^23, the negative rail, every second, and L some 18 dB
+hotter than a room: a misaligned read, not audio. 5106's plain 2-slot
+24-bit I2S worked when the RX shared the duplex pair's clock inside the
+controller; read by 5209's slave RX, which takes BCLK and WS from the
+pins, it does not. The headset's TDM capture -- same clocks, same pins,
+same 64-BCLK frame, the same slave RX -- records correctly (5211's three
+headset takes), so the built-in pair now comes through it as well:
+
+- One ES7210 setup, `k_es7210_headset`, for both inputs; 5106's
+  `k_es7210_on` is removed. All four ADCs on, TDM, 16-bit.
+- The RX channel is always the 4 x 16 TDM slave.
+- The array is **slots 1 and 2**, by 5211's probe: alike in level,
+  both loud at a fan, slot 3 the headset, slot 0 exact zero. Which is
+  left is the demo's order (MIC-L first) and is not checked; for the
+  beam it does not matter (it matches gains and sums), for STEREO a
+  swap would mirror the image.
+- `micpcm_tdm_pair()` unpacks the two slots as stereo in place and
+  shifts them left 8, so audio_out still hands recorder.c 24-bit-scale
+  stereo -- beam.c's FULL_SCALE is 2^23 and its output saturates at 24
+  bits, and the file stays 24-bit. The low 8 bits are zero; flacenc does
+  not detect wasted bits, so a built-in file is a little larger than a
+  16-bit one would be. Tested in micpcmtest (every pair of 4, 6 and 8
+  slots, in place, rails): 1039 checks.
+
+What was lost: 24-bit capture of the array. Four 32-bit TDM slots need
+BCLK = MCLK/2, which IDF's TDM receive refuses (5206), and the plain
+2-slot mode is what failed here. The PGA's +33 dB and the capsules'
+noise put the floor well above 16 bits' in any room this is used in.
+
+The probe logs all four slots for either input now. What to look for:
+`capture: ES7210 array microphones, TDM slots 1 and 2 of 4`, slots 1
+and 2 alive at room level (hundreds to a few thousand) and a file that
+is the room; on STEREO, tap the left microphone hole and see which
+channel jumps.

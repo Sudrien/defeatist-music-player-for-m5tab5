@@ -50,6 +50,32 @@ static inline size_t micpcm_tdm_slot(int32_t *frames, size_t n, unsigned slots, 
 }
 
 /*
+ * 5212: two slots out of n TDM frames of `slots` little-endian int16
+ * each, as interleaved stereo, in place: frames[2i] = slot a of raw frame
+ * i, frames[2i + 1] = slot b, each shifted left by `shift` (8 carries 16
+ * bits to 24-bit scale).
+ *
+ * IN PLACE, FORWARD. Output frame i is 8 bytes at 8i; raw frame i is
+ * slots * 2 bytes at slots * 2 * i. For slots >= 4 output i never
+ * reaches past raw frame i, whose two samples are read before either is
+ * written. slots < 4, a or b out of range, or a shift over 15 return 0.
+ */
+static inline size_t micpcm_tdm_pair(int32_t *frames, size_t n, unsigned slots,
+                                     unsigned a, unsigned b, unsigned shift)
+{
+    if (slots < 4 || a >= slots || b >= slots || shift > 15) return 0;
+    const uint8_t *raw = (const uint8_t *)frames;
+    for (size_t i = 0; i < n; i++) {
+        int16_t sa, sb;
+        memcpy(&sa, raw + (i * slots + a) * sizeof(int16_t), sizeof(sa));
+        memcpy(&sb, raw + (i * slots + b) * sizeof(int16_t), sizeof(sb));
+        frames[2 * i]     = (int32_t)sa * (1 << shift);
+        frames[2 * i + 1] = (int32_t)sb * (1 << shift);
+    }
+    return n;
+}
+
+/*
  * Interleaved little-endian int16 in `raw`: `carry` bytes left over from
  * the last call, then `got` new ones. Whole frames of `ch` channels are
  * widened into out; the bytes of a partial frame at the end are moved to

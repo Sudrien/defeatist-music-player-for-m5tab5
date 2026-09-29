@@ -143,6 +143,40 @@ static void test_carry(void)
     }
 }
 
+static void test_pair(void)
+{
+    printf("  tdm pair, in place (5212)\n");
+    enum { N = 961 };
+    for (unsigned slots = 4; slots <= 8; slots += 2) {
+        for (unsigned a = 0; a < slots; a++) {
+            for (unsigned b = 0; b < slots; b++) {
+                int32_t *buf = malloc(N * slots * 2 > N * 8 ? N * slots * 2 : N * 8);
+                uint8_t *raw = (uint8_t *)buf;
+                for (size_t i = 0; i < N; i++)
+                    for (unsigned s = 0; s < slots; s++)
+                        put16(raw + (i * slots + s) * 2, tag(i, s));
+                CHECK(micpcm_tdm_pair(buf, N, slots, a, b, 8) == N, "count");
+                size_t bad = 0;
+                for (size_t i = 0; i < N; i++)
+                    if (buf[2 * i] != tag(i, a) * 256 || buf[2 * i + 1] != tag(i, b) * 256) bad++;
+                CHECK(bad == 0, "slots %u pair %u,%u: %zu frames wrong", slots, a, b, bad);
+                free(buf);
+            }
+        }
+    }
+    {
+        int32_t buf[2];
+        uint8_t *raw = (uint8_t *)buf;
+        const int16_t v[4] = { 0, -32768, 32767, 5 };
+        for (int i = 0; i < 4; i++) put16(raw + i * 2, v[i]);
+        micpcm_tdm_pair(buf, 1, 4, 1, 2, 8);
+        CHECK(buf[0] == -8388608 && buf[1] == 8388352, "rails to 24-bit: %d %d",
+              (int)buf[0], (int)buf[1]);
+    }
+    CHECK(micpcm_tdm_pair(NULL, 3, 2, 0, 1, 8) == 0, "2 slots must be refused");
+    CHECK(micpcm_tdm_pair(NULL, 3, 4, 0, 4, 8) == 0, "slot past the end must be refused");
+}
+
 static void test_mono(void)
 {
     printf("  mono fold\n");
@@ -164,6 +198,7 @@ int main(void)
     printf("micpcmtest\n");
     test_tdm();
     test_carry();
+    test_pair();
     test_mono();
     printf("micpcmtest: %d checks, %d failures\n", checks, failures);
     return failures ? 1 : 0;

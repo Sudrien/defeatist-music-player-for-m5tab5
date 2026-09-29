@@ -100,6 +100,9 @@ addtagid cleartagid readcomments mixrampdb mixrampdelay kill config sticker
 albumart
 """.split()
 
+# 5241: the version this script's checks are written against.
+EXPECTED_VERSION = "0.21.0"
+
 
 class Ack(Exception):
     def __init__(self, code, idx, cmd, msg):
@@ -276,6 +279,10 @@ class Checker:
         self.section("connection and framing")
         self.ok("greeting is OK MPD <version>",
                 re.match(r"^OK MPD \d+\.\d+\.\d+$", self.c.greeting), self.c.greeting)
+        ver = self.c.greeting[7:].split(".")
+        self.ok(f"greeting claims at least {EXPECTED_VERSION}",
+                len(ver) == 3 and tuple(map(int, ver)) >= tuple(map(int, EXPECTED_VERSION.split("."))),
+                self.c.greeting)
         self.expect_ok("ping", "ping")
         self.expect_ok("clearerror", "clearerror")
         self.expect_ack("unknown verb is ACK 5", "bogusverb", 5)
@@ -871,6 +878,16 @@ class Checker:
                   f"single {s.get('single')} consume {s.get('consume')}")
             self.c.cmd("random 0")
 
+        # 5241: single oneshot shows as a word, and single 0/1 ends it.
+        was = self.status().get("single", "0")
+        self.expect_ok("single oneshot", "single oneshot")
+        self.ok("status says single: oneshot", self.status().get("single") == "oneshot",
+                self.status().get("single"))
+        self.expect_ok("single back as it was", f"single {was}")
+        self.ok("single oneshot ends on single 0/1", self.status().get("single") == was,
+                self.status().get("single"))
+        self.expect_ack("single 2 is still ARG", "single 2", 2)
+
         for m in (("track", "off") if self.a.destructive else (self.saved_rg,)):
             self.expect_ok(f"replay_gain_mode {m}", f"replay_gain_mode {m}")
             got = kv(self.c.cmd("replay_gain_status")).get("replay_gain_mode")
@@ -1010,6 +1027,32 @@ class Checker:
         self.expect_ack("albumart of a missing song is NO_EXIST",
                         'albumart "sd/__no_such__/x.flac" 0', 50)
 
+    def tagtypes(self):
+        """5241: 0.21's tagtypes subcommands, on this connection only."""
+        f0 = self.files[0]
+        def tags_of(line):
+            return {k for k, v in pairs(self.c.cmd(line))} & {"Title", "Artist", "Album"}
+        full = tags_of(f"find file {q(f0)}")
+        self.expect_ok("tagtypes clear", "tagtypes clear")
+        r = self.c.cmd("tagtypes")
+        self.ok("tagtypes lists nothing after clear", r == [], repr(r))
+        got = tags_of(f"find file {q(f0)}")
+        self.ok("a song is sent with no tags after clear", got == set(), repr(got))
+        self.expect_ok("tagtypes enable Title", "tagtypes enable Title")
+        r = [v for k, v in pairs(self.c.cmd("tagtypes"))]
+        self.ok("tagtypes lists Title alone", r == ["Title"], repr(r))
+        self.ok("a song is sent with Title alone",
+                tags_of(f"find file {q(f0)}") <= {"Title"})
+        self.expect_ok("tagtypes all", "tagtypes all")
+        self.ok("tagtypes all brings them back", tags_of(f"find file {q(f0)}") == full)
+        self.expect_ok("tagtypes disable Artist Album", "tagtypes disable Artist Album")
+        r = [v for k, v in pairs(self.c.cmd("tagtypes"))]
+        self.ok("disable takes both away", "Artist" not in r and "Album" not in r, repr(r))
+        self.expect_ok("tagtypes enable a tag the library has none of", "tagtypes enable Genre")
+        self.expect_ack("tagtypes enable an unknown tag is ARG", "tagtypes enable NoSuchTag", 2)
+        self.expect_ack("tagtypes with an unknown sub-command is ARG", "tagtypes frob", 2)
+        self.c.cmd("tagtypes all")
+
     def messages(self):
         self.section("client messages")
         self.expect_ack("subscribe with a bad name is ARG", 'subscribe "no spaces"', 2)
@@ -1089,6 +1132,7 @@ class Checker:
             self.rest_read_only()                                   # 5232
             if getattr(self, "files", None):
                 self.albumart()                                     # 5240
+                self.tagtypes()                                     # 5241
             self.messages()
             if self.a.read_only:
                 if playing and kv(self.c.cmd("status")).get("state") != "play":

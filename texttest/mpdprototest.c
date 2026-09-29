@@ -842,6 +842,11 @@ int main(void)
                      "audio: 44100:16:2\n"
                      "nextsong: 4\n"
                      "nextsongid: 45\n") == 0, "playing status is [%s]", b);
+        /* 5241: single oneshot is a word, not a number (MPD 0.21). */
+        s.single_oneshot = true;
+        CHECK(mpdproto_status(&s, b, sizeof(b)) && strstr(b, "single: oneshot\n") &&
+              !strstr(b, "single: 1"), "oneshot status is [%s]", b);
+        s.single_oneshot = false;
 
         s.state = MPD_STATE_PAUSE;
         CHECK(mpdproto_status(&s, b, sizeof(b)) && strstr(b, "state: pause\n"),

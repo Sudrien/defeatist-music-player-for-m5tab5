@@ -546,11 +546,15 @@ crossfade and MixRamp other than off, a second partition, mounting,
 database), a shuffle of part of the queue, `load` of a range, `group`
 on `find`. `listfiles` gives no `size` (a 32-bit off_t, 5228).
 
-Newer than 0.20 and not claimed: filter expressions and `albumart`
-(0.21), `readpicture`, `binarylimit`, `outputset` (0.22). Some newer
-things are answered anyway because answering costs nothing -- `getvol`
-(5218), `save`'s mode (0.24) -- but the greeting stays 0.20 until 0.21's
-two are done.
+**The greeting claims 0.21.0** (5241). 0.21's two -- filter
+expressions (5238-5239, in every command that filters) and `albumart`
+(5240, a cover file in the song's folder) -- are done, with `tagtypes`'
+subcommands and `single oneshot`. Refused in 0.21's terms, each with a
+reason: a regex in a filter (`=~`, `!~`: no regex library), a
+`modified-since` or `AudioFormat` filter (the catalog keeps neither),
+and `getfingerprint`. Newer and not claimed: 0.22's `readpicture` (the
+picture inside a file), `binarylimit`, `outputset`; answered anyway
+where it costs nothing: `getvol` (5218), `save`'s mode (0.24).
 
 Not yet driven on the board: `list` (5182), `search`/`find` (5180),
 Cantata's stored-playlists view (5184), and everything from 5218 on.

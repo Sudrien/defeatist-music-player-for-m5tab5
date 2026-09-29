@@ -18656,3 +18656,43 @@ unknown.
 Compiled -O2 -Wall -Wextra on the host stubs: mpd.c, no warnings.
 texttest all passes. Not on the board -- a folder with a cover.jpg in
 it, and Cantata's album view, are what would show it.
+
+### 5241 -- mpd: tagtypes subcommands, single oneshot, and the greeting says 0.21.0
+
+The end of the 0.21 series. MPDPROTO_VERSION is 0.21.0: 0.21's two --
+filter expressions (5238-5239) and albumart (5240) -- are done, and so
+are its two smaller changes:
+
+- `tagtypes clear | all | enable NAME... | disable NAME...`: which tags
+  this connection is sent with each song. conn_t.tags, a mask over the
+  three the catalog holds (all, on connect, MPD's default); song_mask()
+  applies it at the three places a song is printed (put_entry(),
+  put_lib_file(), lib_find()). Any other tag MPD knows is accepted and
+  changes nothing -- turning off a tag no song here has; a name MPD does
+  not know is ARG "Unknown tag type". `tagtypes` alone lists what is on.
+- `single oneshot`: single on for one song, then off. The player's ONE
+  order stops at the end of a track, so oneshot asks for the order its
+  flags give with single on, and remembers the order they give with
+  single off -- MPD sets single to off afterwards, not back to what it
+  was. oneshot_poll(), on the task loop, sees the song play and then
+  end (within 2 s of its length) or be replaced, and asks for that
+  order back, raising `options`. A pause part way is not an end. `single
+  0` or `1` ends it at once. `status` says `single: oneshot` meanwhile
+  (mpd_status_t.single_oneshot; the serialiser writes the word).
+
+Refused in 0.21's terms, each with a reason (MPD.md): a regex,
+`modified-since` and `AudioFormat` in a filter, and getfingerprint. The
+next ceiling is 0.22's readpicture, which stays unknown so that a client
+is told it does not exist rather than invited to ask.
+
+mpdcheck: the greeting at least 0.21.0; tagtypes clear, enable,
+disable, all and the two errors, each checked against what `find` then
+sends; single oneshot shown as a word and ended by single 0/1. Against
+stock MPD 0.23.5 all of these pass; the 17 failures there are the
+player's deliberate differences, listed in MPD.md. mpdprototest: the
+oneshot status line.
+
+Compiled -O2 -Wall -Wextra on the host stubs: mpd.c, no warnings.
+texttest all passes. Not on the board. What a board run should show:
+`OK MPD 0.21.0`, and Cantata using expressions in its library views --
+its console log shows `find "(...)"` where it sent pairs before.

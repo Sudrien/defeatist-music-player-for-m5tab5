@@ -333,7 +333,18 @@ typedef struct {
     int64_t     last_us;
     bool        after_stream;   /* 5202: the last command was add of a stream */
     uint32_t    pending;        /* 5230: idle events for this connection only */
+    uint8_t     tags;           /* 5241: TAG_* this client wants (tagtypes) */
 } conn_t;
+
+/* 5241: the tags this catalog holds, as `tagtypes` names them. A client
+ * may turn each off (MPD 0.21's tagtypes clear/enable/disable/all). */
+enum { TAG_ARTIST = 1, TAG_ALBUM = 2, TAG_TITLE = 4, TAG_ALL = 7 };
+
+/* 5241: single oneshot. `oneshot` is set while ONE stands in for it,
+ * and `was` is the order to go back to when the song ends; `id` is the
+ * song it was set on, and `played` whether that song has been seen
+ * playing since. Server task only. */
+static struct { bool on, played; int was; uint32_t id; } s_oneshot;
 
 /*
  * 5230: client-to-client messages, MPD's subscribe/sendmessage. Per
@@ -616,6 +627,14 @@ static int list_find_id(uint32_t id)
 
 static bool lib_tags(const char *uri, mpd_song_t *s);   /* 5185 */
 
+/* 5241: leave out the tags this client turned off with tagtypes. */
+static void song_mask(const conn_t *c, mpd_song_t *s)
+{
+    if (!(c->tags & TAG_ARTIST)) s->artist = NULL;
+    if (!(c->tags & TAG_ALBUM))  s->album = NULL;
+    if (!(c->tags & TAG_TITLE))  s->title = NULL;
+}
+
 /* Entry i of the pinned list. The playing song carries its tags and its
  * length; since 5185 the others carry the catalog's tags when the
  * library is open for the command (lib_tags()), and no length. */
@@ -643,6 +662,7 @@ static void put_entry(conn_t *c, int i)
             if (!(s.album && s.album[0]))   s.album = k.album;
         }
     }
+    song_mask(c, &s);                                               /* 5241 */
     const size_t n = mpdproto_song(&s, s_body, MPD_BODY_MAX);
     if (n) put(c, s_body, n);
 }
@@ -1372,6 +1392,7 @@ static void put_lib_file(conn_t *c, int v, const midx_rec_t *r, const char *uri,
         s.artist = m->artist[0] ? m->artist : NULL;
         s.album = m->album[0] ? m->album : NULL;
     }
+    song_mask(c, &s);                                               /* 5241 */
     const size_t n = mpdproto_song(&s, s_body, MPD_BODY_MAX);
     if (n) put(c, s_body, n);
 }
@@ -1905,12 +1926,13 @@ static result_t lib_find(const ctx_t *x, const mpd_cmd_t *cmd, qmode_t mode,
                                                          : pl_append(x, pl, s_lib->uri) == RES_OK;
                         if (!ok) { refused = true; break; }
                     } else if (mode != Q_COUNT && n_hit >= w_lo && n_hit < w_hi) {
-                        const mpd_song_t sg = {
+                        mpd_song_t sg = {
                             .uri = s_lib->uri, .duration_ms = -1, .pos = -1,
                             .title = r->title[0] ? r->title : NULL,
                             .artist = r->artist[0] ? r->artist : NULL,
                             .album = r->album[0] ? r->album : NULL,
                         };
+                        song_mask(c, &sg);                          /* 5241 */
                         const size_t n = mpdproto_song(&sg, s_body, MPD_BODY_MAX);
                         if (n) put(c, s_body, n);
                     }
@@ -3302,6 +3324,100 @@ static result_t pl_load(const ctx_t *x, const char *name, const char *range)
     return RES_OK;
 }
 
+/* ---- tagtypes and single oneshot (5241) ------------------------------------ */
+
+/*
+ * `tagtypes clear | all | enable NAME... | disable NAME...` (MPD 0.21):
+ * which tags this connection is sent with each song. Only the three the
+ * catalog holds can be sent, so only those change anything; any other
+ * name MPD knows is accepted and changes nothing, which is what turning
+ * off a tag no song here has amounts to. A name MPD does not know is
+ * ARG "Unknown tag type", MPD's words. The whole list is checked before
+ * any of it is applied.
+ */
+static int tag_bit(const char *n)
+{
+    if (strcasecmp(n, "Artist") == 0) return TAG_ARTIST;
+    if (strcasecmp(n, "Album") == 0)  return TAG_ALBUM;
+    if (strcasecmp(n, "Title") == 0)  return TAG_TITLE;
+    static const char *const known[] = {
+        "ArtistSort", "AlbumSort", "AlbumArtist", "AlbumArtistSort", "Track", "Name",
+        "Genre", "Date", "OriginalDate", "Composer", "Performer", "Conductor", "Work",
+        "Grouping", "Comment", "Disc", "Label", "MUSICBRAINZ_ARTISTID",
+        "MUSICBRAINZ_ALBUMID", "MUSICBRAINZ_ALBUMARTISTID", "MUSICBRAINZ_TRACKID",
+        "MUSICBRAINZ_RELEASETRACKID", "MUSICBRAINZ_WORKID",
+    };
+    for (size_t i = 0; i < sizeof(known) / sizeof(known[0]); i++)
+        if (strcasecmp(n, known[i]) == 0) return 0;
+    return -1;
+}
+
+static result_t tagtypes_sub(const ctx_t *x, const mpd_cmd_t *cmd)
+{
+    conn_t *const c = x->c;
+    const char *sub = cmd->argv[0];
+    if (strcasecmp(sub, "clear") == 0 || strcasecmp(sub, "all") == 0) {
+        if (cmd->argc > 1) {
+            ack(c, MPD_ACK_ARG, x->idx, x->verb, "too many arguments for \"tagtypes\"");
+            return RES_ERR;
+        }
+        c->tags = strcasecmp(sub, "all") == 0 ? TAG_ALL : 0;
+        return RES_OK;
+    }
+    const bool on = strcasecmp(sub, "enable") == 0;
+    if (!on && strcasecmp(sub, "disable") != 0) {
+        ack(c, MPD_ACK_ARG, x->idx, x->verb, "Unknown sub command");
+        return RES_ERR;
+    }
+    if (cmd->argc < 2) {
+        ack(c, MPD_ACK_ARG, x->idx, x->verb, "Not enough arguments");
+        return RES_ERR;
+    }
+    int bits = 0;
+    for (int i = 1; i < cmd->argc; i++) {
+        const int b = tag_bit(cmd->argv[i]);
+        if (b < 0) {
+            ack(c, MPD_ACK_ARG, x->idx, x->verb, "Unknown tag type: %s", cmd->argv[i]);
+            return RES_ERR;
+        }
+        bits |= b;
+    }
+    c->tags = (uint8_t)(on ? (c->tags | bits) : (c->tags & ~bits));
+    return RES_OK;
+}
+
+/*
+ * 5241: single oneshot, the end of it. While `single oneshot` stands, the
+ * player's ONE order stops after the song it was set on; MPD then sets
+ * single back to off. So once that song has been seen playing and the
+ * player is no longer playing it -- it ended and stopped, or something
+ * else is playing -- the order it replaced is asked for again. A pause
+ * part way through is not an end: the song must be within two seconds
+ * of its length, or gone. Polled from the task loop; take_view() there
+ * is between commands.
+ */
+static void oneshot_poll(void)
+{
+    if (!s_oneshot.on) return;
+    take_view();
+    const snap_t *v = s_view;
+    if (v->id == s_oneshot.id && v->state == MPD_STATE_PLAY) {
+        s_oneshot.played = true;
+        return;
+    }
+    if (!s_oneshot.played) return;
+    const bool gone = v->id != s_oneshot.id;
+    const bool ended = v->duration_ms > 0 && v->elapsed_ms >= v->duration_ms - 2000;
+    if (!gone && !ended) return;
+    s_oneshot.on = false;
+    const ui_action_t a = { .kind = UI_ACTION_ORDER, .value = s_oneshot.was };
+    (void)uireq_press(UIREQ_MPD, &a);
+    xSemaphoreTake(s_mu, portMAX_DELAY);
+    s_events |= MPD_IDLE_OPTIONS;
+    xSemaphoreGive(s_mu);
+    ESP_LOGI(TAG, "single oneshot: the song ended; order back to %d", s_oneshot.was);
+}
+
 /* ---- messages (5230) ------------------------------------------------------ */
 
 /* MPD's client_message_valid_channel_name(): ASCII letters and digits,
@@ -3671,16 +3787,16 @@ static result_t run_cmd(conn_t *c, const mpd_cmd_t *cmd, int idx)
     }
 
     case MPD_CMD_TAGTYPES:
-        /* `tagtypes clear|enable|disable|all` is 0.21; MPDPROTO_VERSION
-         * claims 0.20, where tagtypes takes nothing. */
-        if (cmd->argc > 0) {
-            ack(c, MPD_ACK_ARG, idx, cmd->verb, "too many arguments for \"tagtypes\"");
-            return RES_ERR;
-        }
         /* The catalog's three tags (mediacat.h), and no others: a tag
-         * listed here is a tag a client may filter on in step 12. */
-        puts_(c, "tagtype: Artist\ntagtype: Album\ntagtype: Title\n");
-        return RES_OK;
+         * listed here is a tag a client may filter on in step 12. 5241:
+         * those this client has not turned off. */
+        if (cmd->argc == 0) {
+            if (c->tags & TAG_ARTIST) puts_(c, "tagtype: Artist\n");
+            if (c->tags & TAG_ALBUM)  puts_(c, "tagtype: Album\n");
+            if (c->tags & TAG_TITLE)  puts_(c, "tagtype: Title\n");
+            return RES_OK;
+        }
+        return tagtypes_sub(&x, cmd);
 
     case MPD_CMD_URLHANDLERS:
         /* 5201: http and https, which `add` plays as a station and
@@ -3703,6 +3819,7 @@ static result_t run_cmd(conn_t *c, const mpd_cmd_t *cmd, int idx)
             .repeat = v->modes.repeat,
             .random = v->modes.random,
             .single = v->modes.single,
+            .single_oneshot = s_oneshot.on,                     /* 5241 */
             .consume = v->modes.consume,
             .playlist_version = v->version,
             .playlist_length = v->length,                   /* 5166 */
@@ -3885,7 +4002,11 @@ static result_t run_cmd(conn_t *c, const mpd_cmd_t *cmd, int idx)
          * device does not repeat. The event makes it re-read.
          */
         bool on;
-        if (!arg_bool(&x, a0, &on)) return RES_ERR;
+        /* 5241: `single oneshot` (0.21) is single on, for one song. */
+        const bool oneshot = cmd->kind == MPD_CMD_SINGLE && strcasecmp(a0, "oneshot") == 0;
+        if (oneshot) on = true;
+        else if (!arg_bool(&x, a0, &on)) return RES_ERR;
+        if (cmd->kind == MPD_CMD_SINGLE) s_oneshot.on = false;
         take_view();
         mpd_modes_t m = s_view->modes;
         bool *const flag = cmd->kind == MPD_CMD_REPEAT ? &m.repeat
@@ -3899,6 +4020,20 @@ static result_t run_cmd(conn_t *c, const mpd_cmd_t *cmd, int idx)
         if (!honoured) {
             ESP_LOGI(TAG, "client %d: %s %d has no exact play order here; "
                      "status says what the player will do", c->fd, cmd->verb, on);
+            xSemaphoreTake(s_mu, portMAX_DELAY);
+            s_events |= MPD_IDLE_OPTIONS;
+            xSemaphoreGive(s_mu);
+        }
+        if (oneshot) {
+            /* When the song ends MPD sets single to off -- not back to
+             * what it was -- so the order to return to is these flags
+             * with single off. */
+            mpd_modes_t off = m;
+            off.single = false;
+            s_oneshot.on = true;
+            s_oneshot.played = false;
+            s_oneshot.was = (int)mpdmode_to_order(&off);
+            s_oneshot.id = s_view->id;
             xSemaphoreTake(s_mu, portMAX_DELAY);
             s_events |= MPD_IDLE_OPTIONS;
             xSemaphoreGive(s_mu);
@@ -4246,6 +4381,7 @@ static void conn_accept(int ls)
     c->list_idle = false;
     mpdidle_init(&c->idle);         /* 5160: nothing from before it came */
     c->pending = 0;                 /* 5230 */
+    c->tags = TAG_ALL;              /* 5241: tagtypes all, MPD's default */
     s_box[c - s_conn].nsubs = 0;
     s_box[c - s_conn].nmsgs = 0;
     c->broken = false;
@@ -4410,6 +4546,7 @@ static void mpd_task(void *arg)
         /* 5160: before the accept, so a client arriving in this wake
          * is not told of changes from before it came. */
         deliver_events();
+        oneshot_poll();                                             /* 5241 */
         if (n > 0 && FD_ISSET(ls, &rd)) conn_accept(ls);
 
         const int64_t now = esp_timer_get_time();

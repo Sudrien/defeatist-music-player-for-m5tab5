@@ -752,7 +752,8 @@ size_t mpdproto_status(const mpd_status_t *s, char *out, size_t cap)
 
     w_num(&b, "repeat",  s->repeat  ? 1 : 0);
     w_num(&b, "random",  s->random  ? 1 : 0);
-    w_num(&b, "single",  s->single  ? 1 : 0);
+    if (s->single_oneshot) w_kv(&b, "single", "oneshot");          /* 5241, 0.21 */
+    else w_num(&b, "single",  s->single  ? 1 : 0);
     w_num(&b, "consume", s->consume ? 1 : 0);
     if (s->partition && s->partition[0]) w_kv(&b, "partition", s->partition);   /* 5180 */
     w_num(&b, "playlist", (long long)s->playlist_version);

@@ -61,8 +61,15 @@ extern "C" {
  *
  * Revisit when step 12 closes the verb list; until then it is the number
  * the table below justifies.
+ *
+ * 5241: 0.21.0. Both of 0.21's are done -- filter expressions (5238-5239)
+ * and albumart (5240) -- with tagtypes' subcommands and single oneshot
+ * (5241). What 0.21 has that is refused here, each with a reason: a regex
+ * in a filter, modified-since and AudioFormat (mpdfilter.h), and
+ * getfingerprint (no chromaprint). The next ceiling is 0.22's
+ * readpicture, which a client that believes in it will ask for.
  */
-#define MPDPROTO_VERSION    "0.20.0"
+#define MPDPROTO_VERSION    "0.21.0"
 
 /* The first thing written to a new connection, newline included. */
 #define MPDPROTO_GREETING   "OK MPD " MPDPROTO_VERSION "\n"
@@ -529,6 +536,7 @@ typedef struct {
     mpd_state_t state;
     int         volume;             /* <0: omitted, MPD's "unknown" */
     bool        repeat, random, single, consume;
+    bool        single_oneshot;     /* 5241: `single: oneshot`, over single */
     uint32_t    playlist_version;   /* mpdq_version() */
     int         playlist_length;    /* mpdq_count() */
     int         song;               /* <0: song and songid omitted */

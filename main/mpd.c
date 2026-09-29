@@ -157,6 +157,11 @@ static const char *TAG = "tab5_mpd";
  * parked in `idle` is exempt, as in MPD (5160). */
 #define MPD_TIMEOUT_US      (60 * 1000000LL)
 
+/* 5235: how long a first client's greeting waits for a fresh publish.
+ * Behind a page the next one is due within a pass once the client is
+ * counted; this is the bound if ui_task is busy. */
+#define MPD_FRESH_MS        (1000)
+
 /* 5229: how long `seek` of a song not playing waits for that song to
  * start and publish a length before seeking it. A card open, a decoder
  * probe and a sidecar read are well inside this; a stream is never a
@@ -294,6 +299,7 @@ static const qlist_t    *s_list;            /* this task's, while pinned */
  * happened -- MPD.md's "latched per connection, not broadcast".
  */
 static uint32_t          s_events;  /* under s_mu */
+static uint32_t          s_pub_gen; /* 5235: publishes so far; under s_mu */
 static mpd_idle_track_t  s_track;   /* ui_task's */
 static medialib_state_t  s_db_was[STORAGE_COUNT];  /* ui_task's */
 
@@ -4023,6 +4029,36 @@ static void conn_accept(int ls)
     s_nclients++;
     ESP_LOGI(TAG, "client %d: connected from %s (%d of %d)", fd, ip, s_nclients, MPD_CLIENTS);
 
+    /*
+     * 5235: THE FIRST CLIENT WAITS FOR A PUBLISH. Behind a page (the
+     * chooser opens itself at boot with nothing playing) ui_task publishes
+     * only while a client is connected (5194), so until one is, s_pub can
+     * be from long before -- the board had a folder loaded at boot and the
+     * first `status`, 30 ms after connecting, said playlistlength 0. MPD's
+     * state is never stale. So with no other client (the others keep it
+     * current at 2 Hz), the greeting waits for the next publish, which the
+     * connection just counted above makes happen within a pass, for at
+     * most MPD_FRESH_MS. A client waits for the greeting anyway.
+     */
+    if (s_nclients == 1) {
+        xSemaphoreTake(s_mu, portMAX_DELAY);
+        const uint32_t g0 = s_pub_gen;
+        xSemaphoreGive(s_mu);
+        const TickType_t t0 = xTaskGetTickCount();
+        for (;;) {
+            xSemaphoreTake(s_mu, portMAX_DELAY);
+            const bool fresh = s_pub_gen != g0;
+            xSemaphoreGive(s_mu);
+            if (fresh) break;
+            if (xTaskGetTickCount() - t0 >= pdMS_TO_TICKS(MPD_FRESH_MS)) {
+                ESP_LOGW(TAG, "client %d: no publish in %d ms; its first answers may be stale",
+                         fd, MPD_FRESH_MS);
+                break;
+            }
+            vTaskDelay(pdMS_TO_TICKS(10));
+        }
+    }
+
     s_out_len = 0;
     puts_(c, MPDPROTO_GREETING);
     flush(c);
@@ -4572,6 +4608,7 @@ void mpd_publish(const ui_state_t *st, const char *path, bool streaming)
     memcpy(s_pub, n, sizeof(*s_pub));
     if (w >= 0) s_ql_pub = w;       /* 5166: the list with the snapshot */
     s_events |= ev;
+    s_pub_gen++;                    /* 5235 */
     xSemaphoreGive(s_mu);
     /* After the copy: a press is serviced once its effect is readable. */
     uireq_published();

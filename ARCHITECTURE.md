@@ -18421,3 +18421,48 @@ Compiled -O2 -Wall -Wextra on the host stubs: mpd.c, no warnings.
 player.c is not host-compilable (too many IDF headers); the change is
 a stat() in a block that already stat()s a few lines later. texttest
 all passes. The board run to confirm: mpdcheck, which checks both.
+
+### 5235 -- mpd: a first client sees a fresh view; mpdcheck never clears on a guess
+
+The second board run (v0.4.0-257-gcf1402a) had /sd/Recordings loaded at
+boot, 21 tracks, "ready to resume" -- and the chooser up, since nothing
+was playing. mpdcheck's first `status`, 30 ms after connecting, said
+playlistlength 0. Every queue check after that took the listener's 21
+entries for the test's, and because the queue "was empty" the run did
+`shuffle` and `clear` on it. The listener's queue was lost.
+
+WHY THE VIEW WAS EMPTY. Behind a page, ui_task publishes only while an
+MPD client is connected (5194). The folder loaded at 4.5 s, the server
+came up at 18 s, and nothing published until the first client counted
+-- so s_pub was the empty one from before the load, and the first
+answers read it. MPD's own state is never stale.
+
+THE FIX (mpd.c). mpd_publish() counts publishes (s_pub_gen, under s_mu).
+conn_accept() counts the client, which is what makes ui_task publish
+behind a page, and when it is the only client waits for the count to
+move before sending the greeting, for at most MPD_FRESH_MS (1 s), with
+a log line if it does not. With another client connected the view is
+already kept current at 2 Hz and nothing waits. A client waits for the
+greeting in any case, so none sees the delay as anything else.
+
+THE SCRIPT (tools/mpdcheck.py), which should not have trusted it:
+- `clear` and `shuffle` run only with --destructive -- never on a queue
+  that merely looks empty. 5226 ran them when it did.
+- The listener's entries are counted from playlistinfo, not from
+  status's playlistlength, and if the two disagree nothing that edits
+  the queue runs: one FAIL saying so, and the rest skipped.
+- Removing the test entries counts the list too, and a refusal there
+  is a warning, not the end of the restore. The run above ended on
+  `delete 0:` against a queue status still called non-empty after the
+  clear.
+
+ALSO in this series: 5234 as first handed over was built on 41cbd2c,
+not on 5233, and the two conflicted in ARCHITECTURE.md when applied in
+order -- the board build carried 5234 alone. 5234 was regenerated on
+5233 before either was pushed; the code in it did not change.
+
+Compiled -O2 -Wall -Wextra on the host stubs: mpd.c, no warnings.
+texttest all passes. mpdcheck against stock MPD 0.23.5 with two queued
+and one playing: clear and shuffle skipped, queue and playback as
+before. Not yet on the board: a boot with a folder loaded and the
+chooser up, then mpdcheck, should show playlistlength 21 at once.

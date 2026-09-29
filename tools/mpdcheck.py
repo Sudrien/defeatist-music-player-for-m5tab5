@@ -39,8 +39,8 @@ By default it works on things it made itself:
 `--destructive` adds what cannot be scoped: `clear` and `shuffle` act
 on the whole queue, so the queue is saved as "__mpdcheck_saved" first
 and loaded back (new ids, same order), and the volume, modes and
-replay gain are cycled through their values. `clear` and `shuffle`
-also run, without saving, when the queue is empty at the start.
+replay gain are cycled through their values. Nothing else runs
+`clear` or `shuffle` (5235: not even on a queue that looks empty).
 
 If a run is interrupted, the test entries are the ones from your
 queue's old length on (`delete N:`), and with --destructive the queue
@@ -474,8 +474,12 @@ class Checker:
     def snapshot(self):
         st = self.status()
         self.saved_status = st
-        self.base = int(st.get("playlistlength", "0"))
         self.orig_files = self.queue()
+        # 5235: the list itself, not status's count of it -- a board run
+        # had status say 0 over a loaded folder, and everything after
+        # took the listener's entries for the test's.
+        self.base = len(self.orig_files)
+        self.consistent = int(st.get("playlistlength", "-1")) == self.base
         self.orig_ids = self.ids()
         self.saved_rg = kv(self.c.cmd("replay_gain_status")).get("replay_gain_mode", "off")
         self.queue_saved = False
@@ -492,9 +496,12 @@ class Checker:
 
     def trim_tests(self):
         """Delete everything after the listener's own entries."""
-        n = int(self.status().get("playlistlength", "0"))
+        n = len(self.queue())
         if n > self.base:
-            self.c.cmd(f"delete {self.base}:")
+            try:
+                self.c.cmd(f"delete {self.base}:")
+            except Ack as e:
+                print(f"  WARN  could not remove the test entries: {e}")
 
     def restore(self):
         self.section("putting things back")
@@ -618,7 +625,10 @@ class Checker:
 
         # clear and shuffle act on the whole queue: only with nothing of
         # the listener's in it, or with --destructive (the queue saved).
-        if b == 0 or self.a.destructive:
+        # 5235: only with --destructive. "The queue looks empty" is not
+        # enough: a board run saw it empty when it was not, and cleared
+        # the listener's folder.
+        if self.a.destructive:
             before = sorted(self.ids())
             self.expect_ok("shuffle", "shuffle")
             self.ok("shuffle keeps the same entries and ids", sorted(self.ids()) == before)
@@ -626,8 +636,7 @@ class Checker:
             self.ok("clear empties the queue", self.queue() == [])
             self.base = 0 if self.a.destructive else self.base
         else:
-            self.skip("clear, shuffle", "they act on your whole queue; pass --destructive, "
-                      "or run with the queue empty")
+            self.skip("clear, shuffle", "they act on your whole queue; pass --destructive")
         self.refill()
 
         r = self.expect_ok("playlistfind file <uri>", f"playlistfind file {q(f[1])}") or []
@@ -958,6 +967,14 @@ class Checker:
                 self.skip("queue, transport, volume, stored playlists", "--read-only")
             elif not have_lib:
                 self.skip("queue, transport, stored playlists", "not enough files in the library")
+            elif not self.consistent:
+                # 5235: status and playlistinfo disagree about the queue,
+                # so positions cannot be trusted to be the test's own.
+                self.ok("status playlistlength matches playlistinfo", False,
+                        f"status says {self.saved_status.get('playlistlength')}, "
+                        f"playlistinfo lists {self.base}")
+                self.skip("queue, transport, volume, stored playlists, folders",
+                          "the queue's length is not agreed on; nothing that edits it is run")
             else:
                 self.queue_edits()
                 self.transport()

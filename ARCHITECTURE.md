@@ -17295,3 +17295,20 @@ every pass. Its comments stay where they were, pointing to it.
 
 The direct audio_out_set_idle(false) at first sound (0204) did not
 cover this: a resume from pause has no first sound.
+
+### 5194 -- player: MPD's status stays current behind a page
+
+v0.4.0-215: playing, with the chooser up from 54485 to 90053, Cantata's
+progress bar ran for about five seconds and jumped back, over and over.
+`status` answers from what mpd_publish() last copied, and only the
+transport half publishes -- which a page skips, and which 5188-5190 run
+behind a page only for a press, an edit or a volume change. With none
+of those the elapsed time stayed where the last publish left it, and
+Cantata, which counts on from a `status` and asks again every few
+seconds, was put back each time.
+
+While an MPD client is connected, a pass behind the page now also runs
+when the last publish is 500 ms old. The page loses one touch sample
+in each such pass -- 5190's cost, at two a second -- and only while a
+client is connected. A long-term answer is publishing without the
+transport half, which needs ui_state_t built outside it.

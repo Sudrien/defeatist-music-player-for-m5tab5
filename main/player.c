@@ -7109,6 +7109,9 @@ static bool queue_load_m3u(const char *path, int *added_out)
     return true;
 }
 
+/* 5194: when ui_task last published to MPD and the remote page. */
+static int64_t s_published_us;
+
 static void ui_task(void *arg)
 {
     ui_state_t st;
@@ -7596,7 +7599,14 @@ static void ui_task(void *arg)
          * list from before the clear. Such a pass costs the page one
          * touch sample, which a drag or a hold does not notice. */
         const bool behind = (sleeppage_is_open() || panel_is_open() || browser_is_open()) &&
-                            (s_hid_action >= 0 || uireq_press_waiting() || edited);
+                            (s_hid_action >= 0 || uireq_press_waiting() || edited ||
+                             /* 5194: and twice a second while an MPD client
+                              * is connected, so `status` keeps its elapsed
+                              * time current. Cantata's bar ran on from the
+                              * last publish and snapped back to it every
+                              * few seconds while the chooser was up. */
+                             (mpd_clients() > 0 &&
+                              esp_timer_get_time() - s_published_us >= 500000));
 
         if (!behind && sleeppage_is_open()) {
             sleeppage_set_timer(s_sleep_step,
@@ -8594,6 +8604,7 @@ static void ui_task(void *arg)
         remote_publish(&st, s_shown_path, s_rec_count);
         /* 5158: and what an MPD client is told, from the same st. */
         mpd_publish(&st, s_shown_path, s_streaming);
+        s_published_us = esp_timer_get_time();          /* 5194 */
         if (!behind) ui_draw(&st);      /* 5188: the page keeps the glass */
 
         /* 50 Hz under a finger, 25 Hz while the title is travelling, 10 Hz

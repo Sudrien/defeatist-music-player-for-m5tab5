@@ -7208,6 +7208,20 @@ static void ui_task(void *arg)
                         *hash = '\0';
                         name = hash + 12;
                     }
+                    /* 5203: and when it is one of the stations, it is
+                     * that station -- so next and previous on the glass
+                     * go on from it, as after a tap on the list. PSRAM,
+                     * once: a station_t is 600 bytes. */
+                    static station_t *known;
+                    if (!known) known = heap_caps_malloc(sizeof(*known), MALLOC_CAP_SPIRAM | MALLOC_CAP_8BIT);
+                    for (int i = 0; known && i < stations_count(); i++) {
+                        if (stations_get(i, known) && strcmp(known->url, rpath) == 0) {
+                            stations_set_index(i);
+                            if (!name[0]) name = known->name;
+                            ESP_LOGI(TAG, "remote: that is station %d of %d", i + 1, stations_count());
+                            break;
+                        }
+                    }
                     request_stream(rpath, name);
                 } else if (folder) {
                     if (playlist_load_dir(rpath) == ESP_OK && playlist_count() > 0) {

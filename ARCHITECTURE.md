@@ -17448,3 +17448,14 @@ cuts it off and passes the name to request_stream(). And 5200's
 "#StreamName=", not after the '#' -- so a station saved from Cantata
 would have been called "StreamName=WDET". Both directions now use
 Cantata's form.
+
+### 5203 -- player: a stream from MPD that is a station becomes the current one
+
+After 5202, WDET played from Cantata and was also station 9 in
+stations.m3u, but the list's current index stayed where it was, so next
+and previous on the glass went on from the station before. When a URL
+from uireq_open() (MPD's `add`) matches a station's exactly, that
+station is made current, as a tap on the list does, and its name is
+used if the client sent none. The lookup copies each station into a
+PSRAM station_t kept for it -- 600 bytes that are not for ui_task's
+stack.

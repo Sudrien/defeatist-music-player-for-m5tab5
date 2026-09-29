@@ -18536,3 +18536,49 @@ as such -- it would fail a correct server.
 Compiled -O2 -Wall -Wextra on the host stubs: mpd.c, no warnings.
 texttest all passes. mpdcheck --destructive --reindex against stock
 MPD 0.23.5 unchanged (update, rescan, clear pass). Not on the board.
+
+### 5238 -- mpdfilter: MPD 0.21's filter expressions, parsed and evaluated
+
+The first of the 0.21 series. `find "(Artist == 'Beatles')"` and its
+kind are what every client sends once the greeting says 0.21, and the
+reason MPDPROTO_VERSION has stayed at 0.20. This patch is the language
+alone -- main/mpdfilter.c, pure C, no allocation, host-tested -- and
+wires nothing into mpd.c; 5239 does that.
+
+The grammar is 0.21's doc/protocol.rst and src/song/Filter.cxx: a
+parenthesised term `(TAG op 'VALUE')` with op `==`, `!=` or
+`contains`; `(base 'FOLDER')`; `(!EXPR)`; `(EXPR AND EXPR ...)`.
+Values quoted with ' or ", a backslash escaping whatever follows it.
+Tag names without regard to case, `AND` in capitals as MPD has it.
+
+What the catalog holds is what is compared: title, artist, album,
+`file` (the URI) and `any`; AlbumArtist as Artist, as 5180's pairs.
+Any other tag is one no song here has, so `==` and `contains` match
+nothing and `!=` everything -- MPD's answer for a song without the tag.
+`base` is a folder of the library, exact and never folded.
+
+Refused at parse, marked `unsupported` so mpd.c can say "not supported"
+rather than "syntax error": `=~`/`!~` (no regex library on the target),
+`modified-since` (no stamps a client could compare) and `AudioFormat`
+(no format in the catalog). A match that ignored them would answer a
+different question.
+
+Case: the caller says. find's commands compare exactly and search's
+fold ASCII case, as 0.21's doc has it and mediasearch_fold() folds.
+
+mpdfilter_required() gives the terms a match cannot do without -- `==`
+and `contains` on a held field, reached from the root through ANDs
+only -- so 5239 can skip a search-file line lacking one before reading
+its catalog record, as 5180's pairs already do.
+
+Bounds: 32 nodes, depth 8, 1 KB of values, each refused with its own
+message past the limit. Cantata's widest filter is an AND of four.
+
+texttest/mpdfiltertest.c: 160 checks on the real file -- exact and
+folded comparison, the unheld tag, empty fields, base, NOT, AND,
+nesting, whitespace, MPD's own escaping example, sixteen syntax errors,
+five refusals, the three limits, and the pre-filter's choice of terms.
+Mutation-checked: NOT not negating (3 failures), folding always (1),
+base as a plain prefix (1), the pre-filter looking under NOT (3), a
+regex accepted as == (3). texttest all passes. mpdfilter.c is added to
+main/CMakeLists.txt; nothing calls it yet.

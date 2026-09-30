@@ -19285,3 +19285,24 @@ top first (5229).
 
 texttest all passes. mpd.c and player.c not compiled here -- no IDF.
 Not on the board.
+
+### 5260 -- browser: the order button says when a oneshot stands
+
+`consume oneshot` (5253) and `single oneshot` (5241) are the player's EAT
+and ONE orders for the song playing, with mpd.c putting the old order
+back when it ends. The chooser's order button showed EAT or ONE and
+nothing else, so a mode that would undo itself after this song read the
+same as one that would not. MPD's `status` was never the gap -- it has
+said `consume: oneshot` since 5253.
+
+mpd_oneshot() exports s_oneshot.on, and while it is true the button reads
+`EAT·1` or `ONE·1` (U+00B7, which ark12 draws: Latin-1). order_label()
+keeps the bare name, for the log lines. browser_draw() compares the flag
+with what it last drew and dirties the screen when it moves, because a
+oneshot need not change the order: `consume oneshot` on top of
+`consume 1` is EAT to EAT, and browser_set_order() returns early on that.
+
+A bool read across tasks, so the label can be one pass late; nothing
+acts on it. The remote page shows no play order at all, so nothing there.
+
+Not compiled here -- no IDF. Not on the board.

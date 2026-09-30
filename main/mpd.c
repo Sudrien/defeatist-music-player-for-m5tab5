@@ -357,6 +357,10 @@ enum { TAG_ARTIST = 1, TAG_ALBUM = 2, TAG_TITLE = 4, TAG_ALL = 7 };
  * shown that order (`armed`), since the snapshot can trail the ask. */
 static struct { bool on, played, armed; int was, set, kind; uint32_t id; } s_oneshot;
 
+/* 5260: s_oneshot.on is the server task's; this is read from ui_task, and
+ * a bool read is whole, so a pass can only be one pass late. */
+bool mpd_oneshot(void) { return s_oneshot.on; }
+
 /* 5257: status's `lastloadedplaylist` (0.24): the name the last `load`
  * that succeeded was given, since the server started -- as MPD's. */
 static char s_last_loaded[96];

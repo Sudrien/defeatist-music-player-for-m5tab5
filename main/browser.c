@@ -27,6 +27,7 @@
 #include "gfx.h"
 #include "storage.h"
 #include "recorder.h"         /* 5215 */
+#include "mpd.h"              /* 5260 */
 
 static const char *TAG = "tab5_browser";
 
@@ -214,6 +215,7 @@ static int  s_prefix_len;
 static play_order_t s_order = PLAY_ORDER_ALL;
 static uint32_t s_seen_generation = UINT32_MAX;
 static uint32_t s_seen_rec_files;           /* 5215 */
+static bool     s_seen_oneshot;             /* 5260 */
 
 play_order_t browser_order(void) { return s_order; }
 
@@ -996,6 +998,19 @@ static const char *order_label(void)
     }
 }
 
+/* 5260: the button's label, marked for one song while a client's
+ * `consume oneshot` or `single oneshot` stands. order_label() stays the
+ * bare name, for the log lines. */
+static const char *order_button_label(void)
+{
+    if (!s_seen_oneshot) return order_label();
+    switch (s_order) {
+    case PLAY_ORDER_ONE:     return "ONE\xc2\xb7" "1";
+    case PLAY_ORDER_EAT:     return "EAT\xc2\xb7" "1";
+    default:                 return order_label();
+    }
+}
+
 /* Six buttons across the bottom, equal width. The arithmetic is done from
  * the panel width rather than written out, because a 720 px panel divides
  * evenly and nothing here should assume that twice. */
@@ -1045,6 +1060,13 @@ void browser_draw(void)
 {
     if (!s_open) return;
     recordings_refresh();                               /* 5215 */
+
+    /* 5260: a oneshot set or ended changes the order button's label and
+     * need not change the order -- consume oneshot on top of consume. */
+    if (mpd_oneshot() != s_seen_oneshot) {
+        s_seen_oneshot = !s_seen_oneshot;
+        s_dirty = true;
+    }
 
     /* A card going in or a drive coming out while the chooser is up has
      * to be visible without a touch, so the generation counter is the
@@ -1300,7 +1322,7 @@ void browser_draw(void)
     foot_box(1, &bx, &bw); draw_button(bx + 4, fy + 8, bw - 8, FOOT_H - 16, "FLDR", !s_radio && s_dir[0] != '\0');
     foot_box(2, &bx, &bw); draw_button(bx + 4, fy + 8, bw - 8, FOOT_H - 16, "UP^",  s_top > 0);
     foot_box(3, &bx, &bw); draw_button(bx + 4, fy + 8, bw - 8, FOOT_H - 16, "DN",   s_top + rows < s_count);
-    foot_box(4, &bx, &bw); draw_button(bx + 4, fy + 8, bw - 8, FOOT_H - 16, order_label(), true);
+    foot_box(4, &bx, &bw); draw_button(bx + 4, fy + 8, bw - 8, FOOT_H - 16, order_button_label(), true);
     foot_box(5, &bx, &bw); draw_button(bx + 4, fy + 8, bw - 8, FOOT_H - 16, "X",    true);
 
     gfx_blit(0, h);

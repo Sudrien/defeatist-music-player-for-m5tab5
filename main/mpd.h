@@ -112,6 +112,12 @@ void mpd_publish(const ui_state_t *st, const char *path, bool streaming);
  * database, mount and stored_playlist idle events. */
 void mpd_media_changed(void);
 
+/* 5260: whether a client's `consume oneshot` or `single oneshot` stands --
+ * the play order is EAT or ONE for the song playing, and goes back when
+ * it ends. For the chooser's order button, which otherwise reads the same
+ * as a permanent EAT or ONE. Read on ui_task; set on the server task. */
+bool mpd_oneshot(void);
+
 #ifdef __cplusplus
 }
 #endif

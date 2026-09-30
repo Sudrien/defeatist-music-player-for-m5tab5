@@ -19245,3 +19245,13 @@ installable here, so the section's expectations are from the document.
 
 texttest all passes (mpdfiltertest: 22 new cases); mpd.c compiles on the
 host stubs. Not on the board.
+
+### 5258 -- MPD.md: mpdcheck passes on the board
+
+No code. `tools/mpdcheck.py 192.168.5.62 --destructive --reindex` against
+the board at 5257: 438 passed, 0 failed, 0 skipped, greeting
+`OK MPD 0.24.0`, test files taken from usb, everything put back after.
+That covers what MPD.md listed as not yet driven on the board -- `list`
+(5182), `search`/`find` (5180) and 5218 onward -- so the line comes out.
+Cantata's own stored-playlists view was not what ran; mpdcheck's
+section on stored playlists was.

@@ -577,10 +577,11 @@ listplaylist, the prio filter and explicit-case operators, tagtypes
 available/reset, `protocol` (hide_playlists_in_root, always on),
 lastloadedplaylist; added-since and the sticker commands refused.
 
-Not yet driven on the board: `list` (5182), `search`/`find` (5180),
-Cantata's stored-playlists view (5184), and everything from 5218 on.
-`tools/mpdcheck.py <ip>` (5225-5226, extended in 5232) runs all of it
-and puts the listener's queue, volume and song back.
+Driven on the board through 5257: `tools/mpdcheck.py <ip> --destructive
+--reindex` passed 438 of 438 against the greeting `OK MPD 0.24.0`, test
+files from usb, and put the listener's queue, volume and song back.
+Cantata's stored-playlists view (5184) is covered by mpdcheck's stored
+playlists section, not by Cantata itself.
 
 ## What would make this not worth building
 

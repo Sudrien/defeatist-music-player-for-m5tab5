@@ -31,8 +31,10 @@ font was public domain, so nothing had to travel with it.
 
 ## Coverage
 
-**20,669 glyphs, about 545 KB of flash.** Two cell sizes, and the table
-records which each glyph is rather than inferring it from the codepoint:
+**20,669 glyphs, about 333 KB of flash** -- stored since 5247 as shared
+6×6 tiles (81,614 tiles, 33,735 distinct), where one 16-bit value per
+row took about 545 KB. Two cell sizes, and the table records which each
+glyph is rather than inferring it from the codepoint:
 
 - **6×12 halfwidth** (531 glyphs) — Basic Latin (U+0020–U+007E),
   Latin-1 Supplement, Latin Extended-A, Cyrillic.
@@ -42,8 +44,8 @@ records which each glyph is rather than inferring it from the codepoint:
 
 CJK Unified is the bulk of that: 18,299 codepoints, effectively the whole
 block. It is also the obvious thing to cut if the app partition ever gets
-tight — dropping `(0x4E00, 0x9FFF)` from `RANGES` takes the table to about
-62 KB while keeping every Latin, Cyrillic, kana and fullwidth-punctuation
+tight — dropping `(0x4E00, 0x9FFF)` from `RANGES` took the row-per-scanline
+table to about 62 KB (less as tiles; the generator prints the figure) while keeping every Latin, Cyrillic, kana and fullwidth-punctuation
 glyph. (62 and not nearer 20: Extension A is 1,480 codepoints of its own
 and stays behind.)
 

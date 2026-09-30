@@ -290,8 +290,8 @@ def collect(src: str) -> dict[int, tuple[int, list[int]]]:
     return glyphs
 
 
-HEADER = '''/*
- * ark12.h -- Ark Pixel Font, 12px, as a bitmap table.
+HEADER = """/*
+ * ark12.h -- Ark Pixel Font, 12px, as deduplicated 6x6 tiles.
  *
  * GENERATED FILE. Do not edit. Regenerate with:
  *     ./tools/gen_ark12.py
@@ -313,67 +313,94 @@ HEADER = '''/*
  *
  * Every glyph is {h} rows tall and either {half}px (Latin and its
  * relatives -- one cell) or {full}px ({full_desc} -- two cells, the
- * same shape a CJK terminal font calls fullwidth) wide. A row is one
- * value with bit 0 leftmost, wide enough to hold either -- one row type
- * rather than two, because a caller drawing text does not want to carry
- * a width-dependent branch through every blit. ark12_w[] says which
- * width each entry actually is; nothing here infers it from the
- * codepoint.
+ * same shape a CJK terminal font calls fullwidth) wide. ark12_glyph()
+ * hands back a glyph as {h} rows, each one value with bit 0 leftmost --
+ * the shape gfx.c draws from.
+ *
+ * STORED AS TILES (5247). A full-width glyph is four 6x6 tiles (top
+ * left, top right, bottom left, bottom right) and a half-width one two
+ * (top, bottom). Across the font {tiles_total} tiles are only {tiles}
+ * distinct -- blank corners, shared radicals, repeated strokes -- so each
+ * distinct tile is stored once, 36 bits packed end to end in
+ * ark12_tiles, and a glyph is its tiles' numbers in ark12_tix. The
+ * codepoints are runs of consecutive glyphs of one width (ark12_runs),
+ * so there is no table per glyph at all: a glyph's tile numbers start
+ * at its run's `tix` plus its place in the run times its tile count.
+ * {bytes} bytes, where one uint16_t row per scanline and a codepoint and
+ * a width per glyph took {old_bytes}.
  *
  * SPDX-License-Identifier: OFL-1.1
  */
 #pragma once
 
+#include <stdbool.h>
 #include <stdint.h>
 
 #define ARK12_H       {h}
 #define ARK12_HALF_W  {half}
 #define ARK12_FULL_W  {full}
 #define ARK12_COUNT   {count}
+#define ARK12_TILES   {tiles}
+#define ARK12_RUNS    {runs}
 
-/*
- * Three parallel arrays rather than one struct per glyph. A struct with
- * a uint16_t codepoint, a uint8_t width and a uint16_t[10] bitmap pads
- * to a multiple of 2 either way, so this is not a packing saving -- it
- * is so ark12_glyph()'s binary search walks a bare uint16_t array rather
- * than striding through bitmaps it has not decided it wants yet.
- *
- * ark12_cp is sorted, direct indexing is not used because the gap from
- * U+007F to U+00A0, and now the much larger gap from U+017F to U+3000,
- * would waste far more than the lookup saves.
- */
-extern const uint16_t ark12_cp[ARK12_COUNT];
-extern const uint8_t  ark12_w[ARK12_COUNT];      /* ARK12_HALF_W or ARK12_FULL_W */
-extern const uint16_t ark12_bits[ARK12_COUNT][ARK12_H];
+/* 8 bytes a run: the width is the top bit of `count`, since a run is
+ * never 32768 long -- a separate byte would pad the struct to 12, and
+ * there are {runs} runs (the CJK blocks are not drawn whole). */
+#define ARK12_RUN_FULL  0x8000u
+typedef struct {{
+    uint16_t first;     /* the run's first codepoint */
+    uint16_t count;     /* how many consecutive codepoints | ARK12_RUN_FULL */
+    uint32_t tix;       /* where its tile numbers start in ark12_tix */
+}} ark12_run_t;
 
-/*
- * Returns NULL for a codepoint outside the subset -- callers decide what
- * that means; gfx.c draws a notdef box sized from the codepoint's own
- * expected width, which this function has no opinion on for a lookup
- * that failed.
- *
- * *w_out is written only on a successful lookup. A caller that reads it
- * unconditionally on a NULL return is reading whatever was on the stack
- * before the call, same as ignoring any other out-param on failure.
- */
-static inline const uint16_t *ark12_glyph(uint32_t cp, int *w_out)
+extern const ark12_run_t ark12_runs[ARK12_RUNS];
+extern const uint16_t    ark12_tix[];
+/* ARK12_TILES tiles of 36 bits, row 0 in the low 6 bits, bit 0 of a row
+ * leftmost; then 8 bytes of padding so a tile can be read as 8. */
+extern const uint8_t     ark12_tiles[];
+
+static inline uint32_t ark12_tile_row(uint16_t t, int r)
 {{
-    if (cp > 0xFFFFu) return 0;
-    int lo = 0, hi = ARK12_COUNT - 1;
+    const uint32_t bit = (uint32_t)t * 36u + (uint32_t)r * 6u;
+    const uint8_t *p = ark12_tiles + (bit >> 3);
+    const uint32_t v = (uint32_t)p[0] | ((uint32_t)p[1] << 8);
+    return (v >> (bit & 7u)) & 0x3Fu;
+}}
+
+/*
+ * Fills rows[] with the glyph for `cp` and returns true, with *w_out its
+ * width. False for a codepoint outside the subset -- callers decide what
+ * that means; gfx.c draws a notdef box sized from the codepoint's own
+ * expected width. On false neither rows[] nor *w_out is written.
+ */
+static inline bool ark12_glyph(uint32_t cp, int *w_out, uint16_t rows[ARK12_H])
+{{
+    if (cp > 0xFFFFu) return false;
+    int lo = 0, hi = ARK12_RUNS - 1;
     while (lo <= hi) {{
         const int mid = (lo + hi) / 2;
-        const uint16_t v = ark12_cp[mid];
-        if (v == (uint16_t)cp) {{
-            *w_out = ark12_w[mid];
-            return ark12_bits[mid];
+        const ark12_run_t *r = &ark12_runs[mid];
+        if (cp < r->first) {{ hi = mid - 1; continue; }}
+        const bool full = (r->count & ARK12_RUN_FULL) != 0;
+        if (cp >= (uint32_t)r->first + (r->count & ~ARK12_RUN_FULL)) {{ lo = mid + 1; continue; }}
+        const int n = full ? 4 : 2;
+        const uint16_t *t = ark12_tix + r->tix + (cp - r->first) * (uint32_t)n;
+        for (int y = 0; y < ARK12_H; y++) {{
+            const int half = y / 6, ty = y % 6;
+            if (n == 4)
+                rows[y] = (uint16_t)(ark12_tile_row(t[half * 2], ty) |
+                                     (ark12_tile_row(t[half * 2 + 1], ty) << 6));
+            else
+                rows[y] = (uint16_t)ark12_tile_row(t[half], ty);
         }}
-        if (v < (uint16_t)cp) lo = mid + 1; else hi = mid - 1;
+        *w_out = full ? ARK12_FULL_W : ARK12_HALF_W;
+        return true;
     }}
-    return 0;
+    return false;
 }}
-'''
+"""
 
-SOURCE = '''/*
+SOURCE = """/*
  * ark12.c -- the tables declared by ark12.h.
  *
  * GENERATED FILE. Do not edit. Regenerate with ./tools/gen_ark12.py
@@ -387,52 +414,100 @@ SOURCE = '''/*
 
 #include "ark12.h"
 
-const uint16_t ark12_cp[ARK12_COUNT] = {{
-{cps}}};
+const ark12_run_t ark12_runs[ARK12_RUNS] = {{
+{runs}}};
 
-const uint8_t ark12_w[ARK12_COUNT] = {{
-{widths}}};
+const uint16_t ark12_tix[{ntix}] = {{
+{tix}}};
 
-const uint16_t ark12_bits[ARK12_COUNT][ARK12_H] = {{
-{bits}}};
-'''
+const uint8_t ark12_tiles[{ntilebytes}] = {{
+{tilebytes}}};
+"""
+
+
+def tile_of(rows: list[int], x: int, y: int) -> int:
+    """The 6x6 tile at (x, y) in a glyph, as 36 bits: row 0 low."""
+    v = 0
+    for r in range(6):
+        v |= ((rows[y + r] >> x) & 0x3F) << (6 * r)
+    return v
+
+
+def encode(glyphs: dict[int, tuple[int, list[int]]]):
+    """Runs, tile numbers and distinct tiles -- and a check, before
+    anything is written, that every glyph decodes back to its rows."""
+    order = sorted(glyphs)
+    runs, tix, tiles, index = [], [], [], {}
+    for cp in order:
+        w, rows = glyphs[cp]
+        if runs and runs[-1][0] + runs[-1][1] == cp and runs[-1][3] == w and runs[-1][1] < 0x7FFF:
+            runs[-1][1] += 1
+        else:
+            runs.append([cp, 1, len(tix), w])
+        xs = (0, 6) if w == FULL_W else (0,)
+        for y in (0, 6):
+            for x in xs:
+                t = tile_of(rows, x, y)
+                if t not in index:
+                    index[t] = len(tiles)
+                    tiles.append(t)
+                tix.append(index[t])
+    assert len(tiles) <= 0x10000, "tile numbers no longer fit in 16 bits"
+
+    # The check: decode as ark12_glyph() does, compare with the source.
+    for first, count, start, w in runs:
+        n = 4 if w == FULL_W else 2
+        for k in range(count):
+            t = tix[start + k * n: start + k * n + n]
+            want = glyphs[first + k][1]
+            for y in range(GLYPH_H):
+                half, ty = divmod(y, 6)
+                if n == 4:
+                    got = ((tiles[t[half * 2]] >> (6 * ty)) & 0x3F) | \
+                          (((tiles[t[half * 2 + 1]] >> (6 * ty)) & 0x3F) << 6)
+                else:
+                    got = (tiles[t[half]] >> (6 * ty)) & 0x3F
+                assert got == want[y], f"U+{first + k:04X} row {y}: {got:03X} != {want[y]:03X}"
+
+    bits = 0
+    for i, t in enumerate(tiles):
+        bits |= t << (36 * i)
+    nbytes = (36 * len(tiles) + 7) // 8 + 8
+    tilebytes = bits.to_bytes(nbytes, "little")
+    return order, runs, tix, tiles, tilebytes
 
 
 def emit(glyphs: dict[int, tuple[int, list[int]]], outdir: str, commit: str) -> None:
-    order = sorted(glyphs)
+    order, runs, tix, tiles, tilebytes = encode(glyphs)
 
-    cps = ""
-    for i in range(0, len(order), 12):
-        cps += "    " + " ".join(f"0x{c:04X}," for c in order[i:i + 12]) + "\n"
-
-    widths = ""
-    for i in range(0, len(order), 16):
-        row_cps = order[i:i + 16]
-        widths += "    " + " ".join(f"{glyphs[c][0]}," for c in row_cps) + "\n"
-
-    bits = ""
-    for cp in order:
-        w, rows = glyphs[cp]
-        row = ", ".join(f"0x{b:03X}" for b in rows)
-        ch = chr(cp) if 0x20 < cp < 0x7F and cp != 0x22 else " "
-        bits += f"    {{ {row} }},  /* U+{cp:04X} {ch} */\n"
+    runs_c = "".join(f"    {{ 0x{f:04X}, 0x{c | (0x8000 if w == FULL_W else 0):04X}, {s:6d} }},\n"
+                     for f, c, s, w in runs)
+    tix_c = ""
+    for i in range(0, len(tix), 12):
+        tix_c += "    " + " ".join(f"{t:5d}," for t in tix[i:i + 12]) + "\n"
+    tb_c = ""
+    for i in range(0, len(tilebytes), 16):
+        tb_c += "    " + " ".join(f"0x{b:02X}," for b in tilebytes[i:i + 16]) + "\n"
 
     n_half = sum(1 for c in order if glyphs[c][0] == HALF_W)
     n_full = len(order) - n_half
-    bitmap_bytes = len(order) * GLYPH_H * 2
-    index_bytes = len(order) * (2 + 1)
+    run_bytes = len(runs) * 8         # sizeof(ark12_run_t)
+    total = run_bytes + len(tix) * 2 + len(tilebytes)
+    old = len(order) * (GLYPH_H * 2 + 3)
 
     os.makedirs(outdir, exist_ok=True)
     with open(os.path.join(outdir, "ark12.h"), "w") as f:
         f.write(HEADER.format(commit=commit, h=GLYPH_H, half=HALF_W, full=FULL_W,
                               full_desc="CJK-adjacent scripts and fullwidth forms",
-                              count=len(order)))
+                              count=len(order), tiles=len(tiles), runs=len(runs),
+                              tiles_total=len(tix), bytes=total, old_bytes=old))
     with open(os.path.join(outdir, "ark12.c"), "w") as f:
-        f.write(SOURCE.format(commit=commit, cps=cps, widths=widths, bits=bits))
+        f.write(SOURCE.format(commit=commit, runs=runs_c, ntix=len(tix), tix=tix_c,
+                              ntilebytes=len(tilebytes), tilebytes=tb_c))
 
-    print(f"{len(order)} glyphs ({n_half} halfwidth, {n_full} fullwidth), "
-          f"{bitmap_bytes} bytes of bitmap, {index_bytes} bytes of index, "
-          f"{bitmap_bytes + index_bytes} bytes total", file=sys.stderr)
+    print(f"{len(order)} glyphs ({n_half} halfwidth, {n_full} fullwidth) in "
+          f"{len(runs)} runs; {len(tix)} tiles, {len(tiles)} distinct; "
+          f"{total} bytes (was {old} as one row per scanline)", file=sys.stderr)
 
     # Per-range, because a range silently contributing nothing is the
     # failure mode this script actually has -- adding a block to RANGES
@@ -444,22 +519,66 @@ def emit(glyphs: dict[int, tuple[int, list[int]]], outdir: str, commit: str) -> 
         flag = "   <-- EMPTY, is this range drawn at this size?" if n == 0 else ""
         print(f"    U+{lo:04X}..U+{hi:04X}  {n:6d}{flag}", file=sys.stderr)
 
-    # The number the RANGES comment quotes for trimming. Printed rather
-    # than left as a claim in a comment that nobody re-checks after
-    # changing RANGES.
-    kept = [cp for cp in order if not (0x4E00 <= cp <= 0x9FFF)]
-    trimmed = len(kept) * (GLYPH_H * 2 + 3)
-    print(f"  without U+4E00..U+9FFF: {len(kept)} glyphs, {trimmed} bytes",
-          file=sys.stderr)
+    # The number components/ark12/README.md quotes for trimming. Printed
+    # rather than left as a claim nobody re-checks after changing RANGES;
+    # 5247 measures it as tiles, the way it would be stored.
+    kept = {cp: glyphs[cp] for cp in order if not (0x4E00 <= cp <= 0x9FFF)}
+    _, kr, kt, _, kb = encode(kept)
+    print(f"  without U+4E00..U+9FFF: {len(kept)} glyphs, "
+          f"{len(kr) * 8 + len(kt) * 2 + len(kb)} bytes", file=sys.stderr)
+
+
+def reencode(cfile: str) -> dict[int, tuple[int, list[int]]]:
+    """5247: the glyphs of an ark12.c this script wrote before -- either
+    format -- so the tables can be re-encoded without the font's source.
+    The last regeneration was from a local checkout; this keeps the
+    glyphs exactly those."""
+    src = open(cfile).read()
+    def block(name):
+        i = src.index(name)
+        return src[src.index("{", i) + 1: src.index("};", i)]
+    if "ark12_bits[" in src:
+        cps = [int(x, 16) for x in re.findall(r"0x([0-9A-Fa-f]+)", block("ark12_cp["))]
+        ws = [int(x) for x in re.findall(r"\b(\d+)\b", block("ark12_w["))]
+        rows = [[int(x, 16) for x in re.findall(r"0x([0-9A-Fa-f]+)", m)]
+                for m in re.findall(r"\{([^{}]*)\}", block("ark12_bits["))]
+        return {c: (w, r) for c, w, r in zip(cps, ws, rows)}
+    runs = []
+    for m in re.findall(r"\{\s*([^{}]*?)\s*\}", block("ark12_runs[")):
+        first, count, start = (int(v, 0) for v in m.split(","))
+        runs.append((first, count & 0x7FFF, start, FULL_W if count & 0x8000 else HALF_W))
+    tix = [int(x) for x in re.findall(r"\b(\d+)\b", block("ark12_tix["))]
+    tb = bytes(int(x, 16) for x in re.findall(r"0x([0-9A-Fa-f]+)", block("ark12_tiles[")))
+    bits = int.from_bytes(tb, "little")
+    tile = lambda i: (bits >> (36 * i)) & ((1 << 36) - 1)
+    out = {}
+    for first, count, start, w in runs:
+        n = 4 if w == FULL_W else 2
+        for k in range(count):
+            t = tix[start + k * n: start + k * n + n]
+            rows = []
+            for y in range(GLYPH_H):
+                half, ty = divmod(y, 6)
+                v = (tile(t[half * 2 if n == 4 else half]) >> (6 * ty)) & 0x3F
+                if n == 4:
+                    v |= ((tile(t[half * 2 + 1]) >> (6 * ty)) & 0x3F) << 6
+                rows.append(v)
+            out[first + k] = (w, rows)
+    return out
 
 
 def main() -> None:
     ap = argparse.ArgumentParser(description=__doc__)
     ap.add_argument("--src", help="an ark-pixel-font checkout; downloads if absent")
+    ap.add_argument("--reencode", metavar="ARK12_C",
+                    help="take the glyphs from an ark12.c written before (5247)")
     ap.add_argument("--out", default=os.path.join(
         os.path.dirname(os.path.abspath(__file__)), "..", "components", "ark12"))
     args = ap.parse_args()
 
+    if args.reencode:
+        emit(reencode(args.reencode), args.out, "a local checkout")
+        return
     if args.src:
         emit(collect(args.src), args.out, "a local checkout")
         return

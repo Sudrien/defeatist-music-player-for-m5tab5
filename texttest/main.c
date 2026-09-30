@@ -36,6 +36,7 @@
 
 #include "shim.h"
 #include "gfx.h"
+#include "ark12.h"                  /* 5247 */
 
 #define W   720
 #define H   1280
@@ -507,6 +508,43 @@ static void test_poly_basics(void)
     }
 }
 
+/*
+ * 5247: the font is stored as shared 6x6 tiles now, and every glyph must
+ * come back exactly as it was when it was one uint16_t per row. The hash
+ * below was taken from the tables before the change -- every codepoint
+ * the old table held, its width and its twelve rows, FNV-1a in codepoint
+ * order -- and a lookup of every codepoint from U+0000 to U+FFFF through
+ * ark12_glyph() must give the same glyphs, the same count, and nothing
+ * the old table did not have. A regenerated font that changes a glyph on
+ * purpose changes this number on purpose, and says so where it does.
+ */
+#define ARK12_GOLDEN_COUNT  20669
+#define ARK12_GOLDEN_HASH   0x8EE1A15Eu
+
+static void test_font_unchanged_by_tiling(void)
+{
+    uint32_t h = 2166136261u;
+    int n = 0;
+    for (uint32_t cp = 0; cp <= 0xFFFF; cp++) {
+        uint16_t rows[ARK12_H];
+        int w = -1;
+        if (!ark12_glyph(cp, &w, rows)) continue;
+        CHECK(w == ARK12_HALF_W || w == ARK12_FULL_W, "U+%04X has width %d", (unsigned)cp, w);
+        for (int y = 0; y < ARK12_H; y++)
+            CHECK((rows[y] >> w) == 0, "U+%04X row %d has ink past its width", (unsigned)cp, y);
+        h = (h ^ cp) * 16777619u;
+        h = (h ^ (uint32_t)w) * 16777619u;
+        for (int y = 0; y < ARK12_H; y++) h = (h ^ rows[y]) * 16777619u;
+        n++;
+    }
+    CHECK(n == ARK12_GOLDEN_COUNT, "the font has %d glyphs, not %d", n, ARK12_GOLDEN_COUNT);
+    CHECK(h == ARK12_GOLDEN_HASH, "the font's glyphs hash to 0x%08X, not 0x%08X",
+          (unsigned)h, (unsigned)ARK12_GOLDEN_HASH);
+    uint16_t rows[ARK12_H];
+    int w;
+    CHECK(!ark12_glyph(0x10000, &w, rows), "a codepoint past U+FFFF was found");
+}
+
 int main(void)
 {
     if (gfx_init(NULL, W, H) != ESP_OK) {
@@ -537,6 +575,7 @@ int main(void)
     test_degenerate();
     test_poly_basics();
     test_star_has_five_points();
+    test_font_unchanged_by_tiling();                     /* 5247 */
 
     printf("\n%d checks, %d failures\n", checks, failures);
     return failures ? 1 : 0;

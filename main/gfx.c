@@ -760,14 +760,19 @@ void gfx_draw_pct_centred(int cx, int y, int pct, uint16_t c)
 
 /*
  * A glyph's bitmap and its width together, because from ark12_glyph()
- * onward nothing here can assume one without the other any more. bits is
- * NULL for a character that occupies no cell at all (soft hyphen); w is
- * meaningless in that case and the caller must not read it, matching
- * ark12_glyph()'s own contract for a failed lookup.
+ * onward nothing here can assume one without the other any more. `bits`
+ * is false for a character that occupies no cell at all (soft hyphen); w
+ * and rows are meaningless in that case and the caller must not read
+ * them, matching ark12_glyph()'s own contract for a failed lookup.
+ *
+ * 5247: the rows are carried, not pointed at. The font is stored as
+ * shared 6x6 tiles now (ark12.h), so a glyph's twelve rows exist only
+ * once assembled -- 24 bytes, by value.
  */
 typedef struct {
-    const uint16_t *bits;
+    bool bits;
     int w;
+    uint16_t rows[ARK12_H];
 } glyph_t;
 
 /*
@@ -870,14 +875,18 @@ static uint32_t utf8_next(const char **p)
 static glyph_t glyph_for(uint32_t cp)
 {
     if (cp == 0x00A0) cp = 0x0020;      /* no-break space draws as space */
-    if (cp == 0x00AD) return (glyph_t){ NULL, 0 };  /* soft hyphen: not a line break here */
+    glyph_t g = { .bits = false };
+    if (cp == 0x00AD) return g;         /* soft hyphen: not a line break here */
 
-    int w;
-    const uint16_t *bits = ark12_glyph(cp, &w);
-    if (bits) return (glyph_t){ bits, w };
-
-    return (glyph_t){ cp_is_wide(cp) ? NOTDEF_FULL : NOTDEF_HALF,
-                       cp_is_wide(cp) ? ARK12_FULL_W : ARK12_HALF_W };
+    if (ark12_glyph(cp, &g.w, g.rows)) {
+        g.bits = true;
+        return g;
+    }
+    const bool wide = cp_is_wide(cp);
+    memcpy(g.rows, wide ? NOTDEF_FULL : NOTDEF_HALF, sizeof(g.rows));
+    g.w = wide ? ARK12_FULL_W : ARK12_HALF_W;
+    g.bits = true;
+    return g;
 }
 
 static void blit_glyph(const uint16_t *g, int w, int x, int y, int scale, uint16_t c)
@@ -894,7 +903,7 @@ static void blit_glyph(const uint16_t *g, int w, int x, int y, int scale, uint16
 void gfx_draw_char(int x, int y, uint32_t cp, int scale, uint16_t c)
 {
     glyph_t g = glyph_for(cp);
-    if (g.bits) blit_glyph(g.bits, g.w, x, y, scale, c);
+    if (g.bits) blit_glyph(g.rows, g.w, x, y, scale, c);
 }
 
 void gfx_draw_text_clipped(int x, int y, int win_x, int win_w,
@@ -921,7 +930,7 @@ void gfx_draw_text_clipped(int x, int y, int win_x, int win_w,
         if (gx >= win_x1) break;
 
         for (int row = 0; row < ARK12_H; row++) {
-            const uint16_t bits = g.bits[row];
+            const uint16_t bits = g.rows[row];
             for (int col = 0; col < g.w; col++) {
                 if (!(bits & (1u << col))) continue;
                 int px = gx + col * scale;
@@ -961,7 +970,7 @@ void gfx_draw_text(int x, int y, const char *s, int scale, int max_w, uint16_t c
         while ((cp = utf8_next(&s)) != 0) {
             glyph_t g = glyph_for(cp);
             if (!g.bits) continue;
-            blit_glyph(g.bits, g.w, cx, y, scale, c);
+            blit_glyph(g.rows, g.w, cx, y, scale, c);
             cx += (g.w + 1) * scale;
         }
         return;
@@ -994,7 +1003,7 @@ void gfx_draw_text(int x, int y, const char *s, int scale, int max_w, uint16_t c
         if (!g.bits) continue;
         const int adv = (g.w + 1) * scale;
         if (used + adv > budget) break;
-        blit_glyph(g.bits, g.w, cx, y, scale, c);
+        blit_glyph(g.rows, g.w, cx, y, scale, c);
         cx += adv;
         used += adv;
     }
@@ -1041,13 +1050,16 @@ void gfx_draw_text_tail(int x, int y, const char *s, int scale, int max_w, uint1
      * in budget, per the constant's own comment. head is the index the
      * *next* write would land on, which after at least one wrap is also
      * the oldest surviving entry -- ordinary ring-buffer bookkeeping. */
-    struct { glyph_t g; int adv; } ring[TAIL_MAX_GLYPHS];
+    /* 5247: the codepoint, not the glyph -- a glyph carries its 24 bytes
+     * of rows now, and 96 of them would put 3 KB on the caller's stack.
+     * The few that are drawn are looked up again. */
+    struct { uint32_t cp; int adv; } ring[TAIL_MAX_GLYPHS];
     int n = 0, head = 0;
     uint32_t cp;
     while ((cp = utf8_next(&s)) != 0) {
         glyph_t g = glyph_for(cp);
         if (!g.bits) continue;
-        ring[head].g = g;
+        ring[head].cp = cp;
         ring[head].adv = (g.w + 1) * scale;
         head = (head + 1) % TAIL_MAX_GLYPHS;
         if (n < TAIL_MAX_GLYPHS) n++;
@@ -1073,7 +1085,8 @@ void gfx_draw_text_tail(int x, int y, const char *s, int scale, int max_w, uint1
      * walking that direction draws left to right. */
     for (int i = keep - 1; i >= 0; i--) {
         const int idx = (head - 1 - i + TAIL_MAX_GLYPHS) % TAIL_MAX_GLYPHS;
-        blit_glyph(ring[idx].g.bits, ring[idx].g.w, cx, y, scale, c);
+        const glyph_t g = glyph_for(ring[idx].cp);
+        blit_glyph(g.rows, g.w, cx, y, scale, c);
         cx += ring[idx].adv;
     }
 }

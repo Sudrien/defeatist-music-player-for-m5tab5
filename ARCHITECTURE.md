@@ -18874,3 +18874,53 @@ started, none of the three is set and the first press still starts it.
 Not host-compilable (player.c); reviewed by hand, 16 lines. The board
 check is mpdcheck's transport section with the USB drive, which found it:
 "bare pause toggles" passing.
+
+### 5247 -- ark12: the font as shared 6x6 tiles, 558 KB to 341 KB
+
+The app outgrew its 3 MB slot (5245), and the slot is staying 3 MB: the
+Arduino partition layout is what SD-card launchers load into, so a
+bigger app would stop being loadable that way. The font was 18% of the
+binary -- 20,669 glyphs as a codepoint, a width byte and twelve 16-bit
+rows each, 558,063 bytes.
+
+A full-width glyph is four 6x6 tiles and a half-width one two. Across
+the font that is 81,614 tiles and only 33,735 distinct -- blank corners,
+shared radicals, strokes that repeat -- so each distinct tile is stored
+once, 36 bits packed end to end (ark12_tiles), and a glyph is its tiles'
+16-bit numbers (ark12_tix). There is no table per glyph: codepoints are
+3278 runs of consecutive glyphs of one width (ark12_runs, 8 bytes each,
+the width in the top bit of the count), and a glyph's tile numbers are
+at its run's start plus its place in the run. ark12_glyph() is a binary
+search over the runs that assembles twelve rows into the caller's
+buffer. 341,268 bytes; with riscv32-esp-elf-gcc 14.2, ark12.o's .rodata
+goes from 558,066 to 341,268 -- 216,798 bytes.
+
+Other tilings were measured on the real font before choosing: packed
+rows alone save 129 KB; 6x4 tiles 186 KB with 15-bit numbers; 6x12
+(half-glyphs) 168 KB; 4x4 is worse than 6x6 (9 tiles a glyph, and a
+half-width glyph padded to 8), 344-390 KB. 6x6 is within 5 KB of the
+best and a glyph is exactly four or two tiles.
+
+gen_ark12.py writes the new tables, and checks before writing that every
+glyph decodes back to its rows. Its new --reencode takes the glyphs from
+an ark12.c it wrote before, in either format -- the last regeneration was
+from a local checkout, not the pinned download, and this keeps exactly
+those glyphs. Re-encoding the new ark12.c reproduces it byte for byte.
+It still prints the trimmed size the README quotes: without CJK Unified,
+2370 glyphs in 50,832 bytes.
+
+gfx.c: glyph_t carries its rows (24 bytes) instead of pointing into the
+table, since the rows exist only once assembled. gfx_draw_text_tail()'s
+ring of the last 96 glyphs holds codepoints now, 12 bytes an entry
+instead of 16 -- it is on the caller's stack, and 96 glyphs with rows
+would have been 3 KB -- and looks up again the few it draws.
+
+texttest pins the font: every codepoint from U+0000 to U+FFFF through
+ark12_glyph(), FNV-1a over codepoint, width and rows, must hash to
+0x8EE1A15E with 20,669 glyphs -- the hash of the old tables, taken before
+the change -- and no row may have ink past its width. A one-off check
+here compared all 20,669 glyphs with the old tables directly, under
+ASan: no differences, and no codepoint found or missing that was not
+before. Flipping one bit of one tile fails the pinned hash. texttest all
+passes (270,982 checks), the text layout checks drawing through the
+real, tiled font.

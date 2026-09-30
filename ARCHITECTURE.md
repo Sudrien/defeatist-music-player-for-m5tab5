@@ -19652,3 +19652,34 @@ older build has no `rg` and leaves the section as it is.
 remoteprototest: the four verbs at their ceilings, and refused past them
 or without a number. texttest all passes; the page's script passes
 `node --check`. remote.c and player.c not compiled here -- no IDF.
+
+### 5270 -- tools/remotecheck.py: mpdcheck for the browser remote
+
+The remote on 443 had only ever been tried from a phone. This drives it
+as the page does -- one WebSocket at /ws speaking remoteproto.h's verbs,
+and HTTPS for /, /art, /stations, /station and /wifi -- and says pass or
+fail per check, standard library only (a WebSocket client is ~100 lines
+of it; the browser has one built in, Python does not).
+
+What it checks: hello gives a state with every key and type
+remoteproto_state_json() writes, and the queue; eighteen malformed
+commands are ignored and the socket still answers; a frame past
+REMOTEPROTO_CMD_MAX drops its socket (on a second one); `ls /` is the
+volumes, a missing folder is an error, folders sort first; /art is 404
+for a stale key and an image for the state's; /stations and /wifi have
+their shapes; port 80 redirects keeping the path; four station forms
+are refused; volume, and 5269's settings, land in the state; add,
+addnext, qmove and qdel do what they say and your entries keep their
+ids and order. `--destructive` adds open, playdir, pause, play, seek,
+next, prev and star, then plays your song again by id and seeks it back
+to the percent.
+
+Scoped the way mpdcheck is (5226): by default it changes only what it
+can put back. A valid station is never added (there is no remove from
+the page), `qclear` is never sent, Wi-Fi scan and join never. A running
+sleep timer is left alone without --destructive, because setting it
+restarts it. The certificate is not verified -- it is devcert's.
+
+Run here against a fake server written for the purpose: 64 passed,
+the one failure port 80, which the fake did not serve. The playback
+section was not exercised (the fake plays nothing). Not run on the board.

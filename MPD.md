@@ -529,8 +529,11 @@ behaviour, and all of it is outside mpd.c:
   by up to about a second. Needs a millisecond seek, and a
   start-at-offset, in the player.
 - **The modes are the player's four orders** (MPD.md step 7): repeat
-  alone (repeat-all) and consume spring back, and `status` says what
-  the player will do. Needs the player to have those orders.
+  alone (repeat-all) springs back, and `status` says what the player
+  will do. `consume` is the player's EAT order (5252) -- ALL, removing
+  each track as it is left forward, as stock MPD does -- and springs
+  back with random or single set; with repeat, repeat springs back.
+  Needs the player to have those orders.
 - **Tags the index does not keep**: genre, date, album artist (served
   as the artist), track and disc number. `list genre` is empty and a
   client shows them as unknown. An index-format change

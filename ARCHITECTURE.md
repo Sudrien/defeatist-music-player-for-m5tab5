@@ -19057,3 +19057,36 @@ differences as before. mpdcheck expects at least 0.23.3.
 
 Compiled -O2 -Wall -Wextra on the host stubs: mpd.c, no warnings.
 texttest all passes. Not on the board.
+
+### 5252 -- play order EAT: MPD's consume
+
+A fifth play order, PLAY_ORDER_EAT, appended after REPEAT_ONE so the
+four values do not move. It is ALL that removes each track from the
+list as playback leaves it forward. The button cycles ONE -> ALL -> EAT
+-> RND -> RPT, labelled EAT.
+
+Where stock MPD 0.23.5's consume removes a song, probed before writing
+this: when it finishes, on `next`, and (as any delete) when the playing
+song is deleted; the last one eaten leaves an empty queue and a stop. It
+removes nothing on `play N`/`playid` of another entry, `previous`,
+`stop` or `seek`. EAT does the same by living in playlist_next(): under
+EAT it removes the current entry with remove_locked() -- which leaves
+5171's gap -- then walks on as ALL. The track end (player_loop) and the
+Next button both come through there; choosing an entry
+(playlist_set_current) and prev do not. peek_next and has_next answer
+as ALL, which names the same path. An unreadable track skipped at the
+end of the walk is eaten too.
+
+mpdmode: EAT is `consume 1` and nothing else, exactly. consume + repeat
+is EAT too, with repeat springing back -- everything is eaten, so stock
+MPD has nothing left to repeat either. consume with random or single is
+dropped as before: the device has no shuffled or stop-after eating.
+`consume oneshot` is 0.24's and is still ARG.
+
+playlisttest: an EAT walk of three entries (peek and choosing eat
+nothing, next eats, the last eaten empties and stops), mutation-checked.
+mpdmodetest: the fifth forward row and the consume rows. mpdcheck gains
+a consume section on the test entries; against stock MPD 0.23.5 the
+eating checks pass and the two spring-backs fail, as they should.
+
+texttest all passes. Not on the board.

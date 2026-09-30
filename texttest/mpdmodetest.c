@@ -38,6 +38,7 @@ static const char *order_name(play_order_t o)
     case PLAY_ORDER_ALL:        return "ALL";
     case PLAY_ORDER_SHUFFLE:    return "SHUFFLE";
     case PLAY_ORDER_REPEAT_ONE: return "REPEAT_ONE";
+    case PLAY_ORDER_EAT:        return "EAT";
     default:                    return "?";
     }
 }
@@ -64,15 +65,15 @@ static void rev(bool random, bool repeat, bool single, bool consume,
 }
 
 /* One forward row: this order must be exactly these flags. */
-static void fwd(play_order_t o, bool repeat, bool random, bool single)
+static void fwd(play_order_t o, bool repeat, bool random, bool single, bool consume)
 {
     const mpd_modes_t got = mpdmode_from_order(o);
     char g[96];
     flags_str(got, g, sizeof(g));
     CHECK(got.repeat == repeat && got.random == random &&
-          got.single == single && got.consume == false,
-          "%s gave [%s], want repeat=%d random=%d single=%d consume=0",
-          order_name(o), g, repeat, random, single);
+          got.single == single && got.consume == consume,
+          "%s gave [%s], want repeat=%d random=%d single=%d consume=%d",
+          order_name(o), g, repeat, random, single, consume);
 }
 
 int main(void)
@@ -88,16 +89,12 @@ int main(void)
      * and REPEAT_ONE is single with it, and swapping them is the mistake
      * this section exists to catch.
      */
-    fwd(PLAY_ORDER_ONE,        /* repeat */ false, /* random */ false, /* single */ true);
-    fwd(PLAY_ORDER_ALL,        false, false, false);
-    fwd(PLAY_ORDER_SHUFFLE,    false, true,  false);
-    fwd(PLAY_ORDER_REPEAT_ONE, true,  false, true);
-
-    /* No order consumes: consume changes the queue, not the walk over it,
-     * and there is no queue being played yet. */
-    for (int o = 0; o < 4; o++)
-        CHECK(!mpdmode_from_order((play_order_t)o).consume,
-              "%s claimed consume", order_name((play_order_t)o));
+    fwd(PLAY_ORDER_ONE,        /* repeat */ false, /* random */ false, /* single */ true, false);
+    fwd(PLAY_ORDER_ALL,        false, false, false, false);
+    fwd(PLAY_ORDER_SHUFFLE,    false, true,  false, false);
+    fwd(PLAY_ORDER_REPEAT_ONE, true,  false, true,  false);
+    /* 5252: EAT is MPD's consume and nothing else. */
+    fwd(PLAY_ORDER_EAT,        false, false, false, true);
 
     /* An order outside the enum is the device's default and not row zero:
      * a bad value should land on what the player does when nobody has
@@ -158,9 +155,11 @@ int main(void)
      * consume is set" is the kind of condition an implementation gets
      * right for the inexact rows and forgets for the exact ones.
      */
-    rev(false, false, false, true, PLAY_ORDER_ALL,        false, "consume + nothing");
+    /* 5252: consume alone is EAT, exactly; with repeat, EAT too -- all
+     * of it is eaten, so there is nothing to repeat -- but not exact. */
+    rev(false, false, false, true, PLAY_ORDER_EAT,        true,  "consume: eat");
     rev(false, false, true,  true, PLAY_ORDER_ONE,        false, "consume + single");
-    rev(false, true,  false, true, PLAY_ORDER_ALL,        false, "consume + repeat");
+    rev(false, true,  false, true, PLAY_ORDER_EAT,        false, "consume + repeat");
     rev(false, true,  true,  true, PLAY_ORDER_REPEAT_ONE, false, "consume + repeat one");
     rev(true,  false, false, true, PLAY_ORDER_SHUFFLE,    false, "consume + random");
     rev(true,  false, true,  true, PLAY_ORDER_ONE,        false, "consume + random single");
@@ -179,7 +178,7 @@ int main(void)
          * way out. If this fails, a listener changing the mode on the
          * screen would see a client report something else.
          */
-        for (int o = 0; o < 4; o++) {
+        for (int o = 0; o < 5; o++) {
             const play_order_t want = (play_order_t)o;
             const mpd_modes_t f = mpdmode_from_order(want);
             CHECK(mpdmode_to_order(&f) == want,
@@ -237,7 +236,7 @@ int main(void)
                   "state %d normalised to something inexact: [%s]", i, sa);
             /* And it is always some order's own flags. */
             bool found = false;
-            for (int o = 0; o < 4; o++) {
+            for (int o = 0; o < 5; o++) {
                 const mpd_modes_t f = mpdmode_from_order((play_order_t)o);
                 if (memcmp(&a, &f, sizeof(f)) == 0) found = true;
             }
@@ -258,13 +257,13 @@ int main(void)
          * into a build failure rather than a bad row.
          */
         static const play_order_t cycle[] = {
-            PLAY_ORDER_ONE, PLAY_ORDER_ALL, PLAY_ORDER_SHUFFLE,
+            PLAY_ORDER_ONE, PLAY_ORDER_ALL, PLAY_ORDER_EAT, PLAY_ORDER_SHUFFLE,
             PLAY_ORDER_REPEAT_ONE,
         };
         const int n = (int)(sizeof(cycle) / sizeof(cycle[0]));
-        bool seen[4] = { false, false, false, false };
+        bool seen[5] = { false, false, false, false, false };
         for (int i = 0; i < n; i++) seen[(int)cycle[i]] = true;
-        for (int o = 0; o < 4; o++)
+        for (int o = 0; o < 5; o++)
             CHECK(seen[o], "%s is not reachable from the button cycle",
                   order_name((play_order_t)o));
 
@@ -319,7 +318,7 @@ int main(void)
     CHECK(mpdmode_next_pos(PLAY_ORDER_ALL, 0, 1) == -1, "one song: none after it");
     /* Agreement with the reverse table: what MPD would compute from the
      * flags this device reports for each order. */
-    for (int o = 0; o < 4; o++) {
+    for (int o = 0; o < 5; o++) {
         const mpd_modes_t m = mpdmode_from_order((play_order_t)o);
         for (int cur = 0; cur < 4; cur++) {
             int mpd;                                /* GetNextPosition, verbatim */

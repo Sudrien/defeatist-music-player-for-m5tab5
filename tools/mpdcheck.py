@@ -939,6 +939,47 @@ class Checker:
         self.expect_ack("playlistadd past the end is ARG", f"playlistadd {q(PL_R)} {q(C)} 99", 2)
         self.c.cmd(f"rm {q(PL_R)}")
 
+    def consume(self):
+        """5252: consume is the EAT play order. Played on the three test
+        entries at the end of the queue; the modes are put back after."""
+        self.section("consume (the EAT play order)")
+        f = self.files
+        self.refill()
+        A, B, C = f[0], f[1], f[2]
+        ids = self.tail_ids()
+        was = self.status()
+        self.expect_ok("consume 1", "consume 1")
+        st = self.status()
+        self.ok("status says consume 1, nothing else",
+                (st.get("consume"), st.get("repeat"), st.get("random"), st.get("single")) == ("1", "0", "0", "0"),
+                f"consume {st.get('consume')} repeat {st.get('repeat')} random {st.get('random')} single {st.get('single')}")
+        self.c.cmd("repeat 1")
+        st = self.status()
+        self.ok("repeat 1 with consume: repeat springs back, consume stays",
+                st.get("consume") == "1" and st.get("repeat") == "0", f"{st.get('consume')} {st.get('repeat')}")
+        self.c.cmd("repeat 0")
+
+        self.c.cmd(f"playid {ids[0]}")
+        self.wait_state(lambda s: s.get("songid") == ids[0])
+        self.expect_ok("next under consume", "next")
+        st = self.wait_state(lambda s: s.get("songid") == ids[1])
+        self.ok("next plays what followed", st.get("songid") == ids[1], st.get("songid"))
+        self.ok("next eats the one left", self.tail() == [B, C], repr(self.tail()))
+        self.expect_ok("playid under consume", f"playid {ids[2]}")
+        self.wait_state(lambda s: s.get("songid") == ids[2])
+        self.ok("choosing another entry eats nothing", self.tail() == [B, C], repr(self.tail()))
+        self.expect_ok("next from the last entry", "next")
+        st = self.wait_state(lambda s: s.get("state") != "play" and self.tail() == [B])
+        self.ok("the last entry is eaten", self.tail() == [B], repr(self.tail()))
+        self.ok("and playback stops", st.get("state") != "play", st.get("state"))
+
+        self.c.cmd("random 1")
+        st = self.status()
+        self.ok("random 1 drops consume (no shuffled eating)",
+                st.get("random") == "1" and st.get("consume") == "0", f"{st.get('random')} {st.get('consume')}")
+        for m in ("random", "consume"):
+            self.c.cmd(f"{m} {was.get(m, '0')}")
+
     def volume_modes(self):
         self.section("volume, modes, replay gain")
         v = int(self.saved_status.get("volume", "50"))
@@ -1291,6 +1332,7 @@ class Checker:
                 self.queue_edits()
                 self.transport()
                 self.relative()                                     # 5251
+                self.consume()                                      # 5252
                 self.volume_modes()
                 self.stored()
                 self.folders()                                      # 5232

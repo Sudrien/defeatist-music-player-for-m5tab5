@@ -187,9 +187,14 @@ static bool shuffle_seen(int i)
     return s_played && (s_played[i / 8] & (1 << (i % 8)));
 }
 
+static bool remove_locked(int pos);
+
 static const char *peek_next_locked(play_order_t order)
 {
     if (s_count <= 0) return NULL;
+    /* 5252: the entry after this one is the same path whether or not
+     * this one is eaten on the way. */
+    if (order == PLAY_ORDER_EAT) order = PLAY_ORDER_ALL;
     if (order == PLAY_ORDER_REPEAT_ONE) {
         return (s_current >= 0) ? s_paths_at(s_current) : NULL;
     }
@@ -205,6 +210,7 @@ static const char *peek_next_locked(play_order_t order)
 static bool has_next_locked(play_order_t order)
 {
     if (s_count <= 0) return false;
+    if (order == PLAY_ORDER_EAT) order = PLAY_ORDER_ALL;           /* 5252 */
     if (order == PLAY_ORDER_SHUFFLE) return true;   /* see the header */
     /* Repeat-one always has a next track: itself. The skip button is
      * mapped to ALL by the caller, so what this really answers is
@@ -219,6 +225,15 @@ static const char *next_locked(play_order_t order)
     if (s_count <= 0) return NULL;
 
     if (order == PLAY_ORDER_ONE) return NULL;
+
+    /* 5252: leaving the current entry forward eats it. remove_locked()
+     * leaves the gap ALL's walk below goes on from; the last one eaten
+     * leaves nothing, and that is the stop. */
+    if (order == PLAY_ORDER_EAT) {
+        if (s_current >= 0) remove_locked(s_current);
+        if (s_count <= 0) return NULL;
+        order = PLAY_ORDER_ALL;
+    }
 
     /*
      * The same file again, without touching s_current.

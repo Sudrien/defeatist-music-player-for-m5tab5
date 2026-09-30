@@ -12,7 +12,7 @@
  * PURE. No IDF beyond `playlist.h`'s own include, which the host shim
  * supplies, so the table is tested on a host (texttest/mpdmodetest.c).
  *
- * THE DIRECTION THAT IS EXACT: all four orders have an exact MPD
+ * THE DIRECTION THAT IS EXACT: all five orders have an exact MPD
  * equivalent. Nothing the glass can be set to is unsayable in MPD's
  * flags, which is the useful half and is worth knowing before reading the
  * rest of this file.
@@ -47,13 +47,12 @@
  * button, because a press is not the end of a track). So the difference
  * survives in the one place a listener would notice it.
  *
- * `consume` HAS NO ANALOGUE AT ALL, and unlike the others it is not a
- * traversal setting -- it removes each track from the queue as it plays,
- * which changes the list rather than the walk over it. It is reported 0
- * always. It becomes implementable when the queue is what plays (MPD.md
- * step 4's second half), not before, and it is a field here rather than
- * an omission so that the day it is implementable there is one place to
- * change.
+ `consume` IS PLAY_ORDER_EAT (5252), a fifth order: ALL, removing each
+ * track as playback leaves it forward. consume alone is EAT exactly;
+ * consume + repeat is EAT with repeat springing back (everything is
+ * eaten, so MPD has nothing to repeat either); consume with random or
+ * single is dropped, as every consume was before 5252 -- the device has
+ * no shuffled or stop-after eating.
  *
  * WHAT `status` REPORTS AFTER A CLIENT SETS SOMETHING UNREPRESENTABLE:
  * the flags of the order the device will ACTUALLY traverse in, which is
@@ -88,21 +87,21 @@ typedef struct {
 } mpd_modes_t;
 
 /*
- * The flags that describe what `o` actually does. Exact for all four, and
- * `consume` is always false.
+ * The flags that describe what `o` actually does. Exact for all five;
+ * `consume` is EAT's alone.
  */
 mpd_modes_t mpdmode_from_order(play_order_t o);
 
 /*
  * The order that comes closest to `m`. Lossy; the table above says where.
- * `consume` is ignored, because no order expresses it.
+ * `consume` is EAT when random and single are off, else ignored.
  */
 play_order_t mpdmode_to_order(const mpd_modes_t *m);
 
 /*
  * Whether `m` is exactly what this device will do -- that is, whether it
  * survives the round trip. False for the four approximating rows and for
- * anything with `consume` set.
+ * `consume` with anything else set.
  *
  * This is what a caller uses to decide whether to log that a client asked
  * for something it will not get. It is NOT a reason to ACK: MPD clients
@@ -168,7 +167,7 @@ const char *mpdmode_rg_name(bool on);
  * set, otherwise none. Taken through this device's four orders, which
  * are each exact in MPD's flags (the table above):
  *
- *   ALL          cur+1, or none at the end
+ *   ALL, EAT     cur+1, or none at the end
  *   ONE          cur+1, or none -- single WITHOUT repeat still names the
  *                next song, and it is where Next goes (playlist.h maps
  *                ONE to ALL for the button, for the same reason)

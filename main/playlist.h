@@ -25,7 +25,18 @@ typedef enum {
     PLAY_ORDER_ALL,         /* on to the next, stop at the end of the folder */
     PLAY_ORDER_SHUFFLE,     /* random, without repeating until exhausted */
     PLAY_ORDER_REPEAT_ONE,  /* this track again, until told otherwise */
+    PLAY_ORDER_EAT,         /* 5252: ALL, removing each track as it is left */
 } play_order_t;
+
+/*
+ * 5252: EAT is MPD's `consume`, as a play order. It walks the list as
+ * ALL does, and a track is taken out of the list when playback LEAVES IT
+ * FORWARD -- it ends, or next is pressed -- which is where stock MPD
+ * 0.23's consume removes one. Choosing another entry, prev, stop and
+ * seek eat nothing, as there. When the last track is eaten the list is
+ * empty and playback stops. The eating is playlist_next()'s, so the
+ * track end and the skip button share it.
+ */
 
 /*
  * ONE and REPEAT_ONE are both about one track and they are opposites.

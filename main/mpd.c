@@ -4301,8 +4301,9 @@ static result_t run_cmd(conn_t *c, const mpd_cmd_t *cmd, int idx)
          * the nearest of the device's four orders.
          *
          * WHAT DOES NOT FIT SPRINGS BACK (5156's rule): `repeat 1` alone
-         * is repeat-all, which this device has not got, and `consume` is
-         * not a thing it can do at all. The command still says OK, as
+         * is repeat-all, which this device has not got; `consume` is the
+         * EAT order (5252) alone, and springs back beside random or
+         * single. The command still says OK, as
          * MPD's always does, and `status` then reports what the device
          * will actually do.
          *

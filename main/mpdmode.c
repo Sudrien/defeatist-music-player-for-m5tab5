@@ -17,8 +17,9 @@ _Static_assert(PLAY_ORDER_ONE        == 0, "play_order_t values moved");
 _Static_assert(PLAY_ORDER_ALL        == 1, "play_order_t values moved");
 _Static_assert(PLAY_ORDER_SHUFFLE    == 2, "play_order_t values moved");
 _Static_assert(PLAY_ORDER_REPEAT_ONE == 3, "play_order_t values moved");
+_Static_assert(PLAY_ORDER_EAT        == 4, "play_order_t values moved");
 
-#define N_ORDERS    (4)
+#define N_ORDERS    (5)
 
 /*
  * What each order IS, in MPD's terms. All four are exact.
@@ -42,6 +43,7 @@ static const mpd_modes_t s_fwd[N_ORDERS] = {
     /* ALL        */ { .repeat = false, .random = false, .single = false, .consume = false },
     /* SHUFFLE    */ { .repeat = false, .random = true,  .single = false, .consume = false },
     /* REPEAT_ONE */ { .repeat = true,  .random = false, .single = true,  .consume = false },
+    /* EAT        */ { .repeat = false, .random = false, .single = false, .consume = true  },
 };
 
 /*
@@ -84,18 +86,31 @@ mpd_modes_t mpdmode_from_order(play_order_t o)
     return s_fwd[o];
 }
 
+/*
+ * 5252: consume is EAT when nothing else in the way is set: consume
+ * alone exactly, and consume + repeat as EAT too -- in MPD every song is
+ * eaten, so there is nothing left to repeat and the two play the same;
+ * repeat springs back. With random or single consume is dropped, as it
+ * was before 5252: EAT is one walk, and the device has no shuffled or
+ * stop-after eating.
+ */
+static bool is_eat(const mpd_modes_t *m)
+{
+    return m->consume && !m->random && !m->single;
+}
+
 play_order_t mpdmode_to_order(const mpd_modes_t *m)
 {
     if (!m) return PLAY_ORDER_ALL;
+    if (is_eat(m)) return PLAY_ORDER_EAT;
     return s_rev[rev_index(m)].order;
 }
 
 bool mpdmode_exact(const mpd_modes_t *m)
 {
     if (!m) return false;
-    /* consume is a loss on top of whatever the other three did: no order
-     * expresses it, so a request carrying it is never exactly honoured. */
-    if (m->consume) return false;
+    /* 5252: consume alone is EAT; with anything else it is a loss. */
+    if (m->consume) return is_eat(m) && !m->repeat;
     return s_rev[rev_index(m)].exact;
 }
 
@@ -128,6 +143,7 @@ int mpdmode_next_pos(play_order_t o, int cur, int n)
     case PLAY_ORDER_SHUFFLE:    return -1;
     case PLAY_ORDER_ONE:
     case PLAY_ORDER_ALL:
+    case PLAY_ORDER_EAT:        /* the next one; this one goes as it is left */
     default:                    return cur + 1 < n ? cur + 1 : -1;
     }
 }

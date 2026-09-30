@@ -601,6 +601,31 @@ int main(void)
     CHECK(playlist_add(xp, -1) == -1 && playlist_count() == PLAYLIST_MAX, "full is refused");
     CHECK(playlist_remove(0) && playlist_add(xp, -1) == PLAYLIST_MAX - 1, "and room is room");
 
+    /* 5252: EAT, MPD's consume. Leaving an entry forward removes it;
+     * choosing one, prev and peeking do not; the last one eaten stops. */
+    playlist_clear();
+    CHECK(playlist_add(xp, -1) == 0 && playlist_add(yp, -1) == 1 && playlist_add(xp, -1) == 2,
+          "eat: three entries");
+    CHECK(playlist_next(PLAY_ORDER_EAT) && playlist_current() == 0 && playlist_count() == 3,
+          "eat: starting from no current eats nothing");
+    CHECK(playlist_peek_next(PLAY_ORDER_EAT) && strcmp(playlist_peek_next(PLAY_ORDER_EAT), yp) == 0 &&
+          playlist_count() == 3, "eat: peek names the next and eats nothing");
+    CHECK(playlist_has_next(PLAY_ORDER_EAT), "eat: has a next");
+    {
+        const char *p = playlist_next(PLAY_ORDER_EAT);
+        CHECK(p && strcmp(p, yp) == 0 && playlist_count() == 2 && playlist_current() == 0,
+              "eat: next eats the one left and plays what followed");
+    }
+    playlist_set_current(1);
+    CHECK(playlist_count() == 2, "eat: choosing an entry eats nothing");
+    CHECK(playlist_prev() && playlist_current() == 0 && playlist_count() == 2,
+          "eat: prev eats nothing");
+    CHECK(playlist_next(PLAY_ORDER_EAT) && playlist_count() == 1 && playlist_current() == 0,
+          "eat: again");
+    CHECK(!playlist_has_next(PLAY_ORDER_EAT), "eat: the last has no next");
+    CHECK(playlist_next(PLAY_ORDER_EAT) == NULL && playlist_count() == 0 && playlist_current() == -1,
+          "eat: the last one eaten empties the list and stops");
+
     playlist_clear();
     rm_rf(s_root);
     printf("%d checks, %d failures\n", checks, failures);

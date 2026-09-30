@@ -221,7 +221,7 @@ static const char *order_label(void);
 
 void browser_set_order(play_order_t o)
 {
-    if ((int)o < 0 || (int)o > (int)PLAY_ORDER_REPEAT_ONE || o == s_order) return;
+    if ((int)o < 0 || (int)o > (int)PLAY_ORDER_EAT || o == s_order) return;
     s_order = o;
     ESP_LOGI(TAG, "play order now %s (from mpd)", order_label());
     s_dirty = true;
@@ -991,6 +991,7 @@ static const char *order_label(void)
     case PLAY_ORDER_ONE:     return "ONE";
     case PLAY_ORDER_SHUFFLE: return "RND";
     case PLAY_ORDER_REPEAT_ONE: return "RPT";
+    case PLAY_ORDER_EAT:     return "EAT";              /* 5252 */
     default:                 return "ALL";
     }
 }
@@ -1470,11 +1471,13 @@ browser_result_t browser_touch(bool down, int x, int y)
             }
             break;
         case 4:
-            /* ONE -> ALL -> RND -> RPT -> ONE. RPT sits after RND so
-             * the two whole-folder modes stay adjacent and the two
-             * single-track modes bookend the cycle. */
+            /* ONE -> ALL -> EAT -> RND -> RPT -> ONE. RPT sits after RND
+             * so the whole-list modes stay adjacent and the two
+             * single-track modes bookend the cycle; 5252's EAT is ALL
+             * that eats, so it sits beside ALL. */
             s_order = (s_order == PLAY_ORDER_ONE)     ? PLAY_ORDER_ALL
-                    : (s_order == PLAY_ORDER_ALL)     ? PLAY_ORDER_SHUFFLE
+                    : (s_order == PLAY_ORDER_ALL)     ? PLAY_ORDER_EAT
+                    : (s_order == PLAY_ORDER_EAT)     ? PLAY_ORDER_SHUFFLE
                     : (s_order == PLAY_ORDER_SHUFFLE) ? PLAY_ORDER_REPEAT_ONE
                                                       : PLAY_ORDER_ONE;
             ESP_LOGI(TAG, "play order now %s", order_label());

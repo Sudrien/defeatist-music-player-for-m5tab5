@@ -19339,3 +19339,50 @@ mpdcheck: `repeat 1` alone must read back 1 0 0 0.
 
 texttest all passes (mpdmodetest, playlisttest: new cases). browser.c
 and the player not compiled here -- no IDF. Not on the board.
+
+### 5262 -- tags: genre, date, album artist, track and disc, for the library
+
+The first of three for MPD.md's "tags the index does not keep". This one
+only reads them; 5263 keeps them in the catalog and 5264 serves them.
+
+**A struct of their own, tag_extra_t (tagextra.h), not more fields on
+id3_tags_t.** player.c keeps id3_tags_t as stack locals on the decode
+path and mediacache.c stores one per slot, and neither wants genre or a
+disc number: 128 more bytes on each would be paid for nothing, and on a
+stack it is CLAUDE.md's rule. Only the indexer passes one.
+covertag_read_tags_ext() and id3_read_tags_ext() take it, NULL for none;
+the old entry points are those with NULL, so every existing caller reads
+exactly what it read.
+
+What fills it:
+
+  field        ID3v2          Vorbis comment          MP4        cue sheet
+  genre        TCON           GENRE                   (c)gen,    REM GENRE
+                                                      gnre
+  date         TDRC, or TYER  DATE                    (c)day     REM DATE
+  albumartist  TPE2           ALBUMARTIST,            aART       PERFORMER
+                              ALBUM ARTIST                       (the sheet's)
+  track        TRCK           TRACKNUMBER             trkn       TRACK nn
+  disc         TPOS           DISCNUMBER              disk       --
+
+Strings, as MPD sends them -- "3/12" stays "3/12". trkn and disk are
+binary and become "N" or "N/M". An ID3v1 genre number, which TCON writes
+as "(17)" or "17" and gnre as 17 + 1, becomes its name from the table in
+tagextra.c (Winamp's 192). A bare number is a genre number only as the
+whole string -- tagextratest found the first draft turning "80s Pop" into
+"s Pop". With an extra the ID3 walk reads the whole tag instead of
+stopping at the third string it knows.
+
+cuesheet.h parses REM GENRE and REM DATE before the first TRACK, quoted
+or as the rest of the line ("REM GENRE Classic Rock"); a REM inside a
+track is not the sheet's. cuedir carries them, and the sheet's PERFORMER
+as album artist, on its rows and in cuetrack_t (about 1.2 KB now; it was
+already static everywhere). cuedir_row_extra(), cuedir_extra() and
+mwalk_cue_extra() mirror the three tag getters.
+
+Checked on a host against files ffmpeg tagged -- MP3 with ID3v2.4 and
+v2.3, FLAC, Ogg Vorbis, Opus and M4A -- each reading back all eight
+fields, and over test_audio_files under ASan: no faults. That harness
+stubbed the IDF and is not in texttest; tagextratest, cuesheettest and
+mediawalktest carry the parts that are pure. albumart.c and covertag.c
+compiled -Werror there. Not built with the IDF, not on the board.

@@ -258,6 +258,13 @@ bool mwalk_cue_tags(const char *path, char *title, char *artist,
                            album, each);
 }
 
+bool mwalk_cue_extra(const char *path, tag_extra_t *x)
+{
+    if (!s_cur_e || s_cur_e->kind != K_CUE || !path) return false;
+    if (strcmp(path, s_path + s_mount_len + 1) != 0) return false;
+    return cuedir_row_extra(s_cur_lv->cues, s_cur_e->cue, x);
+}
+
 static void free_all(int depth)
 {
     for (int i = 0; i <= depth; i++) level_free(&s_lv[i]);

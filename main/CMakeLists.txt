@@ -1,5 +1,5 @@
 idf_component_register(
-    SRCS "player.c" "decoder.c" "albumart.c" "covertag.c" "mediacache.c" "ui.c" "gfx.c" "touch.c" "audio_out.c"
+    SRCS "player.c" "decoder.c" "albumart.c" "covertag.c" "tagextra.c" "mediacache.c" "ui.c" "gfx.c" "touch.c" "audio_out.c"
          "battery.c" "storage.c" "storage_io.c" "usbhost.c" "uac.c" "hid.c" "playlist.c" "settings.c"
        "wifistore.c" "wifi.c" "browser.c" "panel.c" "duration.c" "cbrseek.c" "flacseek.c" "oggseek.c" "tsseek.c" "mp4seek.c" "waveform.c" "replaygain.c" "loudness.c"
          "portal.c" "portalweb.c" "dnsreply.c"

@@ -74,6 +74,14 @@ esp_err_t covertag_extract_art(FILE *f, storage_io_class_t prio,
  */
 esp_err_t covertag_read_tags(FILE *f, storage_io_class_t prio, id3_tags_t *out);
 
+/* 5262: the same, and genre, date, album artist, track and disc into
+ * *extra when it is not NULL (zeroed first). For the indexer; the player
+ * wants the three strings only. A file whose only tags are extras reads
+ * ESP_OK on ID3 and MP4 and not on FLAC or Ogg, whose OK means a title,
+ * artist or album was found -- extra is filled either way. */
+esp_err_t covertag_read_tags_ext(FILE *f, storage_io_class_t prio, id3_tags_t *out,
+                                 tag_extra_t *extra);
+
 #ifdef __cplusplus
 }
 #endif

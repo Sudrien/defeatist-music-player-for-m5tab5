@@ -47,6 +47,11 @@ typedef struct {
     char title[CUE_TEXT_MAX];
     char performer[CUE_TEXT_MAX];
     char album[CUE_TEXT_MAX];
+    /* 5262: the sheet's PERFORMER, REM GENRE and REM DATE, for the
+     * library (cuedir_row_extra()). */
+    char albumartist[CUE_TEXT_MAX];
+    char genre[CUE_GENRE_MAX];
+    char date[CUE_DATE_MAX];
 } cue_row_t;
 
 struct cuedir {
@@ -229,6 +234,9 @@ cuedir_t *cuedir_load(const char *dir, storage_io_class_t cls)
             snprintf(r->performer, sizeof r->performer, "%s",
                      cs->tracks[t].performer);
             snprintf(r->album, sizeof r->album, "%s", cs->title);
+            snprintf(r->albumartist, sizeof r->albumartist, "%s", cs->performer);  /* 5262 */
+            snprintf(r->genre, sizeof r->genre, "%s", cs->genre);
+            snprintf(r->date, sizeof r->date, "%s", cs->date);
             if (cs->tracks[t].title[0]) {
                 snprintf(r->label, sizeof r->label, "%02d  %s",
                          cs->tracks[t].number, cs->tracks[t].title);
@@ -294,6 +302,25 @@ bool cuedir_row_tags(const cuedir_t *cd, int i, char *title, char *artist,
     return true;
 }
 
+/* 5262: the sheet's own, cut the same way; the track is its number. */
+static void extra_fill(tag_extra_t *x, const char *albumartist,
+                       const char *genre, const char *date, int number)
+{
+    memset(x, 0, sizeof *x);
+    cue_text(x->albumartist, sizeof x->albumartist, albumartist, strlen(albumartist), false);
+    cue_text(x->genre, sizeof x->genre, genre, strlen(genre), false);
+    cue_text(x->date, sizeof x->date, date, strlen(date), false);
+    if (number > 0) snprintf(x->track, sizeof x->track, "%d", number);
+}
+
+bool cuedir_row_extra(const cuedir_t *cd, int i, tag_extra_t *x)
+{
+    if (!cd || i < 0 || i >= cd->nrows || !x) return false;
+    const cue_row_t *r = &cd->rows[i];
+    extra_fill(x, r->albumartist, r->genre, r->date, r->number);
+    return true;
+}
+
 bool cuedir_track(const char *vpath, storage_io_class_t cls, cuetrack_t *out)
 {
     size_t sl = 0;
@@ -330,6 +357,9 @@ bool cuedir_track(const char *vpath, storage_io_class_t cls, cuetrack_t *out)
         snprintf(out->title, sizeof out->title, "%s", t->title);
         snprintf(out->performer, sizeof out->performer, "%s", t->performer);
         snprintf(out->album, sizeof out->album, "%s", cs->title);
+        snprintf(out->albumartist, sizeof out->albumartist, "%s", cs->performer);  /* 5262 */
+        snprintf(out->genre, sizeof out->genre, "%s", cs->genre);
+        snprintf(out->date, sizeof out->date, "%s", cs->date);
     }
     if (!ok) ESP_LOGW(TAG, "%s: no such track any more", vpath);
 
@@ -380,6 +410,14 @@ bool cuedir_tags(const char *vpath, char *title, char *artist, char *album,
     cue_text(artist, each, s_look.performer, strlen(s_look.performer), false);
     cue_text(album,  each, s_look.album,     strlen(s_look.album),     false);
     if (!title[0]) snprintf(title, each, "Track %d", s_look.number);
+    done();
+    return true;
+}
+
+bool cuedir_extra(const char *vpath, tag_extra_t *x)
+{
+    if (!x || !cue_vpath_split(vpath, NULL) || !look(vpath)) return false;
+    extra_fill(x, s_look.albumartist, s_look.genre, s_look.date, s_look.number);
     done();
     return true;
 }

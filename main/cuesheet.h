@@ -106,9 +106,16 @@ typedef struct {
     char     performer[CUE_TEXT_MAX];
 } cue_track_t;
 
+/* 5262: the sheet's REM GENRE and REM DATE, as EAC and most rippers
+ * write them. Cut to a library record's field, not CUE_TEXT_MAX. */
+#define CUE_GENRE_MAX       (32)
+#define CUE_DATE_MAX        (16)
+
 typedef struct {
     char        title[CUE_TEXT_MAX];
     char        performer[CUE_TEXT_MAX];
+    char        genre[CUE_GENRE_MAX];   /* 5262 */
+    char        date[CUE_DATE_MAX];     /* 5262 */
     char        files[CUE_MAX_FILES][CUE_FILE_MAX];
     int         nfiles;
     cue_track_t tracks[CUE_MAX_TRACKS];
@@ -399,9 +406,23 @@ static inline int cue_parse(const char *buf, size_t n, cue_sheet_t *out)
             cue_string(q + 9, e, &s, &len);
             if (in_track) cue_text(cur.performer, CUE_TEXT_MAX, s, len, out->cp1252);
             else          cue_text(out->performer, CUE_TEXT_MAX, s, len, out->cp1252);
+        } else if (cue_kw(q, e, "REM") && !in_track) {
+            /* 5262: REM GENRE and REM DATE, before the first TRACK --
+             * the sheet's, as every ripper writes them. Quoted, or the
+             * rest of the line: "REM GENRE Classic Rock" is common. */
+            const char *r = cue_skip(q + 3, e);
+            char *dst = NULL; size_t cap = 0; const char *arg = NULL;
+            if      (cue_kw(r, e, "GENRE")) { dst = out->genre; cap = sizeof out->genre; arg = r + 5; }
+            else if (cue_kw(r, e, "DATE"))  { dst = out->date;  cap = sizeof out->date;  arg = r + 4; }
+            if (dst) {
+                arg = cue_skip(arg, e);
+                if (arg < e && *arg == '"') cue_string(arg, e, &s, &len);
+                else { s = arg; len = (size_t)(e - arg); }
+                cue_text(dst, cap, s, len, out->cp1252);
+            }
         }
-        /* Everything else -- REM, FLAGS, ISRC, POSTGAP, garbage -- is
-         * read past. */
+        /* Everything else -- other REMs, FLAGS, ISRC, POSTGAP, garbage --
+         * is read past. */
 
         p = next;
     }

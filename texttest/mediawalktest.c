@@ -189,6 +189,14 @@ bool cuedir_row_tags(const cuedir_t *cd, int i, char *title, char *artist,
     snprintf(album, each, "album");
     return true;
 }
+/* 5262 */
+bool cuedir_row_extra(const cuedir_t *cd, int i, tag_extra_t *x)
+{
+    if (!cd || i < 0 || i >= cd->nrows) return false;
+    memset(x, 0, sizeof(*x));
+    snprintf(x->track, sizeof(x->track), "%d", i + 1);
+    return true;
+}
 
 /* ---- a tree --------------------------------------------------------- */
 
@@ -230,6 +238,7 @@ static int          s_ngot, s_stop_after = -1, s_depth_bad;
 /* What mwalk_cue_tags() said for each entry, from inside the callback. */
 static int  s_cue_tagged, s_plain_tagged, s_wrong_path_tagged, s_cue_seen;
 static int  s_cue_title_wrong;
+static int  s_cue_extra, s_plain_extra;        /* 5262 */
 
 static bool collect(void *ctx, const char *path, midx_stamp_t st)
 {
@@ -239,6 +248,12 @@ static bool collect(void *ctx, const char *path, midx_stamp_t st)
         char t[64], a[64], al[64];
         const bool is_cue = strstr(path, ".cue#") != NULL;
         const bool got = mwalk_cue_tags(path, t, a, al, sizeof(t));
+        {
+            tag_extra_t x;
+            const bool ex = mwalk_cue_extra(path, &x);
+            if (is_cue) s_cue_extra += ex && x.track[0];
+            else        s_plain_extra += ex;
+        }
         if (is_cue) {
             s_cue_seen++;
             s_cue_tagged += got;
@@ -391,6 +406,9 @@ int main(void)
           s_cue_seen, s_cue_title_wrong);
     CHECK(s_plain_tagged == 0, "a plain file got cue tags");
     CHECK(s_wrong_path_tagged == 0, "tags given for a path not being offered");
+    CHECK(s_cue_extra == 3 && s_plain_extra == 0,
+          "5262: cue extras from the loaded sheet: %d of 3, %d for plain files",
+          s_cue_extra, s_plain_extra);
     {
         char t[64], a[64], al[64];
         CHECK(!mwalk_cue_tags("Album/Album.cue#01", t, a, al, sizeof(t)),

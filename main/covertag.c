@@ -240,7 +240,7 @@ static esp_err_t picture_block_parse(const uint8_t *b, size_t len,
  * Nothing else writes to it.
  */
 static void vorbis_comment_walk(uint8_t *b, size_t len,
-                                id3_tags_t *tags,
+                                id3_tags_t *tags, tag_extra_t *extra,
                                 uint8_t **out, size_t *out_len)
 {
     size_t i = 0;
@@ -280,6 +280,19 @@ static void vorbis_comment_walk(uint8_t *b, size_t len,
             else if (key_is(c, eq, "ARTIST")) tag_copy_utf8(tags->artist, sizeof(tags->artist), val, val_len);
             else if (key_is(c, eq, "ALBUM"))  tag_copy_utf8(tags->album,  sizeof(tags->album),  val, val_len);
         }
+        /* 5262. Both spellings of album artist are in use; the one with
+         * the space is foobar2000's. The first comment of a key wins, as
+         * a second GENRE is a second genre and not a correction. */
+        if (extra) {
+            char *d = NULL; size_t dl = 0;
+            if      (key_is(c, eq, "GENRE"))        { d = extra->genre;       dl = sizeof(extra->genre); }
+            else if (key_is(c, eq, "DATE"))         { d = extra->date;        dl = sizeof(extra->date); }
+            else if (key_is(c, eq, "ALBUMARTIST") ||
+                     key_is(c, eq, "ALBUM ARTIST")) { d = extra->albumartist; dl = sizeof(extra->albumartist); }
+            else if (key_is(c, eq, "TRACKNUMBER"))  { d = extra->track;       dl = sizeof(extra->track); }
+            else if (key_is(c, eq, "DISCNUMBER"))   { d = extra->disc;        dl = sizeof(extra->disc); }
+            if (d && !d[0]) tag_copy_utf8(d, dl, val, val_len);
+        }
 
         if (out && !*out && key_is(c, eq, "METADATA_BLOCK_PICTURE")) {
             /* Decoded over the comment's own bytes. The walk has already
@@ -308,7 +321,7 @@ static void vorbis_comment_walk(uint8_t *b, size_t len,
  * kind of wrong that looks like a bug.
  */
 static esp_err_t flac_read(FILE *f, storage_io_class_t prio, long base, id3_tags_t *tags,
-                           uint8_t **out, size_t *out_len)
+                           tag_extra_t *extra, uint8_t **out, size_t *out_len)
 {
     uint8_t magic[4];
     if (!read_at(f, prio, base, magic, 4) || memcmp(magic, "fLaC", 4) != 0) {
@@ -340,7 +353,7 @@ static esp_err_t flac_read(FILE *f, storage_io_class_t prio, long base, id3_tags
             if (!read_at(f, prio, pos, b, blen)) { free(b); break; }
 
             if (want_cmt) {
-                vorbis_comment_walk(b, blen, tags, NULL, NULL);
+                vorbis_comment_walk(b, blen, tags, extra, NULL, NULL);
                 /* Counted only if something landed. A VORBIS_COMMENT
                  * block with no TITLE/ARTIST/ALBUM in it is not a
                  * successful read -- returning OK for it would tell
@@ -463,7 +476,7 @@ static uint8_t *ilst_data(FILE *f, storage_io_class_t prio, long pos, long end, 
 }
 
 static esp_err_t mp4_read(FILE *f, storage_io_class_t prio, id3_tags_t *tags,
-                          uint8_t **out, size_t *out_len)
+                          tag_extra_t *extra, uint8_t **out, size_t *out_len)
 {
     const long end = file_size(f);
     if (end < 8) return ESP_ERR_NOT_FOUND;
@@ -502,6 +515,38 @@ static esp_err_t mp4_read(FILE *f, storage_io_class_t prio, id3_tags_t *tags,
         if      (!memcmp(type, "\xA9" "nam", 4) && tags) { dst = tags->title;  dst_len = sizeof(tags->title);  }
         else if (!memcmp(type, "\xA9" "ART", 4) && tags) { dst = tags->artist; dst_len = sizeof(tags->artist); }
         else if (!memcmp(type, "\xA9" "alb", 4) && tags) { dst = tags->album;  dst_len = sizeof(tags->album);  }
+        /* 5262. The same 0xA9 split as above, for the same reason. */
+        else if (!memcmp(type, "\xA9" "gen", 4) && extra) { dst = extra->genre;       dst_len = sizeof(extra->genre); }
+        else if (!memcmp(type, "\xA9" "day", 4) && extra) { dst = extra->date;        dst_len = sizeof(extra->date); }
+        else if (!memcmp(type, "aART", 4) && extra)        { dst = extra->albumartist; dst_len = sizeof(extra->albumartist); }
+
+        /* 5262: trkn and disk are binary -- two reserved bytes, the
+         * number and the total, big-endian 16 each -- and gnre is an
+         * ID3v1 genre number plus one. */
+        const bool num = extra && (!memcmp(type, "trkn", 4) || !memcmp(type, "disk", 4) ||
+                                   !memcmp(type, "gnre", 4));
+        if (num) {
+            size_t n = 0;
+            uint32_t kind = 0;
+            uint8_t *v = ilst_data(f, prio, b, next, &n, &kind);
+            if (v) {
+                if (!memcmp(type, "gnre", 4)) {
+                    const char *g = (n >= 2 && !extra->genre[0])
+                        ? id3_genre_name((unsigned)((v[0] << 8 | v[1]) - 1)) : NULL;
+                    if (g) snprintf(extra->genre, sizeof(extra->genre), "%s", g);
+                } else if (n >= 4) {
+                    const unsigned no = (unsigned)(v[2] << 8 | v[3]);
+                    const unsigned of = n >= 6 ? (unsigned)(v[4] << 8 | v[5]) : 0;
+                    char *d = !memcmp(type, "trkn", 4) ? extra->track : extra->disc;
+                    if (no && of) snprintf(d, TAG_NUM_LEN, "%u/%u", no, of);
+                    else if (no)  snprintf(d, TAG_NUM_LEN, "%u", no);
+                }
+                free(v);
+                found++;
+            }
+            pos = next;
+            continue;
+        }
 
         if (dst) {
             size_t n = 0;
@@ -562,7 +607,7 @@ static esp_err_t mp4_read(FILE *f, storage_io_class_t prio, id3_tags_t *tags,
 #define OGG_MAX_PACKET  (COVERTAG_MAX_IMAGE + COVERTAG_MAX_IMAGE / 2)
 
 static esp_err_t ogg_read(FILE *f, storage_io_class_t prio, id3_tags_t *tags,
-                          uint8_t **out, size_t *out_len)
+                          tag_extra_t *extra, uint8_t **out, size_t *out_len)
 {
     const long end = file_size(f);
     long pos = 0;
@@ -665,7 +710,7 @@ complete:
             return ESP_ERR_NOT_SUPPORTED;
         }
 
-        vorbis_comment_walk(pkt + off, pkt_len - off, tags, out, out_len);
+        vorbis_comment_walk(pkt + off, pkt_len - off, tags, extra, out, out_len);
 
         /* Same rule as the FLAC path: OK means something was found, not
          * that a comment block was present. */
@@ -782,19 +827,19 @@ esp_err_t covertag_extract_art(FILE *f, storage_io_class_t prio,
         return albumart_extract_at(f, prio, 0, out, out_len);
 
     case FMT_FLAC: {
-        const esp_err_t err = flac_read(f, prio, base, NULL, out, out_len);
+        const esp_err_t err = flac_read(f, prio, base, NULL, NULL, out, out_len);
         return (err == ESP_OK && *out) ? ESP_OK : ESP_ERR_NOT_FOUND;
     }
 
     case FMT_OGG: {
         /* base is ignored: ogg_read() scans for the capture pattern from
          * zero, and a leading ID3 has no "OggS" in it to trip on. */
-        const esp_err_t err = ogg_read(f, prio, NULL, out, out_len);
+        const esp_err_t err = ogg_read(f, prio, NULL, NULL, out, out_len);
         return (err == ESP_OK && *out) ? ESP_OK : ESP_ERR_NOT_FOUND;
     }
 
     case FMT_MP4: {
-        const esp_err_t err = mp4_read(f, prio, NULL, out, out_len);
+        const esp_err_t err = mp4_read(f, prio, NULL, NULL, out, out_len);
         return (err == ESP_OK && *out) ? ESP_OK : ESP_ERR_NOT_FOUND;
     }
 
@@ -811,30 +856,44 @@ esp_err_t covertag_extract_art(FILE *f, storage_io_class_t prio,
 
 esp_err_t covertag_read_tags(FILE *f, storage_io_class_t prio, id3_tags_t *out)
 {
+    return covertag_read_tags_ext(f, prio, out, NULL);
+}
+
+esp_err_t covertag_read_tags_ext(FILE *f, storage_io_class_t prio, id3_tags_t *out,
+                                 tag_extra_t *extra)
+{
     long base = 0;
+    esp_err_t rc;
 
     memset(out, 0, sizeof(*out));
+    if (extra) memset(extra, 0, sizeof(*extra));
 
     switch (sniff(f, prio, &base)) {
     case FMT_ID3:
-        return id3_read_tags_at(f, 0, out);
+        return id3_read_tags_ext(f, 0, out, extra);
 
     case FMT_FLAC:
-        return flac_read(f, prio, base, out, NULL, NULL);
+        rc = flac_read(f, prio, base, out, extra, NULL, NULL);
+        break;
 
     case FMT_OGG:
-        return ogg_read(f, prio, out, NULL, NULL);
+        rc = ogg_read(f, prio, out, extra, NULL, NULL);
+        break;
 
     case FMT_MP4:
-        return mp4_read(f, prio, out, NULL, NULL);
+        rc = mp4_read(f, prio, out, extra, NULL, NULL);
+        break;
 
     case FMT_WAV: {
         long off;
         if (!wav_find_id3(f, prio, &off)) return ESP_ERR_NOT_FOUND;
-        return id3_read_tags_at(f, off, out);
+        return id3_read_tags_ext(f, off, out, extra);
     }
 
     default:
         return ESP_ERR_NOT_SUPPORTED;
     }
+    /* 5262: a Vorbis GENRE or an MP4 (c)gen can carry "(17)" too. */
+    if (extra) tag_genre_fix(extra->genre, sizeof(extra->genre));
+    return rc;
 }

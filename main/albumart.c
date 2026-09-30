@@ -634,9 +634,16 @@ static void id3_text_to_utf8(const uint8_t *body, size_t len, char *out, size_t 
 
 esp_err_t id3_read_tags_at(FILE *f, long base, id3_tags_t *out)
 {
+    return id3_read_tags_ext(f, base, out, NULL);
+}
+
+esp_err_t id3_read_tags_ext(FILE *f, long base, id3_tags_t *out,
+                            tag_extra_t *extra)
+{
     uint8_t hdr[10];
 
     memset(out, 0, sizeof(*out));
+    if (extra) memset(extra, 0, sizeof(*extra));
 
     fseek(f, base, SEEK_SET);
     if (fread(hdr, 1, sizeof(hdr), f) != sizeof(hdr) || memcmp(hdr, "ID3", 3) != 0) {
@@ -668,7 +675,8 @@ esp_err_t id3_read_tags_at(FILE *f, long base, id3_tags_t *out)
     const long tag_end = base + 10 + (long)syncsafe32(&hdr[6]);
     int found = 0;
 
-    while (ftell(f) + 10 <= tag_end && found < 3) {
+    /* 5262: with extra, eight frames are wanted and the walk is the tag. */
+    while (ftell(f) + 10 <= tag_end && (extra || found < 3)) {
         uint8_t fh[10];
         if (fread(fh, 1, sizeof(fh), f) != sizeof(fh)) break;
         if (fh[0] == 0) break;                      /* padding */
@@ -681,6 +689,16 @@ esp_err_t id3_read_tags_at(FILE *f, long base, id3_tags_t *out)
         if      (!memcmp(fh, "TIT2", 4)) { dst = out->title;  dst_len = sizeof(out->title);  }
         else if (!memcmp(fh, "TPE1", 4)) { dst = out->artist; dst_len = sizeof(out->artist); }
         else if (!memcmp(fh, "TALB", 4)) { dst = out->album;  dst_len = sizeof(out->album);  }
+        /* 5262. TDRC is v2.4's date and TYER v2.3's year; either fills
+         * date, and a TDRC does not lose to a TYER after it. TPE2 is the
+         * band -- what every tagger writes album artist into. */
+        else if (extra && !memcmp(fh, "TCON", 4)) { dst = extra->genre;       dst_len = sizeof(extra->genre); }
+        else if (extra && !memcmp(fh, "TDRC", 4)) { dst = extra->date;        dst_len = sizeof(extra->date); }
+        else if (extra && !memcmp(fh, "TYER", 4) && !extra->date[0])
+                                                  { dst = extra->date;        dst_len = sizeof(extra->date); }
+        else if (extra && !memcmp(fh, "TPE2", 4)) { dst = extra->albumartist; dst_len = sizeof(extra->albumartist); }
+        else if (extra && !memcmp(fh, "TRCK", 4)) { dst = extra->track;       dst_len = sizeof(extra->track); }
+        else if (extra && !memcmp(fh, "TPOS", 4)) { dst = extra->disc;        dst_len = sizeof(extra->disc); }
 
         if (!dst) {
             fseek(f, (long)fsz, SEEK_CUR);
@@ -696,6 +714,7 @@ esp_err_t id3_read_tags_at(FILE *f, long base, id3_tags_t *out)
         id3_text_to_utf8(body, fsz, dst, dst_len);
         found++;
     }
+    if (extra) tag_genre_fix(extra->genre, sizeof(extra->genre));
 
     return found ? ESP_OK : ESP_ERR_NOT_FOUND;
 }

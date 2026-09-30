@@ -51,6 +51,7 @@
 #include <stdbool.h>
 
 #include "mediaindex.h"
+#include "tagextra.h"         /* 5262 */
 
 #ifdef __cplusplus
 extern "C" {
@@ -92,6 +93,10 @@ mwalk_result_t mwalk_volume(const char *mount, mwalk_fn fn, void *ctx);
  */
 bool mwalk_cue_tags(const char *path, char *title, char *artist,
                     char *album, size_t each);
+
+/* 5262: the same for the library's extras (cuedir_row_extra()); on
+ * false, cuedir_extra(). */
+bool mwalk_cue_extra(const char *path, tag_extra_t *x);
 
 #ifdef __cplusplus
 }

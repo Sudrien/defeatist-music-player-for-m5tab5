@@ -73,6 +73,20 @@ int main(void)
     CHECK(strcmp(cs.title, "Six Marks") == 0,
           "22: album title '%s' -- the BOM left in front of REM?", cs.title);
     CHECK(strcmp(cs.performer, "Landmark Ensemble") == 0, "22: performer '%s'", cs.performer);
+    /* 5262: the sheet's REM GENRE (quoted) and REM DATE (bare); not the
+     * REM COMMENT after them. */
+    CHECK(strcmp(cs.genre, "Test") == 0, "22: genre '%s'", cs.genre);
+    CHECK(strcmp(cs.date, "2026") == 0, "22: date '%s'", cs.date);
+    {
+        static const char unq[] = "REM GENRE Classic Rock\nREM DATE 1999\n"
+                                  "FILE \"a.flac\" WAVE\n  TRACK 01 AUDIO\n"
+                                  "    REM GENRE Inside\n    INDEX 01 00:00:00\n";
+        CHECK(cue_parse(unq, sizeof unq - 1, &cs) == 1, "unquoted REM: %d tracks", cs.ntracks);
+        CHECK(strcmp(cs.genre, "Classic Rock") == 0,
+              "an unquoted genre is the rest of the line, not '%s'", cs.genre);
+        CHECK(strcmp(cs.date, "1999") == 0, "unquoted date '%s'", cs.date);
+    }
+    parse("22 cue-flac-image.cue");
     CHECK(cs.nfiles == 1 && strcmp(cs.files[0], "22 cue-flac-image.flac") == 0,
           "22: file '%s' -- a CR on the end?", cs.files[0]);
     for (int i = 0; i < cs.ntracks; i++) {

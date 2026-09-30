@@ -3608,6 +3608,16 @@ static const char *volatile s_seek_why = "";
 static volatile bool s_decoding;
 
 /*
+ * 5246: a track the decode loop has taken and not yet opened -- set when
+ * the loop commits to playing one, cleared once it decodes (s_decoding),
+ * ends, or the loop goes idle. In that gap s_decoding is false, and the
+ * play/pause toggle read "nothing decoding" as "start the restored track"
+ * and requested it again: a bare `pause` sent 110 ms after `play` restarted
+ * the song instead of pausing it (mpdcheck on a USB drive, v0.4.0-268).
+ */
+static volatile bool s_starting;
+
+/*
  * For portal_init(): "is a track playing". Paused is not playing, and
  * neither is a track that is only loaded.
  *
@@ -8404,7 +8414,7 @@ static void ui_task(void *arg)
              * the writer's gate and toggling it with no producer would
              * silently do nothing, which reads as a dead button.
              */
-            if (!s_decoding && s_path[0]) {
+            if (!s_decoding && !s_starting && !s_pending_ready && s_path[0]) {
                 if (!s_playing) s_playing = true;
                 request_track(s_path);
                 break;
@@ -8956,6 +8966,7 @@ static track_end_t play_file(const char *path)
      * the bug this flag exists to prevent, in miniature.
      */
     s_decoding = true;
+    s_starting = false;             /* 5246 */
 
     /*
      * Whether this track may be crossfaded into.
@@ -13949,9 +13960,11 @@ static void player_loop(void)
             }
             snprintf(s_path, sizeof(s_path), "%s", s_pending);
             have = true;
+            s_starting = true;                                      /* 5246 */
         }
 
         if (!have) {
+            s_starting = false;                                     /* 5246 */
             /*
              * The track this player was last put down on, restored but
              * not started.
@@ -14172,6 +14185,7 @@ static void player_loop(void)
         history_push(s_path);
         const track_end_t why = play_file(s_path);
         have = false;
+        s_starting = false;                                         /* 5246 */
 
         if (why == TRACK_INTERRUPTED) {
             /* Something else is already chosen, so the amplifier has a
@@ -14270,6 +14284,7 @@ static void player_loop(void)
              */
             s_track_changing = true;
             have = true;
+            s_starting = true;                                      /* 5246 */
             continue;
         }
 

@@ -18839,3 +18839,38 @@ Arduino, not a patch to make without asking.
 
 Not built with ESP-IDF here. The build is the check: app_check_size
 passing, with the size line in the log.
+
+### 5246 -- player: a pause while a track is starting is a pause
+
+mpdcheck with a USB drive (v0.4.0-268-g388d472) passed 341 of 342. The
+one: `play 0`, `pause 1`, `pause 0`, then a bare `pause` -- the toggle --
+left the player playing. The log, 120 ms of it:
+
+    173662  button: play entry
+    173724  pause                    (`pause 1`)
+    173734  playing ...01 Angry.mp3
+    173812  button: play             (`pause 0`)
+    173834  button: play/pause       (the toggle)
+    173844  playing ...01 Angry.mp3  <- the same track, started again
+
+UI_ACTION_PLAY_PAUSE reads "nothing is decoding" as "the restored track
+is waiting for its first press" and requests it -- right after boot,
+which is what it was written for. But between the decode loop taking a
+track and play_file() opening it, s_decoding is false too, and on a USB
+MP3 that gap was long enough for a press to land in it. The toggle then
+restarted the song instead of pausing it. On the SD's recordings the
+gap was shorter than the test's commands and every earlier run passed.
+A person tapping pause just after choosing a song would meet it too.
+
+s_starting marks that gap: set where the loop commits to a track (a
+chosen one, or the next in the list), cleared when play_file() sets
+s_decoding, when play_file() returns, and whenever the loop is idle. The
+toggle requests the track only with nothing decoding, nothing starting
+and nothing still waiting to be taken (s_pending_ready); otherwise it
+toggles s_playing, as for a playing track, and the pause holds when the
+first frame arrives. After boot, with the track restored and not
+started, none of the three is set and the first press still starts it.
+
+Not host-compilable (player.c); reviewed by hand, 16 lines. The board
+check is mpdcheck's transport section with the USB drive, which found it:
+"bare pause toggles" passing.

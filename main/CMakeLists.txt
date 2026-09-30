@@ -52,3 +52,15 @@ endif()
 # which they are on RISC-V.
 set_source_files_properties(decoder.c PROPERTIES COMPILE_FLAGS
     "-Wno-unused-function")
+
+# 5245: the MPD server's code compiled for size. The app outgrew its 3 MB
+# partition by 3056 bytes after 5243-5244, and the partition table is
+# the Arduino core's on purpose (partitions.csv), so the code shrinks
+# instead. COMPILER_OPTIMIZATION_PERF stays for everything else -- it is
+# one of the four fixes for the DPI underrun (sdkconfig.defaults) -- but
+# nothing in these files is on a timing path: they answer a TCP client.
+# Measured with riscv32-esp-elf-gcc 14.2, -O2 against -Os, .text:
+# mpd.c 52476 -> 38748, mpdproto.c 7786 -> 6448, mpdfilter.c 4419 ->
+# 2971; about 16 KB, no new warnings. A source file's options come after
+# the component's on the command line, so this -Os is the one GCC uses.
+set_source_files_properties(mpd.c mpdproto.c mpdfilter.c PROPERTIES COMPILE_OPTIONS "-Os")

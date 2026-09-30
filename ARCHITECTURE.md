@@ -18798,3 +18798,44 @@ texttest all passes. Not on the board. What the board run should show:
 the four failures of the last run (search folds case, expression
 search, playlistsearch, expression playlistsearch) pass -- after the
 automatic reindex has written .defeatist.sr2 on each volume.
+
+### 5245 -- build: the MPD server compiled for size
+
+The build after 5243-5244 failed app_check_size: 0x300bf0 bytes against
+3 MB app partitions, 3056 bytes over.
+
+Two ways out, and this takes the one that changes less. The partition
+table is the Arduino core's app3M_fat9M_16MB on purpose -- partitions.csv
+says an IDF build and an Arduino build share a board through it -- and
+changing it moves `ffat` and every partition after the apps. So the code
+shrinks instead.
+
+COMPILER_OPTIMIZATION_PERF stays on globally: sdkconfig.defaults names
+it as one of the four fixes for the DPI underrun (the cyan frame). But
+the MPD server is not on any timing path -- it answers a TCP client from
+its own task -- so mpd.c, mpdproto.c and mpdfilter.c are compiled -Os
+(set_source_files_properties in main/CMakeLists.txt; a source file's
+options follow the component's, so its -Os is the one GCC uses).
+
+Measured with Espressif's riscv32-esp-elf-gcc 14.2.0 (crosstool-NG
+esp-14.2.0_20241119), rv32imafc, -ffunction-sections, against host stubs
+for the IDF headers -- .text, -O2 then -Os:
+
+    mpd.c        52476  38748
+    mpdproto.c    7786   6448
+    mpdfilter.c   4419   2971
+
+About 16 KB, five times the overflow, and no new warnings under -Wall
+-Wextra (format-truncation included, which this build treats as an
+error). The rest of the MPD files (mpdqueue, mpdidle, mpdmode, mpduri)
+save under 1 KB together and mpdqueue is read by the player's own next-
+track path, so they are left alone.
+
+THE HEADROOM IS SMALL. At about 13 KB under the ceiling after this, the
+next few features will meet it again. The lasting fix is the partition
+table -- neither app1 (no code uses OTA) nor ffat (no code mounts flash
+FAT) is used -- and that is a decision about sharing the board with
+Arduino, not a patch to make without asking.
+
+Not built with ESP-IDF here. The build is the check: app_check_size
+passing, with the size line in the log.

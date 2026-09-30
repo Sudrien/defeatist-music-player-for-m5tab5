@@ -25,6 +25,16 @@
  *     qmove ID POS     that entry to position POS                 5173
  *     qplay ID         play that entry                            5173
  *     qclear           empty the queue                            5173
+ *     rg N             ReplayGain off (0) or on (1)               5269
+ *     xfade N          crossfade, 0..REMOTEPROTO_XFADE_MAX s      5269
+ *     xfalbum N        crossfade within an album, 0 or 1          5269
+ *     sleep N          sleep timer step, 0 off .. _SLEEP_STEPS    5269
+ *
+ * 5269: the settings that mean the same from across the room. Not the
+ * screen's (brightness, dimming, rotation -- about the glass in front of
+ * whoever holds it), not the radio, the remote or MPD (a switch that
+ * cuts off the page it is on), not Record from (this page does not
+ * record).
  *
  * 5173: the queue verbs name an entry by its ID, not its position. The
  * page read the list a moment ago on another task, and a folder tap on
@@ -74,7 +84,16 @@ typedef enum {
     REMOTE_CMD_QMOVE,       /* 5173: value = id, value2 = position */
     REMOTE_CMD_QPLAY,       /* 5173: value = id */
     REMOTE_CMD_QCLEAR,      /* 5173 */
+    REMOTE_CMD_RG,          /* 5269: value 0 or 1 */
+    REMOTE_CMD_XFADE,       /* 5269: value 0..REMOTEPROTO_XFADE_MAX */
+    REMOTE_CMD_XFALBUM,     /* 5269: value 0 or 1 */
+    REMOTE_CMD_SLEEP,       /* 5269: value 0..REMOTEPROTO_SLEEP_STEPS */
 } remote_cmd_kind_t;
+
+/* 5269: the ranges, here because this file includes nothing of the
+ * player's; remote.c asserts they are settings.h's and sleeptimer.h's. */
+#define REMOTEPROTO_XFADE_MAX   (12)
+#define REMOTEPROTO_SLEEP_STEPS (8)
 
 /* A path command's path: the longest a VFS path here can be. */
 #define REMOTEPROTO_PATH_MAX    (512)
@@ -136,6 +155,13 @@ typedef struct {
     int      batt_pct;      /* -1 unknown */
     bool     charging;
     uint32_t wave;          /* the envelope's generation, see below */
+    /* 5269: the settings section. sleep_left is whole seconds, and like
+     * pos_sec moves every second, so it alone does not send a state. */
+    bool     rg;
+    int      xfade;         /* seconds, 0 off */
+    bool     xfalbum;
+    int      sleep_step;    /* 0 off */
+    uint32_t sleep_left;
 } remote_state_t;
 
 /*

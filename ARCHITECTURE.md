@@ -19612,3 +19612,43 @@ before too; the top not being heard is a listening check.
 texttest all passes. player.c and mpd.c not compiled here -- no IDF;
 checked with -fsyntax-only against empty stub headers, which says only
 that nothing reported touches the changed lines.
+
+### 5269 -- remote: a settings section
+
+The browser remote gets the settings that mean the same from across the
+room: ReplayGain, crossfade length, crossfade within an album, and the
+sleep timer. Left on the glass, each for its reason: the screen's
+(brightness, dimming, rotation -- about the panel in front of whoever
+holds it), Wi-Fi, NTP, the remote and MPD (a switch that can cut off the
+page it is on; the page's Wi-Fi join already warns about the one case
+it allows), and Record from (the page does not record, remoteproto.h).
+
+**Verbs**: `rg N`, `xfade N`, `xfalbum N`, `sleep N`, each through
+verb_num() and then its own ceiling. The ceilings are in remoteproto.h,
+which includes nothing of the player's, and remote.c asserts them equal
+to SETTINGS_CROSSFADE_MAX and SLEEPTIMER_STEPS.
+
+**Presses, not writes.** settings.c has no lock and the panel sets these
+on ui_task, so the page's changes are uireq presses serviced there, as
+MPD's `replay_gain_mode` already was (5161): UI_ACTION_REPLAYGAIN is
+reused, and CROSSFADE, XFADE_ALBUM and SLEEP are new. Each is a request
+for a state. The panel, or the Sleep page for the timer, is redrawn if
+it is open, so the glass does not show the old value until touched --
+which MPD's ReplayGain never did either, and now does. Its log line says
+"from a client" rather than "from mpd", having two sources.
+
+**State**: `rg`, `xf`, `xfa`, `sleep` (the step) and `sleepleft`
+(seconds). remote_publish() reads the three settings itself -- it runs on
+ui_task, their writer -- and takes the timer's step and seconds from
+player.c as two new arguments. sleepleft is held out of the "did
+anything change" comparison as pos_sec is, so a running timer does not
+send a state a second; the page counts it down between states.
+
+**Page**: a Settings section between the file list and the stations. A
+control sends on change; every state redraws them, except the crossfade
+slider while held and the sleep menu while focused. A state from an
+older build has no `rg` and leaves the section as it is.
+
+remoteprototest: the four verbs at their ceilings, and refused past them
+or without a number. texttest all passes; the page's script passes
+`node --check`. remote.c and player.c not compiled here -- no IDF.

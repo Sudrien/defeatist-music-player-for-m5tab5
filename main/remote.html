@@ -26,6 +26,8 @@ html, body { height: auto; }
 .below p { color: var(--album); margin: .4em 0 1em; }
 .below form { display: grid; gap: .8em; margin-bottom: 1.2em; }
 .below label { display: grid; gap: .3em; color: var(--icon); }
+/* 5269: a checkbox beside its words, not over them. */
+.below label.chk { display: flex; align-items: center; gap: .5em; }
 .below input { font: inherit; padding: .6em .7em; border-radius: 8px;
   border: 1px solid #444; background: #1c1c1c; color: var(--thumb); }
 .below button { justify-self: start; padding: .6em 1.2em; border-radius: 999px;
@@ -235,7 +237,7 @@ svg { display: block; width: 100%; height: 100%; }
   <div class="gone on" id="gone">Connecting to the player…</div>
 </main>
 </div>
-<div class="fold" id="fold">&#9662; queue, files, stations</div>
+<div class="fold" id="fold">&#9662; queue, files, settings, stations</div>
 
 <section class="files" id="queue">
   <div class="qhead"><h2>Queue</h2><span class="msg" id="qmsg"></span>
@@ -248,6 +250,17 @@ svg { display: block; width: 100%; height: 100%; }
   <div class="crumbs" id="crumbs"></div>
   <div class="msg" id="fmsg"></div>
   <ul class="flist" id="flist"></ul>
+</section>
+
+<!-- 5269: the settings that mean the same from across the room. -->
+<section class="below" id="settings">
+  <h2>Settings</h2>
+  <label class="chk"><input type="checkbox" id="srg"> ReplayGain <span class="msg">(from the next track)</span></label>
+  <label>Crossfade <span id="sxfv"></span>
+    <input id="sxf" type="range" min="0" max="12" step="1" value="0" aria-label="Crossfade seconds"></label>
+  <label class="chk"><input type="checkbox" id="sxfa"> Crossfade within an album</label>
+  <label>Sleep timer <span class="msg" id="sleft"></span>
+    <select id="ssleep"><option value="0">Off</option></select></label>
 </section>
 
 <section class="below" id="stations">
@@ -313,10 +326,41 @@ function connect() {
 }
 function send(s) { if (ws && ws.readyState === 1) ws.send(s); }
 
+/* ---- settings (5269) ----
+   Each control sends on change and is redrawn from every state, except
+   the one being held: a slider mid-drag is the hand's, not the player's. */
+for (let s = 1; s <= 8; s++) {
+  const o = document.createElement("option");
+  o.value = s; o.textContent = s % 4 ? `${s * 15} min` : `${s / 4} h`;
+  $("ssleep").append(o);
+}
+let xfHeld = false;
+$("srg").onchange = e => send(`rg ${e.target.checked ? 1 : 0}`);
+$("sxfa").onchange = e => send(`xfalbum ${e.target.checked ? 1 : 0}`);
+$("ssleep").onchange = e => send(`sleep ${e.target.value}`);
+const xfLabel = v => { $("sxfv").textContent = +v ? `${v} s` : "off"; };
+$("sxf").oninput = e => { xfHeld = true; xfLabel(e.target.value); };
+$("sxf").onchange = e => { xfHeld = false; send(`xfade ${e.target.value}`); };
+function sleepLeft() {
+  if (!S || !S.sleep) { $("sleft").textContent = ""; return; }
+  const left = Math.max(0, Math.ceil(S.sleepleft - (performance.now() - at) / 1000));
+  $("sleft").textContent = `${Math.floor(left / 60)}:${String(left % 60).padStart(2, "0")} left`;
+}
+setInterval(sleepLeft, 1000);
+function onSettings(m) {
+  if (!("rg" in m)) return;       // an older build's state
+  $("srg").checked = !!m.rg;
+  $("sxfa").checked = !!m.xfa;
+  if (!xfHeld) { $("sxf").value = m.xf; xfLabel(m.xf); }
+  if (document.activeElement !== $("ssleep")) $("ssleep").value = m.sleep;
+  sleepLeft();
+}
+
 /* ---- state ---- */
 function onState(m) {
   const prevArt = S && S.art;
   S = m; at = performance.now();
+  onSettings(m);                  // 5269
   $("title").textContent = m.title;
   $("album").textContent = m.album;
   $("artist").textContent = m.artist;

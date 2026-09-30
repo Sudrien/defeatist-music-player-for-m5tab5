@@ -32,6 +32,8 @@
 #include "mediacache.h"
 #include "portal.h"
 #include "portalweb.h"
+#include "settings.h"           /* 5269 */
+#include "sleeptimer.h"         /* 5269 */
 #include "stationlist.h"
 #include "stations.h"
 #include "storage.h"
@@ -932,6 +934,10 @@ static esp_err_t h_ws(httpd_req_t *req)
     case REMOTE_CMD_VOLUME: a.kind = UI_ACTION_VOLUME; a.value = c.value; break;
     case REMOTE_CMD_SEEK:   a.kind = UI_ACTION_SEEK;   a.value = c.value; break;
     case REMOTE_CMD_QPLAY:  a.kind = UI_ACTION_PLAY_ID; a.value = c.value; break;   /* 5173 */
+    case REMOTE_CMD_RG:      a.kind = UI_ACTION_REPLAYGAIN;  a.value = c.value; break; /* 5269 */
+    case REMOTE_CMD_XFADE:   a.kind = UI_ACTION_CROSSFADE;   a.value = c.value; break;
+    case REMOTE_CMD_XFALBUM: a.kind = UI_ACTION_XFADE_ALBUM; a.value = c.value; break;
+    case REMOTE_CMD_SLEEP:   a.kind = UI_ACTION_SLEEP;       a.value = c.value; break;
     default:                return ESP_OK;
     }
     /* Dropped rather than waited for when full: eight presses queued in
@@ -1119,7 +1125,11 @@ static void copy_str(char *dst, size_t n, const char *src)
     snprintf(dst, n, "%s", src ? src : "");
 }
 
-void remote_publish(const ui_state_t *st, const char *art_path, int rec_count)
+_Static_assert(REMOTEPROTO_XFADE_MAX == SETTINGS_CROSSFADE_MAX, "5269: remoteproto.h's ceiling");
+_Static_assert(REMOTEPROTO_SLEEP_STEPS == SLEEPTIMER_STEPS, "5269: remoteproto.h's ceiling");
+
+void remote_publish(const ui_state_t *st, const char *art_path, int rec_count,
+                    int sleep_step, uint32_t sleep_left)
 {
     queue_publish();                    /* 5174: first, so it sees a stop too */
     if (!s_srv || !st) return;
@@ -1169,12 +1179,21 @@ void remote_publish(const ui_state_t *st, const char *art_path, int rec_count)
     c->batt_pct = st->battery_pct;
     c->charging = st->battery_charging;
     c->wave = gen;
+    /* 5269: read here, on ui_task, which is the settings' one writer. */
+    c->rg = settings_rg_enabled();
+    c->xfade = settings_crossfade_sec();
+    c->xfalbum = settings_crossfade_album();
+    c->sleep_step = sleep_step;
+    c->sleep_left = sleep_left;
 
-    /* Did anything but the position move? */
+    /* Did anything but the position (or the sleep timer's count, 5269)
+     * move? The page counts both down itself between states. */
     const uint32_t pos = c->pos_sec;
     c->pos_sec = s_last.pos_sec;
+    c->sleep_left = s_last.sleep_left;
     bool send = memcmp(c, &s_last, sizeof(*c)) != 0;
     c->pos_sec = pos;
+    c->sleep_left = sleep_left;
 
     const int64_t now = esp_timer_get_time();
     if (!send) {

@@ -149,6 +149,19 @@ bool remoteproto_parse(const char *msg, size_t len, remote_cmd_t *out)
     int v;
     if (verb_num(msg, len, "vol", &v))  { out->kind = REMOTE_CMD_VOLUME; out->value = v; return true; }
     if (verb_num(msg, len, "seek", &v)) { out->kind = REMOTE_CMD_SEEK;   out->value = v; return true; }
+    /* 5269: the settings, each with its own ceiling under verb_num()'s. */
+    static const struct { const char *w; remote_cmd_kind_t k; int max; } sets[] = {
+        { "rg", REMOTE_CMD_RG, 1 }, { "xfade", REMOTE_CMD_XFADE, REMOTEPROTO_XFADE_MAX },
+        { "xfalbum", REMOTE_CMD_XFALBUM, 1 }, { "sleep", REMOTE_CMD_SLEEP, REMOTEPROTO_SLEEP_STEPS },
+    };
+    for (size_t i = 0; i < sizeof(sets) / sizeof(sets[0]); i++) {
+        if (verb_num(msg, len, sets[i].w, &v)) {
+            if (v > sets[i].max) return false;
+            out->kind = sets[i].k;
+            out->value = v;
+            return true;
+        }
+    }
     return false;
 }
 
@@ -288,6 +301,11 @@ size_t remoteproto_state_json(const remote_state_t *s, char *out, size_t cap)
     key(&b, "batt", false);     putf(&b, "%lld", (long long)s->batt_pct);
     key(&b, "chg", false);      put_bool(&b, s->charging);
     key(&b, "wave", false);     putf(&b, "%lld", (long long)s->wave);
+    key(&b, "rg", false);       put_bool(&b, s->rg);                /* 5269 */
+    key(&b, "xf", false);       putf(&b, "%lld", (long long)s->xfade);
+    key(&b, "xfa", false);      put_bool(&b, s->xfalbum);
+    key(&b, "sleep", false);    putf(&b, "%lld", (long long)s->sleep_step);
+    key(&b, "sleepleft", false); putf(&b, "%lld", (long long)s->sleep_left);
     put(&b, "}", 1);
 
     if (b.over) { out[0] = '\0'; return 0; }

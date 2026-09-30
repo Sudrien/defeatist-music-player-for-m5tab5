@@ -312,6 +312,14 @@ typedef enum {
      * the finest a seek can ask for.
      */
     UI_ACTION_SEEK_SEC,
+    /* 5269: the settings the browser remote may change, each a request
+     * for a state like REPLAYGAIN: crossfade to `value` seconds, crossfade
+     * within an album off (0) or on (1), the sleep timer to step `value`
+     * (0 off). The panel and the Sleep page set these themselves, being
+     * on ui_task already. */
+    UI_ACTION_CROSSFADE,
+    UI_ACTION_XFADE_ALBUM,
+    UI_ACTION_SLEEP,
 } ui_action_kind_t;
 
 /* Name of an action, for logging. Never NULL. Lives beside the enum so a

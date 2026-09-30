@@ -8562,7 +8562,40 @@ static void ui_task(void *arg)
              * panel's way, and like it, from the next track. */
             if (settings_rg_enabled() != (act.value != 0)) {
                 settings_set_rg_enabled(act.value != 0);
-                ESP_LOGI(TAG, "replaygain %s (next track), from mpd", act.value ? "on" : "off");
+                /* 5269: "a client", being MPD's or the remote page's now. */
+                ESP_LOGI(TAG, "replaygain %s (next track), from a client", act.value ? "on" : "off");
+                if (panel_is_open()) panel_draw();                  /* 5269 */
+            }
+            break;
+        /* 5269: the remote page's settings. A request for a state, set
+         * as the panel sets it, and the panel redrawn if it is up so the
+         * glass does not show the old value until touched. */
+        case UI_ACTION_CROSSFADE: {
+            const int sec = act.value < 0 ? 0
+                          : act.value > SETTINGS_CROSSFADE_MAX ? SETTINGS_CROSSFADE_MAX : act.value;
+            if (sec != settings_crossfade_sec()) {
+                settings_set_crossfade_sec((uint8_t)sec);
+                ESP_LOGI(TAG, "crossfade %d s, from a client", sec);
+                if (panel_is_open()) panel_draw();
+            }
+            break;
+        }
+        case UI_ACTION_XFADE_ALBUM:
+            if (settings_crossfade_album() != (act.value != 0)) {
+                settings_set_crossfade_album(act.value != 0);
+                ESP_LOGI(TAG, "crossfade in album %s, from a client", act.value ? "on" : "off");
+                if (panel_is_open()) panel_draw();
+            }
+            break;
+        case UI_ACTION_SLEEP:
+            /* The Sleep page's step, set the way its tap sets it. A press
+             * during the fade has already cleared the timer, above. */
+            sleep_timer_set(act.value);
+            if (sleeppage_is_open()) {
+                sleeppage_set_timer(s_sleep_step,
+                                    sleeptimer_seconds_left(esp_timer_get_time(),
+                                                            s_sleep_deadline_us));
+                sleeppage_draw();
             }
             break;
         case UI_ACTION_SEEK:
@@ -8771,7 +8804,9 @@ static void ui_task(void *arg)
          * told, so the two cannot disagree. Before ui_draw(), which
          * returns early with the screen off -- a remote is most useful
          * exactly then. */
-        remote_publish(&st, s_shown_path, s_rec_count);
+        remote_publish(&st, s_shown_path, s_rec_count, s_sleep_step,  /* 5269 */
+                       (uint32_t)sleeptimer_seconds_left(esp_timer_get_time(),
+                                                         s_sleep_deadline_us));
         /* 5158: and what an MPD client is told, from the same st. */
         mpd_publish(&st, s_shown_path, s_streaming);
         s_published_us = esp_timer_get_time();          /* 5194 */

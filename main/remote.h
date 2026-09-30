@@ -84,7 +84,8 @@ bool remote_url(char *out, size_t out_size);
  * Sent to every open page when it changes -- the position only when it
  * jumps or every few seconds, since the page counts it itself.
  */
-void remote_publish(const ui_state_t *st, const char *art_path, int rec_count);
+void remote_publish(const ui_state_t *st, const char *art_path, int rec_count,
+                    int sleep_step, uint32_t sleep_left);   /* 5269: the timer's */
 
 /*
  * Presses from a page, and a file or folder chosen on it (5123), go to

@@ -62,6 +62,15 @@ int main(void)
         CHECK(c.kind == REMOTE_CMD_VOLUME && c.value == 0, "vol 0");
         c = parse("seek 100");
         CHECK(c.kind == REMOTE_CMD_SEEK && c.value == 100, "seek 100");
+        /* 5269: the settings, each at its ceiling. */
+        c = parse("rg 1");
+        CHECK(c.kind == REMOTE_CMD_RG && c.value == 1, "rg 1");
+        c = parse("xfade 12");
+        CHECK(c.kind == REMOTE_CMD_XFADE && c.value == 12, "xfade 12");
+        c = parse("xfalbum 0");
+        CHECK(c.kind == REMOTE_CMD_XFALBUM && c.value == 0, "xfalbum 0");
+        c = parse("sleep 8");
+        CHECK(c.kind == REMOTE_CMD_SLEEP && c.value == 8, "sleep 8");
     }
 
     printf("  refusals\n");
@@ -70,6 +79,8 @@ int main(void)
         "vol 101", "vol -1", "vol +5", "vol 5x", "vol 0050", "vol  5", "seek",
         "play 5", "star 1", "hello!", "vol 1e2", "seek 999",
         "pause pause pause pause",
+        /* 5269: past each setting's ceiling, or with no number. */
+        "rg 2", "rg", "xfade 13", "xfade", "xfalbum 2", "sleep 9", "sleep -1", "sleep",
     };
     for (size_t i = 0; i < sizeof(bad) / sizeof(bad[0]); i++) {
         remote_cmd_t c = { REMOTE_CMD_PLAY, 7 };

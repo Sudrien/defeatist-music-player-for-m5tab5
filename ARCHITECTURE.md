@@ -19146,3 +19146,11 @@ name, ignoring case, in which case it narrows nothing and the exact
 stage (mpdfilter_eval() over the whole URI) decides.
 
 Compiled on the host stubs, no warnings. Not on the board.
+
+### 5255 -- mpdcheck: wait for the duration before the seek checks
+
+A board run skipped seek, seekid and seekcur with "the song has no
+duration over 10 s" on three-minute tracks that had passed them before.
+The check slept one second after playid and read status once; a track
+still opening has no duration yet. It now waits up to six seconds for
+one. Test only.

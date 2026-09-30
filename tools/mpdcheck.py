@@ -877,8 +877,9 @@ class Checker:
         self.expect_ack("playid of a missing id is NO_EXIST", "playid 999999", 50)
         self.expect_ack("play past the end is ARG", f"play {b + 99}", 2)
 
-        time.sleep(1.0)
-        st = self.status()
+        # 5255: the duration arrives once the track is open, which can
+        # take longer than a second; waited for, not sampled.
+        st = self.wait_state(lambda s: float(s.get("duration", "0") or 0) > 0, 6.0)
         if "duration" in st and float(st.get("duration", "0")) > 10:
             self.expect_ok("seekcur 5", "seekcur 5")
             st = self.wait_state(lambda s: 3 <= float(s.get("elapsed", "0")) <= 9)

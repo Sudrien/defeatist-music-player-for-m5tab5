@@ -220,7 +220,7 @@ bool mpdproto_tokenise(char *line, mpd_cmd_t *out)
  * 0.20 and the wider form is newer:
  *
  *   add   1..1 here, 1..2 there   the position argument is 0.24
- *   load  1..2 here, 1..3 there   the third argument is 0.24
+ *   load  1..3 since 5251 (0.23's position)
  *
  * A verb in this table is not a verb that works; it is a verb whose
  * SHAPE is known, so that a wrong number of arguments is caught here
@@ -303,7 +303,7 @@ static const cmd_def_t s_cmds[] = {
     { "listplaylists",    MPD_CMD_LISTPLAYLISTS,    0, 0 },
     { "listplaylist",     MPD_CMD_LISTPLAYLIST,     1, 2 },
     { "listplaylistinfo", MPD_CMD_LISTPLAYLISTINFO, 1, 2 },
-    { "load",             MPD_CMD_LOAD,             1, 2 },
+    { "load",             MPD_CMD_LOAD,             1, 3 },      /* 5251: 0.23's position */
     { "save",             MPD_CMD_SAVE,             1, 2 },
     { "rm",               MPD_CMD_RM,               1, 1 },
     { "playlistadd",      MPD_CMD_PLAYLISTADD,      2, 3 },     /* 5200 */

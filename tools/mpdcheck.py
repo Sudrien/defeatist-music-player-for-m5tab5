@@ -78,6 +78,7 @@ SAVED = "__mpdcheck_saved"
 PL_A = "__mpdcheck_a"
 PL_B = "__mpdcheck_b"
 PL_C = "__mpdcheck_c"
+PL_R = "__mpdcheck_r"      # 5251: relative positions
 
 # 5236: the id bit the player gives a window of one (mpd.c MPD_WINDOW_ID):
 # a station, or the track still playing after a clear.
@@ -102,7 +103,7 @@ albumart readpicture binarylimit
 """.split()
 
 # 5241: the version this script's checks are written against.
-EXPECTED_VERSION = "0.22.4"
+EXPECTED_VERSION = "0.23.3"
 
 
 class Ack(Exception):
@@ -641,7 +642,7 @@ class Checker:
     def restore(self):
         self.section("putting things back")
         st = self.saved_status
-        for pl in (PL_A, PL_B, PL_C):
+        for pl in (PL_A, PL_B, PL_C, PL_R):
             try:
                 self.c.cmd(f"rm {q(pl)}")
             except Ack:
@@ -886,6 +887,57 @@ class Checker:
         self.expect_ok("stop", "stop")
         st = self.wait_state(lambda s: s.get("state") in ("pause", "stop"))
         self.ok("stop is a pause here", st.get("state") in ("pause", "stop"), st.get("state"))
+
+    def relative(self):
+        """5251: MPD 0.23's +N/-N positions, relative to the playing song,
+        on the three test entries with the middle one playing (paused)."""
+        self.section("0.23: positions relative to the playing song")
+        f, b = self.files, self.base
+        self.refill()
+        A, B, C = f[0], f[1], f[2]
+        ids = self.tail_ids()
+        self.c.cmd(f"playid {ids[1]}")
+        self.wait_state(lambda s: s.get("songid") == ids[1])
+        self.c.cmd("pause 1")
+        if self.status().get("songid") != ids[1]:
+            self.skip("relative positions", "could not make a test entry the playing song")
+            return
+
+        def check(name, line, want):
+            r = self.expect_ok(name, line)
+            self.ok(f"{name}: order", self.tail() == want, f"{self.tail()} != {want}")
+            return r
+
+        r = check("addid X +0 (right after the playing song)", f"addid {q(A)} +0", [A, B, A, C])
+        self.c.cmd(f"deleteid {kv(r or []).get('Id')}")
+        r = check("addid X -0 (right before it)", f"addid {q(A)} -0", [A, A, B, C])
+        self.ok("-0 moves the playing song along", self.status().get("song") == str(b + 2))
+        self.c.cmd(f"deleteid {kv(r or []).get('Id')}")
+        self.expect_ack("addid X +99 is ARG", f"addid {q(A)} +99", 2)
+
+        check("move <before it> +0", f"move {b} +0", [B, A, C])
+        self.c.cmd(f"move {b + 1} {b}")
+        check("moveid <after it> -0", f"moveid {ids[2]} -0", [A, C, B])
+        self.c.cmd(f"moveid {ids[2]} {b + 2}")
+        self.ok("back as it was", self.tail() == [A, B, C], repr(self.tail()))
+
+        check("findadd ... position +0", f"findadd file {q(C)} position +0", [A, B, C, C])
+        self.c.cmd(f"delete {b + 2}")
+
+        have = {v for k, v in pairs(self.c.cmd("listplaylists")) if k == "playlist"}
+        if PL_R in have:
+            self.skip("load/playlistadd at a position", f"{PL_R} already exists")
+            return
+        for x in (A, B, C):
+            self.c.cmd(f"playlistadd {q(PL_R)} {q(x)}")
+        check("load NAME 1:3 +0", f"load {q(PL_R)} 1:3 +0", [A, B, B, C, C])
+        self.c.cmd(f"delete {b + 2}:{b + 4}")
+        r = self.expect_ok("load NAME 9:10 0 (past its end) adds nothing", f"load {q(PL_R)} 9:10 0")
+        self.ok("load past the end changed nothing", self.tail() == [A, B, C], repr(self.tail()))
+        self.expect_ok("playlistadd NAME URI 1", f"playlistadd {q(PL_R)} {q(C)} 1")
+        self.ok("playlistadd at a position", self.listed(PL_R) == [A, C, B, C], repr(self.listed(PL_R)))
+        self.expect_ack("playlistadd past the end is ARG", f"playlistadd {q(PL_R)} {q(C)} 99", 2)
+        self.c.cmd(f"rm {q(PL_R)}")
 
     def volume_modes(self):
         self.section("volume, modes, replay gain")
@@ -1238,6 +1290,7 @@ class Checker:
             else:
                 self.queue_edits()
                 self.transport()
+                self.relative()                                     # 5251
                 self.volume_modes()
                 self.stored()
                 self.folders()                                      # 5232

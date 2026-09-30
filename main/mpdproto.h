@@ -78,8 +78,16 @@ extern "C" {
  * and no song has a duration (the catalog keeps no lengths, MPD.md). The
  * next ceiling is 0.23: position arguments relative to the playing song
  * ("+N"), getvol (answered since 5218), `playlistadd` at a position.
+ *
+ * 5251: 0.23.3. 0.23's NEWS: getvol (5218); "+N"/"-N" in addid, move and
+ * moveid, and `position` on findadd/searchadd and load (5251); load of a
+ * range (5251); playlistadd at a position, which the protocol document
+ * dates 0.23.3 (5251). Not here: the audio format in playlistinfo (an
+ * optional line, and the catalog keeps no format), and listfiles on other
+ * storage (there is one kind). Next is 0.24: `add` at a position, save's
+ * mode (answered already), consume oneshot, and filters with starts_with.
  */
-#define MPDPROTO_VERSION    "0.22.4"
+#define MPDPROTO_VERSION    "0.23.3"
 
 /* The first thing written to a new connection, newline included. */
 #define MPDPROTO_GREETING   "OK MPD " MPDPROTO_VERSION "\n"

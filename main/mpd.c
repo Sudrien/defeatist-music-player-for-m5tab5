@@ -1213,6 +1213,74 @@ static int range_ids(const ctx_t *x, long lo, long hi, bool open_end, int *n_out
     return k;
 }
 
+/*
+ * 5251: MPD 0.23's positions relative to the playing song. Asked of stock
+ * MPD 0.23.5 rather than read off a page, with the song at position 2:
+ *
+ *   insert (addid, findadd/searchadd `position`, load's third argument):
+ *     +N  at song + 1 + N   (+0 is right after the playing song)
+ *     -N  at song - N       (-0 is right before it, and it moves along)
+ *     outside the queue     ARG "Number too large: N"
+ *   move / moveid, the destination:
+ *     the same, less the moved block's length when the block is before
+ *     the playing song -- `move 0 +0` puts entry 0 right after it
+ *   no playing song in the queue, either kind:
+ *     PLAYER_SYNC "No current song"
+ *
+ * A window of one (a station, a file from outside the queue) has no
+ * position in the queue, so it is "No current song" too.
+ */
+static bool rel_cur(const ctx_t *x, int *cur, int *n)
+{
+    list_pin();
+    *n = s_list->n;
+    *cur = (!s_list->window && s_view->song >= 0 && s_view->song < s_list->n) ? s_view->song : -1;
+    list_unpin();
+    if (*cur >= 0) return true;
+    ack(x->c, MPD_ACK_PLAYER_SYNC, x->idx, x->verb, "No current song");
+    return false;
+}
+
+/* Where to insert: N, or +N/-N as above. NULL is the end, -1. */
+static bool arg_insert_pos(const ctx_t *x, const char *s, long *out)
+{
+    *out = -1;
+    if (!s) return true;
+    if (s[0] != '+' && s[0] != '-') return arg_int(x, s, 0, INT32_MAX, out);
+    unsigned long d;
+    int cur, n;
+    if (!arg_unsigned(x, s + 1, UINT32_MAX, &d) || !rel_cur(x, &cur, &n)) return false;
+    const long p = s[0] == '+' ? cur + 1 + (long)d : cur - (long)d;
+    if (p < 0 || p > n) {
+        ack(x->c, MPD_ACK_ARG, x->idx, x->verb, "Number too large: %lu", d);
+        return false;
+    }
+    *out = p;
+    return true;
+}
+
+/* Where a block [lo, hi) moves to: N, or +N/-N as above. The playing song
+ * inside the block has no place relative to itself: Bad song index. */
+static bool arg_move_to(const ctx_t *x, const char *s, long lo, long hi, long *out)
+{
+    if (s[0] != '+' && s[0] != '-') return arg_int(x, s, 0, INT32_MAX, out);
+    unsigned long d;
+    int cur, n;
+    if (!arg_unsigned(x, s + 1, UINT32_MAX, &d) || !rel_cur(x, &cur, &n)) return false;
+    if (lo <= cur && cur < hi) {
+        ack(x->c, MPD_ACK_ARG, x->idx, x->verb, "Bad song index");
+        return false;
+    }
+    long to = s[0] == '+' ? cur + 1 + (long)d : cur - (long)d;
+    if (hi <= cur) to -= hi - lo;
+    if (to < 0) {
+        ack(x->c, MPD_ACK_ARG, x->idx, x->verb, "Number too large: %lu", d);
+        return false;
+    }
+    *out = to;
+    return true;
+}
+
 static result_t run_queue_cmd(conn_t *c, const mpd_cmd_t *cmd, int idx)
 {
     const ctx_t x = { c, idx, cmd->verb };
@@ -1227,9 +1295,8 @@ static result_t run_queue_cmd(conn_t *c, const mpd_cmd_t *cmd, int idx)
 
     case MPD_CMD_ADDID: {
         long pos = -1;
-        /* MPD 0.23's "+N"/"-N", relative to the playing song, is not
-         * taken: arg_int refuses the sign and says so. */
-        if (a1 && !arg_int(&x, a1, 0, INT32_MAX, &pos)) return RES_ERR;
+        /* 5251: MPD 0.23's "+N"/"-N", relative to the playing song. */
+        if (!arg_insert_pos(&x, a1, &pos)) return RES_ERR;
         uint32_t id = 0;
         if (is_stream_url(a0)) {                                    /* 5201 */
             ack(c, MPD_ACK_ARG, idx, cmd->verb,
@@ -1246,10 +1313,12 @@ static result_t run_queue_cmd(conn_t *c, const mpd_cmd_t *cmd, int idx)
         long lo, hi;
         if (!arg_range(&x, a0, &lo, &hi)) return RES_ERR;
         long to = 0;
-        if (cmd->kind == MPD_CMD_MOVE && !arg_int(&x, a1, 0, INT32_MAX, &to)) return RES_ERR;
         int n = 0;
         const int k = range_ids(&x, lo, hi, hi == INT32_MAX, &n);
         if (k < 0) return RES_ERR;
+        /* 5251: the destination once the block is known -- relative to the
+         * playing song, it depends on which side of it the block is. */
+        if (cmd->kind == MPD_CMD_MOVE && !arg_move_to(&x, a1, lo, lo + k, &to)) return RES_ERR;
         /* Checked whole before anything moves, so a block that will not
          * fit is refused rather than half moved. */
         if (cmd->kind == MPD_CMD_MOVE && to + k > n) {
@@ -1285,7 +1354,20 @@ static result_t run_queue_cmd(conn_t *c, const mpd_cmd_t *cmd, int idx)
         unsigned long id;
         if (!arg_unsigned(&x, a0, UINT32_MAX, &id)) return RES_ERR;
         long to = 0;
-        if (cmd->kind == MPD_CMD_MOVEID && !arg_int(&x, a1, 0, INT32_MAX, &to)) return RES_ERR;
+        if (cmd->kind == MPD_CMD_MOVEID) {
+            if (a1[0] == '+' || a1[0] == '-') {                     /* 5251 */
+                list_pin();
+                const int from = list_find_id((uint32_t)id);
+                list_unpin();
+                if (from < 0) {
+                    ack(c, MPD_ACK_NO_EXIST, idx, cmd->verb, "No such song");
+                    return RES_ERR;
+                }
+                if (!arg_move_to(&x, a1, from, from + 1, &to)) return RES_ERR;
+            } else if (!arg_int(&x, a1, 0, INT32_MAX, &to)) {
+                return RES_ERR;
+            }
+        }
         const uireq_edit_t e = { .kind = cmd->kind == MPD_CMD_DELETEID ? UIREQ_EDIT_DELETE
                                                                       : UIREQ_EDIT_MOVE,
                                  .id = (uint32_t)id, .pos = (int)to };
@@ -1826,6 +1908,7 @@ static long s_find_hits;     /* 5227: the last lib_find()'s count */
 static result_t lib_find(const ctx_t *x, const mpd_cmd_t *cmd, qmode_t mode,
                          qsink_t sink, const char *pl)
 {
+    long ins = -1;          /* 5251: findadd/searchadd `position`; -1 the end */
     conn_t *const c = x->c;
     const int64_t t0 = esp_timer_get_time();       /* 5196 */
     /* 5239: a 0.21 expression is the first argument, and what follows is
@@ -1852,6 +1935,10 @@ static result_t lib_find(const ctx_t *x, const mpd_cmd_t *cmd, qmode_t mode,
         }
         if (strcasecmp(t, "window") == 0) {
             if (!arg_range(x, v, &w_lo, &w_hi)) return RES_ERR;
+            continue;
+        }
+        if (sink == QS_QUEUE && strcasecmp(t, "position") == 0) {  /* 5251, 0.23 */
+            if (!arg_insert_pos(x, v, &ins)) return RES_ERR;
             continue;
         }
         if (expr) {
@@ -1929,7 +2016,8 @@ static result_t lib_find(const ctx_t *x, const mpd_cmd_t *cmd, qmode_t mode,
                      * own add loop leaves it.
                      */
                     if (sink != QS_PRINT && n_hit >= w_lo && n_hit < w_hi) {
-                        const bool ok = sink == QS_QUEUE ? add_uri(x, s_lib->uri, -1, NULL)
+                        const int where = ins < 0 ? -1 : (int)(ins + (n_hit - w_lo));
+                        const bool ok = sink == QS_QUEUE ? add_uri(x, s_lib->uri, where, NULL)
                                                          : pl_append(x, pl, s_lib->uri) == RES_OK;
                         if (!ok) { refused = true; break; }
                     } else if (mode != Q_COUNT && n_hit >= w_lo && n_hit < w_hi) {
@@ -3309,6 +3397,50 @@ done:
 }
 
 /*
+ * 5251: `playlistadd NAME URI POS` (MPD 0.23.3): a line into a stored
+ * playlist at a position -- appended by pl_append() and moved into place
+ * by pl_edit()'s rewrite (5223), so the file handling is theirs. A
+ * position past the end is ARG "Bad position", checked before anything is
+ * written; the count is pl_edit()'s own reading of entries. A position is
+ * absolute: stock MPD takes "+0" as 0 here, and so does this.
+ */
+static bool is_streams(const char *name);
+
+static result_t pl_insert(const ctx_t *x, const char *name, const char *uri, const char *pos_s)
+{
+    conn_t *const c = x->c;
+    unsigned long pos;
+    if (!arg_unsigned(x, pos_s, UINT32_MAX, &pos)) return RES_ERR;
+    if (is_streams(name) || uri_is_dir(uri)) {
+        ack(c, MPD_ACK_UNKNOWN, x->idx, x->verb,
+            "a position is taken for one song into an ordinary playlist");
+        return RES_ERR;
+    }
+    if (!pl_name_ok(name)) {
+        ack(c, MPD_ACK_ARG, x->idx, x->verb, "Bad playlist name");
+        return RES_ERR;
+    }
+    long n = 0;
+    const int v = pl_find(name, s_lib->vfs, sizeof(s_lib->vfs));
+    if (v >= 0) {
+        storage_hold_brief(s_pl_vols[v]);
+        FILE *f = storage_present(s_pl_vols[v]) ? fopen(s_lib->vfs, "r") : NULL;
+        m3u_enc_t enc = m3u_enc_of_name(s_lib->vfs);
+        while (f && fgets(s_lib->sbuf, MEDIASEARCH_LINE_MAX, f))
+            if (ple_is_entry(s_lib->sbuf, strlen(s_lib->sbuf), &enc)) n++;
+        if (f) fclose(f);
+        storage_release_brief(s_pl_vols[v]);
+    }
+    if ((long)pos > n) {
+        ack(c, MPD_ACK_ARG, x->idx, x->verb, "Bad position");
+        return RES_ERR;
+    }
+    if (pl_append(x, name, uri) != RES_OK) return RES_ERR;
+    if ((long)pos == n) return RES_OK;
+    return pl_edit(x, name, PLE_MOVE, n, (long)pos);
+}
+
+/*
  * 5223: `rename FROM TO`, on the volume FROM is on and with its
  * extension. A TO on either volume is MPD's EXIST.
  */
@@ -3415,7 +3547,53 @@ static result_t streams_add(const ctx_t *x, const char *uri)
     return RES_OK;
 }
 
-static result_t pl_load(const ctx_t *x, const char *name, const char *range)
+/*
+ * 5251: `load NAME START:END [POS]` -- part of a stored playlist, at a
+ * position (MPD 0.23; relative, 0.23.1). The whole-playlist load without
+ * a position stays one UIREQ_EDIT_LOAD, as it was. With a range or a
+ * position the lines are read here, as listplaylist reads them, and each
+ * in the range is added through add_uri() at the next position -- the
+ * way findadd adds. A stream line is skipped: a stream is played here,
+ * not queued (5201), and the count says how many were. A range past the
+ * end adds nothing and is not an error, as stock MPD 0.23.5 answers it.
+ */
+static result_t pl_load_part(const ctx_t *x, const char *name, const char *path, int v,
+                             long lo, long hi, long at)
+{
+    conn_t *const c = x->c;
+    storage_hold_brief(s_pl_vols[v]);
+    FILE *f = storage_present(s_pl_vols[v]) ? fopen(path, "r") : NULL;
+    if (!f) {
+        storage_release_brief(s_pl_vols[v]);
+        ack(c, MPD_ACK_NO_EXIST, x->idx, x->verb, "No such playlist");
+        return RES_ERR;
+    }
+    char *const line = s_lib->sbuf;
+    char *const uri = s_lib->uri;
+    m3u_enc_t enc = m3u_enc_of_name(path);
+    long i = 0, added = 0, streams = 0;
+    bool ok = true;
+    while (ok && i < hi && fgets(line, MEDIASEARCH_LINE_MAX, f)) {
+        if (m3u_directive(line, &enc)) continue;
+        const int n = m3u_line_clean(line, MEDIASEARCH_LINE_MAX, enc);
+        if (n <= 0 || line[0] == '#') continue;
+        if (i++ < lo) continue;
+        if (strstr(line, "://")) { streams++; continue; }
+        if (line[0] == '/' && mpduri_from_vfs(line, uri, sizeof(s_lib->uri))) { /* uri set */ }
+        else if (mpduri_split(line, NULL) < 0) pl_legacy(line, uri);
+        else if (!uri_join(uri, NULL, line)) uri[0] = '\0';
+        if (!uri[0]) continue;
+        ok = add_uri(x, uri, at < 0 ? -1 : (int)(at + added), NULL);   /* ACKed if not */
+        if (ok) added++;
+    }
+    fclose(f);
+    storage_release_brief(s_pl_vols[v]);
+    ESP_LOGI(TAG, "client %d: load \"%.64s\" %ld:%ld at %ld: %ld added, %ld stream%s skipped",
+             c->fd, name, lo, hi, at, added, streams, streams == 1 ? "" : "s");
+    return ok ? RES_OK : RES_ERR;
+}
+
+static result_t pl_load(const ctx_t *x, const char *name, const char *range, const char *pos)
 {
     conn_t *const c = x->c;
     char *const path = s_lib->vfs;
@@ -3423,15 +3601,15 @@ static result_t pl_load(const ctx_t *x, const char *name, const char *range)
         ack(c, MPD_ACK_ARG, x->idx, x->verb, "Bad playlist name");
         return RES_ERR;
     }
-    if (range) {
-        ack(c, MPD_ACK_UNKNOWN, x->idx, x->verb,
-            "loading part of a playlist is not supported by this player yet");
-        return RES_ERR;
-    }
-    if (pl_find(name, path, sizeof(s_lib->vfs)) < 0) {
+    long lo = 0, hi = INT32_MAX, at = -1;
+    if (range && !arg_range(x, range, &lo, &hi)) return RES_ERR;
+    if (!arg_insert_pos(x, pos, &at)) return RES_ERR;                   /* 5251 */
+    const int v = pl_find(name, path, sizeof(s_lib->vfs));
+    if (v < 0) {
         ack(c, MPD_ACK_NO_EXIST, x->idx, x->verb, "No such playlist");
         return RES_ERR;
     }
+    if (range || pos) return pl_load_part(x, name, path, v, lo, hi, at);   /* 5251 */
     const uireq_edit_t e = { .kind = UIREQ_EDIT_LOAD, .pos = -1 };
     uireq_done_t how = UIREQ_DONE_OK;
     uint32_t added = 0;
@@ -3719,11 +3897,7 @@ static result_t run_cmd(conn_t *c, const mpd_cmd_t *cmd, int idx)
         if (is_streams(a0)) return streams_list(&x, cmd->kind == MPD_CMD_LISTPLAYLISTINFO);
         return pl_contents(&x, a0, cmd->kind == MPD_CMD_LISTPLAYLISTINFO);
     case MPD_CMD_PLAYLISTADD:
-        if (cmd->argc > 2) {
-            ack(c, MPD_ACK_UNKNOWN, idx, cmd->verb,
-                "adding at a position is not supported by this player yet");
-            return RES_ERR;
-        }
+        if (cmd->argc > 2) return pl_insert(&x, a0, cmd->argv[1], cmd->argv[2]);   /* 5251 */
         if (is_streams(a0)) return streams_add(&x, cmd->argv[1]);
         if (uri_is_dir(cmd->argv[1])) {                             /* 5227 */
             result_t r;
@@ -3755,7 +3929,8 @@ static result_t run_cmd(conn_t *c, const mpd_cmd_t *cmd, int idx)
     }
     case MPD_CMD_SAVE:             return pl_save(&x, a0, cmd->argc > 1 ? cmd->argv[1] : NULL);
     case MPD_CMD_RM:               return pl_rm(&x, a0);
-    case MPD_CMD_LOAD:             return pl_load(&x, a0, cmd->argc > 1 ? cmd->argv[1] : NULL);
+    case MPD_CMD_LOAD:             return pl_load(&x, a0, cmd->argc > 1 ? cmd->argv[1] : NULL,
+                                                  cmd->argc > 2 ? cmd->argv[2] : NULL);
 
     /* 5180: search, find and count. */
     case MPD_CMD_FIND:   return lib_find(&x, cmd, Q_FIND, QS_PRINT, NULL);

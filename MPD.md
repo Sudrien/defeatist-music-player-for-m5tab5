@@ -552,16 +552,18 @@ casefold.h's ranges -- simple folding, so ß does not match "ss". Other
 scripts (Georgian, Greek Extended, CJK, which has no case) compare as
 they are.
 
-**The greeting claims 0.22.4** (5250). 0.21's filter expressions and
-`albumart` (5238-5241), 0.22's `readpicture` -- the picture inside a
-file, the one the player shows -- and `binarylimit` (5249) are done, with
-0.22's partition and output changes answered for one partition (5180).
-Refused in these versions' terms, each with a reason: a regex in a
-filter, `modified-since` and `AudioFormat` filters, `getfingerprint`.
-Songs, cue tracks included, carry no duration -- the catalog keeps no
-lengths. Newer and answered anyway where it costs nothing: `getvol`
-(0.23), `save`'s mode (0.24). Next is 0.23: "+N"/"-N" positions relative
-to the playing song, and `playlistadd` at a position.
+**The greeting claims 0.23.3** (5251). 0.21's filter expressions and
+`albumart` (5238-5241); 0.22's `readpicture` -- the picture inside a
+file, the one the player shows -- and `binarylimit` (5249-5250); 0.23's
+positions relative to the playing song ("+N"/"-N" in `addid`, `move`,
+`moveid`, and `position` on `findadd`, `searchadd` and `load`), `load` of
+a range, and `playlistadd` at a position (5251). Partitions and outputs
+are answered for one of each (5180). Refused in these versions' terms,
+each with a reason: a regex in a filter, `modified-since` and
+`AudioFormat` filters, `getfingerprint`. Songs, cue tracks included,
+carry no duration or audio format -- the catalog keeps neither. Next is
+0.24: `add` at a position, `consume oneshot`, `starts_with` in filters;
+`save`'s mode is answered already.
 
 Not yet driven on the board: `list` (5182), `search`/`find` (5180),
 Cantata's stored-playlists view (5184), and everything from 5218 on.

@@ -19005,3 +19005,55 @@ MPD.md's status is rewritten for 0.22.4; mpdcheck expects at least
 
 texttest all passes. Not on the board: `OK MPD 0.22.4`, and a client
 that shows embedded covers (ncmpcpp, Cantata) asking readpicture.
+
+### 5251 -- mpd: 0.23's relative positions, load of a range, playlistadd at a position; 0.23.3
+
+0.23's protocol list (MPD's NEWS) and the protocol document's
+playlistadd position (0.23.3). getvol was 5218's; the rest is here.
+
+RELATIVE POSITIONS. "+N" and "-N" count from the playing song. The rules
+were asked of stock MPD 0.23.5 with the song at position 2, not read off
+the page:
+
+- insert (addid, findadd/searchadd `position`, load's position):
+  +N at song+1+N, -N at song-N -- "-0" is right before it and it moves
+  along; outside the queue is ARG "Number too large: N".
+- move/moveid's destination: the same, less the block's length when the
+  block is before the playing song -- `move 0 +0` puts entry 0 right
+  after it. The playing song inside the moved block is Bad song index.
+- no playing song in the queue (or a window of one): PLAYER_SYNC
+  "No current song".
+
+arg_insert_pos() and arg_move_to() hold the rules, with the list pinned
+once for the song and the length. move's destination is parsed after its
+range is resolved, since a relative one depends on which side of the song
+the block is.
+
+findadd and searchadd take `position P` among sort and window: hits go
+in at P, P+1, ... (add_uri() at each). `load NAME START:END [POS]`: the
+whole-playlist load is one UIREQ_EDIT_LOAD as before; with a range or a
+position, pl_load_part() reads the lines as listplaylist does and adds
+each in the range at the next position, skipping stream lines (a stream
+is played, not queued, 5201) and saying how many. A range past the end
+adds nothing, not an error -- stock MPD's answer. load's arity is 1..3.
+
+`playlistadd NAME URI POS`: pl_insert() counts the playlist's entries by
+pl_edit()'s own reading, refuses a position past the end with ARG "Bad
+position" before writing, then appends with pl_append() and moves the new
+line into place with pl_edit()'s rewrite (5223). A position here is
+absolute; stock MPD reads "+0" as 0 and so does this.
+
+Not done, and not doable here: the audio format in playlistinfo (an
+optional line; the catalog keeps no format) and listfiles on storage
+plugins (there is one kind). MPDPROTO_VERSION is 0.23.3.
+
+mpdcheck gains a section on the three test entries with the middle one
+playing (paused): addid +0 and -0 (and the playing song moving along),
++99 refused, move of an entry before it to +0, moveid of one after it to
+-0, findadd with position +0, load of a range at +0 and one past the end,
+playlistadd at a position and past the end. Against stock MPD 0.23.5
+every one passes; the failures there are the player's deliberate
+differences as before. mpdcheck expects at least 0.23.3.
+
+Compiled -O2 -Wall -Wextra on the host stubs: mpd.c, no warnings.
+texttest all passes. Not on the board.

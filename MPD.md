@@ -583,6 +583,8 @@ lastloadedplaylist; added-since and the sticker commands refused.
 Driven on the board through 5257: `tools/mpdcheck.py <ip> --destructive
 --reindex` passed 438 of 438 against the greeting `OK MPD 0.24.0`, test
 files from usb, and put the listener's queue, volume and song back.
+And through 5266: 451 passed and 2 skipped (the test files have no genre
+or disc tag to find), after the .ix4 reindex the run waited out.
 Cantata's stored-playlists view (5184) is covered by mpdcheck's stored
 playlists section, not by Cantata itself.
 

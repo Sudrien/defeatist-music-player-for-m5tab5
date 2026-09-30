@@ -19554,3 +19554,22 @@ on "being indexed" -- which is what the first run after 5263 did.
 
 texttest all passes; albumart.c's tag and cover readers compiled -Werror
 on a host. Not built with the IDF; not on the board.
+
+### 5267 -- MPD.md: 5259-5266 pass on the board
+
+No code. Build v0.4.0-289-g4a4990a, with 5259-5266:
+
+- `tools/mpdcheck.py 192.168.5.62 --destructive`: 451 passed, 0 failed,
+  2 skipped -- `find genre` and `find disc`, which the Bôa test files do
+  not carry. The run met the .ix4 reindex, printed that it was waiting,
+  and carried on when it finished: 5266's wait, used on its first day.
+- The first mount: `.ix3` removed on both volumes, microSD 73 tracks in
+  4.2 s, USB 1203 in 175 s (162 s of it tags); every mount after, 1.3 s
+  and 5.3 s with nothing read. The same figures as .ix3's first mount.
+- No `ID3v2.2 ... not read` line anywhere in the log, where the .ix3
+  index printed 155: the v2.2 files were read. That is the absence of a
+  refusal, not a count of titles; a client browsing one of them is the
+  positive check, and has not been reported.
+
+So "Not on the board" in 5259-5266's entries is out of date as of this
+build. Left as written -- they were true when they were -- and said here.

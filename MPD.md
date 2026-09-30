@@ -570,7 +570,12 @@ each with a reason: a regex in a filter, `modified-since` and
 carry no duration or audio format -- the catalog keeps neither. Of 0.24,
 `consume oneshot` (EAT for the song playing, then consume off) and
 `starts_with` in filters are answered (5253) and `save`'s mode was
-already; the greeting stays 0.23.3 until the rest of 0.24 is.
+already. The rest of 0.24 is 5257, and the greeting says 0.24.0:
+searchcount, searchplaylist, playlistlength, sort and window on
+playlistfind/playlistsearch, ranges in playlistmove/playlistdelete/
+listplaylist, the prio filter and explicit-case operators, tagtypes
+available/reset, `protocol` (hide_playlists_in_root, always on),
+lastloadedplaylist; added-since and the sticker commands refused.
 
 Not yet driven on the board: `list` (5182), `search`/`find` (5180),
 Cantata's stored-playlists view (5184), and everything from 5218 on.

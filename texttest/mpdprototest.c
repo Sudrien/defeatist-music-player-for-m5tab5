@@ -366,6 +366,8 @@ int main(void)
             "albumart",
             /* 5249 */
             "readpicture", "binarylimit",
+            /* 5257 */
+            "searchcount", "protocol", "stickernames", "stickertypes", "stickernamestypes", "searchplaylist", "playlistlength",
         };
         const size_t n = sizeof(verbs) / sizeof(verbs[0]);
         for (size_t i = 0; i < n; i++) {

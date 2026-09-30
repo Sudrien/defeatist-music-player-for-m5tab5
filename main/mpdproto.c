@@ -376,6 +376,15 @@ static const cmd_def_t s_cmds[] = {
     /* 5249: arities from AllCommands.cxx */
     { "readpicture",      MPD_CMD_READPICTURE,         2,  2 },
     { "binarylimit",      MPD_CMD_BINARYLIMIT,         1,  1 },
+
+    /* 5257: arities from AllCommands.cxx */
+    { "searchcount",      MPD_CMD_SEARCHCOUNT,         1, -1 },
+    { "protocol",         MPD_CMD_PROTOCOL,            0, -1 },
+    { "stickernames",     MPD_CMD_STICKERNAMES,        0,  0 },
+    { "stickertypes",     MPD_CMD_STICKERTYPES,        0,  0 },
+    { "stickernamestypes", MPD_CMD_STICKERNAMESTYPES,   0,  1 },
+    { "searchplaylist",   MPD_CMD_SEARCHPLAYLIST,      2,  4 },
+    { "playlistlength",   MPD_CMD_PLAYLISTLENGTH,      1,  1 },
 };
 
 #define N_CMDS  (sizeof(s_cmds) / sizeof(s_cmds[0]))
@@ -812,6 +821,7 @@ size_t mpdproto_status(const mpd_status_t *s, char *out, size_t cap)
 
     if (s->updating_db) w_num(&b, "updating_db", (long long)s->updating_db);
     if (s->error && s->error[0]) w_kv(&b, "error", s->error);
+    if (s->last_loaded && s->last_loaded[0]) w_kv(&b, "lastloadedplaylist", s->last_loaded);   /* 5257 */
 
     /* Last, which is where MPD puts it. */
     if (s->next_song >= 0) {

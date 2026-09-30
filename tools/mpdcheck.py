@@ -103,7 +103,7 @@ albumart readpicture binarylimit
 """.split()
 
 # 5241: the version this script's checks are written against.
-EXPECTED_VERSION = "0.23.3"
+EXPECTED_VERSION = "0.24.0"
 
 
 class Ack(Exception):
@@ -1014,6 +1014,71 @@ class Checker:
         for m in ("random", "consume"):
             self.c.cmd(f"{m} {was.get(m, '0')}")
 
+    def v024(self):
+        """5257: the rest of MPD 0.24, on the three test entries and a
+        stored playlist of its own (PL_R, removed after)."""
+        self.section("0.24")
+        f, b = self.files, self.base
+        self.refill()
+        A, B, C = f[0], f[1], f[2]
+        base = A.rsplit("/", 1)[1]
+        r = self.expect_ok("searchcount (file contains NAME, case changed)",
+                           f"searchcount {q(f'(file contains {sq(up4(base))})')}") or []
+        self.ok("searchcount folds case", int(kv(r).get("songs", "0")) >= 1, repr(r))
+        r = self.expect_ok("find (file contains_ci NAME, case changed)",
+                           f"find {q(f'(file contains_ci {sq(up4(base))})')}") or []
+        self.ok("contains_ci folds in find", A in files_of(r), repr(r[:4]))
+        r = self.expect_ok("search (file == URI, case changed) with eq_cs",
+                           f"search {q(f'(file eq_cs {sq(A.upper())})')}") or []
+        self.ok("eq_cs does not fold in search", A.upper() == A or A not in files_of(r))
+        self.expect_ack("added-since is refused (no dates)",
+                        'find ' + q("(added-since '2020-01-01')"), 5)
+
+        r = self.expect_ok("playlistfind (file == B) window 0:1",
+                           f"playlistfind {q(f'(file == {sq(B)})')} window 0:1") or []
+        self.ok("playlistfind window gives one", files_of(r) == [B], repr(files_of(r)))
+        r = self.expect_ok("playlistsearch sort Title", f"playlistsearch {q(f'(file == {sq(C)})')} sort Title") or []
+        self.ok("playlistsearch with sort finds it", C in files_of(r))
+        r = self.expect_ok("playlistfind (prio >= 1)", f"playlistfind {q('(prio >= 1)')}") or []
+        self.ok("nothing has priority 1", files_of(r) == [], repr(r[:2]))
+
+        r = self.expect_ok("tagtypes available", "tagtypes available") or []
+        self.ok("tagtypes available lists Artist", "tagtype: Artist" in r, repr(r))
+        self.expect_ok("tagtypes reset Title", "tagtypes reset Title")
+        r = self.c.cmd("tagtypes")
+        self.ok("tagtypes after reset is Title alone", r == ["tagtype: Title"], repr(r))
+        self.c.cmd("tagtypes all")
+
+        r = self.expect_ok("protocol", "protocol") or []
+        self.ok("protocol lists hide_playlists_in_root", "feature: hide_playlists_in_root" in r, repr(r))
+        self.expect_ok("protocol available", "protocol available")
+        self.expect_ok("protocol enable hide_playlists_in_root", "protocol enable hide_playlists_in_root")
+        self.expect_ack("protocol enable of an unknown feature is ARG", "protocol enable nosuch", 2)
+        self.expect_ack("stickernames is refused (no sticker database)", "stickernames", 5)
+
+        have = {v for k, v in pairs(self.c.cmd("listplaylists")) if k == "playlist"}
+        if PL_R in have:
+            self.skip("0.24 stored playlist checks", f"{PL_R} already exists")
+            return
+        for u in (A, B, C):
+            self.c.cmd(f"playlistadd {q(PL_R)} {q(u)}")
+        r = self.expect_ok("listplaylist NAME 1:2", f"listplaylist {q(PL_R)} 1:2") or []
+        self.ok("listplaylist range", files_of(r) == [B], repr(files_of(r)))
+        r = self.expect_ok("playlistlength NAME", f"playlistlength {q(PL_R)}") or []
+        self.ok("playlistlength counts three", kv(r).get("songs") == "3", repr(r))
+        r = self.expect_ok("searchplaylist NAME (file == B)",
+                           f"searchplaylist {q(PL_R)} {q(f'(file == {sq(B)})')}") or []
+        self.ok("searchplaylist finds it", files_of(r) == [B], repr(files_of(r)))
+        self.expect_ok("playlistmove NAME 0:2 1", f"playlistmove {q(PL_R)} 0:2 1")
+        self.ok("playlistmove of a range", self.listed(PL_R) == [C, A, B], repr(self.listed(PL_R)))
+        self.expect_ok("playlistdelete NAME 0:2", f"playlistdelete {q(PL_R)} 0:2")
+        self.ok("playlistdelete of a range", self.listed(PL_R) == [B], repr(self.listed(PL_R)))
+        self.expect_ok("load NAME", f"load {q(PL_R)}")
+        self.ok("status says lastloadedplaylist", self.status().get("lastloadedplaylist") == PL_R,
+                self.status().get("lastloadedplaylist"))
+        self.c.cmd(f"rm {q(PL_R)}")
+        self.trim_tests()
+
     def volume_modes(self):
         self.section("volume, modes, replay gain")
         v = int(self.saved_status.get("volume", "50"))
@@ -1367,6 +1432,7 @@ class Checker:
                 self.transport()
                 self.relative()                                     # 5251
                 self.consume()                                      # 5252
+                self.v024()                                         # 5257
                 self.volume_modes()
                 self.stored()
                 self.folders()                                      # 5232

@@ -19196,3 +19196,52 @@ broken decomposition twenty checks do. mpdfiltertest: decomposed values
 against a precomposed tag, folded and not.
 
 texttest all passes; mpd.c compiles on the host stubs. Not on the board.
+
+### 5257 -- mpd: the rest of 0.24; the greeting says 0.24.0
+
+Taken from doc/protocol.rst on the 0.24 branch, every line marked
+since_0_24, and checked against what 5253 and 5256 already did.
+
+Filters (mpdfilter): 0.24's explicit-case and negated operators --
+eq_cs/eq_ci, contains_cs/_ci, starts_with_cs/_ci, each with a leading
+'!', and !contains, !starts_with. A node carries `neg` and `cs` now; !=
+is == negated, and MPDF_NE is no longer made. A negation is never a
+required term for the search file's pre-pass. `(prio >= N)`: every song
+here has priority 0 (prio is refused, 5231). `(added-since ...)` is
+refused as modified-since is: the library keeps no dates.
+
+searchcount is count with search's matching: qmode_t gains Q_SCOUNT.
+And count's pairs now match as find's do. q_exact() let everything that
+was not Q_FIND through, so `count artist X` had counted by folded
+substring; MPD's count is exact. With `group` both go through lib_list(),
+which is exact.
+
+playlistfind/playlistsearch take sort (accepted, the queue's order kept,
+as find's sort is) and window, after an expression or pairs.
+
+Stored playlists: pl_contents() walks for listplaylist/listplaylistinfo
+with a range, searchplaylist (s_lib->filt, folded, window over the
+matches) and playlistlength (songs, playtime 0). pl_edit() takes a range
+[a, a_end): playlistmove START:END TO (0.24) and playlistdelete
+START:END -- 0.23.3's, which was missing ("Integer expected" on a
+range); "N:" runs to the end. The station list is not ranged, searched
+or counted.
+
+tagtypes available (the catalog's three) and tagtypes reset NAME...
+(clear, then enable). `protocol` and its subcommands: MPD's one feature
+is hide_playlists_in_root, and this server's root lsinfo has never
+listed playlists, so it is on and stays on -- disable and clear are OK
+and change nothing, 5156's spring-back. status gains lastloadedplaylist,
+the last `load` that succeeded. stickernames, stickertypes and
+stickernamestypes are refused as `sticker` is.
+
+Not sent: a song's optional `added` line (no dates). MPDPROTO_VERSION
+is 0.24.0 and mpdcheck expects it.
+
+mpdcheck gains a 0.24 section. Against stock MPD 0.23.5 every check in
+it fails as it should (0.24 is not there) except playlistdelete of a
+range, which passes: the check that it is 0.23.3's. Stock 0.24 is not
+installable here, so the section's expectations are from the document.
+
+texttest all passes (mpdfiltertest: 22 new cases); mpd.c compiles on the
+host stubs. Not on the board.

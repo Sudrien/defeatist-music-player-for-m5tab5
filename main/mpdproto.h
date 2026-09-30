@@ -86,8 +86,20 @@ extern "C" {
  * optional line, and the catalog keeps no format), and listfiles on other
  * storage (there is one kind). Next is 0.24: `add` at a position, save's
  * mode (answered already), consume oneshot, and filters with starts_with.
+ *
+ * 5257: 0.24.0. 0.24's protocol list (doc/protocol.rst's since_0_24):
+ * consume oneshot, starts_with, add at a position (5253); normalised
+ * case-insensitive filters (5256); searchcount; sort and window on
+ * playlistfind/playlistsearch; ranges in playlistmove, listplaylist and
+ * listplaylistinfo (and playlistdelete's, 0.23.3's, which was missing);
+ * searchplaylist, playlistlength; the prio filter (every song is prio
+ * 0) and the explicit-case operators (eq_cs, !contains_ci, ...);
+ * tagtypes available and reset; `protocol`, whose one feature is always
+ * on here; lastloadedplaylist in status; save's mode (answered already).
+ * Refused with the reason: added-since (no dates), the sticker commands
+ * (no database). Not sent: the optional `added` line on a song.
  */
-#define MPDPROTO_VERSION    "0.23.3"
+#define MPDPROTO_VERSION    "0.24.0"
 
 /* The first thing written to a new connection, newline included. */
 #define MPDPROTO_GREETING   "OK MPD " MPDPROTO_VERSION "\n"
@@ -240,6 +252,9 @@ typedef enum {
 
     /* 5249: MPD 0.22: the picture inside a file, and the chunk size */
     MPD_CMD_READPICTURE, MPD_CMD_BINARYLIMIT,
+
+    /* 5257: 0.24 */
+    MPD_CMD_SEARCHCOUNT, MPD_CMD_PROTOCOL, MPD_CMD_STICKERNAMES, MPD_CMD_STICKERTYPES, MPD_CMD_STICKERNAMESTYPES, MPD_CMD_SEARCHPLAYLIST, MPD_CMD_PLAYLISTLENGTH,
 } mpd_cmd_kind_t;
 
 /*
@@ -571,6 +586,7 @@ typedef struct {
     int         sample_rate;        /* 0: the audio: line is omitted */
     int         bits, channels;
     unsigned    updating_db;        /* 0: omitted. medialib_busy()'s job id */
+    const char *last_loaded;        /* 5257: `lastloadedplaylist`, 0.24; NULL or "" omitted */
     const char *error;              /* NULL or "": omitted */
     /* 5180: the partition's name, after `consume` as MPD 0.22 has it.
      * NULL or "": omitted, which is how a 0.20 server looked. */

@@ -19,6 +19,12 @@
  *           | '(' TAG op STRING ')'
  *   op     := '==' | '!=' | 'contains' | 'starts_with' | '=~' | '!~'
  *             (starts_with is 0.24's; 5253)
+ *           | ['!'] ('eq' | 'contains' | 'starts_with') ('_cs' | '_ci'),
+ *             '!contains', '!starts_with' -- 0.24's explicit case and
+ *             negations (5257)
+ *           | '(' 'prio' '>=' NUMBER ')' -- 0.24 (5257): every song here
+ *             has priority 0
+ *           | '(' 'added-since' STRING ')' -- 0.24, refused (5257)
  *   STRING := '"' ... '"' | '\'' ... '\'', a backslash escaping the
  *             next byte, whatever it is
  *
@@ -76,13 +82,17 @@ typedef enum {
     MPDF_N_BASE,            /* the URI is below `value` */
     MPDF_N_NOT,
     MPDF_N_AND,
+    MPDF_N_PRIO,            /* 5257: (prio >= N), N in `prio` */
 } mpdf_kind_t;
 
 typedef enum { MPDF_EQ, MPDF_NE, MPDF_CONTAINS, MPDF_STARTS } mpdf_op_t;   /* STARTS: 5253, 0.24 */
 
 typedef struct {
     mpdf_kind_t kind;
-    mpdf_op_t   op;         /* CMP */
+    mpdf_op_t   op;         /* CMP: never MPDF_NE since 5257 -- see `neg` */
+    bool        neg;        /* 5257: CMP negated: !=, !contains, !starts_with, !eq_cs... */
+    signed char cs;         /* 5257: CMP case: -1 the command's, 0 _ci, 1 _cs */
+    long        prio;       /* 5257: PRIO */
     int         field;      /* CMP: MPDF_TITLE.., MPDF_ANY or MPDF_NONE */
     const char *value;      /* CMP, BASE: into mpdfilter_t.buf */
     int         child;      /* NOT, AND: the first child, or -1 */

@@ -5,6 +5,7 @@
  */
 #include "mpdfilter.h"
 
+#include <stdlib.h>
 #include <string.h>
 
 #include "casefold.h"       /* 5244: the index's folding, so they agree */
@@ -137,6 +138,31 @@ static int parse_term(parser_t *ps)
         if (i < 0 || !string(ps, &ps->f->node[i].value)) return -1;
         return i;
     }
+    if (ieq(w, "added-since")) {                                     /* 5257 */
+        fail(ps, "added-since is not supported: the library keeps no dates a client can compare",
+             true);
+        return -1;
+    }
+    if (ieq(w, "prio")) {                                           /* 5257 */
+        skip_ws(ps);
+        if (strncmp(ps->p, ">=", 2) != 0) {
+            fail(ps, "'>=' expected", false);
+            return -1;
+        }
+        ps->p += 2;
+        skip_ws(ps);
+        char *end;
+        const long v = strtol(ps->p, &end, 10);
+        if (end == ps->p) {
+            fail(ps, "Number expected", false);
+            return -1;
+        }
+        ps->p = end;
+        const int i = new_node(ps, MPDF_N_PRIO);
+        if (i < 0) return -1;
+        ps->f->node[i].prio = v;
+        return i;
+    }
     if (ieq(w, "modified-since")) {
         fail(ps, "modified-since is not supported: the library keeps no dates a client can compare",
              true);
@@ -150,22 +176,41 @@ static int parse_term(parser_t *ps)
     const int field = tag_field(w);
     skip_ws(ps);
     mpdf_op_t op;
+    bool neg = false;
+    signed char cs = -1;
     if (strncmp(ps->p, "==", 2) == 0) { op = MPDF_EQ; ps->p += 2; }
-    else if (strncmp(ps->p, "!=", 2) == 0) { op = MPDF_NE; ps->p += 2; }
+    else if (strncmp(ps->p, "!=", 2) == 0) { op = MPDF_EQ; neg = true; ps->p += 2; }
     else if (strncmp(ps->p, "=~", 2) == 0 || strncmp(ps->p, "!~", 2) == 0) {
         fail(ps, "regular expressions are not supported by this player", true);
         return -1;
     } else {
-        char o[16];
-        if (!word(ps, o, sizeof(o)) || !(ieq(o, "contains") || ieq(o, "starts_with"))) {
+        /* 5257: 0.24's words -- contains, starts_with, eq -- each with
+         * an optional '!' before and _cs or _ci after. `eq` alone is
+         * not one of them: == is. */
+        if (*ps->p == '!') { neg = true; ps->p++; }
+        char o[24];
+        if (!word(ps, o, sizeof(o))) {
             fail(ps, "Unknown filter operator", false);
             return -1;
         }
-        op = ieq(o, "contains") ? MPDF_CONTAINS : MPDF_STARTS;
+        const size_t n = strlen(o);
+        if (n > 3 && (ieq(o + n - 3, "_cs") || ieq(o + n - 3, "_ci"))) {
+            cs = ieq(o + n - 3, "_cs") ? 1 : 0;
+            o[n - 3] = '\0';
+        }
+        if (ieq(o, "contains")) op = MPDF_CONTAINS;
+        else if (ieq(o, "starts_with")) op = MPDF_STARTS;
+        else if (ieq(o, "eq") && cs >= 0) op = MPDF_EQ;
+        else {
+            fail(ps, "Unknown filter operator", false);
+            return -1;
+        }
     }
     const int i = new_node(ps, MPDF_N_CMP);
     if (i < 0) return -1;
     ps->f->node[i].op = op;
+    ps->f->node[i].neg = neg;
+    ps->f->node[i].cs = cs;
     ps->f->node[i].field = field;
     if (!string(ps, &ps->f->node[i].value)) return -1;
     return i;
@@ -297,7 +342,7 @@ static bool cmp_one(mpdf_op_t op, const char *v, const char *want, bool fold)
 {
     switch (op) {
     case MPDF_EQ:       return str_eq(v, want, fold);
-    case MPDF_NE:       return !str_eq(v, want, fold);
+    case MPDF_NE:       return !str_eq(v, want, fold);         /* not made since 5257 */
     case MPDF_CONTAINS: return str_has(v, want, fold);
     case MPDF_STARTS:   return fold ? starts(v, want) : strncmp(v, want, strlen(want)) == 0;
     }
@@ -308,18 +353,24 @@ static bool eval(const mpdfilter_t *f, int i, const char *const field[MPDF_NFIEL
 {
     const mpdf_node_t *n = &f->node[i];
     switch (n->kind) {
-    case MPDF_N_CMP:
+    case MPDF_N_CMP: {
+        /* 5257: _cs and _ci over the command's own folding. */
+        const bool f = n->cs < 0 ? fold : n->cs == 0;
         if (n->field == MPDF_NONE)
-            /* No song has this tag: only "not equal" holds. */
-            return n->op == MPDF_NE;
+            /* No song has this tag: only a negation holds. */
+            return n->neg;
         if (n->field == MPDF_ANY) {
-            /* MPD's "any": some field matches. For != that is "some
-             * field differs", which is MPD's reading too. */
+            /* MPD's "any": some field matches. For a negation that is
+             * "some field does not", which is MPD's reading too. */
             for (int k = 0; k < MPDF_NFIELDS; k++)
-                if (cmp_one(n->op, field[k] ? field[k] : "", n->value, fold)) return true;
+                if (cmp_one(n->op, field[k] ? field[k] : "", n->value, f) != n->neg) return true;
             return false;
         }
-        return cmp_one(n->op, field[n->field] ? field[n->field] : "", n->value, fold);
+        return cmp_one(n->op, field[n->field] ? field[n->field] : "", n->value, f) != n->neg;
+    }
+    case MPDF_N_PRIO:
+        /* 5257: every song here has priority 0 (prio is refused). */
+        return 0 >= n->prio;
     case MPDF_N_BASE: {
         /* A folder of the library, exactly -- never folded. */
         const char *uri = field[MPDF_FILE] ? field[MPDF_FILE] : "";
@@ -348,7 +399,7 @@ static int required(const mpdfilter_t *f, int i, int *out, int k, int max)
     const mpdf_node_t *n = &f->node[i];
     if (n->kind == MPDF_N_AND) {
         for (int c = n->child; c >= 0; c = f->node[c].next) k = required(f, c, out, k, max);
-    } else if (n->kind == MPDF_N_CMP && n->field >= 0 &&
+    } else if (n->kind == MPDF_N_CMP && n->field >= 0 && !n->neg &&
                (n->op == MPDF_EQ || n->op == MPDF_CONTAINS || n->op == MPDF_STARTS) && k < max) {
         out[k++] = i;
     }

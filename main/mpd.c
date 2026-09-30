@@ -357,6 +357,10 @@ enum { TAG_ARTIST = 1, TAG_ALBUM = 2, TAG_TITLE = 4, TAG_ALL = 7 };
  * shown that order (`armed`), since the snapshot can trail the ask. */
 static struct { bool on, played, armed; int was, set, kind; uint32_t id; } s_oneshot;
 
+/* 5257: status's `lastloadedplaylist` (0.24): the name the last `load`
+ * that succeeded was given, since the server started -- as MPD's. */
+static char s_last_loaded[96];
+
 /*
  * 5230: client-to-client messages, MPD's subscribe/sendmessage. Per
  * connection, in PSRAM: the channels it is subscribed to and the messages
@@ -831,6 +835,7 @@ static bool answered(mpd_cmd_kind_t k)
     case MPD_CMD_PRIO: case MPD_CMD_PRIOID: case MPD_CMD_RANGEID: case MPD_CMD_ADDTAGID: case MPD_CMD_CLEARTAGID: case MPD_CMD_READCOMMENTS: case MPD_CMD_MIXRAMPDB: case MPD_CMD_MIXRAMPDELAY: case MPD_CMD_KILL: case MPD_CMD_CONFIG: case MPD_CMD_STICKER:   /* 5231 */
     case MPD_CMD_ALBUMART:   /* 5240 */
     case MPD_CMD_READPICTURE: case MPD_CMD_BINARYLIMIT:   /* 5249 */
+    case MPD_CMD_SEARCHCOUNT: case MPD_CMD_PROTOCOL: case MPD_CMD_STICKERNAMES: case MPD_CMD_STICKERTYPES: case MPD_CMD_STICKERNAMESTYPES: case MPD_CMD_SEARCHPLAYLIST: case MPD_CMD_PLAYLISTLENGTH:   /* 5257 */
         return true;
     default:
         return false;
@@ -838,7 +843,7 @@ static bool answered(mpd_cmd_kind_t k)
 }
 
 /* The last kind in mpdproto.h's enum, for walking the table. */
-#define MPD_CMD_LAST    MPD_CMD_BINARYLIMIT
+#define MPD_CMD_LAST    MPD_CMD_PLAYLISTLENGTH
 
 /*
  * 5166: the commands that read the list, over the pinned copy. Called
@@ -1784,7 +1789,13 @@ typedef struct {
     const char         *folded;         /* into s_lib->needle */
 } qpair_t;
 
-typedef enum { Q_FIND, Q_SEARCH, Q_COUNT } qmode_t;
+/* 5257: Q_SCOUNT is searchcount -- search's matching, count's answer.
+ * Q_COUNT matches as find does, as MPD's count does; before 5257 its
+ * pairs were compared as search's (q_exact() let anything not Q_FIND
+ * through). */
+typedef enum { Q_FIND, Q_SEARCH, Q_COUNT, Q_SCOUNT } qmode_t;
+#define Q_FOLDS(m)  ((m) == Q_SEARCH || (m) == Q_SCOUNT)
+#define Q_COUNTS(m) ((m) == Q_COUNT || (m) == Q_SCOUNT)
 
 /* 5221: where a hit goes. Printed (find, search), added to the queue
  * (findadd, searchadd) or appended to a stored playlist (searchaddpl). */
@@ -1821,7 +1832,7 @@ static bool q_exact(const qpair_t *p, const mediacat_rec_t *r, const char *uri, 
         return n == 0 || (strncmp(uri, p->value, n) == 0 &&
                           (uri[n] == '/' || uri[n] == '\0'));
     }
-    if (mode != Q_FIND) return true;
+    if (Q_FOLDS(mode)) return true;
     const char *const f[4] = { r->title, r->artist, r->album, uri };
     if (p->field == MEDIASEARCH_ANY) {
         for (int i = 0; i < 4; i++) if (strcmp(f[i], p->value) == 0) return true;
@@ -2030,7 +2041,7 @@ static result_t lib_find(const ctx_t *x, const mpd_cmd_t *cmd, qmode_t mode,
                     if (!medialib_rd_cat(&s_rd[v], l.cat_off)) continue;
                     const mediacat_rec_t *r = s_rd[v].rec;
                     if (!q_uri(v, r)) continue;
-                    if (expr) pass = filt_match(r, s_lib->uri, mode == Q_SEARCH);   /* 5239 */
+                    if (expr) pass = filt_match(r, s_lib->uri, Q_FOLDS(mode));   /* 5239 */
                     else
                         for (int k = 0; k < np && pass; k++) pass = q_exact(&pairs[k], r, s_lib->uri, mode);
                     if (!pass) continue;
@@ -2050,7 +2061,7 @@ static result_t lib_find(const ctx_t *x, const mpd_cmd_t *cmd, qmode_t mode,
                         const bool ok = sink == QS_QUEUE ? add_uri(x, s_lib->uri, where, NULL)
                                                          : pl_append(x, pl, s_lib->uri) == RES_OK;
                         if (!ok) { refused = true; break; }
-                    } else if (mode != Q_COUNT && n_hit >= w_lo && n_hit < w_hi) {
+                    } else if (!Q_COUNTS(mode) && n_hit >= w_lo && n_hit < w_hi) {
                         mpd_song_t sg = {
                             .uri = s_lib->uri, .duration_ms = -1, .pos = -1,
                             .title = r->title[0] ? r->title : NULL,
@@ -2077,7 +2088,7 @@ static result_t lib_find(const ctx_t *x, const mpd_cmd_t *cmd, qmode_t mode,
             return RES_ERR;
         }
     }
-    if (mode == Q_COUNT) putf(c, "songs: %ld\nplaytime: 0\n", n_hit);
+    if (Q_COUNTS(mode)) putf(c, "songs: %ld\nplaytime: 0\n", n_hit);
     s_find_hits = n_hit;                                            /* 5227 */
     log_query(x, cmd, n_hit, n_hit == 1 ? "song" : "songs", t0);     /* 5196 */
     return RES_OK;
@@ -2103,23 +2114,29 @@ static result_t queue_find(const ctx_t *x, const mpd_cmd_t *cmd)
     conn_t *const c = x->c;
     const int64_t t0 = esp_timer_get_time();
     const bool fold = cmd->kind == MPD_CMD_PLAYLISTSEARCH;
-    /* 5239: the expression alone -- MPD's playlistfind takes no sort or
-     * window after one. */
+    /* 5239: an expression. 5257: and after it, 0.24's `sort` and
+     * `window` -- sort taken and left alone, as find's is (the queue's
+     * order is the answer's), window over the matches. */
     const bool expr = cmd->argc >= 1 && cmd->argv[0][0] == '(';
-    if (expr) {
-        if (cmd->argc > 1) {
-            ack(c, MPD_ACK_ARG, x->idx, x->verb, "incorrect number of filter arguments");
-            return RES_ERR;
-        }
-        if (!filt_parse(x, cmd->argv[0])) return RES_ERR;
-    }
-    if (!expr && cmd->argc % 2) {
+    if (expr && !filt_parse(x, cmd->argv[0])) return RES_ERR;
+    const int i0 = expr ? 1 : 0;
+    if ((cmd->argc - i0) % 2) {
         ack(c, MPD_ACK_ARG, x->idx, x->verb, "incorrect number of filter arguments");
         return RES_ERR;
     }
     static qpair_t pairs[MPDPROTO_MAX_ARGS / 2];
     int np = 0;
-    for (int i = expr ? cmd->argc : 0; i + 1 < cmd->argc; i += 2) {
+    long w_lo = 0, w_hi = INT32_MAX;
+    for (int i = i0; i + 1 < cmd->argc; i += 2) {
+        if (strcasecmp(cmd->argv[i], "sort") == 0) continue;
+        if (strcasecmp(cmd->argv[i], "window") == 0) {
+            if (!arg_range(x, cmd->argv[i + 1], &w_lo, &w_hi)) return RES_ERR;
+            continue;
+        }
+        if (expr) {
+            ack(c, MPD_ACK_ARG, x->idx, x->verb, "Unknown filter type: %s", cmd->argv[i]);
+            return RES_ERR;
+        }
         qpair_t *p = &pairs[np];
         if (!q_tag(cmd->argv[i], p) && p->kind != Q_BASE) return RES_OK;   /* matches nothing */
         p->value = cmd->argv[i + 1];
@@ -2164,7 +2181,7 @@ static result_t queue_find(const ctx_t *x, const mpd_cmd_t *cmd)
             }
         }
         if (!pass) continue;
-        put_entry(c, i);
+        if (hits >= w_lo && hits < w_hi) put_entry(c, i);
         hits++;
     }
     log_query(x, cmd, hits, hits == 1 ? "song" : "songs", t0);
@@ -2812,13 +2829,13 @@ static result_t lib_list(const ctx_t *x, const mpd_cmd_t *cmd, bool counting)
  * without the tag count under an empty value. Without `group`, find's
  * count as before.
  */
-static result_t lib_count(const ctx_t *x, const mpd_cmd_t *cmd)
+static result_t lib_count(const ctx_t *x, const mpd_cmd_t *cmd, qmode_t mode)
 {
     int gi = -1;
     const int i0 = cmd->argc >= 1 && cmd->argv[0][0] == '(' ? 1 : 0;   /* 5239 */
     for (int i = i0; i + 1 < cmd->argc; i += 2)
         if (strcasecmp(cmd->argv[i], "group") == 0) gi = i;
-    if (gi < 0) return lib_find(x, cmd, Q_COUNT, QS_PRINT, NULL);
+    if (gi < 0) return lib_find(x, cmd, mode, QS_PRINT, NULL);
     static mpd_cmd_t l;                 /* not on the task stack */
     ltype_t g;
     if (!l_type(cmd->argv[gi + 1], &g)) {
@@ -2829,7 +2846,7 @@ static result_t lib_count(const ctx_t *x, const mpd_cmd_t *cmd)
         for (int i = 0; i < cmd->argc; i++)
             if (i != gi && i != gi + 1) l.argv[l.argc++] = cmd->argv[i];
         putf(x->c, "%s: \n", cmd->argv[gi + 1]);
-        return lib_find(x, &l, Q_COUNT, QS_PRINT, NULL);
+        return lib_find(x, &l, mode, QS_PRINT, NULL);
     }
     l = *cmd;
     l.argc = 0;
@@ -3075,7 +3092,16 @@ static int pl_find(const char *name, char *out, size_t cap)
     return -1;
 }
 
-static result_t pl_contents(const ctx_t *x, const char *name, bool info)
+/*
+ * 5257: a stored playlist walked for listplaylist/listplaylistinfo (a
+ * range of entries, 0.24), searchplaylist (the entries matching
+ * s_lib->filt, folded, with a window over the matches) and playlistlength
+ * (a count; playtime 0, as count's, for the catalog keeps no lengths).
+ */
+typedef enum { PLC_LIST, PLC_SEARCH, PLC_LENGTH } plc_t;
+
+static result_t pl_contents(const ctx_t *x, const char *name, bool info, long lo, long hi,
+                            plc_t mode)
 {
     conn_t *const c = x->c;
     char *const path = s_lib->vfs;
@@ -3088,10 +3114,11 @@ static result_t pl_contents(const ctx_t *x, const char *name, bool info)
         ack(c, MPD_ACK_NO_EXIST, x->idx, x->verb, "No such playlist");
         return RES_ERR;
     }
-    if (info && !lib_open(x)) return RES_ERR;
+    if ((info || mode == PLC_SEARCH) && !lib_open(x)) return RES_ERR;
     storage_hold_brief(s_pl_vols[v]);
     FILE *f = storage_present(s_pl_vols[v]) ? fopen(path, "r") : NULL;
     char *const line = s_lib->sbuf;
+    long at = 0;                        /* entries, or matches for a search */
     char *const uri = s_lib->uri;
     /* 5198: as the player loads it (m3uline.h). */
     m3u_enc_t enc = m3u_enc_of_name(path);
@@ -3105,7 +3132,18 @@ static result_t pl_contents(const ctx_t *x, const char *name, bool info)
         else if (!uri_join(uri, NULL, line)) uri[0] = '\0';
         if (!uri[0]) continue;              /* 5199: too long to be a URI */
         midx_rec_t *const r = &s_lib->rec;
-        const int lv = info ? lib_file(uri, r) : -1;
+        if (mode == PLC_LENGTH) { at++; continue; }
+        const int lv = (info || mode == PLC_SEARCH) ? lib_file(uri, r) : -1;
+        if (mode == PLC_SEARCH) {
+            const mediacat_rec_t *m = lv >= 0 && medialib_rd_cat(&s_rd[lv], r->cat_off)
+                                    ? s_rd[lv].rec : NULL;
+            const char *const fl[MPDF_NFIELDS] = {
+                m ? m->title : "", m ? m->artist : "", m ? m->album : "", uri,
+            };
+            if (!mpdfilter_eval(&s_lib->filt, fl, true)) continue;
+        }
+        const long here = at++;
+        if (here < lo || here >= hi) continue;
         if (lv >= 0) {
             put_lib_file(c, lv, r, uri, true);
         } else {
@@ -3115,7 +3153,8 @@ static result_t pl_contents(const ctx_t *x, const char *name, bool info)
     }
     if (f) fclose(f);
     storage_release_brief(s_pl_vols[v]);
-    if (info) lib_close();
+    if (info || mode == PLC_SEARCH) lib_close();
+    if (mode == PLC_LENGTH) putf(c, "songs: %ld\nplaytime: 0\n", at);
     return RES_OK;
 }
 
@@ -3316,7 +3355,9 @@ static bool ple_read(FILE *f, char *line, size_t *len)
     return true;
 }
 
-static result_t pl_edit(const ctx_t *x, const char *name, pl_edit_t op, long a, long b)
+/* 5257: entries [a, a_end) are deleted or moved -- one entry is a_end
+ * a + 1. A move puts the first of them at `b` of the result. */
+static result_t pl_edit(const ctx_t *x, const char *name, pl_edit_t op, long a, long a_end, long b)
 {
     conn_t *const c = x->c;
     char *const path = s_lib->vfs;
@@ -3364,7 +3405,7 @@ static result_t pl_edit(const ctx_t *x, const char *name, pl_edit_t op, long a, 
             continue;
         }
         if (!ple_is_entry(line, len, &enc)) continue;
-        if (op == PLE_MOVE && n == a) {
+        if (op == PLE_MOVE && n >= a && n < a_end) {
             if (!ple_append(block, &n_block, pend, n_pend) ||
                 !ple_append(block, &n_block, line, len)) why = "an entry is too long to edit";
             /* A last line with no newline would run into the next. */
@@ -3376,7 +3417,9 @@ static result_t pl_edit(const ctx_t *x, const char *name, pl_edit_t op, long a, 
     }
     fclose(in);
     if (why) goto done;
-    if (a < 0 || a >= n || (op == PLE_MOVE && (b < 0 || b >= n))) { bad_pos = true; goto done; }
+    if (a_end >= INT32_MAX) a_end = n;             /* 5257: "N:", to the end */
+    if (a < 0 || a >= a_end || a_end > n ||
+        (op == PLE_MOVE && (b < 0 || b > n - (a_end - a)))) { bad_pos = true; goto done; }
     if (op == PLE_MOVE && a == b) goto done;
 
     /* Pass 2: write the new file. */
@@ -3394,7 +3437,7 @@ static result_t pl_edit(const ctx_t *x, const char *name, pl_edit_t op, long a, 
     while (ok && ple_read(in, line, &len)) {
         if (strncmp(line, "#EXTINF", 7) == 0) { ok = ple_append(pend, &n_pend, line, len); continue; }
         if (!ple_is_entry(line, len, &enc)) { ok = fwrite(line, 1, len, out) == len; continue; }
-        const bool drop = k == a;
+        const bool drop = k >= a && k < a_end;
         if (!drop && !placed && j == b) {
             ok = fwrite(block, 1, n_block, out) == n_block;
             placed = true;
@@ -3472,7 +3515,7 @@ static result_t pl_insert(const ctx_t *x, const char *name, const char *uri, con
     }
     if (pl_append(x, name, uri) != RES_OK) return RES_ERR;
     if ((long)pos == n) return RES_OK;
-    return pl_edit(x, name, PLE_MOVE, n, (long)pos);
+    return pl_edit(x, name, PLE_MOVE, n, n + 1, (long)pos);
 }
 
 /*
@@ -3696,7 +3739,15 @@ static result_t tagtypes_sub(const ctx_t *x, const mpd_cmd_t *cmd)
         c->tags = strcasecmp(sub, "all") == 0 ? TAG_ALL : 0;
         return RES_OK;
     }
-    const bool on = strcasecmp(sub, "enable") == 0;
+    /* 5257: 0.24's `available` -- the tags the server has, which here
+     * are the catalog's three, whatever this client turned off. */
+    if (strcasecmp(sub, "available") == 0) {
+        puts_(c, "tagtype: Artist\ntagtype: Album\ntagtype: Title\n");
+        return RES_OK;
+    }
+    /* 5257: 0.24's `reset NAME...` -- clear, then enable these. */
+    const bool reset = strcasecmp(sub, "reset") == 0;
+    const bool on = reset || strcasecmp(sub, "enable") == 0;
     if (!on && strcasecmp(sub, "disable") != 0) {
         ack(c, MPD_ACK_ARG, x->idx, x->verb, "Unknown sub command");
         return RES_ERR;
@@ -3714,6 +3765,7 @@ static result_t tagtypes_sub(const ctx_t *x, const mpd_cmd_t *cmd)
         }
         bits |= b;
     }
+    if (reset) c->tags = 0;
     c->tags = (uint8_t)(on ? (c->tags | bits) : (c->tags & ~bits));
     return RES_OK;
 }
@@ -3941,9 +3993,36 @@ static result_t run_cmd(conn_t *c, const mpd_cmd_t *cmd, int idx)
     /* 5184: stored playlists. 5200: "[Radio Streams]" is stations.m3u. */
     case MPD_CMD_LISTPLAYLISTS:    return pl_list(&x);
     case MPD_CMD_LISTPLAYLIST:
-    case MPD_CMD_LISTPLAYLISTINFO:
+    case MPD_CMD_LISTPLAYLISTINFO: {
+        /* 5257: a range, 0.24's. Not for the station list, whose few
+         * entries come whole. */
+        long lo = 0, hi = INT32_MAX;
+        if (cmd->argc > 1 && !arg_range(&x, cmd->argv[1], &lo, &hi)) return RES_ERR;
         if (is_streams(a0)) return streams_list(&x, cmd->kind == MPD_CMD_LISTPLAYLISTINFO);
-        return pl_contents(&x, a0, cmd->kind == MPD_CMD_LISTPLAYLISTINFO);
+        return pl_contents(&x, a0, cmd->kind == MPD_CMD_LISTPLAYLISTINFO, lo, hi, PLC_LIST);
+    }
+    case MPD_CMD_PLAYLISTLENGTH:                                    /* 5257, 0.24 */
+        if (is_streams(a0)) {
+            ack(c, MPD_ACK_UNKNOWN, idx, cmd->verb, "the station list is not counted; listplaylist it");
+            return RES_ERR;
+        }
+        return pl_contents(&x, a0, false, 0, INT32_MAX, PLC_LENGTH);
+    case MPD_CMD_SEARCHPLAYLIST: {                                  /* 5257, 0.24 */
+        /* NAME FILTER [window START:END], the filter an expression. */
+        long lo = 0, hi = INT32_MAX;
+        if (cmd->argc == 3 || (cmd->argc == 4 && strcasecmp(cmd->argv[2], "window") != 0)) {
+            ack(c, MPD_ACK_ARG, idx, cmd->verb, "incorrect number of filter arguments");
+            return RES_ERR;
+        }
+        if (cmd->argc == 4 && !arg_range(&x, cmd->argv[3], &lo, &hi)) return RES_ERR;
+        if (cmd->argv[1][0] != '(') {
+            ack(c, MPD_ACK_ARG, idx, cmd->verb, "a filter expression is expected");
+            return RES_ERR;
+        }
+        if (!filt_parse(&x, cmd->argv[1])) return RES_ERR;
+        if (is_streams(a0)) return RES_OK;          /* streams, and no library songs */
+        return pl_contents(&x, a0, true, lo, hi, PLC_SEARCH);
+    }
     case MPD_CMD_PLAYLISTADD:
         if (cmd->argc > 2) return pl_insert(&x, a0, cmd->argv[1], cmd->argv[2]);   /* 5251 */
         if (is_streams(a0)) return streams_add(&x, cmd->argv[1]);
@@ -3968,22 +4047,29 @@ static result_t run_cmd(conn_t *c, const mpd_cmd_t *cmd, int idx)
             return RES_ERR;
         }
         if (cmd->kind == MPD_CMD_RENAME) return pl_rename(&x, a0, cmd->argv[1]);
-        if (cmd->kind == MPD_CMD_PLAYLISTCLEAR) return pl_edit(&x, a0, PLE_CLEAR, 0, 0);
-        long from, to = 0;
-        if (!arg_int(&x, cmd->argv[1], 0, INT32_MAX, &from)) return RES_ERR;
-        if (cmd->kind == MPD_CMD_PLAYLISTDELETE) return pl_edit(&x, a0, PLE_DELETE, from, 0);
+        if (cmd->kind == MPD_CMD_PLAYLISTCLEAR) return pl_edit(&x, a0, PLE_CLEAR, 0, 1, 0);
+        /* 5257: FROM or START:END -- playlistdelete's since 0.23.3,
+         * playlistmove's since 0.24. */
+        long from, end, to = 0;
+        if (!arg_range(&x, cmd->argv[1], &from, &end)) return RES_ERR;
+        if (cmd->kind == MPD_CMD_PLAYLISTDELETE) return pl_edit(&x, a0, PLE_DELETE, from, end, 0);
         if (!arg_int(&x, cmd->argv[2], 0, INT32_MAX, &to)) return RES_ERR;
-        return pl_edit(&x, a0, PLE_MOVE, from, to);
+        return pl_edit(&x, a0, PLE_MOVE, from, end, to);
     }
     case MPD_CMD_SAVE:             return pl_save(&x, a0, cmd->argc > 1 ? cmd->argv[1] : NULL);
     case MPD_CMD_RM:               return pl_rm(&x, a0);
-    case MPD_CMD_LOAD:             return pl_load(&x, a0, cmd->argc > 1 ? cmd->argv[1] : NULL,
-                                                  cmd->argc > 2 ? cmd->argv[2] : NULL);
+    case MPD_CMD_LOAD: {
+        const result_t r = pl_load(&x, a0, cmd->argc > 1 ? cmd->argv[1] : NULL,
+                                   cmd->argc > 2 ? cmd->argv[2] : NULL);
+        if (r == RES_OK) snprintf(s_last_loaded, sizeof(s_last_loaded), "%s", a0);   /* 5257 */
+        return r;
+    }
 
     /* 5180: search, find and count. */
     case MPD_CMD_FIND:   return lib_find(&x, cmd, Q_FIND, QS_PRINT, NULL);
     case MPD_CMD_SEARCH: return lib_find(&x, cmd, Q_SEARCH, QS_PRINT, NULL);
-    case MPD_CMD_COUNT:  return lib_count(&x, cmd);                /* 5231 */
+    case MPD_CMD_COUNT:  return lib_count(&x, cmd, Q_COUNT);       /* 5231 */
+    case MPD_CMD_SEARCHCOUNT: return lib_count(&x, cmd, Q_SCOUNT); /* 5257, 0.24 */
     /* 5221 */
     case MPD_CMD_FINDADD:   return lib_find(&x, cmd, Q_FIND, QS_QUEUE, NULL);
     case MPD_CMD_SEARCHADD: return lib_find(&x, cmd, Q_SEARCH, QS_QUEUE, NULL);
@@ -4157,6 +4243,49 @@ static result_t run_cmd(conn_t *c, const mpd_cmd_t *cmd, int idx)
         }
         return tagtypes_sub(&x, cmd);
 
+    case MPD_CMD_PROTOCOL: {
+        /*
+         * 5257: 0.24's protocol features. MPD has one,
+         * hide_playlists_in_root -- lsinfo "" without the stored
+         * playlists -- and this server's root lsinfo has never listed
+         * them (it is the two volumes), so the feature is on and stays
+         * on. enable and all are OK; disable and clear are too, as MPD
+         * answers them, and `protocol` still lists it: 5156's rule, a
+         * setting that springs back to what the server does.
+         */
+        static const char feat[] = "hide_playlists_in_root";
+        const char *sub = a0;
+        if (!sub || strcasecmp(sub, "available") == 0) {
+            if (sub && cmd->argc > 1) {
+                ack(c, MPD_ACK_ARG, idx, cmd->verb, "too many arguments for \"protocol\"");
+                return RES_ERR;
+            }
+            putf(c, "feature: %s\n", feat);
+            return RES_OK;
+        }
+        if (strcasecmp(sub, "clear") == 0 || strcasecmp(sub, "all") == 0) {
+            if (cmd->argc > 1) {
+                ack(c, MPD_ACK_ARG, idx, cmd->verb, "too many arguments for \"protocol\"");
+                return RES_ERR;
+            }
+            return RES_OK;
+        }
+        if (strcasecmp(sub, "enable") != 0 && strcasecmp(sub, "disable") != 0) {
+            ack(c, MPD_ACK_ARG, idx, cmd->verb, "Unknown sub command");
+            return RES_ERR;
+        }
+        if (cmd->argc < 2) {
+            ack(c, MPD_ACK_ARG, idx, cmd->verb, "Not enough arguments");
+            return RES_ERR;
+        }
+        for (int i = 1; i < cmd->argc; i++)
+            if (strcmp(cmd->argv[i], feat) != 0) {
+                ack(c, MPD_ACK_ARG, idx, cmd->verb, "Unknown protocol feature: %s", cmd->argv[i]);
+                return RES_ERR;
+            }
+        return RES_OK;
+    }
+
     case MPD_CMD_URLHANDLERS:
         /* 5201: http and https, which `add` plays as a station and
          * `playlistadd "[Radio Streams]"` keeps. Cantata's stream dialog
@@ -4180,6 +4309,7 @@ static result_t run_cmd(conn_t *c, const mpd_cmd_t *cmd, int idx)
             .single = v->modes.single,
             .single_oneshot = s_oneshot.on && s_oneshot.kind == MPD_CMD_SINGLE,     /* 5241 */
             .consume_oneshot = s_oneshot.on && s_oneshot.kind == MPD_CMD_CONSUME,   /* 5253 */
+            .last_loaded = s_last_loaded,                       /* 5257 */
             .consume = v->modes.consume,
             .playlist_version = v->version,
             .playlist_length = v->length,                   /* 5166 */
@@ -4308,6 +4438,8 @@ static result_t run_cmd(conn_t *c, const mpd_cmd_t *cmd, int idx)
         return RES_ERR;
 
     case MPD_CMD_STICKER:
+    case MPD_CMD_STICKERNAMES: case MPD_CMD_STICKERTYPES:           /* 5257, 0.24 */
+    case MPD_CMD_STICKERNAMESTYPES:
         /* MPD without a sticker database answers every sticker command
          * this way. There is no database to keep them in here. */
         ack(c, MPD_ACK_UNKNOWN, idx, cmd->verb, "sticker database is disabled");

@@ -72,6 +72,24 @@ int main(void)
     match("(artist starts_with '')", SONG, false, true);
     match("(genre starts_with '')", SONG, false, false);
     match("(!(artist starts_with 'The'))", SONG, false, false);
+    /* 5257: 0.24's explicit case and negated operators. */
+    match("(artist eq_ci 'the beatles')", SONG, false, true);       /* find, told to fold */
+    match("(artist eq_cs 'the beatles')", SONG, true, false);       /* search, told not to */
+    match("(artist eq_cs 'The Beatles')", SONG, true, true);
+    match("(artist !eq_ci 'THE BEATLES')", SONG, false, false);
+    match("(artist !eq_cs 'THE BEATLES')", SONG, true, true);
+    match("(album !contains 'Road')", SONG, false, false);
+    match("(album !contains 'road')", SONG, false, true);
+    match("(album !contains 'road')", SONG, true, false);
+    match("(album contains_ci 'ROAD')", SONG, false, true);
+    match("(album contains_cs 'road')", SONG, true, false);
+    match("(artist !starts_with 'The')", SONG, false, false);
+    match("(artist starts_with_ci 'THE')", SONG, false, true);
+    match("(artist !starts_with_cs 'the')", SONG, true, true);
+    match("(genre !contains 'x')", SONG, false, true);
+    match("(prio >= 0)", SONG, false, true);
+    match("(prio >= 1)", SONG, false, false);
+    match("((prio >= 0) AND (artist == 'The Beatles'))", SONG, false, true);
     match("(title == 'Something')", SONG, false, true);
     match("(AlbumArtist == 'The Beatles')", SONG, false, true);   /* as artist */
     match("(file == 'sd/Beatles/Abbey Road/02 Something.flac')", SONG, false, true);
@@ -172,6 +190,11 @@ int main(void)
     bad("(artist !~ 'Beat.*')", true);
     bad("(modified-since '2020-01-01T00:00:00Z')", true);
     bad("(AudioFormat == '44100:16:2')", true);
+    bad("(added-since '2020-01-01T00:00:00Z')", true);       /* 5257 */
+    bad("(artist eq 'x')", false);              /* eq needs _cs or _ci */
+    bad("(artist contains_xx 'x')", false);
+    bad("(prio > 1)", false);
+    bad("(prio >= x)", false);
     bad("((artist == 'x') AND (title =~ 'y'))", true);
 
     /* ---- limits --------------------------------------------------------- */

@@ -19486,3 +19486,34 @@ genre, stats has db_playtime, and count's playtime equals the song's Time.
 
 texttest all passes; mpd.c syntax-checked against stubs. Not built with
 the IDF, not on the board.
+
+### 5265 -- player: the art square is not cleared over a page
+
+Board report, after 5264: a black square over the chooser's list. The log
+had mpdcheck's `play` at 53 s with the chooser open -- the chooser opens
+itself at boot with nothing to play -- and the track change blanked the
+art strip across the list.
+
+ui_clear_art() fills the square and blits it straight to the panel.
+screen_covered() (the chooser, the panel, the sleep page) guarded
+do_art(), load_track_visuals(), the format card and the stream card, and
+not ui_clear_art()'s own callers: track_change_begin()'s clear before the
+tags, clear_play_screen() when a volume goes, and a station starting.
+Before MPD a track rarely changed under a page; a client's `play` does
+it every time.
+
+clear_art() is ui_clear_art() or, with a page up, s_repaint_art -- the
+flag every page's exit already acts on, so the square is painted when
+there is a bar under it. The three sites use it, and so do four more that
+could reach the panel with a page up: do_art()'s clear after a decode
+that lost its track (the chooser can open during a decode), and the three
+repaint fallbacks for "nothing to show" -- a repaint that finds a page
+still up would otherwise clear straight over it, and after
+clear_play_screen() it has no path, so it would. Re-setting the flag from
+inside the repaint is harmless: the next pass asks again, as
+load_track_visuals() already made it do.
+
+The two ui_clear_art() calls left are clear_art() itself and
+load_track_visuals(), which returns before it when the screen is covered.
+
+Not built here; not on the board.

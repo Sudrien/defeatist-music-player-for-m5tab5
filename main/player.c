@@ -3860,6 +3860,26 @@ static bool screen_covered(void)
 }
 
 /*
+ * 5265: ui_clear_art(), or the repaint that does it when the page closes.
+ *
+ * ui_clear_art() fills the art square and blits it, and three callers
+ * ran it with no screen_covered() test: the track change, a station
+ * starting, and the screen emptied when a volume goes. Before MPD a
+ * track rarely changed with the chooser up; a client's `play` does it
+ * every time, and the board showed the black square over the list.
+ * Deferred the way do_art() defers -- the repaint on the way out finds
+ * nothing or the new track and paints that.
+ */
+static void clear_art(void)
+{
+    if (screen_covered()) {
+        s_repaint_art = true;
+        return;
+    }
+    ui_clear_art();
+}
+
+/*
  * The track's sidecar record, held open for the length of the track.
  *
  * Every fact learned during an open -- tags, whether there is a cover,
@@ -4384,7 +4404,7 @@ static void track_change_begin(const char *path)
      * but the twenty seconds of lying. */
     if (!tail_playing()) {
         load_tags(path);
-        ui_clear_art();
+        clear_art();                                                /* 5265 */
     }
 }
 
@@ -4880,7 +4900,7 @@ static void do_art(const char *path, uint32_t gen)
      * exactly what the first check was avoiding. */
     if (gen != s_track_gen) {
         ESP_LOGI(TAG, "cover decoded after the track changed; not shown");
-        ui_clear_art();
+        clear_art();                                                /* 5265 */
     }
 
 }
@@ -9727,7 +9747,7 @@ static track_end_t play_file(const char *path)
             s_repaint_art = false;
             const char *const repaint = visuals_pending ? s_shown_path : path;
             if (repaint[0]) load_track_visuals(repaint);
-            else            ui_clear_art();
+            else            clear_art();          /* 5265 */
         }
 
         /* The chooser's reload, which can be asked for over live audio
@@ -10817,7 +10837,7 @@ static track_end_t play_file(const char *path)
                 const char *const repaint = visuals_pending ? s_shown_path
                                                             : path;
                 if (repaint[0]) load_track_visuals(repaint);
-                else            ui_clear_art();
+                else            clear_art();          /* 5265 */
             }
             /* And the stars, for the same reason: paused, this is the
              * only loop running, and a star pressed on the panel or in
@@ -12023,7 +12043,7 @@ static void clear_play_screen(void)
      * too: the file is on a volume that has gone, and a later card with
      * the same path on it is a different file. */
     s_walked_path[0] = '\0';
-    ui_clear_art();
+    clear_art();                                                    /* 5265 */
 
     ESP_LOGI(TAG, "the screen is empty; nothing is playing");
 }
@@ -12392,7 +12412,7 @@ static track_end_t play_stream(const char *url, const char *name)
     s_wave_ready = false;
     s_visuals_released = true;
     wave_clear();
-    ui_clear_art();
+    clear_art();                                                    /* 5265 */
     s_streaming = true;
     s_stream_status = STREAMPLAN_CONNECTING;
     /* No length, no position, no seek. s_can_seek is what the bar reads. */
@@ -14133,7 +14153,7 @@ static void player_loop(void)
             if (s_repaint_art) {
                 s_repaint_art = false;
                 if (s_path[0]) load_track_visuals(s_path);
-                else           ui_clear_art();
+                else           clear_art();          /* 5265 */
             }
             /* 5076: no "No media" card here any more. With no card or
              * drive the chooser now opens on RADIO (5065) with the kept

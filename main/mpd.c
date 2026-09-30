@@ -350,7 +350,12 @@ enum { TAG_ARTIST = 1, TAG_ALBUM = 2, TAG_TITLE = 4, TAG_ALL = 7 };
  * and `was` is the order to go back to when the song ends; `id` is the
  * song it was set on, and `played` whether that song has been seen
  * playing since. Server task only. */
-static struct { bool on, played; int was; uint32_t id; } s_oneshot;
+/* 5253: `consume oneshot` too. `kind` is which flag is for one song
+ * (MPD_CMD_SINGLE or MPD_CMD_CONSUME); `set` the order it asked for, so
+ * a change of order from anywhere else -- the button, a client -- ends
+ * it without putting anything back -- once the published state has
+ * shown that order (`armed`), since the snapshot can trail the ask. */
+static struct { bool on, played, armed; int was, set, kind; uint32_t id; } s_oneshot;
 
 /*
  * 5230: client-to-client messages, MPD's subscribe/sendmessage. Per
@@ -1289,9 +1294,13 @@ static result_t run_queue_cmd(conn_t *c, const mpd_cmd_t *cmd, int idx)
     uireq_done_t how = UIREQ_DONE_OK;
 
     switch (cmd->kind) {
-    case MPD_CMD_ADD:
+    case MPD_CMD_ADD: {
         if (is_stream_url(a0)) return add_stream(&x, a0);          /* 5201 */
-        return add_uri(&x, a0, -1, NULL) ? RES_OK : RES_ERR;
+        /* 5253: `add URI POS` (0.23.1), absolute or relative as addid's. */
+        long pos = -1;
+        if (!arg_insert_pos(&x, a1, &pos)) return RES_ERR;
+        return add_uri(&x, a0, (int)pos, NULL) ? RES_OK : RES_ERR;
+    }
 
     case MPD_CMD_ADDID: {
         long pos = -1;
@@ -2150,9 +2159,9 @@ static result_t queue_find(const ctx_t *x, const mpd_cmd_t *cmd)
  * below it, so the caller can answer as it would for a file.
  */
 static bool add_folder(const ctx_t *x, const char *uri, qsink_t sink, const char *pl,
-                       result_t *r)
+                       const char *pos, result_t *r)
 {
-    static char base[] = "base";
+    static char base[] = "base", position[] = "position";
     static mpd_cmd_t f;                 /* not on the task stack */
     memset(&f, 0, sizeof(f));
     f.kind = MPD_CMD_FINDADD;
@@ -2160,6 +2169,11 @@ static bool add_folder(const ctx_t *x, const char *uri, qsink_t sink, const char
     f.argc = 2;
     f.argv[0] = base;
     f.argv[1] = (char *)uri;
+    if (pos) {                          /* 5253: `add DIR POS`, as findadd's */
+        f.argv[2] = position;
+        f.argv[3] = (char *)pos;
+        f.argc = 4;
+    }
     s_find_hits = 0;
     *r = lib_find(x, &f, Q_FIND, sink, pl);
     return *r != RES_OK || s_find_hits > 0;
@@ -3698,13 +3712,25 @@ static void oneshot_poll(void)
     if (!s_oneshot.on) return;
     take_view();
     const snap_t *v = s_view;
+    const bool as_set = (int)mpdmode_to_order(&v->modes) == s_oneshot.set;   /* 5253 */
+    if (as_set) s_oneshot.armed = true;
+    else if (s_oneshot.armed) {
+        s_oneshot.on = false;
+        xSemaphoreTake(s_mu, portMAX_DELAY);
+        s_events |= MPD_IDLE_OPTIONS;
+        xSemaphoreGive(s_mu);
+        return;
+    }
     if (v->id == s_oneshot.id && v->state == MPD_STATE_PLAY) {
         s_oneshot.played = true;
         return;
     }
     if (!s_oneshot.played) return;
     const bool gone = v->id != s_oneshot.id;
-    const bool ended = v->duration_ms > 0 && v->elapsed_ms >= v->duration_ms - 2000;
+    /* 5253: an EAT song's end is its removal, so for consume only
+     * `gone` counts -- putting ALL back two seconds early would keep it. */
+    const bool ended = s_oneshot.kind != MPD_CMD_CONSUME &&
+                       v->duration_ms > 0 && v->elapsed_ms >= v->duration_ms - 2000;
     if (!gone && !ended) return;
     s_oneshot.on = false;
     const ui_action_t a = { .kind = UI_ACTION_ORDER, .value = s_oneshot.was };
@@ -3712,7 +3738,8 @@ static void oneshot_poll(void)
     xSemaphoreTake(s_mu, portMAX_DELAY);
     s_events |= MPD_IDLE_OPTIONS;
     xSemaphoreGive(s_mu);
-    ESP_LOGI(TAG, "single oneshot: the song ended; order back to %d", s_oneshot.was);
+    ESP_LOGI(TAG, "%s oneshot: the song ended; order back to %d",
+             s_oneshot.kind == MPD_CMD_CONSUME ? "consume" : "single", s_oneshot.was);
 }
 
 /* ---- messages (5230) ------------------------------------------------------ */
@@ -3905,7 +3932,7 @@ static result_t run_cmd(conn_t *c, const mpd_cmd_t *cmd, int idx)
                 ack(c, MPD_ACK_ARG, idx, cmd->verb, "Bad playlist name");
                 return RES_ERR;
             }
-            if (add_folder(&x, cmd->argv[1], QS_PLAYLIST, a0, &r)) return r;
+            if (add_folder(&x, cmd->argv[1], QS_PLAYLIST, a0, NULL, &r)) return r;
             ack(c, MPD_ACK_NO_EXIST, idx, cmd->verb, "No such directory");
             return RES_ERR;
         }
@@ -4043,7 +4070,7 @@ static result_t run_cmd(conn_t *c, const mpd_cmd_t *cmd, int idx)
     case MPD_CMD_ADD:
         if (uri_is_dir(a0)) {
             result_t r;
-            if (add_folder(&x, a0, QS_QUEUE, NULL, &r)) return r;
+            if (add_folder(&x, a0, QS_QUEUE, NULL, cmd->argc > 1 ? cmd->argv[1] : NULL, &r)) return r;
             ack(c, MPD_ACK_NO_EXIST, idx, cmd->verb, "No indexed songs in that directory");
             return RES_ERR;
         }
@@ -4130,7 +4157,8 @@ static result_t run_cmd(conn_t *c, const mpd_cmd_t *cmd, int idx)
             .repeat = v->modes.repeat,
             .random = v->modes.random,
             .single = v->modes.single,
-            .single_oneshot = s_oneshot.on,                     /* 5241 */
+            .single_oneshot = s_oneshot.on && s_oneshot.kind == MPD_CMD_SINGLE,     /* 5241 */
+            .consume_oneshot = s_oneshot.on && s_oneshot.kind == MPD_CMD_CONSUME,   /* 5253 */
             .consume = v->modes.consume,
             .playlist_version = v->version,
             .playlist_length = v->length,                   /* 5166 */
@@ -4314,11 +4342,14 @@ static result_t run_cmd(conn_t *c, const mpd_cmd_t *cmd, int idx)
          * device does not repeat. The event makes it re-read.
          */
         bool on;
-        /* 5241: `single oneshot` (0.21) is single on, for one song. */
-        const bool oneshot = cmd->kind == MPD_CMD_SINGLE && strcasecmp(a0, "oneshot") == 0;
+        /* 5241: `single oneshot` (0.21) is single on, for one song.
+         * 5253: `consume oneshot` (0.24) the same for consume: EAT for
+         * the song playing, then consume off. */
+        const bool oneshot = (cmd->kind == MPD_CMD_SINGLE || cmd->kind == MPD_CMD_CONSUME) &&
+                             strcasecmp(a0, "oneshot") == 0;
         if (oneshot) on = true;
         else if (!arg_bool(&x, a0, &on)) return RES_ERR;
-        if (cmd->kind == MPD_CMD_SINGLE) s_oneshot.on = false;
+        if (cmd->kind == MPD_CMD_SINGLE || cmd->kind == MPD_CMD_CONSUME) s_oneshot.on = false;
         take_view();
         mpd_modes_t m = s_view->modes;
         bool *const flag = cmd->kind == MPD_CMD_REPEAT ? &m.repeat
@@ -4339,10 +4370,15 @@ static result_t run_cmd(conn_t *c, const mpd_cmd_t *cmd, int idx)
         if (oneshot) {
             /* When the song ends MPD sets single to off -- not back to
              * what it was -- so the order to return to is these flags
-             * with single off. */
+             * with single off. 5253: consume likewise. An EAT song that
+             * ends is eaten, and its id gone is the end poll sees. */
             mpd_modes_t off = m;
-            off.single = false;
+            if (cmd->kind == MPD_CMD_CONSUME) off.consume = false;
+            else off.single = false;
             s_oneshot.on = true;
+            s_oneshot.kind = cmd->kind;
+            s_oneshot.armed = false;
+            s_oneshot.set = (int)want;
             s_oneshot.played = false;
             s_oneshot.was = (int)mpdmode_to_order(&off);
             s_oneshot.id = s_view->id;

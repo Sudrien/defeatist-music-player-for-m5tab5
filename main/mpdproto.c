@@ -274,7 +274,7 @@ static const cmd_def_t s_cmds[] = {
     { "consume",        MPD_CMD_CONSUME,         1,  1 },
 
     /* step 11 */
-    { "add",            MPD_CMD_ADD,             1,  1 },
+    { "add",            MPD_CMD_ADD,             1,  2 },
     { "addid",          MPD_CMD_ADDID,           1,  2 },
     { "delete",         MPD_CMD_DELETE,          1,  1 },
     { "deleteid",       MPD_CMD_DELETEID,        1,  1 },
@@ -758,7 +758,8 @@ size_t mpdproto_status(const mpd_status_t *s, char *out, size_t cap)
     w_num(&b, "random",  s->random  ? 1 : 0);
     if (s->single_oneshot) w_kv(&b, "single", "oneshot");          /* 5241, 0.21 */
     else w_num(&b, "single",  s->single  ? 1 : 0);
-    w_num(&b, "consume", s->consume ? 1 : 0);
+    if (s->consume_oneshot) w_kv(&b, "consume", "oneshot");        /* 5253, 0.24 */
+    else w_num(&b, "consume", s->consume ? 1 : 0);
     if (s->partition && s->partition[0]) w_kv(&b, "partition", s->partition);   /* 5180 */
     w_num(&b, "playlist", (long long)s->playlist_version);
     w_num(&b, "playlistlength", s->playlist_length);

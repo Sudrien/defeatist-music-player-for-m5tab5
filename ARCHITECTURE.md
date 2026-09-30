@@ -19090,3 +19090,39 @@ a consume section on the test entries; against stock MPD 0.23.5 the
 eating checks pass and the two spring-backs fail, as they should.
 
 texttest all passes. Not on the board.
+
+### 5253 -- mpd: add at a position, consume oneshot, starts_with
+
+`add URI POS`: add's arity is 1..2, and POS is addid's -- absolute, or
+0.23's +N/-N through arg_insert_pos(). A folder passes POS on to
+findadd's `position` (add_folder()). A stream ignores it: it is played,
+not queued (5201). mpdprototest pinned add at 1..1 on the reading that
+the position was 0.24's; stock MPD 0.23.5 takes it, so at 0.23.3 it was
+a gap.
+
+`consume oneshot` (0.24): 5241's oneshot generalised. s_oneshot gains
+`kind` (single or consume) and `set`, the order it asked for. For
+consume, the order goes to EAT and the one to return to is these flags
+with consume off. The end is the song's id gone from the view -- an EAT
+song that ends is eaten -- and not 5241's "within two seconds of its
+length", which would put ALL back before the track was eaten. status
+says `consume: oneshot`. Either flag's command ends a oneshot of either
+kind, and so does any other change of order (the button, a client),
+once the published state has shown the order set (`armed`: the
+snapshot can trail the ask, and an unarmed check would end every
+oneshot at once). No control on the glass, by decision: it is a one-
+song instruction, not a mode.
+
+`starts_with` (0.24) in filter expressions: MPDF_STARTS, exact for find
+and folded for search by casefold.h, a required term for the search
+file's pre-pass as `==` and `contains` are.
+
+The greeting stays 0.23.3: a client sends 0.24's forms only to a server
+that says 0.24, and the rest of 0.24 is not here.
+
+mpdcheck: add at +0, at a position and past the end; starts_with by
+find, by search with the case changed, and not matching mid-path;
+consume oneshot eats the song left and then reads 0, and consume 0 ends
+one. Against stock MPD 0.23.5 add passes and the 0.24 checks fail, as
+they should. texttest all passes; mpd.c compiles on the host stubs.
+Not on the board.

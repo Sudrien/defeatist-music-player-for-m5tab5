@@ -558,6 +558,7 @@ typedef struct {
     int         volume;             /* <0: omitted, MPD's "unknown" */
     bool        repeat, random, single, consume;
     bool        single_oneshot;     /* 5241: `single: oneshot`, over single */
+    bool        consume_oneshot;    /* 5253: `consume: oneshot`, over consume */
     uint32_t    playlist_version;   /* mpdq_version() */
     int         playlist_length;    /* mpdq_count() */
     int         song;               /* <0: song and songid omitted */

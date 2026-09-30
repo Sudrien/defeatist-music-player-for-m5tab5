@@ -64,6 +64,14 @@ int main(void)
     match("(album contains 'road')", SONG, false, false);
     match("(album contains 'road')", SONG, true, true);
     match("(album contains '')", SONG, false, true);
+    /* 5253: 0.24's starts_with -- exact for find, folded for search. */
+    match("(Artist starts_with 'The B')", SONG, false, true);
+    match("(Artist starts_with 'Beatles')", SONG, false, false);
+    match("(artist starts_with 'the b')", SONG, false, false);
+    match("(artist starts_with 'the b')", SONG, true, true);
+    match("(artist starts_with '')", SONG, false, true);
+    match("(genre starts_with '')", SONG, false, false);
+    match("(!(artist starts_with 'The'))", SONG, false, false);
     match("(title == 'Something')", SONG, false, true);
     match("(AlbumArtist == 'The Beatles')", SONG, false, true);   /* as artist */
     match("(file == 'sd/Beatles/Abbey Road/02 Something.flac')", SONG, false, true);
@@ -90,6 +98,8 @@ int main(void)
         match("(artist == 'BÔA')", U, false, false);        /* find stays exact */
         match("(file contains 'BÔA ')", U, true, true);
         match("(any contains 'bÔa')", U, true, true);
+        match("(artist starts_with 'BÔ')", U, true, true);
+        match("(file starts_with 'USB/BÔA')", U, true, true);
         static const char *const G[MPDF_NFIELDS] = { "Οδός", "ΜΆΝΟΣ", "x", "sd/x" };
         match("(artist == 'μάνος')", G, true, true);          /* Σ and ς both σ */
         match("(title contains 'ΟΔΌΣ')", G, true, true);

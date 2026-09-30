@@ -286,11 +286,11 @@ int main(void)
     bad_parse("play 1 2", MPD_ACK_ARG,
               "ACK [2@0] {play} too many arguments for \"play\"\n");
 
-    /* `add` is 1..1 HERE and 1..2 in MPD: the position argument arrived
-     * in 0.24 and MPDPROTO_VERSION claims 0.20. Narrower than MPD on
-     * purpose, so the case is here rather than absent. */
-    bad_parse("add foo 2", MPD_ACK_ARG,
-              "ACK [2@0] {add} wrong number of arguments for \"add\"\n");
+    /* 5253: `add URI POS`, 1..2 as MPD's -- stock 0.23.5 takes the
+     * position, so this was a gap at 0.23.3, not a 0.24 feature. */
+    ok_parse("add foo 2", MPD_CMD_ADD, 2);
+    bad_parse("add foo 2 3", MPD_ACK_ARG,
+              "ACK [2@0] {add} too many arguments for \"add\"\n");
 
     /* An unknown verb: named in the message, and the brace EMPTY, because
      * MPD only sets current_command once the lookup succeeds. */
@@ -852,6 +852,11 @@ int main(void)
         CHECK(mpdproto_status(&s, b, sizeof(b)) && strstr(b, "single: oneshot\n") &&
               !strstr(b, "single: 1"), "oneshot status is [%s]", b);
         s.single_oneshot = false;
+        /* 5253: consume oneshot likewise (MPD 0.24). */
+        s.consume_oneshot = true;
+        CHECK(mpdproto_status(&s, b, sizeof(b)) && strstr(b, "consume: oneshot\n") &&
+              !strstr(b, "consume: 0"), "consume oneshot status is [%s]", b);
+        s.consume_oneshot = false;
 
         s.state = MPD_STATE_PAUSE;
         CHECK(mpdproto_status(&s, b, sizeof(b)) && strstr(b, "state: pause\n"),

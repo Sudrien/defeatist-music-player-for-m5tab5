@@ -17,7 +17,8 @@
  *           | '(' 'modified-since' STRING ')'
  *           | '(' 'AudioFormat' op STRING ')'
  *           | '(' TAG op STRING ')'
- *   op     := '==' | '!=' | 'contains' | '=~' | '!~'
+ *   op     := '==' | '!=' | 'contains' | 'starts_with' | '=~' | '!~'
+ *             (starts_with is 0.24's; 5253)
  *   STRING := '"' ... '"' | '\'' ... '\'', a backslash escaping the
  *             next byte, whatever it is
  *
@@ -77,7 +78,7 @@ typedef enum {
     MPDF_N_AND,
 } mpdf_kind_t;
 
-typedef enum { MPDF_EQ, MPDF_NE, MPDF_CONTAINS } mpdf_op_t;
+typedef enum { MPDF_EQ, MPDF_NE, MPDF_CONTAINS, MPDF_STARTS } mpdf_op_t;   /* STARTS: 5253, 0.24 */
 
 typedef struct {
     mpdf_kind_t kind;
@@ -126,7 +127,7 @@ bool mpdfilter_eval(const mpdfilter_t *f, const char *const field[MPDF_NFIELDS],
 
 /*
  * The terms a match cannot do without, for a cheap first pass: the
- * `==` and `contains` comparisons on a held field reachable from the
+ * `==`, `contains` and `starts_with` comparisons on a held field reachable from the
  * root through ANDs only, never through a NOT. Each such value must
  * appear, as a folded substring, in that field of any song that
  * matches -- so a line whose search-file field lacks it can be skipped

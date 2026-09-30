@@ -157,11 +157,11 @@ static int parse_term(parser_t *ps)
         return -1;
     } else {
         char o[16];
-        if (!word(ps, o, sizeof(o)) || !ieq(o, "contains")) {
+        if (!word(ps, o, sizeof(o)) || !(ieq(o, "contains") || ieq(o, "starts_with"))) {
             fail(ps, "Unknown filter operator", false);
             return -1;
         }
-        op = MPDF_CONTAINS;
+        op = ieq(o, "contains") ? MPDF_CONTAINS : MPDF_STARTS;
     }
     const int i = new_node(ps, MPDF_N_CMP);
     if (i < 0) return -1;
@@ -283,6 +283,7 @@ static bool cmp_one(mpdf_op_t op, const char *v, const char *want, bool fold)
     case MPDF_EQ:       return str_eq(v, want, fold);
     case MPDF_NE:       return !str_eq(v, want, fold);
     case MPDF_CONTAINS: return str_has(v, want, fold);
+    case MPDF_STARTS:   return fold ? starts(v, want) : strncmp(v, want, strlen(want)) == 0;
     }
     return false;
 }
@@ -332,7 +333,7 @@ static int required(const mpdfilter_t *f, int i, int *out, int k, int max)
     if (n->kind == MPDF_N_AND) {
         for (int c = n->child; c >= 0; c = f->node[c].next) k = required(f, c, out, k, max);
     } else if (n->kind == MPDF_N_CMP && n->field >= 0 &&
-               (n->op == MPDF_EQ || n->op == MPDF_CONTAINS) && k < max) {
+               (n->op == MPDF_EQ || n->op == MPDF_CONTAINS || n->op == MPDF_STARTS) && k < max) {
         out[k++] = i;
     }
     return k;

@@ -531,6 +531,16 @@ class Checker:
                            f"find {fx(f'(file contains {sq(up4(base))})')}") or []
         self.ok("expression find does not fold case",
                 up4(base) == base[:4] or f0 not in files_of(r), repr(r[:4]))
+        # 5253: 0.24's starts_with, on the file's own path.
+        r = self.expect_ok("find (file starts_with FOLDER/)",
+                           f"find {fx(f'(file starts_with {sq(folder + chr(47))})')}") or []
+        self.ok("starts_with finds it", f0 in files_of(r), repr(r[:4]))
+        r = self.expect_ok("search (file starts_with FOLDER, case changed)",
+                           f"search {fx(f'(file starts_with {sq(folder.upper())})')}") or []
+        self.ok("search starts_with folds case", f0 in files_of(r), repr(r[:4]))
+        r = self.expect_ok("find (file starts_with the file's name alone)",
+                           f"find {fx(f'(file starts_with {sq(base)})')}") or []
+        self.ok("starts_with is not contains", f0 not in files_of(r) or f0.startswith(base))
         r = self.expect_ok("find (base folder)", f"find {fx(f'(base {sq(folder)})')}") or []
         self.ok("expression base finds it", f0 in files_of(r))
         r = self.expect_ok("find ((base) AND (!(file == uri)))",
@@ -914,6 +924,12 @@ class Checker:
         self.ok("-0 moves the playing song along", self.status().get("song") == str(b + 2))
         self.c.cmd(f"deleteid {kv(r or []).get('Id')}")
         self.expect_ack("addid X +99 is ARG", f"addid {q(A)} +99", 2)
+        # 5253: add URI POS, absolute and relative (0.23.1).
+        check("add X +0", f"add {q(C)} +0", [A, B, C, C])
+        self.c.cmd(f"delete {b + 2}")
+        check("add X POS", f"add {q(C)} {b}", [C, A, B, C])
+        self.c.cmd(f"delete {b}")
+        self.expect_ack("add X past the end is ARG", f"add {q(A)} {b + 99}", 2)
 
         check("move <before it> +0", f"move {b} +0", [B, A, C])
         self.c.cmd(f"move {b + 1} {b}")
@@ -977,6 +993,23 @@ class Checker:
         st = self.status()
         self.ok("random 1 drops consume (no shuffled eating)",
                 st.get("random") == "1" and st.get("consume") == "0", f"{st.get('random')} {st.get('consume')}")
+        self.c.cmd("random 0")
+
+        # 5253: consume oneshot (0.24) -- eat the playing song, then off.
+        self.refill()
+        ids = self.tail_ids()
+        self.c.cmd(f"playid {ids[0]}")
+        self.wait_state(lambda s: s.get("songid") == ids[0])
+        self.expect_ok("consume oneshot", "consume oneshot")
+        st = self.wait_state(lambda s: s.get("consume") == "oneshot", 2.0)
+        self.ok("status says consume: oneshot", st.get("consume") == "oneshot", st.get("consume"))
+        self.expect_ok("next under consume oneshot", "next")
+        st = self.wait_state(lambda s: s.get("songid") == ids[1] and s.get("consume") == "0")
+        self.ok("oneshot eats the song left", self.tail() == [B, C], repr(self.tail()))
+        self.ok("and consume is off after it", st.get("consume") == "0", st.get("consume"))
+        self.c.cmd("consume oneshot")
+        self.expect_ok("consume 0 ends a oneshot", "consume 0")
+        self.ok("consume 0 after oneshot reads 0", self.status().get("consume") == "0")
         for m in ("random", "consume"):
             self.c.cmd(f"{m} {was.get(m, '0')}")
 

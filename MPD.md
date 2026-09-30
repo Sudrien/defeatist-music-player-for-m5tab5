@@ -560,13 +560,15 @@ they are.
 file, the one the player shows -- and `binarylimit` (5249-5250); 0.23's
 positions relative to the playing song ("+N"/"-N" in `addid`, `move`,
 `moveid`, and `position` on `findadd`, `searchadd` and `load`), `load` of
-a range, and `playlistadd` at a position (5251). Partitions and outputs
+a range, and `playlistadd` at a position (5251); `add` at a position
+(5253 -- stock 0.23.5 takes it, so it was a gap). Partitions and outputs
 are answered for one of each (5180). Refused in these versions' terms,
 each with a reason: a regex in a filter, `modified-since` and
 `AudioFormat` filters, `getfingerprint`. Songs, cue tracks included,
-carry no duration or audio format -- the catalog keeps neither. Next is
-0.24: `add` at a position, `consume oneshot`, `starts_with` in filters;
-`save`'s mode is answered already.
+carry no duration or audio format -- the catalog keeps neither. Of 0.24,
+`consume oneshot` (EAT for the song playing, then consume off) and
+`starts_with` in filters are answered (5253) and `save`'s mode was
+already; the greeting stays 0.23.3 until the rest of 0.24 is.
 
 Not yet driven on the board: `list` (5182), `search`/`find` (5180),
 Cantata's stored-playlists view (5184), and everything from 5218 on.

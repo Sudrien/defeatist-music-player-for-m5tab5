@@ -19573,3 +19573,42 @@ No code. Build v0.4.0-289-g4a4990a, with 5259-5266:
 
 So "Not on the board" in 5259-5266's entries is out of date as of this
 build. Left as written -- they were true when they were -- and said here.
+
+### 5268 -- mpd: seek of a song not playing starts it there
+
+`seek`/`seekid` of another song played it by id, waited for it to
+publish a length, then sought it (5229) -- so the listener heard the
+top of the song, and a card's open, before the jump. MPD does it in one
+step. Now the play carries the target.
+
+**ui_action_t has an `at_sec`**, read by UI_ACTION_PLAY_ID only; 0,
+which every other producer leaves it (designated or positional
+initialisers), is the top. mpd.c sends it, rounded to the second as
+seek_ms() rounds. ask() is split into ask_act(), which takes a whole
+action, and ask(), which builds one -- a restructure of ask(), not a
+change to what it does.
+
+**The player: request_track_at(path, sec)**, request_track() being it
+with -1. The target rides the s_pending handshake (written before
+s_pending_ready), is copied with the path into s_start_sec, and
+play_file() takes and clears it on entry, so a track that fails to open
+cannot pass it to the next. Before the decode loop's first iteration,
+a target above 0 is armed as an ordinary pending seek, so the loop's
+own seek does it: same decoder call, clamp to the length, re-anchor and
+log, and nothing of the top is decoded. Its why is SEEK_WHY_START,
+compared by address, and that seek does not ask the writer to flush or
+pace the refill -- none of this track is queued yet, and what is queued
+belongs to the track before it.
+
+mpd.c still waits up to MPD_SEEK_START_MS for the song to publish as
+seekable, for the refusal only: a file that cannot seek plays from the
+top ("seek ignored" in the log) and gets "Not seekable", as before. A
+format with no length at the loop's start (a Xing-less MP3 with no
+sidecar) cannot be started there, and is refused the same way.
+
+mpdcheck: after `seek <other> 2`, elapsed reaches 2 s. That passed
+before too; the top not being heard is a listening check.
+
+texttest all passes. player.c and mpd.c not compiled here -- no IDF;
+checked with -fsyntax-only against empty stub headers, which says only
+that nothing reported touches the changed lines.

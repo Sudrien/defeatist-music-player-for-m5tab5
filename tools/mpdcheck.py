@@ -927,6 +927,14 @@ class Checker:
             self.expect_ok("seek of another song", f"seek {b} 2")
             st = self.wait_state(lambda s: s.get("song") == p0, 5.0)
             self.ok("seek of another song plays it", st.get("song") == p0, st.get("song"))
+            # 5268: started there, not at the top and then sought. The
+            # difference is heard rather than read -- the old way got here
+            # too -- so this checks the target reached the player.
+            st = self.wait_state(lambda s: s.get("song") == p0
+                                 and float(s.get("elapsed", "0")) >= 1.5, 5.0)
+            self.ok("seek of another song lands near 2 s",
+                    st.get("song") == p0 and float(st.get("elapsed", "0")) >= 1.5,
+                    st.get("elapsed"))
         else:
             self.skip("seek, seekid, seekcur", "the song has no duration over 10 s")
 

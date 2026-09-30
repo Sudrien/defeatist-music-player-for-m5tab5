@@ -3194,6 +3194,17 @@ static char              s_pending[512];
 static volatile bool     s_pending_ready;
 
 /*
+ * 5268: where in s_pending to start, in whole seconds, or -1 for the
+ * top -- MPD's `seek`/`seekid` of a song not playing, which MPD does in
+ * one step. Part of the same handshake: written before s_pending_ready
+ * by request_track_at(), read with s_pending into s_start_sec by the
+ * loop, and taken (and cleared) by play_file() on entry, so a track
+ * that fails to open cannot hand it to the next.
+ */
+static volatile int32_t  s_pending_start_sec = -1;
+static volatile int32_t  s_start_sec = -1;
+
+/*
  * The same handshake for a station, and a separate pair rather than a
  * flag on the one above.
  *
@@ -3599,6 +3610,9 @@ static volatile int32_t  s_seek_at_sec = -1;
  */
 static volatile TickType_t s_seek_asked;
 static const char *volatile s_seek_why = "";
+
+/* 5268: the why of a track's start-at-offset, compared by address. */
+static const char SEEK_WHY_START[] = "start at";
 
 /*
  * True between entering and leaving play_file(), i.e. whenever there is
@@ -6155,8 +6169,9 @@ static void media_task(void *arg)
     }
 }
 
-/* Hand a chosen path to the decode loop. */
-static void request_track(const char *path)
+/* Hand a chosen path to the decode loop, to start `start_sec` whole
+ * seconds in (5268), or at the top for -1. */
+static void request_track_at(const char *path, int32_t start_sec)
 {
     /*
      * Any outstanding seek was aimed at the track being left. Carrying
@@ -6174,7 +6189,13 @@ static void request_track(const char *path)
     }
 
     snprintf(s_pending, sizeof(s_pending), "%s", path);
+    s_pending_start_sec = start_sec;                                /* 5268 */
     s_pending_ready = true;
+}
+
+static void request_track(const char *path)
+{
+    request_track_at(path, -1);
 }
 
 /*
@@ -8519,7 +8540,8 @@ static void ui_task(void *arg)
             if (have) playlist_set_current(pos);
             playlist_unlock();
             if (have) {
-                request_track(idpath);
+                /* 5268: MPD's seek of a song not playing starts it there. */
+                request_track_at(idpath, act.at_sec > 0 ? act.at_sec : -1);
                 /* 5197: and plays it. MPD's play and playid start playback,
                  * and the remote page's queue row means the same; from a
                  * paused state the track loaded paused, and Cantata had to
@@ -8921,6 +8943,10 @@ static bool same_album(const char *a, const char *b)
 static track_end_t play_file(const char *path)
 {
     const storage_id_t vol = storage_of_path(path);
+
+    /* 5268: taken on entry, whatever becomes of the open. */
+    const int32_t start_sec = s_start_sec;
+    s_start_sec = -1;
 
     /* The duration the sidecar already knows, if it does. Held as a
      * local because it is learned before the decoder is open and shown
@@ -9701,6 +9727,21 @@ static track_end_t play_file(const char *path)
     decoder_info_t track_info;
     memset(&track_info, 0, sizeof(track_info));
 
+    /*
+     * 5268: a start past the top is a seek pending before the first
+     * read, so the loop's own seek below does it -- the same decoder
+     * call, clamp, re-anchor and log as a seek pressed mid-track, and
+     * nothing of the top is decoded first. SEEK_WHY_START tells that
+     * seek not to flush: none of this track is queued yet, and what is
+     * belongs to the track before it.
+     */
+    if (start_sec > 0) {
+        s_seek_why = SEEK_WHY_START;
+        s_seek_asked = xTaskGetTickCount();
+        s_seek_at_sec = start_sec;
+        s_seek_pct = 0;
+    }
+
     while (1) {
         /* Pause stalls the decoder, not the writer: the ring drains to
          * DMA and then i2s_writer_task blocks on an empty buffer, which
@@ -9871,6 +9912,7 @@ static track_end_t play_file(const char *path)
 
             const int pct = s_seek_pct;
             const int32_t at_sec = s_seek_at_sec;
+            const bool at_start = (s_seek_why == SEEK_WHY_START);   /* 5268 */
             const uint32_t waited =
                 (uint32_t)pdTICKS_TO_MS(xTaskGetTickCount() - s_seek_asked);
             s_seek_pct = -1;
@@ -9912,6 +9954,7 @@ static track_end_t play_file(const char *path)
                      * jump, which sounds like the seek was ignored and
                      * then took effect late. */
 #if !SEEK_NOOP && !SEEK_KEEP_RING
+                    if (!at_start) {                                /* 5268 */
                     /* Ask the writer to drop what is queued. It owns the
                      * read side; this task must not touch it. See
                      * s_pcm_flush. */
@@ -9922,6 +9965,7 @@ static track_end_t play_file(const char *path)
                      * draining it, so the refill below would otherwise
                      * run flat out. See REFILL_DECODE_SPEEDUP. */
                     s_refill_pacing = true;
+                    }
 #elif SEEK_KEEP_RING
                     /* See SEEK_KEEP_RING. The decoder has moved; the
                      * queued audio has not, so the jump arrives when the
@@ -14006,6 +14050,7 @@ static void player_loop(void)
                 continue;
             }
             snprintf(s_path, sizeof(s_path), "%s", s_pending);
+            s_start_sec = s_pending_start_sec;                      /* 5268 */
             have = true;
             s_starting = true;                                      /* 5246 */
         }

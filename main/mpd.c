@@ -755,9 +755,10 @@ static void put_entry(conn_t *c, int i)
  * sending presses faster than ui_task runs, and it is told so rather than
  * having them dropped the way the remote drops a burst.
  */
-static bool ask(const ctx_t *x, ui_action_kind_t kind, int value)
+static bool ask_act(const ctx_t *x, const ui_action_t a)
 {
-    const ui_action_t a = { .kind = kind, .value = value };
+    const ui_action_kind_t kind = a.kind;
+    const int value = a.value;
     /*
      * 5162: a press from a client says which client and which command,
      * because the player's own "button:" line that follows it reads the
@@ -768,6 +769,8 @@ static bool ask(const ctx_t *x, ui_action_kind_t kind, int value)
         ESP_LOGI(TAG, "client %d: %s -> %s %d%%", x->c->fd, x->verb, ui_action_name(kind), value);
     else if (kind == UI_ACTION_SEEK_SEC)
         ESP_LOGI(TAG, "client %d: %s -> %s %d s", x->c->fd, x->verb, ui_action_name(kind), value);
+    else if (kind == UI_ACTION_PLAY_ID && a.at_sec > 0)            /* 5268 */
+        ESP_LOGI(TAG, "client %d: %s -> %s %d at %d s", x->c->fd, x->verb, ui_action_name(kind), value, a.at_sec);
     else if (kind == UI_ACTION_REPLAYGAIN)
         ESP_LOGI(TAG, "client %d: %s -> replaygain %s", x->c->fd, x->verb, value ? "on" : "off");
     else
@@ -794,6 +797,11 @@ static bool ask(const ctx_t *x, ui_action_kind_t kind, int value)
         vTaskDelay(pdMS_TO_TICKS(10));
     }
     return true;
+}
+
+static bool ask(const ctx_t *x, ui_action_kind_t kind, int value)
+{
+    return ask_act(x, (ui_action_t){ .kind = kind, .value = value });
 }
 
 /*
@@ -1049,6 +1057,12 @@ static result_t run_list_cmd(conn_t *c, const mpd_cmd_t *cmd, int idx)
          * the play. A song that does not become seekable in that time
          * (a file the decoder cannot seek) is left playing from the top
          * and the seek is refused with the reason, as MPD refuses one.
+         *
+         * 5268: one step here too. The play carries the target and the
+         * player seeks before its first read, so the top is not heard
+         * first. The wait stays, for the refusal: a file that cannot
+         * seek plays from the top ("seek ignored" in the player's log)
+         * and still gets "Not seekable". Whole seconds, as seek_ms().
          */
         if (pos != s_view->song) {
             if (s_list->window) {
@@ -1056,8 +1070,11 @@ static result_t run_list_cmd(conn_t *c, const mpd_cmd_t *cmd, int idx)
                 return RES_ERR;
             }
             const uint32_t want = s_list->id[pos];
-            if (!ask(&x, UI_ACTION_PLAY_ID, (int)want)) return RES_ERR;
-            if (ms <= 0) return RES_OK;
+            const int at = ms > 0 ? (int)((ms + 500) / 1000) : 0;  /* 5268 */
+            if (!ask_act(&x, (ui_action_t){ .kind = UI_ACTION_PLAY_ID,
+                                            .value = (int)want, .at_sec = at }))
+                return RES_ERR;
+            if (at <= 0) return RES_OK;
             const TickType_t t0 = xTaskGetTickCount();
             for (;;) {
                 take_view();
@@ -1068,6 +1085,7 @@ static result_t run_list_cmd(conn_t *c, const mpd_cmd_t *cmd, int idx)
                 }
                 vTaskDelay(pdMS_TO_TICKS(50));
             }
+            return RES_OK;                                          /* 5268 */
         }
         return seek_ms(&x, ms) ? RES_OK : RES_ERR;
     }

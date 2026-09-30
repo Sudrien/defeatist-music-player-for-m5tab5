@@ -525,8 +525,8 @@ behaviour, and all of it is outside mpd.c:
 - **Seeking is to the second** (5259; it was a percent of the track).
   The decoders take whole seconds, so a client's `seekcur 83.4` lands at
   83 s, give or take where the format can land. `seek`/`seekid` of a
-  song not playing still plays it and then seeks, so the top of it is
-  heard first: a start-at-offset in the player would fix that.
+  song not playing starts it there (5268): the player seeks before its
+  first read, so the top is not heard first.
 - **The modes are the player's six orders** (MPD.md step 7): repeat
   alone is RPT, repeat-all (5261), and `status` says what the player
   will do. `consume` is the player's EAT order (5252) -- ALL, removing

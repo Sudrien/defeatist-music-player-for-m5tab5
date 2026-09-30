@@ -322,6 +322,10 @@ const char *ui_action_name(ui_action_kind_t k);
 typedef struct {
     ui_action_kind_t kind;
     int value;
+    /* 5268: UI_ACTION_PLAY_ID only -- start that many whole seconds in,
+     * MPD's seek of a song not playing. 0, which every other producer
+     * leaves it, is the top. */
+    int at_sec;
 } ui_action_t;
 
 /*

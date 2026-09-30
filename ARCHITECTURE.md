@@ -18924,3 +18924,16 @@ ASan: no differences, and no codepoint found or missing that was not
 before. Flipping one bit of one tile fails the pinned hash. texttest all
 passes (270,982 checks), the text layout checks drawing through the
 real, tiled font.
+
+### 5248 -- build: the MPD server back to the build's own optimisation
+
+5245 compiled mpd.c, mpdproto.c and mpdfilter.c -Os to get the app back
+under its 3 MB slot, about 16 KB. 5247's tiled font saves 216,798 bytes,
+so that is no longer needed, and the set_source_files_properties() line
+comes out: every file is built as COMPILER_OPTIMIZATION_PERF says again,
+one setting for the whole app. 5245's measurement stays in its entry for
+the day the space is wanted.
+
+With 5247 and this, the app is about 200 KB under the ceiling, down from
+3056 bytes over (0x300bf0 before 5245). The build's size line is the
+check.

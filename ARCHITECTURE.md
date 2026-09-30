@@ -19126,3 +19126,23 @@ consume oneshot eats the song left and then reads 0, and consume 0 ends
 one. Against stock MPD 0.23.5 add passes and the 0.24 checks fail, as
 they should. texttest all passes; mpd.c compiles on the host stubs.
 Not on the board.
+
+### 5254 -- mpd: a folded file search that names the volume in another case
+
+The board run of 5253 failed one check: `search "(file starts_with
+'USB/BÔA - GET THERE')"` found nothing. Not starts_with's fault. The
+search file holds each path below its volume, so q_fold_src() (5191)
+takes the volume off a `file` value before the folded pass -- but only
+when mpduri_split() recognises it, which is exact: "USB/" is not "usb/",
+the needle kept the volume's name, and no line holds that. The same
+went for `search file` pairs and `contains` from 5191 on, and for a
+value that begins inside the volume's name ("b/Album") or is part of
+one ("sd").
+
+Now the needle is what follows the value's first '/': whatever part of
+a URI the value is, that text lies inside the path below the volume. A
+value with no slash is used as it is unless it is part of a volume's
+name, ignoring case, in which case it narrows nothing and the exact
+stage (mpdfilter_eval() over the whole URI) decides.
+
+Compiled on the host stubs, no warnings. Not on the board.

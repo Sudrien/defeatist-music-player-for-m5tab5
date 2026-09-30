@@ -1836,11 +1836,32 @@ static bool q_exact(const qpair_t *p, const mediacat_rec_t *r, const char *uri, 
  * ("usb/Album/...") is looked for without it; the exact stage then
  * compares the whole URI.
  */
+/* 5254: whether `v` is part of the volume name `name`, ignoring ASCII
+ * case (strcasestr is not in newlib without _GNU_SOURCE). */
+static bool in_name(const char *v, const char *name)
+{
+    const size_t n = strlen(v), m = strlen(name);
+    for (size_t i = 0; n <= m && i + n <= m; i++)
+        if (strncasecmp(name + i, v, n) == 0) return true;
+    return false;
+}
+
 static const char *q_fold_src(const qpair_t *p, const char *v)
 {
     if (p->field != MEDIASEARCH_FILE) return v;
-    const char *rel = "";
-    return (mpduri_split(v, &rel) >= 0 && rel[0]) ? rel : v;
+    /*
+     * 5254: what follows the value's first '/', or nothing. 5191 took
+     * the volume off only when it split exactly, so a folded search for
+     * "USB/Album" (or "b/Album", or plain "sd") looked for the volume's
+     * name in a line that does not hold it, and found nothing. Whatever
+     * part of a URI the value is, the text after its first slash lies
+     * inside the path below the volume. A value with no slash is in
+     * the path too, unless it is part of a volume's name ("sd", "US"):
+     * that narrows nothing here, and the exact stage decides.
+     */
+    const char *s = strchr(v, '/');
+    if (s) return s + 1;
+    return (in_name(v, "sd") || in_name(v, "usb")) ? "" : v;
 }
 
 /* 5191: a record's URI, its volume's name and its path, into s_lib->uri.

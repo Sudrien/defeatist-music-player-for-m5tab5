@@ -704,6 +704,28 @@ int main(void)
               strcmp(b, "file: Artist/Album/01 Song.flac\n"
                         "Title: Song\n") == 0, "an lsinfo song is [%s]", b);
 
+        /* 5264: the five, with MPD's key names, after the three and
+         * before the length -- and the worst of all of them fits. */
+        memset(&s, 0, sizeof(s));
+        s.uri = "a.flac"; s.title = "T";
+        s.albumartist = "Various"; s.genre = "Rock"; s.date = "1999";
+        s.track = "3/12"; s.disc = "1";
+        s.duration_ms = 1000; s.pos = -1;
+        CHECK(mpdproto_song(&s, b, sizeof(b)) &&
+              strcmp(b, "file: a.flac\nTitle: T\nAlbumArtist: Various\nGenre: Rock\n"
+                        "Date: 1999\nTrack: 3/12\nDisc: 1\nTime: 1\nduration: 1.000\n") == 0,
+              "a song with the five is [%s]", b);
+        {
+            static char uri[507], t64[64], t32[32], t16[16], t12[12];
+            memset(uri, 'u', 506); memset(t64, 0x01, 63); memset(t32, 0x01, 31);
+            memset(t16, 0x01, 15); memset(t12, 0x01, 11);
+            memset(&s, 0, sizeof(s));
+            s.uri = uri; s.title = s.artist = s.album = s.albumartist = t64;
+            s.genre = t32; s.date = t16; s.track = s.disc = t12;
+            s.duration_ms = 2000000000; s.pos = 1023; s.id = 4000000000u;
+            CHECK(mpdproto_song(&s, b, sizeof(b)) > 0, "the longest song did not fit %d", MPDPROTO_SONG_MAX);
+        }
+
         /* An absent tag is absent, not an empty line: a client shows an
          * empty Artist as an artist named "", where a missing one falls
          * back to the filename. */

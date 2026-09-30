@@ -438,7 +438,7 @@ static bool search_build(storage_id_t vol, const char *mount,
              * exactly this -- one string field out of one flat object,
              * no allocation, no document -- and a catalog line is a flat
              * object of scalars, which is what its contract requires. It
-             * is used as it stands: four calls for four string fields,
+             * is used as it stands: one call per string field,
              * not extended, which its header forbids in capitals.
              *
              * The numbers are not read, and do not need to be: the only
@@ -459,6 +459,14 @@ static bool search_build(storage_id_t vol, const char *mount,
                                 sizeof(cat.artist));
                 jsonpick_string(from, len, "album", cat.album,
                                 sizeof(cat.album));
+                /* 5264: the five the search file carries since .sr4. A
+                 * line from before 5263 has none, and they stay "". */
+                jsonpick_string(from, len, "genre", cat.x.genre, sizeof(cat.x.genre));
+                jsonpick_string(from, len, "date", cat.x.date, sizeof(cat.x.date));
+                jsonpick_string(from, len, "albumartist", cat.x.albumartist,
+                                sizeof(cat.x.albumartist));
+                jsonpick_string(from, len, "track", cat.x.track, sizeof(cat.x.track));
+                jsonpick_string(from, len, "disc", cat.x.disc, sizeof(cat.x.disc));
 
                 const int n2 = mediasearch_encode(&cat, off, line, sizeof(line));
                 if (n2 < 0) {

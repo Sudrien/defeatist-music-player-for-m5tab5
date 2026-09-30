@@ -19433,3 +19433,56 @@ file's end as probed; cue_sheet_t keeps each file's probed seconds
 
 Not built with the IDF; medialib.c and cuedir.c syntax-checked against
 stubs. texttest all passes. Not on the board.
+
+### 5264 -- mpd: genre, date, album artist, track, disc and lengths, served
+
+The last of three. The catalog has held the five tags and a length since
+5263; this sends them, searches them, lists them and sums the lengths.
+
+**One field order, three places.** mpdfilter.h's fields, mediasearch.h's
+(less its ANY) and mpd.c's new rec_fields() are title, artist, album,
+genre, date, album artist, track, disc, file. A pre-filter term was
+already looked up by field + 1; a _Static_assert in mpd.c now pins every
+pair, so the two enums cannot drift. rec_fields() is the one place a
+record becomes fields -- q_exact(), filt_match(), l_value() and the
+stored-playlist search all use it, where each had its own four.
+
+**AlbumArtist falls back to the artist** on a song that has none, in
+rec_fields() and in the search file's line, because MPD's filters and
+`list AlbumArtist` fall back. It is SENT only when the song has its own:
+MPD sends tags as the file has them. Until now albumartist was the
+artist outright; mpdfiltertest's case that pinned that is changed to say
+the fallback is the caller's.
+
+**The search file is `.sr4`**, nine fields a line, and `.sr3` is removed.
+MEDIASEARCH_LINE_MAX is 3072 for 139 more bytes of fields that
+decomposition can double. It is derived, so the index rebuild 5263 forced
+writes it -- no second rebuild. medialib.c picks the five with
+jsonpick_string(), as it did the three; a pre-5263 line leaves them "".
+
+**MPD side.** mpd_song_t carries the five and mpdproto_song() sends them
+with MPD's key names (MPDPROTO_SONG_MAX 2048; the longest song, every
+field at its limit, fits). song_from_rec() fills a song from a record,
+the length included, and replaces the three copies of the three-tag fill;
+the playing entry keeps the player's title, artist, album and length and
+takes the five from the catalog. MPDPROTO_TAG_TYPES is 9, so
+MPDPROTO_MAX_ARGS is 20 by its formula. `tagtypes` lists eight and
+toggles them (TAG_ALL is 255); `list` and `find` take genre, date,
+albumartist, track and disc; `count`, `count ... group`, `stats`
+(db_playtime) and `playlistlength` sum the catalog's lengths -- the
+grouped count carries each song's seconds in its lset entry, after the
+value's NUL, where the comparator never looks. playlistlength opens the
+library when it can, and answers playtime 0 during a reindex rather than
+refusing, since lib_open() would ACK.
+
+Tests: mediasearchtest (the nine-field line, the fallback, a genre and an
+album-artist match, an sr3 line refused), mpdfiltertest (the five by
+name, (genre == '') matching a song without one, and designated
+initializers, since the old positional arrays would have slid), and
+mpdprototest (the five in order; the longest song fits). The tests that
+used genre as a tag no song has use composer now. mpdcheck: tagtypes
+has the five, `find` on each the test file carries, `list genre` has its
+genre, stats has db_playtime, and count's playtime equals the song's Time.
+
+texttest all passes; mpd.c syntax-checked against stubs. Not built with
+the IDF, not on the board.

@@ -44,7 +44,7 @@
 extern "C" {
 #endif
 
-#define MEDIASEARCH_NAME        ".defeatist.sr3"
+#define MEDIASEARCH_NAME        ".defeatist.sr4"
 #define MEDIASEARCH_TEMP_NAME   ".defeatist.srn"
 
 /*
@@ -54,15 +54,21 @@ extern "C" {
  * sr1 folded ASCII only (5129-5138); sr2 folds with casefold.h (5243).
  * The lines are written folded, so an sr1 read by this build would miss
  * every accented match -- a new name is the rebuild, as for the index.
- * sr3 normalises as well (5256). The automatic reindex after each mount
- * writes the sr3.
+ * sr3 normalises as well (5256). sr4 carries genre, date, album artist,
+ * track and disc (5264). The automatic reindex after each mount writes
+ * the sr4.
  */
-#define MEDIASEARCH_OLD_NAMES   { ".defeatist.sr1", ".defeatist.sr2" }
+#define MEDIASEARCH_OLD_NAMES   { ".defeatist.sr1", ".defeatist.sr2", ".defeatist.sr3" }
 
 /*
- * A line: the catalog offset, then four folded fields, tab-separated.
+ * A line: the catalog offset, then nine folded fields, tab-separated.
  *
- *     0004a1f7<TAB>title<TAB>artist<TAB>album<TAB>path<NL>
+ *     0004a1f7<TAB>title<TAB>artist<TAB>album<TAB>genre<TAB>date<TAB>
+ *              albumartist<TAB>track<TAB>disc<TAB>path<NL>
+ *
+ * (one line; 5264 put the five between album and path). The album
+ * artist is written with MPD's fallback to the artist already applied,
+ * as MPD's own filters and `list AlbumArtist` apply it.
  *
  * Eight hex digits and not a decimal, so the offset is fixed width and
  * the fields start at a known column; lower case hex so the whole line
@@ -78,8 +84,8 @@ extern "C" {
 /* 5256: 2048, from 1024. The longest line was about 710 bytes (three
  * 63-byte tags and a 506-byte path), and decomposition can more than
  * double an accented field: ᾏ, three bytes, is Α and three marks,
- * seven. */
-#define MEDIASEARCH_LINE_MAX    (2048)
+ * seven. 5264: 3072, for 139 more bytes of fields that can do the same. */
+#define MEDIASEARCH_LINE_MAX    (3072)
 #define MEDIASEARCH_OFF_DIGITS  (8)
 
 typedef enum {
@@ -87,9 +93,17 @@ typedef enum {
     MEDIASEARCH_TITLE,
     MEDIASEARCH_ARTIST,
     MEDIASEARCH_ALBUM,
+    MEDIASEARCH_GENRE,          /* 5264: the five */
+    MEDIASEARCH_DATE,
+    MEDIASEARCH_ALBUMARTIST,
+    MEDIASEARCH_TRACK,
+    MEDIASEARCH_DISC,
     MEDIASEARCH_FILE,
     MEDIASEARCH_FIELDS          /* not a field; the count */
 } mediasearch_field_t;
+
+/* The fields a line holds: all but ANY. */
+#define MEDIASEARCH_NF  ((int)MEDIASEARCH_FIELDS - 1)
 
 /*
  * Folding: simple case folding by casefold.h, and tabs and newlines
@@ -153,9 +167,14 @@ static inline int mediasearch_encode(const mediacat_rec_t *r, uint32_t cat_off,
     }
 
     size_t n = MEDIASEARCH_OFF_DIGITS;
-    const char *const field[4] = { r->title, r->artist, r->album, r->path };
+    const char *const field[MEDIASEARCH_NF] = {
+        r->title, r->artist, r->album,
+        r->x.genre, r->x.date,
+        r->x.albumartist[0] ? r->x.albumartist : r->artist,        /* 5264 */
+        r->x.track, r->x.disc, r->path,
+    };
 
-    for (int f = 0; f < 4; f++) {
+    for (int f = 0; f < MEDIASEARCH_NF; f++) {
         if (n + 1 >= out_size) return -1;
         out[n++] = '\t';
         const int w = mediasearch_fold(field[f], out + n, out_size - n);
@@ -172,8 +191,8 @@ static inline int mediasearch_encode(const mediacat_rec_t *r, uint32_t cat_off,
 /* One line, taken apart in place. Pointers into `line`, not copies. */
 typedef struct {
     uint32_t    cat_off;
-    const char *f[4];           /* title, artist, album, path */
-    size_t      len[4];
+    const char *f[MEDIASEARCH_NF];      /* mediasearch_field_t's order, less ANY */
+    size_t      len[MEDIASEARCH_NF];
     const char *body;           /* the fields, for MEDIASEARCH_ANY */
     size_t      body_len;
 } mediasearch_line_t;
@@ -195,7 +214,7 @@ static inline bool mediasearch_parse(const char *line, size_t len,
 {
     if (!line || !out) return false;
     while (len && (line[len - 1] == '\n' || line[len - 1] == '\r')) len--;
-    if (len < MEDIASEARCH_OFF_DIGITS + 4) return false;   /* offset + 4 tabs */
+    if (len < MEDIASEARCH_OFF_DIGITS + MEDIASEARCH_NF) return false;   /* offset + a tab each */
 
     uint32_t off = 0;
     for (int i = 0; i < MEDIASEARCH_OFF_DIGITS; i++) {
@@ -211,7 +230,7 @@ static inline bool mediasearch_parse(const char *line, size_t len,
     out->body     = line + p + 1;
     out->body_len = len - p - 1;
 
-    for (int f = 0; f < 4; f++) {
+    for (int f = 0; f < MEDIASEARCH_NF; f++) {
         if (p >= len || line[p] != '\t') return false;
         p++;
         const char *start = line + p;
@@ -219,7 +238,7 @@ static inline bool mediasearch_parse(const char *line, size_t len,
         out->f[f]   = start;
         out->len[f] = (size_t)(line + p - start);
     }
-    if (p != len) return false;            /* a fifth field is not ours */
+    if (p != len) return false;            /* one field too many is not ours */
 
     out->cat_off = off;
     return true;
@@ -256,7 +275,7 @@ static inline bool mediasearch_contains_(const char *hay, size_t hn,
  * a tab boundary could match text that is in no single field. Accepted:
  * `any` is a client's "search everything" and a false positive there is
  * a row the user did not expect rather than a wrong answer, while the
- * alternative is four searches per line.
+ * alternative is a search per field per line.
  */
 static inline bool mediasearch_match(const mediasearch_line_t *l,
                                      mediasearch_field_t field,

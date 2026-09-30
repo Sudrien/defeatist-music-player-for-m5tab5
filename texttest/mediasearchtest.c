@@ -179,13 +179,18 @@ int main(void)
         const int n = mediasearch_encode(&r, 0x4a1f7, line, sizeof(line));
         CHECK(n > 0, "encode refused a good record");
 
-        /* Written out by hand: eight lower-case hex digits, then four
-         * tab-separated folded fields, then a newline. */
+        /* Written out by hand: eight lower-case hex digits, then nine
+         * tab-separated folded fields, then a newline. 5264: genre, date,
+         * album artist, track and disc between the album and the path --
+         * the album artist, untagged, falling back to the artist. */
         const char *want =
             "0004a1f7\t"
             "everything in its right place\t"
             "radiohead\t"
             "kid a\t"
+            "\t\t"
+            "radiohead\t"
+            "\t\t"
             "radiohead/kid a/01 everything.flac\n";
         CHECK(n == (int)strlen(want) && strcmp(line, want) == 0,
               "line was\n  \"%s\"\nwanted\n  \"%s\"", line, want);
@@ -211,8 +216,35 @@ int main(void)
          * findable by its path. */
         mediacat_rec_t bare = rec("Odd/file.mp3", "", "", "");
         const int m = mediasearch_encode(&bare, 0, line, sizeof(line));
-        CHECK(m > 0 && strcmp(line, "00000000\t\t\t\todd/file.mp3\n") == 0,
+        CHECK(m > 0 && strcmp(line, "00000000\t\t\t\t\t\t\t\t\todd/file.mp3\n") == 0,
               "untagged: got \"%s\"", line);
+
+        /* 5264: the five, folded like the rest, and an album artist of
+         * its own rather than the fallback. */
+        mediacat_rec_t ex = r;
+        snprintf(ex.x.genre, sizeof(ex.x.genre), "Alternative ROCK");
+        snprintf(ex.x.date, sizeof(ex.x.date), "2000-10-02");
+        snprintf(ex.x.albumartist, sizeof(ex.x.albumartist), "Various Artists");
+        snprintf(ex.x.track, sizeof(ex.x.track), "1/10");
+        snprintf(ex.x.disc, sizeof(ex.x.disc), "1");
+        const int q = mediasearch_encode(&ex, 1, line, sizeof(line));
+        CHECK(q > 0 && strcmp(line, "00000001\teverything in its right place\tradiohead\tkid a\t"
+                                    "alternative rock\t2000-10-02\tvarious artists\t1/10\t1\t"
+                                    "radiohead/kid a/01 everything.flac\n") == 0,
+              "5264 extras: got \"%s\"", line);
+        {
+            mediasearch_line_t pe;
+            char nd[64];
+            mediasearch_fold("Rock", nd, sizeof(nd));
+            CHECK(mediasearch_parse(line, strlen(line), &pe) &&
+                  mediasearch_match(&pe, MEDIASEARCH_GENRE, nd) &&
+                  !mediasearch_match(&pe, MEDIASEARCH_TITLE, nd),
+                  "5264: a genre search found the wrong field");
+            mediasearch_fold("various", nd, sizeof(nd));
+            CHECK(mediasearch_match(&pe, MEDIASEARCH_ALBUMARTIST, nd) &&
+                  !mediasearch_match(&pe, MEDIASEARCH_ARTIST, nd),
+                  "5264: album artist and artist are separate fields");
+        }
 
         /* No room is a refusal. */
         char small[16];
@@ -222,14 +254,17 @@ int main(void)
 
     /* ---- parsing ---------------------------------------------------- */
     {
-        const char *l = "0004a1f7\tthe title\tthe artist\tthe album\tthe/path.flac\n";
+        const char *l = "0004a1f7\tthe title\tthe artist\tthe album\tg\td\taa\tt\tdi\tthe/path.flac\n";
         mediasearch_line_t p;
         CHECK(mediasearch_parse(l, strlen(l), &p), "a good line was refused");
         CHECK(p.cat_off == 0x4a1f7, "offset read as %u", p.cat_off);
         CHECK(p.len[0] == 9 && memcmp(p.f[0], "the title", 9) == 0, "title");
         CHECK(p.len[1] == 10 && memcmp(p.f[1], "the artist", 10) == 0, "artist");
         CHECK(p.len[2] == 9 && memcmp(p.f[2], "the album", 9) == 0, "album");
-        CHECK(p.len[3] == 13 && memcmp(p.f[3], "the/path.flac", 13) == 0, "path");
+        CHECK(p.len[3] == 1 && p.f[3][0] == 'g', "genre (5264)");
+        CHECK(p.len[5] == 2 && memcmp(p.f[5], "aa", 2) == 0, "album artist (5264)");
+        CHECK(p.len[7] == 2 && memcmp(p.f[7], "di", 2) == 0, "disc (5264)");
+        CHECK(p.len[8] == 13 && memcmp(p.f[8], "the/path.flac", 13) == 0, "path");
 
         /* With and without the newline, and with CRLF. */
         char noeol[128];
@@ -241,18 +276,19 @@ int main(void)
         CHECK(mediasearch_parse(crlf, strlen(crlf), &p), "CRLF was refused");
 
         /* Empty fields are fields. */
-        const char *e = "00000000\t\t\t\tp\n";
+        const char *e = "00000000\t\t\t\t\t\t\t\t\tp\n";
         CHECK(mediasearch_parse(e, strlen(e), &p) && p.len[0] == 0 &&
-              p.len[3] == 1, "all-empty tags were refused");
+              p.len[8] == 1, "all-empty tags were refused");
 
         /* Not ours. */
         const char *bad[] = {
-            "0004a1f\ta\tb\tc\td\n",         /* seven digits */
-            "0004A1F7\ta\tb\tc\td\n",        /* upper case hex */
-            "0004a1g7\ta\tb\tc\td\n",        /* not hex */
-            "0004a1f7\ta\tb\tc\n",           /* three fields */
-            "0004a1f7\ta\tb\tc\td\te\n",     /* five fields */
-            "0004a1f7 a\tb\tc\td\n",         /* space where a tab goes */
+            "0004a1f\ta\tb\tc\t\t\t\t\t\td\n",       /* seven digits */
+            "0004A1F7\ta\tb\tc\t\t\t\t\t\td\n",      /* upper case hex */
+            "0004a1g7\ta\tb\tc\t\t\t\t\t\td\n",      /* not hex */
+            "0004a1f7\ta\tb\tc\td\n",             /* four fields: an sr3 line */
+            "0004a1f7\ta\tb\tc\t\t\t\t\td\n",        /* eight fields */
+            "0004a1f7\ta\tb\tc\t\t\t\t\t\td\te\n",   /* ten fields */
+            "0004a1f7 a\tb\tc\t\t\t\t\t\td\n",       /* space where a tab goes */
             "\n",
             "",
         };

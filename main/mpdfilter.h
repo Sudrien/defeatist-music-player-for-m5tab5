@@ -66,11 +66,18 @@
 extern "C" {
 #endif
 
-/* The fields a song is compared on, in this order in mpdfilter_eval(). */
+/* The fields a song is compared on, in this order in mpdfilter_eval().
+ * 5264: the same order as mediasearch_field_t less its ANY, which
+ * mpd.c asserts -- a pre-filter term is looked up by field + 1. */
 enum {
     MPDF_TITLE = 0,
     MPDF_ARTIST,
     MPDF_ALBUM,
+    MPDF_GENRE,             /* 5264 */
+    MPDF_DATE,
+    MPDF_ALBUMARTIST,       /* the artist when the song has none (MPD's fallback) */
+    MPDF_TRACK,
+    MPDF_DISC,
     MPDF_FILE,              /* the URI */
     MPDF_NFIELDS,
     MPDF_ANY = -1,          /* every field */

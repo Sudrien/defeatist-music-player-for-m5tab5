@@ -353,6 +353,9 @@ class Checker:
         r = self.expect_ok("tagtypes", "tagtypes") or []
         tags = {v for k, v in pairs(r) if k == "tagtype"}
         self.ok("tagtypes has Artist, Album, Title", {"Artist", "Album", "Title"} <= tags, str(tags))
+        # 5264: and the catalog's other five.
+        self.ok("tagtypes has AlbumArtist, Genre, Date, Track, Disc",
+                {"AlbumArtist", "Genre", "Date", "Track", "Disc"} <= tags, str(tags))
         r = self.expect_ok("urlhandlers", "urlhandlers") or []
         self.ok("urlhandlers has http:// and https://",
                 {"http://", "https://"} <= {v for k, v in pairs(r) if k == "handler"}, repr(r))
@@ -515,7 +518,8 @@ class Checker:
         self.ok("window 0:1 gives at most one", len(files_of(r)) <= 1, repr(r))
         r = self.expect_ok("count file <uri>", f"count file {q(f0)}") or []
         self.ok("count gives songs: 1", kv(r).get("songs") == "1", repr(r))
-        self.expect_ok("find genre x (a tag not held) is empty OK", 'find genre "x"')
+        # Composer, since 5264 made genre a tag the library holds.
+        self.expect_ok("find composer x (a tag not held) is empty OK", 'find composer "x"')
         self.expect_ack("find with an odd argument count is ARG", "find artist", 2)
         # 5239: MPD 0.21's filter expressions. The protocol quotes the
         # whole expression; q() does that, and the expression quotes its
@@ -549,8 +553,8 @@ class Checker:
         r = self.expect_ok("count (base folder)", f"count {fx(f'(base {sq(folder)})')}") or []
         want = kv(self.c.cmd(f"count base {q(folder)}")).get("songs")
         self.ok("expression count matches the pair form", kv(r).get("songs") == want, repr(r))
-        r = self.expect_ok("find (genre != x) with window 0:1",
-                           "find " + fx("(genre != 'x')") + " window 0:1") or []
+        r = self.expect_ok("find (composer != x) with window 0:1",
+                           "find " + fx("(composer != 'x')") + " window 0:1") or []
         self.ok("window pages an expression's answer", len(files_of(r)) <= 1, repr(r))
         self.expect_ok("list artist (base folder)", f"list artist {fx(f'(base {sq(folder)})')}")
         self.expect_ack("expression syntax error is ARG", "find " + fx("(artist == 'x'"), 2)
@@ -560,9 +564,12 @@ class Checker:
         self.expect_ack("modified-since is refused (not supported)",
                         "find " + fx("(modified-since '2020-01-01T00:00:00Z')"), 5)
 
-        for t in ("artist", "album", "title"):
-            if self.tags.get(t.capitalize()):
-                r = self.expect_ok(f"find {t} <its {t}>", f"find {t} {q(self.tags[t.capitalize()])}") or []
+        # 5264: the catalog's other five, by MPD's key for each.
+        for t, key in (("artist", "Artist"), ("album", "Album"), ("title", "Title"),
+                       ("albumartist", "AlbumArtist"), ("genre", "Genre"), ("date", "Date"),
+                       ("track", "Track"), ("disc", "Disc")):
+            if self.tags.get(key):
+                r = self.expect_ok(f"find {t} <its {t}>", f"find {t} {q(self.tags[key])}") or []
                 self.ok(f"find {t} finds it", f0 in files_of(r))
             else:
                 self.skip(f"find {t}", f"the file has no {t} tag")
@@ -571,7 +578,16 @@ class Checker:
             self.ok("list artist has the file's artist", self.tags["Artist"] in [v for k, v in pairs(r)])
         self.expect_ok("list album", "list album")
         self.expect_ok("list album group albumartist", "list album group albumartist")
-        self.expect_ok("list genre (not held) is empty OK", "list genre")
+        # 5264: genre is held now; composer is not.
+        r = self.expect_ok("list genre", "list genre") or []
+        if self.tags.get("Genre"):
+            self.ok("list genre has the file's genre", self.tags["Genre"] in [v for k, v in pairs(r)])
+        self.expect_ok("list composer (not held) is empty OK", "list composer")
+        r = self.expect_ok("stats (5264: db_playtime)", "stats") or []
+        self.ok("stats has db_playtime", "db_playtime" in kv(r), repr(r))
+        if self.tags.get("Time"):
+            r = self.expect_ok("count file <uri> (playtime)", f"count file {q(f0)}") or []
+            self.ok("count's playtime is the song's Time", kv(r).get("playtime") == self.tags["Time"], repr(r))
 
         if self.a.reindex:
             # 5236: a job id, and the run waited out -- while it runs the
@@ -805,7 +821,7 @@ class Checker:
         r = self.expect_ok("playlistsearch (file contains PART)",
                            f"playlistsearch {q(f'(file contains {sq(up4(base))})')}") or []
         self.ok("expression playlistsearch finds it", f[1] in files_of(r), repr(r))
-        r = self.expect_ok("playlistfind genre x (not held)", 'playlistfind genre "x"') or []
+        r = self.expect_ok("playlistfind composer x (not held)", 'playlistfind composer "x"') or []
         self.ok("playlistfind on an unheld tag is empty", r == [], repr(r))
         self.expect_ack("playlistfind odd arguments is ARG", "playlistfind file", 2)
 
@@ -1293,7 +1309,7 @@ class Checker:
         self.expect_ok("tagtypes disable Artist Album", "tagtypes disable Artist Album")
         r = [v for k, v in pairs(self.c.cmd("tagtypes"))]
         self.ok("disable takes both away", "Artist" not in r and "Album" not in r, repr(r))
-        self.expect_ok("tagtypes enable a tag the library has none of", "tagtypes enable Genre")
+        self.expect_ok("tagtypes enable a tag the library has none of", "tagtypes enable Composer")
         self.expect_ack("tagtypes enable an unknown tag is ARG", "tagtypes enable NoSuchTag", 2)
         self.expect_ack("tagtypes with an unknown sub-command is ARG", "tagtypes frob", 2)
         self.c.cmd("tagtypes all")

@@ -26,11 +26,14 @@ static int checks, failures;
 
 static mpdfilter_t F;
 
-/* One song: title, artist, album, uri. */
-static const char *const SONG[MPDF_NFIELDS] = {
-    "Something", "The Beatles", "Abbey Road", "sd/Beatles/Abbey Road/02 Something.flac",
-};
-static const char *const BARE[MPDF_NFIELDS] = { "", "", "", "sd/Recordings/x.flac" };
+/* One song: title, artist, album, uri -- by name since 5264, when the
+ * fields between album and uri arrived; a field left out is NULL, which
+ * eval reads as "". */
+#define S4(t, a, al, u) { [MPDF_TITLE] = (t), [MPDF_ARTIST] = (a), \
+                          [MPDF_ALBUM] = (al), [MPDF_FILE] = (u) }
+static const char *const SONG[MPDF_NFIELDS] =
+    S4("Something", "The Beatles", "Abbey Road", "sd/Beatles/Abbey Road/02 Something.flac");
+static const char *const BARE[MPDF_NFIELDS] = S4("", "", "", "sd/Recordings/x.flac");
 
 static void match(const char *expr, const char *const *song, bool fold, bool want)
 {
@@ -70,7 +73,7 @@ int main(void)
     match("(artist starts_with 'the b')", SONG, false, false);
     match("(artist starts_with 'the b')", SONG, true, true);
     match("(artist starts_with '')", SONG, false, true);
-    match("(genre starts_with '')", SONG, false, false);
+    match("(composer starts_with '')", SONG, false, false);
     match("(!(artist starts_with 'The'))", SONG, false, false);
     /* 5257: 0.24's explicit case and negated operators. */
     match("(artist eq_ci 'the beatles')", SONG, false, true);       /* find, told to fold */
@@ -86,22 +89,55 @@ int main(void)
     match("(artist !starts_with 'The')", SONG, false, false);
     match("(artist starts_with_ci 'THE')", SONG, false, true);
     match("(artist !starts_with_cs 'the')", SONG, true, true);
-    match("(genre !contains 'x')", SONG, false, true);
+    match("(composer !contains 'x')", SONG, false, true);
     match("(prio >= 0)", SONG, false, true);
     match("(prio >= 1)", SONG, false, false);
     match("((prio >= 0) AND (artist == 'The Beatles'))", SONG, false, true);
     match("(title == 'Something')", SONG, false, true);
-    match("(AlbumArtist == 'The Beatles')", SONG, false, true);   /* as artist */
+    /* 5264: AlbumArtist is its own field, and the fallback to the
+     * artist is the caller's (mpd.c's rec_fields()), not this file's --
+     * so a song handed in without one has none. */
+    match("(AlbumArtist == 'The Beatles')", SONG, false, false);
+    {
+        static const char *const FB[MPDF_NFIELDS] = {
+            [MPDF_TITLE] = "Something", [MPDF_ARTIST] = "The Beatles",
+            [MPDF_ALBUMARTIST] = "The Beatles", [MPDF_FILE] = "sd/x.flac",
+        };
+        match("(AlbumArtist == 'The Beatles')", FB, false, true);   /* as the caller fills it */
+    }
     match("(file == 'sd/Beatles/Abbey Road/02 Something.flac')", SONG, false, true);
     match("(file contains 'Abbey')", SONG, false, true);
     match("(any == 'Abbey Road')", SONG, false, true);
     match("(any contains 'beat')", SONG, true, true);
     match("(any == 'nothing')", SONG, false, false);
 
-    /* A tag no song here has: == and contains never, != always. */
-    match("(genre == 'Rock')", SONG, false, false);
-    match("(genre contains '')", SONG, false, false);
-    match("(genre != 'Rock')", SONG, false, true);
+    /* 5264: the five fields, by name, and AlbumArtist as its own field --
+     * the caller has applied the fallback, so a song with an album artist
+     * does not match on its artist. */
+    {
+        static const char *const X[MPDF_NFIELDS] = {
+            [MPDF_TITLE] = "Something", [MPDF_ARTIST] = "The Beatles",
+            [MPDF_ALBUM] = "Abbey Road", [MPDF_GENRE] = "Rock", [MPDF_DATE] = "1969-09-26",
+            [MPDF_ALBUMARTIST] = "Beatles, The", [MPDF_TRACK] = "2/17", [MPDF_DISC] = "1",
+            [MPDF_FILE] = "sd/x.flac",
+        };
+        match("(genre == 'Rock')", X, false, true);
+        match("(Genre == 'rock')", X, true, true);
+        match("(date starts_with '1969')", X, false, true);
+        match("(albumartist == 'Beatles, The')", X, false, true);
+        match("(albumartist == 'The Beatles')", X, false, false);
+        match("(track == '2/17')", X, false, true);
+        match("(disc == '1')", X, false, true);
+        match("(any == '1969-09-26')", X, false, true);
+        /* A song without the tag: MPD's (tag == '') is "has none". */
+        match("(genre == '')", SONG, false, true);
+    }
+
+    /* A tag no song here has: == and contains never, != always. Composer
+     * since 5264, which made genre one of the fields. */
+    match("(composer == 'Rock')", SONG, false, false);
+    match("(composer contains '')", SONG, false, false);
+    match("(composer != 'Rock')", SONG, false, true);
 
     /* An empty field is "" -- a recording with no tags. */
     match("(artist == '')", BARE, false, true);
@@ -109,9 +145,8 @@ int main(void)
 
     /* ---- 5244: folding beyond ASCII, as the search file folds --------- */
     {
-        static const char *const U[MPDF_NFIELDS] = {
-            "Angry", "Bôa", "Get There", "usb/Bôa - Get There/01 Angry.mp3",
-        };
+        static const char *const U[MPDF_NFIELDS] =
+            S4("Angry", "Bôa", "Get There", "usb/Bôa - Get There/01 Angry.mp3");
         match("(artist == 'BÔA')", U, true, true);
         match("(artist == 'BÔA')", U, false, false);        /* find stays exact */
         match("(file contains 'BÔA ')", U, true, true);
@@ -125,14 +160,14 @@ int main(void)
         match("(artist starts_with 'bo\xcc\x82')", U, true, true);
         match("(artist == 'Boa')", U, true, false);          /* the accent is kept */
         match("(file starts_with 'USB/BÔA')", U, true, true);
-        static const char *const G[MPDF_NFIELDS] = { "Οδός", "ΜΆΝΟΣ", "x", "sd/x" };
+        static const char *const G[MPDF_NFIELDS] = S4("Οδός", "ΜΆΝΟΣ", "x", "sd/x");
         match("(artist == 'μάνος')", G, true, true);          /* Σ and ς both σ */
         match("(title contains 'ΟΔΌΣ')", G, true, true);
-        static const char *const C[MPDF_NFIELDS] = { "Ёлка", "Кино", "Группа крови", "sd/x" };
+        static const char *const C[MPDF_NFIELDS] = S4("Ёлка", "Кино", "Группа крови", "sd/x");
         match("(album contains 'КРОВИ')", C, true, true);
         match("(title == 'ёЛКА')", C, true, true);
         /* A match starts on a character, never inside one. */
-        static const char *const M[MPDF_NFIELDS] = { "é", "x", "x", "sd/x" };
+        static const char *const M[MPDF_NFIELDS] = S4("é", "x", "x", "sd/x");
         match("(title contains '\xa9')", M, true, false);
     }
 
@@ -159,11 +194,11 @@ int main(void)
     /* ---- escapes: MPD's doc example, as it arrives after the protocol's
      * own unquoting: (Artist == "foo\'bar\"") is foo'bar" ---------------- */
     {
-        static const char *const Q[MPDF_NFIELDS] = { "t", "foo'bar\"", "a", "sd/x" };
+        static const char *const Q[MPDF_NFIELDS] = S4("t", "foo'bar\"", "a", "sd/x");
         match("(Artist == \"foo\\'bar\\\"\")", Q, false, true);
         match("(Artist == 'foo\\'bar\"')", Q, false, true);
         match("(Artist == \"foo'bar\\\"\")", Q, false, true);
-        static const char *const B[MPDF_NFIELDS] = { "t", "back\\slash", "a", "sd/x" };
+        static const char *const B[MPDF_NFIELDS] = S4("t", "back\\slash", "a", "sd/x");
         match("(artist == 'back\\\\slash')", B, false, true);
     }
 
@@ -225,7 +260,7 @@ int main(void)
     {
         int req[8];
         mpdfilter_parse("((artist == 'A') AND (album contains 'B') AND (!(title == 'C')) "
-                        "AND (genre == 'D') AND (title != 'E'))", &F);
+                        "AND (composer == 'D') AND (title != 'E'))", &F);
         const int n = mpdfilter_required(&F, req, 8);
         CHECK(n == 2, "required: %d terms, want 2 (artist ==, album contains)", n);
         for (int i = 0; i < n; i++)

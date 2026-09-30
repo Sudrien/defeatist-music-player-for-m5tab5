@@ -533,12 +533,16 @@ behaviour, and all of it is outside mpd.c:
   each track as it is left forward, as stock MPD does -- and springs
   back with random or single set; with repeat, repeat springs back.
   Needs the player to have those orders.
-- **Tags the index does not keep**: genre, date, album artist (served
-  as the artist), track and disc number. `list genre` is empty and a
-  client shows them as unknown. An index-format change
-  (MEDIA-INDEX.md).
-- **No lengths in the catalog**, so `count` and `stats` say no
-  playtime and a queue entry that is not playing has no duration.
+- **Tags and lengths: kept since 5262-5264.** Genre, date, album
+  artist, track and disc are read from ID3v2, Vorbis comments, MP4 and
+  cue sheets, stored in the catalog with each track's length, and sent,
+  searched, listed and filtered on; `count`, `stats` and
+  `playlistlength` sum the lengths. The index was renamed `.ix3` to
+  read them all, so the first mount after the update is a first
+  index's time. What is left: an MP3 without a Xing, Info or VBRI
+  header has no length until it is played (the container does not say,
+  and file size over bitrate is refused); other tags (composer,
+  performer, the sort tags, MusicBrainz ids) are still not kept.
 
 Refused on purpose, each with its reason: turning the one output off,
 crossfade and MixRamp other than off, a second partition, mounting,
@@ -566,7 +570,7 @@ a range, and `playlistadd` at a position (5251); `add` at a position
 are answered for one of each (5180). Refused in these versions' terms,
 each with a reason: a regex in a filter, `modified-since` and
 `AudioFormat` filters, `getfingerprint`. Songs, cue tracks included,
-carry no duration or audio format -- the catalog keeps neither. Of 0.24,
+carry no audio format -- the catalog keeps none (a duration since 5264). Of 0.24,
 `consume oneshot` (EAT for the song playing, then consume off) and
 `starts_with` in filters are answered (5253) and `save`'s mode was
 already. The rest of 0.24 is 5257, and the greeting says 0.24.0:

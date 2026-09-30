@@ -344,7 +344,10 @@ typedef struct {
 
 /* 5241: the tags this catalog holds, as `tagtypes` names them. A client
  * may turn each off (MPD 0.21's tagtypes clear/enable/disable/all). */
-enum { TAG_ARTIST = 1, TAG_ALBUM = 2, TAG_TITLE = 4, TAG_ALL = 7 };
+enum { TAG_ARTIST = 1, TAG_ALBUM = 2, TAG_TITLE = 4,
+       /* 5264: the catalog's other five */
+       TAG_ALBUMARTIST = 8, TAG_GENRE = 16, TAG_DATE = 32, TAG_TRACK = 64, TAG_DISC = 128,
+       TAG_ALL = 255 };
 
 /* 5241: single oneshot. `oneshot` is set while ONE stands in for it,
  * and `was` is the order to go back to when the song ends; `id` is the
@@ -652,11 +655,61 @@ static void song_mask(const conn_t *c, mpd_song_t *s)
     if (!(c->tags & TAG_ARTIST)) s->artist = NULL;
     if (!(c->tags & TAG_ALBUM))  s->album = NULL;
     if (!(c->tags & TAG_TITLE))  s->title = NULL;
+    if (!(c->tags & TAG_ALBUMARTIST)) s->albumartist = NULL;      /* 5264 */
+    if (!(c->tags & TAG_GENRE))  s->genre = NULL;
+    if (!(c->tags & TAG_DATE))   s->date = NULL;
+    if (!(c->tags & TAG_TRACK))  s->track = NULL;
+    if (!(c->tags & TAG_DISC))   s->disc = NULL;
+}
+
+/* 5264: a song's tags and length from its catalog record. The strings
+ * point into `m`, so the song is printed before `m` is read over, as
+ * lib_tags() already required. A field the record has none of is NULL;
+ * a length it has none of leaves duration_ms as it was. */
+static void song_from_rec(mpd_song_t *s, const mediacat_rec_t *m)
+{
+    s->title = m->title[0] ? m->title : NULL;
+    s->artist = m->artist[0] ? m->artist : NULL;
+    s->album = m->album[0] ? m->album : NULL;
+    s->albumartist = m->x.albumartist[0] ? m->x.albumartist : NULL;
+    s->genre = m->x.genre[0] ? m->x.genre : NULL;
+    s->date = m->x.date[0] ? m->x.date : NULL;
+    s->track = m->x.track[0] ? m->x.track : NULL;
+    s->disc = m->x.disc[0] ? m->x.disc : NULL;
+    if (m->time) s->duration_ms = (int32_t)(m->time > 2000000u ? 2000000000 : m->time * 1000);
+}
+
+/*
+ * 5264: a record's fields in mpdfilter.h's order, for a filter or an
+ * exact compare. AlbumArtist falls back to the artist when the song has
+ * none -- MPD's own rule for filters and `list`, and what the search
+ * file's line holds (mediasearch.h). The search file's fields are these
+ * less ANY, so a pre-filter term is looked up by field + 1; pinned.
+ */
+_Static_assert(MPDF_TITLE + 1 == MEDIASEARCH_TITLE && MPDF_ARTIST + 1 == MEDIASEARCH_ARTIST &&
+               MPDF_ALBUM + 1 == MEDIASEARCH_ALBUM && MPDF_GENRE + 1 == MEDIASEARCH_GENRE &&
+               MPDF_DATE + 1 == MEDIASEARCH_DATE && MPDF_ALBUMARTIST + 1 == MEDIASEARCH_ALBUMARTIST &&
+               MPDF_TRACK + 1 == MEDIASEARCH_TRACK && MPDF_DISC + 1 == MEDIASEARCH_DISC &&
+               MPDF_FILE + 1 == MEDIASEARCH_FILE && MPDF_NFIELDS == MEDIASEARCH_NF,
+               "mpdfilter.h's fields and mediasearch.h's have come apart");
+
+static void rec_fields(const mediacat_rec_t *r, const char *uri, const char *f[MPDF_NFIELDS])
+{
+    f[MPDF_TITLE] = r->title;
+    f[MPDF_ARTIST] = r->artist;
+    f[MPDF_ALBUM] = r->album;
+    f[MPDF_GENRE] = r->x.genre;
+    f[MPDF_DATE] = r->x.date;
+    f[MPDF_ALBUMARTIST] = r->x.albumartist[0] ? r->x.albumartist : r->artist;
+    f[MPDF_TRACK] = r->x.track;
+    f[MPDF_DISC] = r->x.disc;
+    f[MPDF_FILE] = uri;
 }
 
 /* Entry i of the pinned list. The playing song carries its tags and its
  * length; since 5185 the others carry the catalog's tags when the
- * library is open for the command (lib_tags()), and no length. */
+ * library is open for the command (lib_tags()), and since 5264 its
+ * length, when the container stated one. */
 static void put_entry(conn_t *c, int i)
 {
     const bool cur = i == s_view->song;
@@ -672,13 +725,21 @@ static void put_entry(conn_t *c, int i)
     if (!cur) (void)lib_tags(s.uri, &s);
     /* 5187: the playing song's own tags are the player's, and a field the
      * player has none for is filled from the catalog -- Cantata showed
-     * unknown artist and album on the playing entry and nowhere else. */
-    else if (!(s.title && s.title[0]) || !(s.artist && s.artist[0]) || !(s.album && s.album[0])) {
-        mpd_song_t k = { 0 };
+     * unknown artist and album on the playing entry and nowhere else.
+     * 5264: the player has none of the other five, so those are always
+     * the catalog's; its length stays the player's. */
+    else {
+        mpd_song_t k = { .duration_ms = -1 };
         if (lib_tags(s.uri, &k)) {
             if (!(s.title && s.title[0]))   s.title = k.title;
             if (!(s.artist && s.artist[0])) s.artist = k.artist;
             if (!(s.album && s.album[0]))   s.album = k.album;
+            s.albumartist = k.albumartist;
+            s.genre = k.genre;
+            s.date = k.date;
+            s.track = k.track;
+            s.disc = k.disc;
+            if (s.duration_ms < 0) s.duration_ms = k.duration_ms;
         }
     }
     song_mask(c, &s);                                               /* 5241 */
@@ -1485,18 +1546,14 @@ static midx_src_t *lib_src(int v) { return s_rd_open[v] ? &s_rd[v].src : NULL; }
 
 /*
  * One file's lines: its URI, and its tags from the catalog when they can
- * be read. No Time or duration: the catalog does not hold a length, and
- * reading one means opening the file. A client shows the song without it.
+ * be read. 5264: and its length, when the container stated one -- the
+ * catalog has kept it since 5263. A file whose container does not say (an
+ * MP3 with no Xing header) is sent without Time, as every file was.
  */
 static void put_lib_file(conn_t *c, int v, const midx_rec_t *r, const char *uri, bool tags)
 {
     mpd_song_t s = { .uri = uri, .duration_ms = -1, .pos = -1 };
-    if (tags && medialib_rd_cat(&s_rd[v], r->cat_off)) {
-        const mediacat_rec_t *m = s_rd[v].rec;
-        s.title = m->title[0] ? m->title : NULL;
-        s.artist = m->artist[0] ? m->artist : NULL;
-        s.album = m->album[0] ? m->album : NULL;
-    }
+    if (tags && medialib_rd_cat(&s_rd[v], r->cat_off)) song_from_rec(&s, s_rd[v].rec);
     song_mask(c, &s);                                               /* 5241 */
     const size_t n = mpdproto_song(&s, s_body, MPD_BODY_MAX);
     if (n) put(c, s_body, n);
@@ -1559,10 +1616,7 @@ static bool lib_tags(const char *uri, mpd_song_t *s)
     midx_rec_t *const r = &s_lib->rec;
     const int v = lib_file(uri, r);
     if (v < 0 || !medialib_rd_cat(&s_rd[v], r->cat_off)) return false;
-    const mediacat_rec_t *m = s_rd[v].rec;
-    s->title = m->title[0] ? m->title : NULL;
-    s->artist = m->artist[0] ? m->artist : NULL;
-    s->album = m->album[0] ? m->album : NULL;
+    song_from_rec(s, s_rd[v].rec);                                  /* 5264 */
     return true;
 }
 
@@ -1766,15 +1820,15 @@ static result_t lib_listall(const ctx_t *x, const char *uri, bool info)
  * is read out of the catalog at its offset, for the real path and tags:
  * `find` then compares those exactly, and both write the song from them.
  *
- * WHAT THE LIBRARY KNOWS: title, artist, album and the path. So:
- *   - `any`, `title`, `artist`, `album` and `file` are searched;
- *   - `albumartist` is searched as `artist`, since the catalog keeps no
- *     album artist and the track artist is what a client using it
- *     usually gets on a single-artist album -- said, not pretended;
+ * WHAT THE LIBRARY KNOWS: title, artist, album and the path -- and since
+ * 5264 genre, date, album artist, track and disc. So:
+ *   - `any`, those eight and `file` are searched;
+ *   - `albumartist` falls back to the artist on a song with none, as MPD's
+ *     own does (until 5264 it was the artist, the catalog keeping none);
  *   - `base DIR` limits to a folder of the library, exactly;
- *   - every other tag (genre, date, track, composer, ...) is one this
- *     device never read, so nothing matches it and the answer is empty,
- *     rather than an ACK that would make a client stop asking;
+ *   - every other tag (composer, performer, ...) is one this device never
+ *     read, so nothing matches it and the answer is empty, rather than an
+ *     ACK that would make a client stop asking;
  *   - `window START:END` pages the results; `sort` is ignored, and the
  *     answer is in path order, SD's volume first.
  * Filter expressions, "(artist == 'x')", are MPD 0.21's newer form and
@@ -1809,8 +1863,12 @@ static bool q_tag(const char *t, qpair_t *p)
 {
     static const struct { const char *name; mediasearch_field_t f; } tags[] = {
         { "any", MEDIASEARCH_ANY }, { "title", MEDIASEARCH_TITLE },
-        { "artist", MEDIASEARCH_ARTIST }, { "albumartist", MEDIASEARCH_ARTIST },
-        { "album", MEDIASEARCH_ALBUM }, { "file", MEDIASEARCH_FILE },
+        { "artist", MEDIASEARCH_ARTIST }, { "album", MEDIASEARCH_ALBUM },
+        /* 5264: albumartist is its own (with the artist as fallback,
+         * mediasearch.h), and the other four are new. */
+        { "albumartist", MEDIASEARCH_ALBUMARTIST }, { "genre", MEDIASEARCH_GENRE },
+        { "date", MEDIASEARCH_DATE }, { "track", MEDIASEARCH_TRACK },
+        { "disc", MEDIASEARCH_DISC }, { "file", MEDIASEARCH_FILE },
     };
     for (size_t i = 0; i < sizeof(tags) / sizeof(tags[0]); i++) {
         if (strcasecmp(t, tags[i].name) == 0) {
@@ -1835,9 +1893,10 @@ static bool q_exact(const qpair_t *p, const mediacat_rec_t *r, const char *uri, 
                           (uri[n] == '/' || uri[n] == '\0'));
     }
     if (Q_FOLDS(mode)) return true;
-    const char *const f[4] = { r->title, r->artist, r->album, uri };
+    const char *f[MPDF_NFIELDS];
+    rec_fields(r, uri, f);                                          /* 5264 */
     if (p->field == MEDIASEARCH_ANY) {
-        for (int i = 0; i < 4; i++) if (strcmp(f[i], p->value) == 0) return true;
+        for (int i = 0; i < MPDF_NFIELDS; i++) if (strcmp(f[i], p->value) == 0) return true;
         return false;
     }
     return strcmp(f[(int)p->field - 1], p->value) == 0;
@@ -1942,7 +2001,8 @@ static int filt_pairs(qpair_t *pairs, bool *never)
 
 static bool filt_match(const mediacat_rec_t *r, const char *uri, bool fold)
 {
-    const char *const f[MPDF_NFIELDS] = { r->title, r->artist, r->album, uri };
+    const char *f[MPDF_NFIELDS];
+    rec_fields(r, uri, f);                                          /* 5264 */
     return mpdfilter_eval(&s_lib->filt, f, fold);
 }
 
@@ -2004,6 +2064,7 @@ static result_t lib_find(const ctx_t *x, const mpd_cmd_t *cmd, qmode_t mode,
     }
 
     long n_hit = 0;
+    uint64_t n_sec = 0;                 /* 5264: count's playtime */
     if (!never) {
         if (!lib_open(x)) return RES_ERR;
         bool err = false;
@@ -2064,16 +2125,13 @@ static result_t lib_find(const ctx_t *x, const mpd_cmd_t *cmd, qmode_t mode,
                                                          : pl_append(x, pl, s_lib->uri) == RES_OK;
                         if (!ok) { refused = true; break; }
                     } else if (!Q_COUNTS(mode) && n_hit >= w_lo && n_hit < w_hi) {
-                        mpd_song_t sg = {
-                            .uri = s_lib->uri, .duration_ms = -1, .pos = -1,
-                            .title = r->title[0] ? r->title : NULL,
-                            .artist = r->artist[0] ? r->artist : NULL,
-                            .album = r->album[0] ? r->album : NULL,
-                        };
+                        mpd_song_t sg = { .uri = s_lib->uri, .duration_ms = -1, .pos = -1 };
+                        song_from_rec(&sg, r);                      /* 5264 */
                         song_mask(c, &sg);                          /* 5241 */
                         const size_t n = mpdproto_song(&sg, s_body, MPD_BODY_MAX);
                         if (n) put(c, s_body, n);
                     }
+                    n_sec += r->time;                               /* 5264 */
                     n_hit++;
                 }
                 /* Keep the partial line; a line longer than the buffer
@@ -2090,7 +2148,8 @@ static result_t lib_find(const ctx_t *x, const mpd_cmd_t *cmd, qmode_t mode,
             return RES_ERR;
         }
     }
-    if (Q_COUNTS(mode)) putf(c, "songs: %ld\nplaytime: 0\n", n_hit);
+    if (Q_COUNTS(mode))
+        putf(c, "songs: %ld\nplaytime: %llu\n", n_hit, (unsigned long long)n_sec);
     s_find_hits = n_hit;                                            /* 5227 */
     log_query(x, cmd, n_hit, n_hit == 1 ? "song" : "songs", t0);     /* 5196 */
     return RES_OK;
@@ -2161,8 +2220,17 @@ static result_t queue_find(const ctx_t *x, const mpd_cmd_t *cmd)
             if (s_view->artist[0]) t.artist = s_view->artist;
             if (s_view->album[0])  t.album = s_view->album;
         }
-        const char *const f[4] = { t.title ? t.title : "", t.artist ? t.artist : "",
-                                   t.album ? t.album : "", uri };
+        /* 5264: all nine, AlbumArtist falling back to the artist as the
+         * library's does (rec_fields()). */
+        const char *const art = t.artist ? t.artist : "";
+        const char *const f[MPDF_NFIELDS] = {
+            [MPDF_TITLE] = t.title ? t.title : "", [MPDF_ARTIST] = art,
+            [MPDF_ALBUM] = t.album ? t.album : "", [MPDF_GENRE] = t.genre ? t.genre : "",
+            [MPDF_DATE] = t.date ? t.date : "",
+            [MPDF_ALBUMARTIST] = t.albumartist ? t.albumartist : art,
+            [MPDF_TRACK] = t.track ? t.track : "", [MPDF_DISC] = t.disc ? t.disc : "",
+            [MPDF_FILE] = uri,
+        };
         bool pass = true;
         if (expr) pass = mpdfilter_eval(&s_lib->filt, f, fold);       /* 5239 */
         for (int k = 0; k < np && pass; k++) {
@@ -2174,7 +2242,7 @@ static result_t queue_find(const ctx_t *x, const mpd_cmd_t *cmd)
                 continue;
             }
             const int lo = p->field == MEDIASEARCH_ANY ? 0 : (int)p->field - 1;
-            const int hi = p->field == MEDIASEARCH_ANY ? 3 : lo;
+            const int hi = p->field == MEDIASEARCH_ANY ? MPDF_NFIELDS - 1 : lo;
             pass = false;
             for (int j = lo; j <= hi && !pass; j++) {
                 if (!fold) pass = strcmp(f[j], p->value) == 0;
@@ -2517,10 +2585,11 @@ static result_t lib_readpicture(const ctx_t *x, const char *uri, const char *off
  * then compared exactly, as find's are, since MPD's list filters are.
  *
  * What can be listed is what the catalog holds: `artist`, `album`,
- * `title`, `file`, and `albumartist` from the artist (as 5180 searches
- * it). Any other type (genre, date, ...) is an empty OK. A song with no
+ * `title`, `file`, `albumartist` (the artist on a song with none, as
+ * MPD's `list` falls back), and since 5264 `genre`, `date`, `track` and
+ * `disc`. Any other type (composer, ...) is an empty OK. A song with no
  * value for the type is left out, as MPD leaves out a song without the
- * tag. One `group`, of the same five; a group on any other tag is
+ * tag. One `group`, of the same nine; a group on any other tag is
  * dropped, and the list comes out ungrouped rather than grouped under
  * empty headings. The old form `list album ARTIST` -- one argument after
  * the type -- is the artist filter it has always meant.
@@ -2528,15 +2597,19 @@ static result_t lib_readpicture(const ctx_t *x, const char *uri, const char *off
  * 5191: both volumes' copies count, as separate songs.
  */
 typedef struct {
-    int         field;          /* 0 title, 1 artist, 2 album, 3 path; -1 none */
+    int         field;          /* an MPDF_ field (5264; 0-3 before); -1 none */
     const char *label;          /* MPD's key for it */
 } ltype_t;
 
 static bool l_type(const char *t, ltype_t *out)
 {
     static const struct { const char *name; int field; const char *label; } types[] = {
-        { "artist", 1, "Artist" }, { "albumartist", 1, "AlbumArtist" },
-        { "album", 2, "Album" }, { "title", 0, "Title" }, { "file", 3, "file" },
+        { "artist", MPDF_ARTIST, "Artist" }, { "albumartist", MPDF_ALBUMARTIST, "AlbumArtist" },
+        { "album", MPDF_ALBUM, "Album" }, { "title", MPDF_TITLE, "Title" },
+        { "file", MPDF_FILE, "file" },
+        /* 5264 */
+        { "genre", MPDF_GENRE, "Genre" }, { "date", MPDF_DATE, "Date" },
+        { "track", MPDF_TRACK, "Track" }, { "disc", MPDF_DISC, "Disc" },
     };
     for (size_t i = 0; i < sizeof(types) / sizeof(types[0]); i++) {
         if (strcasecmp(t, types[i].name) == 0) {
@@ -2552,13 +2625,12 @@ static bool l_type(const char *t, ltype_t *out)
 
 static const char *l_value(const mediacat_rec_t *r, const char *uri, int field)
 {
-    switch (field) {
-    case 0: return r->title;
-    case 1: return r->artist;
-    case 2: return r->album;
-    case 3: return uri;                 /* 5191: with its volume */
-    default: return "";
-    }
+    /* 5264: rec_fields()'s, AlbumArtist's fallback included, as MPD's
+     * `list AlbumArtist` falls back. The file is with its volume (5191). */
+    if (field < 0 || field >= MPDF_NFIELDS) return "";
+    const char *f[MPDF_NFIELDS];
+    rec_fields(r, uri, f);
+    return f[field];
 }
 
 static int cmp_u32(const void *a, const void *b)
@@ -2568,7 +2640,9 @@ static int cmp_u32(const void *a, const void *b)
 }
 
 /* The collected (group, value) pairs: NUL-separated in an arena, an
- * offset each. Grown in PSRAM; one command's. */
+ * offset each. Grown in PSRAM; one command's. 5264: each followed by the
+ * song's length, four bytes after the value's NUL, for `count ... group`'s
+ * playtime; the comparator never reaches it. */
 typedef struct {
     char     *arena;
     size_t    len, cap;
@@ -2587,9 +2661,9 @@ static int cmp_entry(const void *a, const void *b)
     return strcmp(x + strlen(x) + 1, y + strlen(y) + 1);    /* value */
 }
 
-static bool lset_add(lset_t *s, const char *group, const char *value)
+static bool lset_add(lset_t *s, const char *group, const char *value, uint32_t sec)
 {
-    const size_t gl = strlen(group) + 1, vl = strlen(value) + 1;
+    const size_t gl = strlen(group) + 1, vl = strlen(value) + 1 + sizeof(uint32_t);
     const uint32_t ps = MALLOC_CAP_SPIRAM | MALLOC_CAP_8BIT;
     if (s->len + gl + vl > s->cap) {
         size_t cap = s->cap ? s->cap * 2 : 16 * 1024;
@@ -2608,9 +2682,19 @@ static bool lset_add(lset_t *s, const char *group, const char *value)
     }
     s->at[s->n++] = (uint32_t)s->len;
     memcpy(s->arena + s->len, group, gl);
-    memcpy(s->arena + s->len + gl, value, vl);
+    memcpy(s->arena + s->len + gl, value, vl - sizeof(uint32_t));
+    memcpy(s->arena + s->len + gl + vl - sizeof(uint32_t), &sec, sizeof(uint32_t));
     s->len += gl + vl;
     return true;
+}
+
+/* 5264: the length stored after an entry's value (lset_add()). */
+static uint32_t lset_sec(const char *entry)
+{
+    const char *v = entry + strlen(entry) + 1;
+    uint32_t sec;
+    memcpy(&sec, v + strlen(v) + 1, sizeof(sec));
+    return sec;
 }
 
 /*
@@ -2701,7 +2785,7 @@ static result_t lib_list(const ctx_t *x, const mpd_cmd_t *cmd, bool counting)
         }
     } else if (cmd->argc == 2) {
         /* The old form: `list album ARTIST`. MPD took it for album only. */
-        if (type.field != 2) {
+        if (type.field != MPDF_ALBUM) {
             ack(c, MPD_ACK_ARG, x->idx, x->verb,
                 "should be \"Album\" for 3 arguments");
             return RES_ERR;
@@ -2767,7 +2851,8 @@ static result_t lib_list(const ctx_t *x, const mpd_cmd_t *cmd, bool counting)
              * one line anyway, since the set is deduplicated. */
             const char *val = l_value(r, s_lib->uri, type.field);
             if (!val[0] && !counting) continue;     /* count: untagged is a group too */
-            if (!lset_add(&set, group.field >= 0 ? l_value(r, s_lib->uri, group.field) : "", val)) {
+            if (!lset_add(&set, group.field >= 0 ? l_value(r, s_lib->uri, group.field) : "", val,
+                          r->time)) {
                 full = true;
                 break;
             }
@@ -2788,10 +2873,13 @@ static result_t lib_list(const ctx_t *x, const mpd_cmd_t *cmd, bool counting)
             if (counting) {
                 /* 5231: the run of equal values is the group's songs. */
                 size_t j = i + 1;
-                while (j < set.n && strcmp(v, set.arena + set.at[j] + 1) == 0) j++;
+                uint64_t play = lset_sec(g);                        /* 5264 */
+                while (j < set.n && strcmp(v, set.arena + set.at[j] + 1) == 0)
+                    play += lset_sec(set.arena + set.at[j++]);
                 const size_t kn = mpdproto_kv(type.label, v, s_body, MPD_BODY_MAX);
                 if (kn) put(c, s_body, kn);
-                putf(c, "songs: %u\nplaytime: 0\n", (unsigned)(j - i));
+                putf(c, "songs: %u\nplaytime: %llu\n", (unsigned)(j - i),
+                     (unsigned long long)play);
                 n_out++;
                 last_g = g;
                 last_v = v;
@@ -2826,8 +2914,8 @@ static result_t lib_list(const ctx_t *x, const mpd_cmd_t *cmd, bool counting)
  * 5231: `count FILTERS... group TAG` -- songs per value of TAG among the
  * songs the filters match, MPD's handle_count with a group. Asked as
  * `list TAG FILTERS...` with counting on: the same scan, the same
- * filters, the values sorted, each followed by `songs:` and `playtime:
- * 0` (the catalog has no lengths, as plain `count` already says). Songs
+ * filters, the values sorted, each followed by `songs:` and `playtime:`
+ * (0 until 5264, which sums the catalog's lengths as `count` does). Songs
  * without the tag count under an empty value. Without `group`, find's
  * count as before.
  */
@@ -2870,6 +2958,7 @@ static result_t lib_count(const ctx_t *x, const mpd_cmd_t *cmd, qmode_t mode)
  */
 static bool     s_stats_ok;
 static uint32_t s_stats_songs, s_stats_artists, s_stats_albums;
+static uint64_t s_stats_playtime;       /* 5264: db_playtime, seconds */
 
 static uint32_t lset_distinct(lset_t *set)
 {
@@ -2890,6 +2979,7 @@ static void lib_stats(void)
     uint32_t *offs = NULL;
     size_t noffs = 0, capoffs = 0;
     uint32_t songs = 0;
+    uint64_t play = 0;
     bool ok = true;
     for (int v = 0; v < MEDIALIST_VOLS && ok; v++) {
         if (!s_rd_open[v]) continue;
@@ -2900,8 +2990,9 @@ static void lib_stats(void)
             if (!medialib_rd_cat(&s_rd[v], offs[i])) continue;
             const mediacat_rec_t *r = s_rd[v].rec;
             songs++;
-            if (r->artist[0] && !lset_add(&ar, "", r->artist)) ok = false;
-            if (r->album[0] && !lset_add(&al, "", r->album)) ok = false;
+            play += r->time;                                        /* 5264 */
+            if (r->artist[0] && !lset_add(&ar, "", r->artist, 0)) ok = false;
+            if (r->album[0] && !lset_add(&al, "", r->album, 0)) ok = false;
         }
     }
     lib_close();
@@ -2910,6 +3001,7 @@ static void lib_stats(void)
         s_stats_songs = songs;
         s_stats_artists = lset_distinct(&ar);
         s_stats_albums = lset_distinct(&al);
+        s_stats_playtime = play;
         s_stats_ok = true;
     }
     free(ar.arena); free(ar.at);
@@ -3098,7 +3190,9 @@ static int pl_find(const char *name, char *out, size_t cap)
  * 5257: a stored playlist walked for listplaylist/listplaylistinfo (a
  * range of entries, 0.24), searchplaylist (the entries matching
  * s_lib->filt, folded, with a window over the matches) and playlistlength
- * (a count; playtime 0, as count's, for the catalog keeps no lengths).
+ * (a count). 5264: playlistlength's playtime is the catalog's lengths
+ * summed, when the library can be read -- during a reindex it cannot,
+ * and the count is answered with playtime 0 rather than refused.
  */
 typedef enum { PLC_LIST, PLC_SEARCH, PLC_LENGTH } plc_t;
 
@@ -3116,7 +3210,11 @@ static result_t pl_contents(const ctx_t *x, const char *name, bool info, long lo
         ack(c, MPD_ACK_NO_EXIST, x->idx, x->verb, "No such playlist");
         return RES_ERR;
     }
-    if ((info || mode == PLC_SEARCH) && !lib_open(x)) return RES_ERR;
+    /* 5264: lib_open() refuses only when medialib_busy(), and for a
+     * length that is not worth a refusal. */
+    const bool lib = info || mode == PLC_SEARCH || (mode == PLC_LENGTH && !medialib_busy());
+    if (lib && !lib_open(x)) return RES_ERR;
+    uint64_t sec = 0;
     storage_hold_brief(s_pl_vols[v]);
     FILE *f = storage_present(s_pl_vols[v]) ? fopen(path, "r") : NULL;
     char *const line = s_lib->sbuf;
@@ -3134,14 +3232,20 @@ static result_t pl_contents(const ctx_t *x, const char *name, bool info, long lo
         else if (!uri_join(uri, NULL, line)) uri[0] = '\0';
         if (!uri[0]) continue;              /* 5199: too long to be a URI */
         midx_rec_t *const r = &s_lib->rec;
-        if (mode == PLC_LENGTH) { at++; continue; }
+        if (mode == PLC_LENGTH) {
+            at++;
+            int lv;
+            if (lib && (lv = lib_file(uri, r)) >= 0 && medialib_rd_cat(&s_rd[lv], r->cat_off))
+                sec += s_rd[lv].rec->time;                          /* 5264 */
+            continue;
+        }
         const int lv = (info || mode == PLC_SEARCH) ? lib_file(uri, r) : -1;
         if (mode == PLC_SEARCH) {
             const mediacat_rec_t *m = lv >= 0 && medialib_rd_cat(&s_rd[lv], r->cat_off)
                                     ? s_rd[lv].rec : NULL;
-            const char *const fl[MPDF_NFIELDS] = {
-                m ? m->title : "", m ? m->artist : "", m ? m->album : "", uri,
-            };
+            /* 5264: all nine; a line not in the library has only its URI. */
+            const char *fl[MPDF_NFIELDS] = { [MPDF_FILE] = uri };
+            if (m) rec_fields(m, uri, fl);
             if (!mpdfilter_eval(&s_lib->filt, fl, true)) continue;
         }
         const long here = at++;
@@ -3155,8 +3259,8 @@ static result_t pl_contents(const ctx_t *x, const char *name, bool info, long lo
     }
     if (f) fclose(f);
     storage_release_brief(s_pl_vols[v]);
-    if (info || mode == PLC_SEARCH) lib_close();
-    if (mode == PLC_LENGTH) putf(c, "songs: %ld\nplaytime: 0\n", at);
+    if (lib) lib_close();
+    if (mode == PLC_LENGTH) putf(c, "songs: %ld\nplaytime: %llu\n", at, (unsigned long long)sec);
     return RES_OK;
 }
 
@@ -3705,8 +3809,9 @@ static result_t pl_load(const ctx_t *x, const char *name, const char *range, con
 
 /*
  * `tagtypes clear | all | enable NAME... | disable NAME...` (MPD 0.21):
- * which tags this connection is sent with each song. Only the three the
- * catalog holds can be sent, so only those change anything; any other
+ * which tags this connection is sent with each song. Only the eight the
+ * catalog holds (three until 5264) can be sent, so only those change
+ * anything; any other
  * name MPD knows is accepted and changes nothing, which is what turning
  * off a tag no song here has amounts to. A name MPD does not know is
  * ARG "Unknown tag type", MPD's words. The whole list is checked before
@@ -3717,16 +3822,33 @@ static int tag_bit(const char *n)
     if (strcasecmp(n, "Artist") == 0) return TAG_ARTIST;
     if (strcasecmp(n, "Album") == 0)  return TAG_ALBUM;
     if (strcasecmp(n, "Title") == 0)  return TAG_TITLE;
+    if (strcasecmp(n, "AlbumArtist") == 0) return TAG_ALBUMARTIST;  /* 5264 */
+    if (strcasecmp(n, "Genre") == 0)  return TAG_GENRE;
+    if (strcasecmp(n, "Date") == 0)   return TAG_DATE;
+    if (strcasecmp(n, "Track") == 0)  return TAG_TRACK;
+    if (strcasecmp(n, "Disc") == 0)   return TAG_DISC;
     static const char *const known[] = {
-        "ArtistSort", "AlbumSort", "AlbumArtist", "AlbumArtistSort", "Track", "Name",
-        "Genre", "Date", "OriginalDate", "Composer", "Performer", "Conductor", "Work",
-        "Grouping", "Comment", "Disc", "Label", "MUSICBRAINZ_ARTISTID",
+        "ArtistSort", "AlbumSort", "AlbumArtistSort", "Name",
+        "OriginalDate", "Composer", "Performer", "Conductor", "Work",
+        "Grouping", "Comment", "Label", "MUSICBRAINZ_ARTISTID",
         "MUSICBRAINZ_ALBUMID", "MUSICBRAINZ_ALBUMARTISTID", "MUSICBRAINZ_TRACKID",
         "MUSICBRAINZ_RELEASETRACKID", "MUSICBRAINZ_WORKID",
     };
     for (size_t i = 0; i < sizeof(known) / sizeof(known[0]); i++)
         if (strcasecmp(n, known[i]) == 0) return 0;
     return -1;
+}
+
+/* The tags in `bits`, one `tagtype:` line each, in MPD's order. */
+static void tagtypes_put(conn_t *c, int bits)
+{
+    static const struct { int bit; const char *name; } t[] = {
+        { TAG_ARTIST, "Artist" }, { TAG_ALBUM, "Album" }, { TAG_ALBUMARTIST, "AlbumArtist" },
+        { TAG_TITLE, "Title" }, { TAG_TRACK, "Track" }, { TAG_GENRE, "Genre" },
+        { TAG_DATE, "Date" }, { TAG_DISC, "Disc" },
+    };
+    for (size_t i = 0; i < sizeof(t) / sizeof(t[0]); i++)
+        if (bits & t[i].bit) putf(c, "tagtype: %s\n", t[i].name);
 }
 
 static result_t tagtypes_sub(const ctx_t *x, const mpd_cmd_t *cmd)
@@ -3742,9 +3864,9 @@ static result_t tagtypes_sub(const ctx_t *x, const mpd_cmd_t *cmd)
         return RES_OK;
     }
     /* 5257: 0.24's `available` -- the tags the server has, which here
-     * are the catalog's three, whatever this client turned off. */
+     * are the catalog's (eight since 5264), whatever this client turned off. */
     if (strcasecmp(sub, "available") == 0) {
-        puts_(c, "tagtype: Artist\ntagtype: Album\ntagtype: Title\n");
+        tagtypes_put(c, TAG_ALL);
         return RES_OK;
     }
     /* 5257: 0.24's `reset NAME...` -- clear, then enable these. */
@@ -4234,13 +4356,11 @@ static result_t run_cmd(conn_t *c, const mpd_cmd_t *cmd, int idx)
     }
 
     case MPD_CMD_TAGTYPES:
-        /* The catalog's three tags (mediacat.h), and no others: a tag
-         * listed here is a tag a client may filter on in step 12. 5241:
-         * those this client has not turned off. */
+        /* The catalog's tags (mediacat.h), and no others: a tag listed
+         * here is a tag a client may filter on in step 12. 5241: those
+         * this client has not turned off. 5264: eight, not three. */
         if (cmd->argc == 0) {
-            if (c->tags & TAG_ARTIST) puts_(c, "tagtype: Artist\n");
-            if (c->tags & TAG_ALBUM)  puts_(c, "tagtype: Album\n");
-            if (c->tags & TAG_TITLE)  puts_(c, "tagtype: Title\n");
+            tagtypes_put(c, c->tags);
             return RES_OK;
         }
         return tagtypes_sub(&x, cmd);
@@ -4342,13 +4462,16 @@ static result_t run_cmd(conn_t *c, const mpd_cmd_t *cmd, int idx)
     }
 
     case MPD_CMD_STATS:
-        /* `playtime` and `db_playtime` are left out, not zeroed: nothing
-         * counts play time and the catalog has no lengths. 5231: the
-         * library counts, while there is an index to count. */
+        /* `playtime` is left out, not zeroed: nothing counts play time.
+         * 5231: the library counts, while there is an index to count.
+         * 5264: and db_playtime is the catalog's lengths summed -- short
+         * by every track whose container states none. */
         lib_stats();
         if (s_stats_ok)
-            putf(c, "artists: %" PRIu32 "\nalbums: %" PRIu32 "\nsongs: %" PRIu32 "\n",
-                 s_stats_artists, s_stats_albums, s_stats_songs);
+            putf(c, "artists: %" PRIu32 "\nalbums: %" PRIu32 "\nsongs: %" PRIu32 "\n"
+                    "db_playtime: %llu\n",
+                 s_stats_artists, s_stats_albums, s_stats_songs,
+                 (unsigned long long)s_stats_playtime);
         putf(c, "uptime: %" PRIu32 "\n", (uint32_t)(esp_timer_get_time() / 1000000));
         return RES_OK;
 

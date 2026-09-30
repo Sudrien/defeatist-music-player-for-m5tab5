@@ -124,14 +124,15 @@ extern "C" {
  * a function of how many tags are searchable, and MPD's is large because
  * MPD has thirty-odd.
  *
- * This device has four: the fields the search file carries -- title,
+ * This device had four: the fields the search file carries -- title,
  * artist, album and path (MEDIA-INDEX.md point 2, and the format in
- * 5129-5138). So the same formula gives ten, and
+ * 5129-5138). So the same formula gave ten, and
  * `search Artist a Album b Title c file d window 0:10` is exactly ten.
  * Raising the searchable tag count raises this, which is the point of
- * writing it as the formula.
+ * writing it as the formula: 5264's genre, date, album artist, track
+ * and disc make nine, and twenty.
  */
-#define MPDPROTO_TAG_TYPES  (4)
+#define MPDPROTO_TAG_TYPES  (9)
 #define MPDPROTO_MAX_ARGS   (2 + MPDPROTO_TAG_TYPES * 2)
 
 /*
@@ -513,6 +514,12 @@ typedef struct {
     const char *title;
     const char *artist;
     const char *album;
+    /* 5264: the catalog's other five, NULL or "" for none. */
+    const char *albumartist;
+    const char *genre;
+    const char *date;
+    const char *track;
+    const char *disc;
     int32_t     duration_ms;    /* <0 unknown: Time and duration omitted */
     int32_t     pos;            /* <0: no Pos/Id */
     uint32_t    id;
@@ -521,11 +528,12 @@ typedef struct {
 /*
  * The ceiling for one song's lines: a 506-byte uri, three 64-byte tags
  * that can each treble under the UTF-8 repair, and the numbers. 1536
- * rounds up from about 1200. A caller writing a long `playlistinfo`
+ * rounded up from about 1200; 5264's five more tags (another 139 bytes
+ * that can treble, and their keys) bring it to about 1700, so 2048. A caller writing a long `playlistinfo`
  * flushes per entry rather than buffering the whole answer, which is why
  * this is per-song and not a response size.
  */
-#define MPDPROTO_SONG_MAX   (1536)
+#define MPDPROTO_SONG_MAX   (2048)
 
 /* `directory: <uri>`, the other thing `lsinfo` emits. */
 size_t mpdproto_directory(const char *uri, char *out, size_t cap);

@@ -738,6 +738,14 @@ size_t mpdproto_song(const mpd_song_t *s, char *out, size_t cap)
     w_tag(&b, "Title",  s->title);
     w_tag(&b, "Artist", s->artist);
     w_tag(&b, "Album",  s->album);
+    /* 5264, with MPD's names and capitals. AlbumArtist only when the
+     * song has its own: MPD sends the tag as the file has it, and the
+     * fallback to Artist is for filtering and `list`, not for display. */
+    w_tag(&b, "AlbumArtist", s->albumartist);
+    w_tag(&b, "Genre",  s->genre);
+    w_tag(&b, "Date",   s->date);
+    w_tag(&b, "Track",  s->track);
+    w_tag(&b, "Disc",   s->disc);
 
     /* Both forms, as MPD sends both: `Time` is whole seconds for old
      * clients, `duration` is the fractional one modern clients read. Note

@@ -115,8 +115,15 @@ static bool expect(parser_t *ps, char c, const char *msg)
 static int tag_field(const char *w)
 {
     if (ieq(w, "title")) return MPDF_TITLE;
-    if (ieq(w, "artist") || ieq(w, "albumartist")) return MPDF_ARTIST;
+    if (ieq(w, "artist")) return MPDF_ARTIST;
     if (ieq(w, "album")) return MPDF_ALBUM;
+    /* 5264. albumartist was the artist until the catalog kept its own;
+     * the caller fills it with the artist when a song has none. */
+    if (ieq(w, "genre")) return MPDF_GENRE;
+    if (ieq(w, "date")) return MPDF_DATE;
+    if (ieq(w, "albumartist")) return MPDF_ALBUMARTIST;
+    if (ieq(w, "track")) return MPDF_TRACK;
+    if (ieq(w, "disc")) return MPDF_DISC;
     if (ieq(w, "file")) return MPDF_FILE;
     if (ieq(w, "any")) return MPDF_ANY;
     return MPDF_NONE;

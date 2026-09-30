@@ -19683,3 +19683,11 @@ restarts it. The certificate is not verified -- it is devcert's.
 Run here against a fake server written for the purpose: 64 passed,
 the one failure port 80, which the fake did not serve. The playback
 section was not exercised (the fake plays nothing). Not run on the board.
+
+### 5271 -- ui.c: ui_touch()'s action, designated
+
+5268 gave ui_action_t a third field, and ui_touch()'s positional
+`{ UI_ACTION_NONE, 0 }` drew -Wmissing-field-initializers for it on the
+board's build. Designated, as every other ui_action_t initialiser in the
+tree already is; the field was zero either way, so nothing changes but
+the warning. Found by the build, not here -- no IDF.

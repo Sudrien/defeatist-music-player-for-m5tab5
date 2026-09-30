@@ -2305,7 +2305,7 @@ static int pct_from_x(int x, int x0, int x1)
 
 ui_action_t ui_touch(const ui_state_t *st, bool down, int x, int y)
 {
-    ui_action_t act = { UI_ACTION_NONE, 0 };
+    ui_action_t act = { .kind = UI_ACTION_NONE, .value = 0 };  /* 5271: at_sec zeroed without -Wmissing-field-initializers */
     const bool tapped = down && !s_was_down;
     const bool released = !down && s_was_down;
     s_was_down = down;

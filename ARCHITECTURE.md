@@ -18937,3 +18937,51 @@ the day the space is wanted.
 With 5247 and this, the app is about 200 KB under the ceiling, down from
 3056 bytes over (0x300bf0 before 5245). The build's size line is the
 check.
+
+### 5249 -- mpd: readpicture and binarylimit
+
+MPD 0.22's two commands this server did not have.
+
+`readpicture URI OFFSET` is the picture INSIDE a file -- the cover this
+player shows on its own screen -- where albumart (5240) is a cover.*
+file beside it. covertag_extract_art(), the player's own reader, gives
+the picture from ID3 APIC, FLAC PICTURE, MP4 covr, Ogg
+METADATA_BLOCK_PICTURE and WAV's id3 chunk. The answers are stock MPD
+0.23.5's, asked for against the repository's own mp3-bigart-noxing.mp3
+before writing any of this:
+
+    size: 174586 / type: image/jpeg / binary: 8192 / <bytes> / OK
+    no picture in the file     OK alone -- not an error, unlike albumart
+    no such file               ACK 50 "No such song"
+    OFFSET past the end        ACK 2 "Bad file offset"
+
+A client pages a cover a chunk a request, and extracting it again per
+chunk is 60 reads of a 500 KB cover, so the last picture extracted is
+kept with its URI (s_pic; covertag's malloc() of over 4 KB is PSRAM)
+and further chunks come from it. It goes when another URI is asked for
+or the last client disconnects. `type` is sniffed from the picture's
+magic bytes (JPEG, PNG, GIF, WebP, BMP): covertag does not keep the MIME
+a tag declares, and the bytes are what a client decodes.
+
+Stack: this is the first time covertag runs on the MPD task (6 KB) and
+not media_task (16 KB). -fstack-usage with riscv32-esp-elf-gcc 14.2:
+covertag_extract_art() 48 bytes, its deepest parser ogg_read() 400,
+none over that -- under 500 bytes of frames above the stdio read, which
+this task already does for albumart and stored playlists.
+
+`binarylimit SIZE` (0.22.4): the most binary one answer carries, per
+connection, 8192 until set. Below 64 is ARG "Value too small", MPD's
+floor and words. readpicture sends up to it from PSRAM; albumart reads
+up to it, capped at sbuf's 16 KB -- a smaller chunk than asked is within
+the protocol, since a client pages on the `binary:` it is given.
+
+mpdprototest: readpicture and binarylimit parse (readpicture was the
+last deliberately unknown verb). mpdcheck: binarylimit's floor and a
+bad value, NO_EXIST for a missing song, and -- on the first test file
+with an embedded picture -- the default chunk, a `type:` that is an
+image, the whole picture paged in, the end, and 64-byte chunks after
+`binarylimit 64`. Against stock MPD 0.23.5 with that mp3 among the test
+files, all of it passes.
+
+Compiled -O2 -Wall -Wextra on the host stubs: mpd.c, no warnings.
+texttest all passes. Not on the board.

@@ -98,7 +98,7 @@ swapid findadd searchadd searchaddpl playlistfind playlistsearch
 playlistclear playlistmove rename
 listfiles subscribe unsubscribe readmessages sendmessage prio prioid rangeid
 addtagid cleartagid readcomments mixrampdb mixrampdelay kill config sticker
-albumart
+albumart readpicture binarylimit
 """.split()
 
 # 5241: the version this script's checks are written against.
@@ -152,9 +152,11 @@ class Conn:
 
     def binary(self, line):
         """5240: a command answered with a binary chunk -- `size:`,
-        `binary: n`, n bytes, a newline, OK. Returns (size, bytes)."""
+        `binary: n`, n bytes, a newline, OK. Returns (size, bytes); 5249:
+        and the `type:` line, if any, in self.last_type."""
         self.send(line)
         size, data = None, b""
+        self.last_type = None
         while True:
             l = self._line()
             m = ACK_RE.match(l)
@@ -162,6 +164,8 @@ class Conn:
                 raise Ack(int(m.group(1)), int(m.group(2)), m.group(3), m.group(4))
             if l.startswith("size: "):
                 size = int(l[6:])
+            elif l.startswith("type: "):
+                self.last_type = l[6:]
             elif l.startswith("binary: "):
                 n = int(l[8:])
                 data = self.f.read(n)
@@ -1090,6 +1094,51 @@ class Checker:
         self.expect_ack("tagtypes with an unknown sub-command is ARG", "tagtypes frob", 2)
         self.c.cmd("tagtypes all")
 
+    def readpicture(self):
+        """5249: the picture inside a file, and binarylimit."""
+        self.expect_ack("binarylimit 10 is ARG (below 64)", "binarylimit 10", 2)
+        self.expect_ack("binarylimit x is ARG", "binarylimit x", 2)
+        self.expect_ack("readpicture of a missing song is NO_EXIST",
+                        'readpicture "sd/__no_such__.mp3" 0', 50)
+        # A file with a picture, if the first few test files have one.
+        with_pic = None
+        for f in self.files:
+            try:
+                size, chunk = self.c.binary(f"readpicture {q(f)} 0")
+            except Ack as e:
+                self.ok(f"readpicture {f}", False, str(e))
+                return
+            if size:
+                with_pic = (f, size, chunk, self.c.last_type)
+                break
+        if not with_pic:
+            self.skip("readpicture paging", "none of the test files has an embedded picture")
+            return
+        f, size, first, mime = with_pic
+        self.ok("readpicture gives the default 8192-byte chunk",
+                len(first) == min(size, 8192), f"{len(first)} of {size}")
+        self.ok("readpicture names an image type", bool(mime and mime.startswith("image/")), repr(mime))
+        got, off = b"", 0
+        while off < size:
+            _, chunk = self.c.binary(f"readpicture {q(f)} {off}")
+            if not chunk:
+                break
+            got += chunk
+            off += len(chunk)
+        self.ok("readpicture pages the picture in whole", len(got) == size, f"{len(got)} of {size}")
+        self.ok("the picture starts as its type says",
+                (mime != "image/jpeg" or got[:3] == b"\xff\xd8\xff") and
+                (mime != "image/png" or got[:4] == b"\x89PNG"), got[:4].hex())
+        try:
+            self.c.binary(f"readpicture {q(f)} {size + 10}")
+            self.ok("readpicture past the end is ARG", False, "got OK")
+        except Ack as e:
+            self.ok("readpicture past the end is ARG", e.code == 2, str(e))
+        self.expect_ok("binarylimit 64", "binarylimit 64")
+        _, small = self.c.binary(f"readpicture {q(f)} 0")
+        self.ok("binarylimit 64 gives 64-byte chunks", len(small) == min(64, size), len(small))
+        self.expect_ok("binarylimit 8192 (back to the default)", "binarylimit 8192")
+
     def messages(self):
         self.section("client messages")
         self.expect_ack("subscribe with a bad name is ARG", 'subscribe "no spaces"', 2)
@@ -1170,6 +1219,7 @@ class Checker:
             if getattr(self, "files", None):
                 self.albumart()                                     # 5240
                 self.tagtypes()                                     # 5241
+                self.readpicture()                                  # 5249
             self.messages()
             if self.a.read_only:
                 if playing and kv(self.c.cmd("status")).get("state") != "play":

@@ -85,6 +85,7 @@
 #include "medialist.h"          /* 5177 */
 #include "mediasearch.h"        /* 5180 */
 #include "storage_io.h"         /* 5180: the search file's reads */
+#include "covertag.h"           /* 5249: readpicture */
 #include <strings.h>            /* 5180: strcasecmp() for tag names */
 #include <dirent.h>             /* 5184: the Playlists folder */
 #include <sys/stat.h>
@@ -334,7 +335,12 @@ typedef struct {
     bool        after_stream;   /* 5202: the last command was add of a stream */
     uint32_t    pending;        /* 5230: idle events for this connection only */
     uint8_t     tags;           /* 5241: TAG_* this client wants (tagtypes) */
+    uint32_t    binlimit;       /* 5249: binarylimit, the most binary per answer */
 } conn_t;
+
+/* 5249: MPD's default binary chunk and the least `binarylimit` takes. */
+#define MPD_BINARY_DEFAULT  (8192)
+#define MPD_BINARY_MIN      (64)
 
 /* 5241: the tags this catalog holds, as `tagtypes` names them. A client
  * may turn each off (MPD 0.21's tagtypes clear/enable/disable/all). */
@@ -819,6 +825,7 @@ static bool answered(mpd_cmd_kind_t k)
     case MPD_CMD_SUBSCRIBE: case MPD_CMD_UNSUBSCRIBE: case MPD_CMD_READMESSAGES: case MPD_CMD_SENDMESSAGE:   /* 5230 */
     case MPD_CMD_PRIO: case MPD_CMD_PRIOID: case MPD_CMD_RANGEID: case MPD_CMD_ADDTAGID: case MPD_CMD_CLEARTAGID: case MPD_CMD_READCOMMENTS: case MPD_CMD_MIXRAMPDB: case MPD_CMD_MIXRAMPDELAY: case MPD_CMD_KILL: case MPD_CMD_CONFIG: case MPD_CMD_STICKER:   /* 5231 */
     case MPD_CMD_ALBUMART:   /* 5240 */
+    case MPD_CMD_READPICTURE: case MPD_CMD_BINARYLIMIT:   /* 5249 */
         return true;
     default:
         return false;
@@ -826,7 +833,7 @@ static bool answered(mpd_cmd_kind_t k)
 }
 
 /* The last kind in mpdproto.h's enum, for walking the table. */
-#define MPD_CMD_LAST    MPD_CMD_ALBUMART
+#define MPD_CMD_LAST    MPD_CMD_BINARYLIMIT
 
 /*
  * 5166: the commands that read the list, over the pinned copy. Called
@@ -2183,7 +2190,6 @@ static result_t lib_listfiles(const ctx_t *x, const char *uri)
  * small; the size is from stat(), whose 32-bit off_t (5228) is not a
  * limit a cover image reaches.
  */
-#define ALBUMART_CHUNK  (8192)
 
 static result_t lib_albumart(const ctx_t *x, const char *uri, const char *off_s)
 {
@@ -2228,7 +2234,10 @@ static result_t lib_albumart(const ctx_t *x, const char *uri, const char *off_s)
         storage_io_acquire(STORAGE_IO_BACKGROUND);
         const bool ok = fseek(f, (long)off, SEEK_SET) == 0;
         storage_io_release();
-        const size_t want = size - off < ALBUMART_CHUNK ? (size_t)(size - off) : ALBUMART_CHUNK;
+        /* 5249: the client's binarylimit, and never more than sbuf holds. */
+        size_t chunk = c->binlimit;
+        if (chunk > SEARCH_CHUNK) chunk = SEARCH_CHUNK;
+        const size_t want = size - off < chunk ? (size_t)(size - off) : chunk;
         if (ok) got = storage_io_fread(s_lib->sbuf, want, f, STORAGE_IO_BACKGROUND);
     }
     fclose(f);
@@ -2236,6 +2245,116 @@ static result_t lib_albumart(const ctx_t *x, const char *uri, const char *off_s)
     if (off == 0) ESP_LOGI(TAG, "client %d: albumart %s: %lu bytes", c->fd, s_lib->vfs, size);
     putf(c, "size: %lu\nbinary: %u\n", size, (unsigned)got);
     put(c, s_lib->sbuf, got);
+    puts_(c, "\n");
+    return RES_OK;
+}
+
+/*
+ * 5249: `readpicture URI OFFSET` -- MPD 0.22: the picture INSIDE the file,
+ * which is the cover this player shows on its own screen, where albumart
+ * (0.21, 5240) is a cover.* file beside it. Extracted by covertag, the
+ * player's own reader (ID3 APIC, FLAC PICTURE, MP4 covr, Ogg
+ * METADATA_BLOCK_PICTURE, WAV's id3 chunk). Answered as stock MPD 0.23.5
+ * answers, asked rather than read off a page:
+ *
+ *   size: N \n type: image/jpeg \n binary: n \n <n bytes> \n OK
+ *   no picture in the file      OK, and nothing else (not an error)
+ *   no such file                ACK 50 "No such song"
+ *   OFFSET past the end         ACK 2 "Bad file offset"
+ *
+ * A chunk is the connection's binarylimit (8192 until set). A client
+ * pages through a cover a chunk a request, and extracting the whole
+ * picture again for each chunk of a 500 KB cover is 60 reads of it -- so
+ * the last picture extracted is kept, with its URI, in PSRAM (where
+ * covertag's malloc() of over 4 KB puts it), and further chunks come from
+ * there. It goes when another URI is asked for, or when the last client
+ * leaves, so up to COVERTAG_MAX_IMAGE is not held for nothing. A file
+ * with no picture is remembered too, as length 0.
+ *
+ * `type` is sniffed from the picture's first bytes -- covertag does not
+ * report the MIME a tag declares, and the bytes are what a client decodes.
+ *
+ * Stack: covertag_extract_art() to its deepest parser (ogg_read(), 400
+ * bytes) is under 500 bytes of frames by -fstack-usage with
+ * riscv32-esp-elf-gcc 14.2, plus the stdio read under it, which this
+ * task already does for albumart and stored playlists within MPD_STACK.
+ */
+static struct {
+    char     uri[MPDURI_MAX + 2];
+    uint8_t *data;              /* malloc()ed by covertag; NULL with len 0 */
+    size_t   len;
+    bool     have;              /* uri is the one data belongs to */
+} s_pic;
+
+static void pic_forget(void)
+{
+    free(s_pic.data);
+    s_pic.data = NULL;
+    s_pic.len = 0;
+    s_pic.have = false;
+}
+
+static const char *pic_mime(const uint8_t *d, size_t n)
+{
+    if (n >= 3 && d[0] == 0xFF && d[1] == 0xD8 && d[2] == 0xFF) return "image/jpeg";
+    if (n >= 8 && memcmp(d, "\x89PNG\r\n\x1a\n", 8) == 0) return "image/png";
+    if (n >= 6 && (memcmp(d, "GIF87a", 6) == 0 || memcmp(d, "GIF89a", 6) == 0)) return "image/gif";
+    if (n >= 12 && memcmp(d, "RIFF", 4) == 0 && memcmp(d + 8, "WEBP", 4) == 0) return "image/webp";
+    if (n >= 2 && d[0] == 'B' && d[1] == 'M') return "image/bmp";
+    return NULL;
+}
+
+static result_t lib_readpicture(const ctx_t *x, const char *uri, const char *off_s)
+{
+    conn_t *const c = x->c;
+    unsigned long off;
+    if (!arg_unsigned(x, off_s, UINT32_MAX, &off)) return RES_ERR;
+    const size_t ul = uri ? strlen(uri) : 0;
+    if (!(s_pic.have && ul < sizeof(s_pic.uri) && strcmp(s_pic.uri, uri) == 0)) {
+        const char *rel = "";
+        const int v = (uri && mpduri_ok(uri, false)) ? mpduri_split(uri, &rel) : -1;
+        const int k = (v >= 0 && rel[0])
+                    ? snprintf(s_lib->vfs, sizeof(s_lib->vfs), "%s/%s", mpduri_mount(v), rel) : -1;
+        if (k <= 0 || (size_t)k >= sizeof(s_lib->vfs) || ul >= sizeof(s_pic.uri)) {
+            ack(c, MPD_ACK_NO_EXIST, x->idx, x->verb, "No such song");
+            return RES_ERR;
+        }
+        const storage_id_t id = v == MPDURI_VOL_SD ? STORAGE_SD : STORAGE_USB;
+        pic_forget();
+        storage_hold_brief(id);
+        struct stat st;
+        FILE *f = (storage_present(id) && stat(s_lib->vfs, &st) == 0 && S_ISREG(st.st_mode))
+                ? fopen(s_lib->vfs, "rb") : NULL;
+        if (!f) {
+            storage_release_brief(id);
+            ack(c, MPD_ACK_NO_EXIST, x->idx, x->verb, "No such song");
+            return RES_ERR;
+        }
+        uint8_t *d = NULL;
+        size_t n = 0;
+        const esp_err_t err = covertag_extract_art(f, STORAGE_IO_BACKGROUND, &d, &n);
+        fclose(f);
+        storage_release_brief(id);
+        if (err != ESP_OK) { free(d); d = NULL; n = 0; }
+        memcpy(s_pic.uri, uri, ul + 1);
+        s_pic.data = d;
+        s_pic.len = n;
+        s_pic.have = true;
+        ESP_LOGI(TAG, "client %d: readpicture %.96s: %u bytes%s", c->fd, uri, (unsigned)n,
+                 n ? "" : " (no picture)");
+    }
+    if (!s_pic.len) return RES_OK;                  /* no picture: MPD's empty OK */
+    if (off > s_pic.len) {
+        ack(c, MPD_ACK_ARG, x->idx, x->verb, "Bad file offset");
+        return RES_ERR;
+    }
+    size_t n = s_pic.len - off;
+    if (n > c->binlimit) n = c->binlimit;
+    const char *mime = pic_mime(s_pic.data, s_pic.len);
+    putf(c, "size: %u\n", (unsigned)s_pic.len);
+    if (mime) putf(c, "type: %s\n", mime);
+    putf(c, "binary: %u\n", (unsigned)n);
+    put(c, (const char *)s_pic.data + off, n);
     puts_(c, "\n");
     return RES_OK;
 }
@@ -3721,6 +3840,23 @@ static result_t run_cmd(conn_t *c, const mpd_cmd_t *cmd, int idx)
         return lib_lsinfo(&x, a0);
     case MPD_CMD_ALBUMART:                                          /* 5240 */
         return lib_albumart(&x, a0, cmd->argv[1]);
+    case MPD_CMD_READPICTURE:                                       /* 5249 */
+        return lib_readpicture(&x, a0, cmd->argv[1]);
+    case MPD_CMD_BINARYLIMIT: {                                     /* 5249 */
+        /* MPD 0.22.4. At least 64, MPD's floor and its words. No ceiling:
+         * readpicture sends from PSRAM through put(), which flushes as it
+         * fills, and albumart reads at most sbuf's worth whatever this
+         * says -- a smaller chunk than asked for is within the protocol,
+         * since the client pages on the `binary:` it is given. */
+        unsigned long v;
+        if (!arg_unsigned(&x, a0, UINT32_MAX, &v)) return RES_ERR;
+        if (v < MPD_BINARY_MIN) {
+            ack(c, MPD_ACK_ARG, idx, cmd->verb, "Value too small");
+            return RES_ERR;
+        }
+        c->binlimit = (uint32_t)v;
+        return RES_OK;
+    }
     case MPD_CMD_LISTFILES:                                         /* 5228 */
         return lib_listfiles(&x, a0);
     case MPD_CMD_LISTALL:
@@ -4342,6 +4478,7 @@ static void conn_close(conn_t *c, const char *why)
     b->nsubs = 0;
     b->nmsgs = 0;
     if (s_nclients > 0) s_nclients--;
+    if (s_nclients == 0) pic_forget();                              /* 5249 */
 }
 
 static void conn_accept(int ls)
@@ -4382,6 +4519,7 @@ static void conn_accept(int ls)
     mpdidle_init(&c->idle);         /* 5160: nothing from before it came */
     c->pending = 0;                 /* 5230 */
     c->tags = TAG_ALL;              /* 5241: tagtypes all, MPD's default */
+    c->binlimit = MPD_BINARY_DEFAULT;                               /* 5249 */
     s_box[c - s_conn].nsubs = 0;
     s_box[c - s_conn].nmsgs = 0;
     c->broken = false;

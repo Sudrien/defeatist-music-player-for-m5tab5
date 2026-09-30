@@ -372,6 +372,10 @@ static const cmd_def_t s_cmds[] = {
 
     /* 5240: arities from AllCommands.cxx */
     { "albumart",         MPD_CMD_ALBUMART,            2,  2 },
+
+    /* 5249: arities from AllCommands.cxx */
+    { "readpicture",      MPD_CMD_READPICTURE,         2,  2 },
+    { "binarylimit",      MPD_CMD_BINARYLIMIT,         1,  1 },
 };
 
 #define N_CMDS  (sizeof(s_cmds) / sizeof(s_cmds[0]))

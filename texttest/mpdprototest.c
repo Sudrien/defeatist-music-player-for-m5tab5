@@ -302,8 +302,11 @@ int main(void)
     ok_parse("albumart foo 0", MPD_CMD_ALBUMART, 2);
     bad_parse("albumart foo", MPD_ACK_ARG,
               "ACK [2@0] {albumart} wrong number of arguments for \"albumart\"\n");
-    bad_parse("readpicture foo 0", MPD_ACK_UNKNOWN,
-              "ACK [5@0] {} unknown command \"readpicture\"\n");
+    /* 5249: and readpicture is 0.22, answered now. */
+    ok_parse("readpicture foo 0", MPD_CMD_READPICTURE, 2);
+    ok_parse("binarylimit 8192", MPD_CMD_BINARYLIMIT, 1);
+    bad_parse("readpicture foo 0 x", MPD_ACK_ARG,
+              "ACK [2@0] {readpicture} wrong number of arguments for \"readpicture\"\n");
     /* `noidle` is not in MPD's command table (src/command/
      * AllCommands.cxx has "idle" and no "noidle"): the bare word is
      * caught as a raw line before tokenising, and anything that misses
@@ -361,6 +364,8 @@ int main(void)
             "prio", "prioid", "rangeid", "addtagid", "cleartagid", "readcomments", "mixrampdb", "mixrampdelay", "kill", "config", "sticker",
             /* 5240 */
             "albumart",
+            /* 5249 */
+            "readpicture", "binarylimit",
         };
         const size_t n = sizeof(verbs) / sizeof(verbs[0]);
         for (size_t i = 0; i < n; i++) {

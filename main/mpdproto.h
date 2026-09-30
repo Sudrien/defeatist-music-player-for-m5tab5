@@ -219,6 +219,9 @@ typedef enum {
 
     /* 5240: MPD 0.21's cover art, from a file in the song's folder */
     MPD_CMD_ALBUMART,
+
+    /* 5249: MPD 0.22: the picture inside a file, and the chunk size */
+    MPD_CMD_READPICTURE, MPD_CMD_BINARYLIMIT,
 } mpd_cmd_kind_t;
 
 /*

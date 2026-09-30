@@ -371,6 +371,12 @@ static uint32_t be32(const uint8_t *p)
 
 /* v2.4 frame sizes are syncsafe; v2.3 are plain big-endian. Getting
  * this backwards walks straight off the end of the first frame. */
+/* 5266: an ID3v2.2 frame size -- 24 bits, plain. */
+static uint32_t be24(const uint8_t *p)
+{
+    return ((uint32_t)p[0] << 16) | ((uint32_t)p[1] << 8) | p[2];
+}
+
 static uint32_t syncsafe32(const uint8_t *p)
 {
     return ((uint32_t)(p[0] & 0x7F) << 21) | ((uint32_t)(p[1] & 0x7F) << 14) |
@@ -415,22 +421,28 @@ esp_err_t albumart_extract_at(FILE *f, storage_io_class_t cls, long base,
     }
 
     const int ver = hdr[3];
-    if (ver < 3) {
+    /* 5266: v2.2 is read -- its PIC frame is APIC with a 3-byte id, a
+     * 3-byte size and a 3-letter image format where APIC has a MIME
+     * type. Below that there is nothing: v2.0 and v2.1 were never
+     * published. Its 0x40 is compression, not an extended header, and no
+     * tagger wrote it; refused, and said. */
+    const bool v22 = (ver == 2);
+    if (ver < 2 || (v22 && (hdr[5] & 0x40))) {
         /*
          * Raised from LOGD because the refusal is invisible otherwise:
          * the player prints "no cover art in this file
          * (ESP_ERR_NOT_SUPPORTED)" and that code covers two unrelated
          * causes -- a picture in a format this device cannot draw
-         * (warned about below, with its MIME type) and this, a tag too
-         * old to have a picture frame at all. Reading the first as the
-         * second sends someone looking for a converter for a file that
-         * has nothing to convert.
+         * (warned about below, with its MIME type) and this, a tag this
+         * reader does not know. Reading the first as the second sends
+         * someone looking for a converter for a file that has nothing to
+         * convert.
          */
-        ESP_LOGI(TAG, "ID3v2.%d tag: predates APIC frames, no cover to read", ver);
+        ESP_LOGI(TAG, "ID3v2.%d tag%s: no cover read", ver, v22 ? ", compressed" : "");
         return ESP_ERR_NOT_SUPPORTED;
     }
     ESP_LOGD(TAG, "ID3v2.%d tag", ver);
-    if (hdr[5] & 0x40) {
+    if (!v22 && (hdr[5] & 0x40)) {
         /* Extended header: skip it. Its own size field is syncsafe in
          * v2.4 and plain in v2.3, same trap as frame sizes. */
         uint8_t ext[4];
@@ -440,16 +452,18 @@ esp_err_t albumart_extract_at(FILE *f, storage_io_class_t cls, long base,
     }
 
     const long tag_end = base + 10 + (long)syncsafe32(&hdr[6]);
+    const size_t fhl = v22 ? 6 : 10;                /* 5266 */
 
-    while (ftell(f) + 10 <= tag_end) {
+    while (ftell(f) + (long)fhl <= tag_end) {
         uint8_t fh[10];
-        if (fread(fh, 1, sizeof(fh), f) != sizeof(fh)) break;
+        if (fread(fh, 1, fhl, f) != fhl) break;
         if (fh[0] == 0) break;                      /* padding */
 
-        const uint32_t fsz = (ver >= 4) ? syncsafe32(&fh[4]) : be32(&fh[4]);
+        const uint32_t fsz = v22 ? be24(&fh[3])
+                           : (ver >= 4) ? syncsafe32(&fh[4]) : be32(&fh[4]);
         if (fsz == 0 || ftell(f) + (long)fsz > tag_end) break;
 
-        if (memcmp(fh, "APIC", 4) != 0) {
+        if (memcmp(fh, v22 ? "PIC" : "APIC", v22 ? 3 : 4) != 0) {
             fseek(f, (long)fsz, SEEK_CUR);
             continue;
         }
@@ -469,8 +483,18 @@ esp_err_t albumart_extract_at(FILE *f, storage_io_class_t cls, long base,
         size_t i = 0;
         const uint8_t enc = frame[i++];
         const char *mime = (const char *)&frame[i];
-        while (i < fsz && frame[i]) i++;
-        i++;                                        /* MIME NUL */
+        char fmt[4] = "";
+        if (v22) {
+            /* 5266: "JPG" or "PNG", three bytes and no NUL. For the log;
+             * the image's own magic decides, as for APIC. */
+            if (fsz < 5) { free(frame); return ESP_ERR_INVALID_SIZE; }
+            memcpy(fmt, &frame[i], 3);
+            mime = fmt;
+            i += 3;
+        } else {
+            while (i < fsz && frame[i]) i++;
+            i++;                                    /* MIME NUL */
+        }
         if (i >= fsz) { free(frame); return ESP_ERR_INVALID_SIZE; }
         i++;                                        /* picture type */
 
@@ -651,21 +675,24 @@ esp_err_t id3_read_tags_ext(FILE *f, long base, id3_tags_t *out,
     }
 
     const int ver = hdr[3];
-    if (ver < 3) {
-        /*
-         * Silent until now, which made the pair of symptoms look like
-         * two faults. A v2.2 tag names its frames in three characters
-         * (TT2, TP1, TAL) where v2.3 uses four (TIT2, TPE1, TALB), so
-         * this walk finds nothing it knows and the screen falls back to
-         * the filename -- at the same time as the cover read above
-         * refuses for the same reason. One cause, two messages, and
-         * neither of them used to say "old tag".
-         */
-        ESP_LOGI(TAG, "ID3v2.%d tag: frame ids are 3 bytes, not read", ver);
+    /*
+     * 5266: v2.2 is read. It names its frames in three characters (TT2,
+     * TP1, TAL) where v2.3 uses four (TIT2, TPE1, TALB), with a 6-byte
+     * frame header and a plain 24-bit size; each id is mapped to its v2.3
+     * name below and the walk is otherwise the same. It was refused, with
+     * a line per file, until a USB drive's first index printed 155 of
+     * them and left those files untitled in the library.
+     *
+     * v2.2's 0x40 flag is compression, which no tagger wrote: refused,
+     * as is anything before v2.2, which was never published.
+     */
+    const bool v22 = (ver == 2);
+    if (ver < 2 || (v22 && (hdr[5] & 0x40))) {
+        ESP_LOGI(TAG, "ID3v2.%d tag%s: not read", ver, v22 ? ", compressed" : "");
         return ESP_ERR_NOT_SUPPORTED;
     }
 
-    if (hdr[5] & 0x40) {
+    if (!v22 && (hdr[5] & 0x40)) {
         uint8_t ext[4];
         if (fread(ext, 1, 4, f) != 4) return ESP_ERR_INVALID_SIZE;
         const uint32_t esz = (ver >= 4) ? syncsafe32(ext) : be32(ext);
@@ -675,14 +702,31 @@ esp_err_t id3_read_tags_ext(FILE *f, long base, id3_tags_t *out,
     const long tag_end = base + 10 + (long)syncsafe32(&hdr[6]);
     int found = 0;
 
+    /* 5266: v2.2's ids, as the v2.3 ids the comparisons below know. TYE
+     * is v2.3's TYER and not TDRC -- a year. */
+    static const char v22_ids[][2][5] = {
+        { "TT2", "TIT2" }, { "TP1", "TPE1" }, { "TAL", "TALB" }, { "TCO", "TCON" },
+        { "TYE", "TYER" }, { "TP2", "TPE2" }, { "TRK", "TRCK" }, { "TPA", "TPOS" },
+    };
+    const size_t fhl = v22 ? 6 : 10;
+
     /* 5262: with extra, eight frames are wanted and the walk is the tag. */
-    while (ftell(f) + 10 <= tag_end && (extra || found < 3)) {
+    while (ftell(f) + (long)fhl <= tag_end && (extra || found < 3)) {
         uint8_t fh[10];
-        if (fread(fh, 1, sizeof(fh), f) != sizeof(fh)) break;
+        if (fread(fh, 1, fhl, f) != fhl) break;
         if (fh[0] == 0) break;                      /* padding */
 
-        const uint32_t fsz = (ver >= 4) ? syncsafe32(&fh[4]) : be32(&fh[4]);
+        const uint32_t fsz = v22 ? be24(&fh[3])
+                           : (ver >= 4) ? syncsafe32(&fh[4]) : be32(&fh[4]);
         if (fsz == 0 || ftell(f) + (long)fsz > tag_end) break;
+        if (v22) {
+            /* The id rewritten in place; one v2.3 never uses stands for
+             * a frame this reader does not want. */
+            const char *as = "XXXX";
+            for (size_t k = 0; k < sizeof(v22_ids) / sizeof(v22_ids[0]); k++)
+                if (!memcmp(fh, v22_ids[k][0], 3)) { as = v22_ids[k][1]; break; }
+            memcpy(fh, as, 4);
+        }
 
         char *dst = NULL;
         size_t dst_len = 0;

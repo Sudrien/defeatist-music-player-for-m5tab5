@@ -14,7 +14,7 @@
  * not.
  *
  * DERIVED, LIKE THE INDEX. Rebuilt from the catalog in the same pass
- * that writes .ix3, never appended to, never migrated -- the version is
+ * that writes .ix4, never appended to, never migrated -- the version is
  * in the filename (medialib.h explains why) and a build that does not
  * know a file deletes it and writes its own.
  *

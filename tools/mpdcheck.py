@@ -488,6 +488,22 @@ class Checker:
 
     def library(self):
         self.section("library")
+        # 5266: an index that is running is waited out, not failed on. The
+        # first boot after an index-format change (5263's .ix3, 5266's
+        # .ix4) reads every tag on the card again, which took a 1203-track
+        # USB drive 170 s; a run started then met "being indexed" on every
+        # library check.
+        t = time.time()
+        while True:
+            try:
+                self.c.cmd("lsinfo")
+                break
+            except Ack as e:
+                if e.code != 52 or time.time() - t > 900:
+                    break
+                if time.time() - t < 1:
+                    print("  info  the library is being indexed; waiting (up to 15 min)")
+                time.sleep(2)
         r = self.expect_ok("lsinfo /", "lsinfo") or []
         top = [v for k, v in pairs(r) if k == "directory"]
         self.ok("lsinfo / lists a volume folder", bool(top), repr(r[:6]))

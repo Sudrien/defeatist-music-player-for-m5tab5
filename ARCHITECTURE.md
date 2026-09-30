@@ -19517,3 +19517,40 @@ The two ui_clear_art() calls left are clear_art() itself and
 load_track_visuals(), which returns before it when the screen is covered.
 
 Not built here; not on the board.
+
+### 5266 -- ID3v2.2 read; the index is .ix4; mpdcheck waits out an index
+
+Board, after 5264: 451 checks passed, and the first USB index under .ix3
+printed `ID3v2.2 tag: frame ids are 3 bytes, not read` 155 times -- 155 of
+1203 tracks with no title, artist or album on the screen or in the
+library, and no cover. iTunes wrote v2.2 into its MP3s for years.
+
+**Tags.** v2.2 is v2.3 with a 6-byte frame header -- a 3-character id and
+a plain 24-bit size -- and no extended header. id3_read_tags_ext() reads
+the header by version and rewrites each v2.2 id as its v2.3 name (TT2
+TIT2, TP1 TPE1, TAL TALB, TCO TCON, TYE TYER, TP2 TPE2, TRK TRCK, TPA
+TPOS; anything else as an id v2.3 never uses), so the comparisons and the
+text decoding are the ones v2.3 has. TYE is a year, so it is TYER and not
+TDRC. **Covers.** albumart_extract_at() reads PIC the same way: APIC with
+a 3-letter image format ("JPG", "PNG") where APIC has a MIME string. The
+image's magic still decides, as for APIC. **Refused:** v2.2 with its 0x40
+flag, which in v2.2 is compression -- no tagger wrote it -- and anything
+before v2.2, which was never published; the one INFO line each stays.
+
+Checked on a host against v2.2 tags written by hand (Latin-1 and UTF-16
+text, "(17)" as the genre, an unknown frame, a PIC with a PNG, padding):
+all eight fields, the cover byte for byte, the Xing length through the
+tag; a compressed tag and a frame whose size runs past the tag refused,
+under ASan. v2.3 and v2.4 files read as before.
+
+**The index is .ix4.** A v2.2 track indexed under .ix3 has a catalog line
+with no tags, which a KEEP cannot tell from a file that has none; the new
+name ADDs every track and reads it again, as 5263 did. Expect the USB
+drive's 170 s once more on the first mount.
+
+**mpdcheck** waits out a running index at the start of the library
+section, up to fifteen minutes, rather than failing every library check
+on "being indexed" -- which is what the first run after 5263 did.
+
+texttest all passes; albumart.c's tag and cover readers compiled -Werror
+on a host. Not built with the IDF; not on the board.

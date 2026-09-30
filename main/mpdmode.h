@@ -12,32 +12,30 @@
  * PURE. No IDF beyond `playlist.h`'s own include, which the host shim
  * supplies, so the table is tested on a host (texttest/mpdmodetest.c).
  *
- * THE DIRECTION THAT IS EXACT: all five orders have an exact MPD
+ * THE DIRECTION THAT IS EXACT: all six orders have an exact MPD
  * equivalent. Nothing the glass can be set to is unsayable in MPD's
  * flags, which is the useful half and is worth knowing before reading the
  * rest of this file.
  *
  * THE DIRECTION THAT IS NOT: eight combinations of random/repeat/single
- * onto four orders, so four of the eight are approximations, and `consume`
+ * onto the orders, so three of the eight are approximations, and `consume`
  * is a fifth loss on top of any of them.
  *
  *   random repeat single   order         exact?
  *   ------ ------ ------   -----------   ------
  *      0      0      0     ALL           yes
  *      0      0      1     ONE           yes
- *      0      1      0     ALL           NO -- "repeat the folder"
+ *      0      1      0     REPEAT_ALL    yes (5261; ALL, not exact, before)
  *      0      1      1     REPEAT_ONE    yes
  *      1      0      0     SHUFFLE       yes
  *      1      0      1     ONE           NO -- random is dropped
  *      1      1      0     SHUFFLE       NO -- "reshuffle at the end"
  *      1      1      1     REPEAT_ONE    NO -- random is dropped
  *
- * **The missing state that matters is repeat-all**, row three: keep
- * playing the folder from the top when it ends. It is probably the most
- * commonly set option in any MPD client and this device has no such mode
- * -- `PLAY_ORDER_ALL` stops at the end of the folder. It is named here
- * because "we support repeat" is what a reader assumes from a `repeat`
- * flag existing at all.
+ * **Repeat-all**, row three, keep playing the folder from the top when it
+ * ends, was the missing state that mattered until 5261 added
+ * PLAY_ORDER_REPEAT_ALL: probably the most commonly set option in any MPD
+ * client.
  *
  * The two rows where random is dropped look worse than they are and are
  * still not exact. With `single` set the next track is never chosen

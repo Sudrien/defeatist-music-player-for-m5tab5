@@ -242,6 +242,19 @@ int main(void)
         CHECK(playlist_peek_next(PLAY_ORDER_ALL) == NULL, "peek ALL at the end: NULL");
         CHECK(playlist_next(PLAY_ORDER_ALL) == NULL, "next ALL at the end: stop");
         CHECK(playlist_current() == 3, "and stays on the last");
+        /* 5261: repeat-all at the end goes back to the top. */
+        CHECK(playlist_has_next(PLAY_ORDER_REPEAT_ALL), "has_next REPEAT_ALL at the end: true");
+        CHECK(playlist_peek_next(PLAY_ORDER_REPEAT_ALL) &&
+              strcmp(playlist_peek_next(PLAY_ORDER_REPEAT_ALL), playlist_path(0)) == 0,
+              "peek REPEAT_ALL at the end: the top");
+        p = playlist_next(PLAY_ORDER_REPEAT_ALL);
+        CHECK(p && strcmp(p, playlist_path(0)) == 0 && playlist_current() == 0,
+              "next REPEAT_ALL at the end: the top");
+        p = playlist_next(PLAY_ORDER_REPEAT_ALL);
+        CHECK(p && playlist_current() == 1, "and on from there, as ALL");
+        p = playlist_next(PLAY_ORDER_ALL);
+        p = playlist_next(PLAY_ORDER_ALL);
+        CHECK(playlist_current() == 3, "back at the last, for what follows");
     }
 
     /* prev */

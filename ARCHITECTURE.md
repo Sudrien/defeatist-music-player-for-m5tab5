@@ -19306,3 +19306,36 @@ A bool read across tasks, so the label can be one pass late; nothing
 acts on it. The remote page shows no play order at all, so nothing there.
 
 Not compiled here -- no IDF. Not on the board.
+
+### 5261 -- playlist: repeat-all, RPT; repeat-one is RPT1
+
+MPD's `repeat` alone -- start the queue again when it ends -- sprang back,
+because the device had no such order (mpdmode.h, row three, since 5156).
+PLAY_ORDER_REPEAT_ALL is ALL whose end is the top: next_locked(),
+peek_next_locked() and has_next_locked() wrap to entry 0 where ALL
+returns nothing, including from 5171's gap after the playing entry was
+removed. Appended to the enum, as 5; the order is not stored anywhere, so
+nothing on a card changes meaning.
+
+mpdmode: row three is REPEAT_ALL and exact, s_fwd's new row is repeat
+alone, and mpdmode_next_pos() names the top at the end, so `nextsongid`
+does too -- mpdmodetest's check against MPD's GetNextPosition() covers it.
+consume + repeat is still EAT with repeat springing back: EAT stops at
+the end, and nothing there wraps.
+
+The glass: RPT is repeat-all and repeat-one is RPT1, named on the board
+before this was written. The cycle is ONE -> ALL -> RPT -> EAT -> RND ->
+RPT1 -> ONE; RPT beside ALL for the reason EAT is. 5260's oneshot labels
+become EAT1 and ONE1, the same "for one" as RPT1, dropping the U+00B7.
+
+What `single oneshot` and `consume oneshot` go back to follows: with
+repeat set, a oneshot now returns to RPT rather than ALL, since `was` is
+the flags with the one flag off, mapped through the table. `consume
+oneshot` under RPT eats the song when it is left and then puts RPT back.
+One edge: that song being the last in the queue, EAT's walk stops there
+rather than wrapping, as the order it is standing in for would.
+
+mpdcheck: `repeat 1` alone must read back 1 0 0 0.
+
+texttest all passes (mpdmodetest, playlisttest: new cases). browser.c
+and the player not compiled here -- no IDF. Not on the board.

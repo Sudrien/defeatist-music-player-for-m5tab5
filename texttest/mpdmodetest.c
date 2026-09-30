@@ -39,6 +39,7 @@ static const char *order_name(play_order_t o)
     case PLAY_ORDER_SHUFFLE:    return "SHUFFLE";
     case PLAY_ORDER_REPEAT_ONE: return "REPEAT_ONE";
     case PLAY_ORDER_EAT:        return "EAT";
+    case PLAY_ORDER_REPEAT_ALL: return "REPEAT_ALL";
     default:                    return "?";
     }
 }
@@ -95,6 +96,8 @@ int main(void)
     fwd(PLAY_ORDER_REPEAT_ONE, true,  false, true,  false);
     /* 5252: EAT is MPD's consume and nothing else. */
     fwd(PLAY_ORDER_EAT,        false, false, false, true);
+    /* 5261: repeat-all is repeat and nothing else. */
+    fwd(PLAY_ORDER_REPEAT_ALL, true,  false, false, false);
 
     /* An order outside the enum is the device's default and not row zero:
      * a bad value should land on what the player does when nobody has
@@ -124,15 +127,12 @@ int main(void)
         "random order, stop when exhausted");
 
     /*
-     * THE MISSING STATE THAT MATTERS. repeat without single is "start the
-     * folder again when it ends", probably the most commonly set option in
-     * any MPD client, and this device has no such mode -- PLAY_ORDER_ALL
-     * stops at the end. ALL is the closest and it is NOT exact, and a
-     * reader who assumes a `repeat` flag means repeat works is who this
-     * case is for.
+     * repeat without single is "start the folder again when it ends",
+     * probably the most commonly set option in any MPD client. Until 5261
+     * the device had no such mode and this row was ALL, not exact.
      */
-    rev(false, true,  false, false, PLAY_ORDER_ALL,        false,
-        "repeat the folder -- NO ANALOGUE");
+    rev(false, true,  false, false, PLAY_ORDER_REPEAT_ALL, true,
+        "repeat the folder (5261)");
 
     /*
      * Random plus single. Looks exact and is not: with single set the next
@@ -178,7 +178,7 @@ int main(void)
          * way out. If this fails, a listener changing the mode on the
          * screen would see a client report something else.
          */
-        for (int o = 0; o < 5; o++) {
+        for (int o = 0; o <= (int)PLAY_ORDER_REPEAT_ALL; o++) {
             const play_order_t want = (play_order_t)o;
             const mpd_modes_t f = mpdmode_from_order(want);
             CHECK(mpdmode_to_order(&f) == want,
@@ -236,7 +236,7 @@ int main(void)
                   "state %d normalised to something inexact: [%s]", i, sa);
             /* And it is always some order's own flags. */
             bool found = false;
-            for (int o = 0; o < 5; o++) {
+            for (int o = 0; o <= (int)PLAY_ORDER_REPEAT_ALL; o++) {
                 const mpd_modes_t f = mpdmode_from_order((play_order_t)o);
                 if (memcmp(&a, &f, sizeof(f)) == 0) found = true;
             }
@@ -257,13 +257,13 @@ int main(void)
          * into a build failure rather than a bad row.
          */
         static const play_order_t cycle[] = {
-            PLAY_ORDER_ONE, PLAY_ORDER_ALL, PLAY_ORDER_EAT, PLAY_ORDER_SHUFFLE,
-            PLAY_ORDER_REPEAT_ONE,
+            PLAY_ORDER_ONE, PLAY_ORDER_ALL, PLAY_ORDER_REPEAT_ALL, PLAY_ORDER_EAT,
+            PLAY_ORDER_SHUFFLE, PLAY_ORDER_REPEAT_ONE,
         };
         const int n = (int)(sizeof(cycle) / sizeof(cycle[0]));
-        bool seen[5] = { false, false, false, false, false };
+        bool seen[6] = { false };
         for (int i = 0; i < n; i++) seen[(int)cycle[i]] = true;
-        for (int o = 0; o < 5; o++)
+        for (int o = 0; o <= (int)PLAY_ORDER_REPEAT_ALL; o++)
             CHECK(seen[o], "%s is not reachable from the button cycle",
                   order_name((play_order_t)o));
 
@@ -318,7 +318,7 @@ int main(void)
     CHECK(mpdmode_next_pos(PLAY_ORDER_ALL, 0, 1) == -1, "one song: none after it");
     /* Agreement with the reverse table: what MPD would compute from the
      * flags this device reports for each order. */
-    for (int o = 0; o < 5; o++) {
+    for (int o = 0; o <= (int)PLAY_ORDER_REPEAT_ALL; o++) {
         const mpd_modes_t m = mpdmode_from_order((play_order_t)o);
         for (int cur = 0; cur < 4; cur++) {
             int mpd;                                /* GetNextPosition, verbatim */

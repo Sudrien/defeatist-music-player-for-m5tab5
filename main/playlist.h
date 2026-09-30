@@ -26,6 +26,7 @@ typedef enum {
     PLAY_ORDER_SHUFFLE,     /* random, without repeating until exhausted */
     PLAY_ORDER_REPEAT_ONE,  /* this track again, until told otherwise */
     PLAY_ORDER_EAT,         /* 5252: ALL, removing each track as it is left */
+    PLAY_ORDER_REPEAT_ALL,  /* 5261: ALL, from the top again at the end */
 } play_order_t;
 
 /*

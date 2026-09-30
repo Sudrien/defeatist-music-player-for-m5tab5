@@ -18,8 +18,9 @@ _Static_assert(PLAY_ORDER_ALL        == 1, "play_order_t values moved");
 _Static_assert(PLAY_ORDER_SHUFFLE    == 2, "play_order_t values moved");
 _Static_assert(PLAY_ORDER_REPEAT_ONE == 3, "play_order_t values moved");
 _Static_assert(PLAY_ORDER_EAT        == 4, "play_order_t values moved");
+_Static_assert(PLAY_ORDER_REPEAT_ALL == 5, "play_order_t values moved");
 
-#define N_ORDERS    (5)
+#define N_ORDERS    (6)
 
 /*
  * What each order IS, in MPD's terms. All four are exact.
@@ -44,6 +45,7 @@ static const mpd_modes_t s_fwd[N_ORDERS] = {
     /* SHUFFLE    */ { .repeat = false, .random = true,  .single = false, .consume = false },
     /* REPEAT_ONE */ { .repeat = true,  .random = false, .single = true,  .consume = false },
     /* EAT        */ { .repeat = false, .random = false, .single = false, .consume = true  },
+    /* REPEAT_ALL */ { .repeat = true,  .random = false, .single = false, .consume = false },  /* 5261 */
 };
 
 /*
@@ -63,7 +65,7 @@ static const struct {
 } s_rev[8] = {
     /* 0: random 0 repeat 0 single 0 */ { PLAY_ORDER_ALL,        true  },
     /* 1: random 0 repeat 0 single 1 */ { PLAY_ORDER_ONE,        true  },
-    /* 2: random 0 repeat 1 single 0 */ { PLAY_ORDER_ALL,        false },  /* repeat-all */
+    /* 2: random 0 repeat 1 single 0 */ { PLAY_ORDER_REPEAT_ALL, true  },  /* 5261 */
     /* 3: random 0 repeat 1 single 1 */ { PLAY_ORDER_REPEAT_ONE, true  },
     /* 4: random 1 repeat 0 single 0 */ { PLAY_ORDER_SHUFFLE,    true  },
     /* 5: random 1 repeat 0 single 1 */ { PLAY_ORDER_ONE,        false },  /* random dropped */
@@ -140,6 +142,7 @@ int mpdmode_next_pos(play_order_t o, int cur, int n)
     if (cur < 0 || cur >= n) return -1;
     switch (o) {
     case PLAY_ORDER_REPEAT_ONE: return cur;
+    case PLAY_ORDER_REPEAT_ALL: return cur + 1 < n ? cur + 1 : 0;     /* 5261 */
     case PLAY_ORDER_SHUFFLE:    return -1;
     case PLAY_ORDER_ONE:
     case PLAY_ORDER_ALL:

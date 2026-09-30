@@ -198,12 +198,16 @@ static const char *peek_next_locked(play_order_t order)
     if (order == PLAY_ORDER_REPEAT_ONE) {
         return (s_current >= 0) ? s_paths_at(s_current) : NULL;
     }
-    if (order != PLAY_ORDER_ALL) return NULL;   /* see the header */
+    /* 5261: repeat-all is ALL whose end is the top. */
+    const bool wrap = (order == PLAY_ORDER_REPEAT_ALL);
+    if (order != PLAY_ORDER_ALL && !wrap) return NULL;   /* see the header */
 
     /* 5171: the playing entry was removed; its successor is next. */
-    if (s_current < 0 && s_gap >= 0) return s_gap < s_count ? s_paths_at(s_gap) : NULL;
+    if (s_current < 0 && s_gap >= 0)
+        return s_gap < s_count ? s_paths_at(s_gap) : (wrap ? s_paths_at(0) : NULL);
     const int n = s_current + 1;
-    if (s_current < 0 || n >= s_count) return NULL;
+    if (s_current < 0) return NULL;
+    if (n >= s_count) return wrap ? s_paths_at(0) : NULL;
     return s_paths_at(n);
 }
 
@@ -216,6 +220,8 @@ static bool has_next_locked(play_order_t order)
      * mapped to ALL by the caller, so what this really answers is
      * "would pressing next do anything", and it would. */
     if (order == PLAY_ORDER_REPEAT_ONE) return s_current >= 0;
+    /* 5261: repeat-all always has a next, the top at the end. */
+    if (order == PLAY_ORDER_REPEAT_ALL) return s_current >= 0 || s_gap >= 0;
     if (s_current < 0 && s_gap >= 0) return s_gap < s_count;     /* 5171 */
     return s_current >= 0 && s_current + 1 < s_count;
 }
@@ -278,7 +284,9 @@ static const char *next_locked(play_order_t order)
     }
 
     /* 5171: after the playing entry was removed, its successor. */
-    const int next = (s_current < 0 && s_gap >= 0) ? s_gap : s_current + 1;
+    int next = (s_current < 0 && s_gap >= 0) ? s_gap : s_current + 1;
+    /* 5261: repeat-all goes back to the top where ALL stops. */
+    if (next >= s_count && order == PLAY_ORDER_REPEAT_ALL) next = 0;
     if (next >= s_count) return NULL;        /* stop at the end of the folder */
     set_current_locked(next);
     return s_paths_at(next);

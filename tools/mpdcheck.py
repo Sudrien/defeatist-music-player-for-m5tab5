@@ -1113,6 +1113,15 @@ class Checker:
             print(f"  info  random 1 -> repeat {s.get('repeat')} random {s.get('random')} "
                   f"single {s.get('single')} consume {s.get('consume')}")
             self.c.cmd("random 0")
+            # 5261: repeat alone is RPT (repeat-all) and stays set.
+            self.c.cmd("repeat 1")
+            s = self.status()
+            self.ok("repeat 1 alone sticks (repeat-all, 5261)",
+                    (s.get("repeat"), s.get("random"), s.get("single"), s.get("consume"))
+                    == ("1", "0", "0", "0"),
+                    f"repeat {s.get('repeat')} random {s.get('random')} "
+                    f"single {s.get('single')} consume {s.get('consume')}")
+            self.c.cmd("repeat 0")
 
         # 5241: single oneshot shows as a word, and single 0/1 ends it.
         was = self.status().get("single", "0")

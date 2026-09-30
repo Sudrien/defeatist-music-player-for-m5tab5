@@ -223,7 +223,7 @@ static const char *order_label(void);
 
 void browser_set_order(play_order_t o)
 {
-    if ((int)o < 0 || (int)o > (int)PLAY_ORDER_EAT || o == s_order) return;
+    if ((int)o < 0 || (int)o > (int)PLAY_ORDER_REPEAT_ALL || o == s_order) return;
     s_order = o;
     ESP_LOGI(TAG, "play order now %s (from mpd)", order_label());
     s_dirty = true;
@@ -992,7 +992,8 @@ static const char *order_label(void)
     switch (s_order) {
     case PLAY_ORDER_ONE:     return "ONE";
     case PLAY_ORDER_SHUFFLE: return "RND";
-    case PLAY_ORDER_REPEAT_ONE: return "RPT";
+    case PLAY_ORDER_REPEAT_ONE: return "RPT1";         /* 5261: was RPT */
+    case PLAY_ORDER_REPEAT_ALL: return "RPT";          /* 5261 */
     case PLAY_ORDER_EAT:     return "EAT";              /* 5252 */
     default:                 return "ALL";
     }
@@ -1005,8 +1006,8 @@ static const char *order_button_label(void)
 {
     if (!s_seen_oneshot) return order_label();
     switch (s_order) {
-    case PLAY_ORDER_ONE:     return "ONE\xc2\xb7" "1";
-    case PLAY_ORDER_EAT:     return "EAT\xc2\xb7" "1";
+    case PLAY_ORDER_ONE:     return "ONE1";         /* 5261: was ONE·1 */
+    case PLAY_ORDER_EAT:     return "EAT1";         /* 5261: was EAT·1 */
     default:                 return order_label();
     }
 }
@@ -1493,12 +1494,14 @@ browser_result_t browser_touch(bool down, int x, int y)
             }
             break;
         case 4:
-            /* ONE -> ALL -> EAT -> RND -> RPT -> ONE. RPT sits after RND
-             * so the whole-list modes stay adjacent and the two
+            /* ONE -> ALL -> RPT -> EAT -> RND -> RPT1 -> ONE. RPT1 sits
+             * after RND so the whole-list modes stay adjacent and the two
              * single-track modes bookend the cycle; 5252's EAT is ALL
-             * that eats, so it sits beside ALL. */
+             * that eats, and 5261's RPT is ALL that wraps, so both sit
+             * beside ALL. */
             s_order = (s_order == PLAY_ORDER_ONE)     ? PLAY_ORDER_ALL
-                    : (s_order == PLAY_ORDER_ALL)     ? PLAY_ORDER_EAT
+                    : (s_order == PLAY_ORDER_ALL)     ? PLAY_ORDER_REPEAT_ALL
+                    : (s_order == PLAY_ORDER_REPEAT_ALL) ? PLAY_ORDER_EAT
                     : (s_order == PLAY_ORDER_EAT)     ? PLAY_ORDER_SHUFFLE
                     : (s_order == PLAY_ORDER_SHUFFLE) ? PLAY_ORDER_REPEAT_ONE
                                                       : PLAY_ORDER_ONE;

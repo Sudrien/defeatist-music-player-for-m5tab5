@@ -527,8 +527,8 @@ behaviour, and all of it is outside mpd.c:
   83 s, give or take where the format can land. `seek`/`seekid` of a
   song not playing still plays it and then seeks, so the top of it is
   heard first: a start-at-offset in the player would fix that.
-- **The modes are the player's four orders** (MPD.md step 7): repeat
-  alone (repeat-all) springs back, and `status` says what the player
+- **The modes are the player's six orders** (MPD.md step 7): repeat
+  alone is RPT, repeat-all (5261), and `status` says what the player
   will do. `consume` is the player's EAT order (5252) -- ALL, removing
   each track as it is left forward, as stock MPD does -- and springs
   back with random or single set; with repeat, repeat springs back.

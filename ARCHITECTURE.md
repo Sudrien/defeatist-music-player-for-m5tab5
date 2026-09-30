@@ -19255,3 +19255,33 @@ That covers what MPD.md listed as not yet driven on the board -- `list`
 (5182), `search`/`find` (5180) and 5218 onward -- so the line comes out.
 Cantata's own stored-playlists view was not what ran; mpdcheck's
 section on stored playlists was.
+
+### 5259 -- mpd: seek to the second, not the percent
+
+MPD's `seek`, `seekid` and `seekcur` went to the player as
+UI_ACTION_SEEK, a percent of the track, because that was the only seek
+it took: 2 s of a 3-minute song, 36 s of an hour's recording. The
+decoders were never that coarse -- decoder_seek_sec_at_cs() takes whole
+seconds -- so the percent was the slider's resolution imposed on a
+client that had asked for a time.
+
+UI_ACTION_SEEK_SEC carries whole seconds. request_seek() keeps its
+signature and becomes request_seek_at(pct, -1, why); the new action
+calls request_seek_at(0, sec, "mpd"). The target rides in s_seek_at_sec,
+written before s_seek_pct, so s_seek_pct is still the one flag that says
+a seek is pending and every place that drops an unserviced seek
+(track change, station, track over) needed no change: the next request
+overwrites the target. The decode loop uses the seconds when they are
+there, clamped to the length, and the percent otherwise. The slider,
+the remote page and `play 0`'s restart still send a percent.
+
+mpd.c's seek_ms() rounds to the nearest second. mpdcheck's seekcur 5
+must now land in 4..7 s rather than 3..9.
+
+Not in this: a millisecond seek, which would be a decoder change in all
+five mechanisms for a precision `status` can show and nobody can hear;
+and a start-at-offset, so `seek` of a song not playing still plays its
+top first (5229).
+
+texttest all passes. mpd.c and player.c not compiled here -- no IDF.
+Not on the board.

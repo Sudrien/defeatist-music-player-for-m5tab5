@@ -522,12 +522,11 @@ either does what MPD does or gives MPD's own refusal for a server
 without the feature. What still separates this server from 0.20 is
 behaviour, and all of it is outside mpd.c:
 
-- **Seeking is by percent.** `status` reports elapsed in whole seconds,
-  and every seek -- `seekcur`, and since 5229 `seek`/`seekid` of a
-  song not playing, which is played and then sought -- lands on the
-  nearest hundredth of the track. A client's progress bar can snap back
-  by up to about a second. Needs a millisecond seek, and a
-  start-at-offset, in the player.
+- **Seeking is to the second** (5259; it was a percent of the track).
+  The decoders take whole seconds, so a client's `seekcur 83.4` lands at
+  83 s, give or take where the format can land. `seek`/`seekid` of a
+  song not playing still plays it and then seeks, so the top of it is
+  heard first: a start-at-offset in the player would fix that.
 - **The modes are the player's four orders** (MPD.md step 7): repeat
   alone (repeat-all) springs back, and `status` says what the player
   will do. `consume` is the player's EAT order (5252) -- ALL, removing

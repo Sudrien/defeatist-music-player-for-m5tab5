@@ -27,8 +27,8 @@ By default it works on things it made itself:
     their order and their song ids, and the run checks that they did;
   - playback: the test entries are played, which interrupts what was
     playing. Afterwards the song you had is played again by its id,
-    sought to where it was (to about 1% of the track -- the player seeks
-    by percent) and paused if it was paused. A station that was playing
+    sought to where it was (to the second -- the player seeks in whole
+    seconds, 5259) and paused if it was paused. A station that was playing
     is not queued and is not restarted;
   - volume: moved one step and back. Modes and replay gain: set to what
     they already are. Each may be written to the card's settings;
@@ -882,9 +882,12 @@ class Checker:
         st = self.wait_state(lambda s: float(s.get("duration", "0") or 0) > 0, 6.0)
         if "duration" in st and float(st.get("duration", "0")) > 10:
             self.expect_ok("seekcur 5", "seekcur 5")
-            st = self.wait_state(lambda s: 3 <= float(s.get("elapsed", "0")) <= 9)
-            self.ok("seekcur lands near 5 s (a percent of the track)",
-                    3 <= float(st.get("elapsed", "0")) <= 9, st.get("elapsed"))
+            # 5259: to the second, not a percent. The decoders land within
+            # a second (Ogg's is the widest, 0.99 s), and the clock runs
+            # on while status is polled.
+            st = self.wait_state(lambda s: 4 <= float(s.get("elapsed", "0")) <= 7)
+            self.ok("seekcur lands near 5 s (to the second)",
+                    4 <= float(st.get("elapsed", "0")) <= 7, st.get("elapsed"))
             self.expect_ok("seekcur +2", "seekcur +2")
             self.expect_ok("seekid <current> 1", f"seekid {st.get('songid')} 1")
             self.expect_ok("seek <current pos> 1", f"seek {st.get('song')} 1")

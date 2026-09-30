@@ -701,6 +701,8 @@ static bool ask(const ctx_t *x, ui_action_kind_t kind, int value)
      */
     if (kind == UI_ACTION_VOLUME || kind == UI_ACTION_SEEK)
         ESP_LOGI(TAG, "client %d: %s -> %s %d%%", x->c->fd, x->verb, ui_action_name(kind), value);
+    else if (kind == UI_ACTION_SEEK_SEC)
+        ESP_LOGI(TAG, "client %d: %s -> %s %d s", x->c->fd, x->verb, ui_action_name(kind), value);
     else if (kind == UI_ACTION_REPLAYGAIN)
         ESP_LOGI(TAG, "client %d: %s -> replaygain %s", x->c->fd, x->verb, value ? "on" : "off");
     else
@@ -730,14 +732,11 @@ static bool ask(const ctx_t *x, ui_action_kind_t kind, int value)
 }
 
 /*
- * A seek to `ms`, as the one kind of seek the player takes: a percentage
- * of the track (UI_ACTION_SEEK, which is what the slider and the remote
- * send). So the resolution is a hundredth of the track -- 2 s of a
- * 3-minute song, 36 s of an hour-long recording -- and a client that asks
- * for 1:23 lands on the nearest percent. A millisecond seek is a new
- * action and a change to request_seek(), which is not this patch; the
- * cost is written here so that a client landing a few seconds off is not
- * a mystery.
+ * A seek to `ms`, rounded to the nearest whole second (UI_ACTION_SEEK_SEC,
+ * 5259). A second is the decoders' unit -- decoder_seek_sec_at_cs() takes
+ * seconds and reports where it landed in hundredths -- so that is as fine
+ * as this can ask for. It was a percentage of the track until 5259: 2 s of
+ * a 3-minute song, 36 s of an hour's recording.
  */
 static bool seek_ms(const ctx_t *x, int64_t ms)
 {
@@ -750,8 +749,7 @@ static bool seek_ms(const ctx_t *x, int64_t ms)
     }
     if (ms < 0) ms = 0;
     if (ms > v->duration_ms) ms = v->duration_ms;
-    const int pct = (int)((ms * 100 + v->duration_ms / 2) / v->duration_ms);
-    return ask(x, UI_ACTION_SEEK, pct);
+    return ask(x, UI_ACTION_SEEK_SEC, (int)((ms + 500) / 1000));
 }
 
 /* `play 0` and `playid N` restart the song, where a bare `play` resumes:
@@ -979,8 +977,8 @@ static result_t run_list_cmd(conn_t *c, const mpd_cmd_t *cmd, int idx)
         /*
          * 5229: another song is started and then sought, which is what
          * MPD does in one step. This player seeks only what it is
-         * playing, as a percentage of it (UI_ACTION_SEEK), and the
-         * percentage needs the length -- so the song is played by id,
+         * playing, and seek_ms() needs its length -- so the song is
+         * played by id,
          * and the published view is watched until it is that song with
          * a length, for up to MPD_SEEK_START_MS. Starting at 0 is just
          * the play. A song that does not become seekable in that time

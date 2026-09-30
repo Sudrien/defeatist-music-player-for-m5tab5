@@ -304,6 +304,14 @@ typedef enum {
     /* 5168: set the play order to `value` (a play_order_t) -- MPD's
      * repeat/random/single, already mapped through mpdmode.h's table. */
     UI_ACTION_ORDER,
+    /*
+     * 5259: seek to `value` whole seconds into the track -- MPD's seek,
+     * seekid and seekcur. UI_ACTION_SEEK's percent is the slider's
+     * resolution and a hundredth of an hour's recording is 36 s; the
+     * decoders take whole seconds (decoder_seek_sec_at_cs()), so that is
+     * the finest a seek can ask for.
+     */
+    UI_ACTION_SEEK_SEC,
 } ui_action_kind_t;
 
 /* Name of an action, for logging. Never NULL. Lives beside the enum so a

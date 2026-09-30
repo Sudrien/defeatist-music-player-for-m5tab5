@@ -3578,6 +3578,12 @@ static volatile float    s_rg_gain_db = 0.0f;
  * 0808; see the seek section of CLAUDE.md for which five. */
 static volatile int      s_seek_pct = -1;
 
+/* 5259: with s_seek_pct pending, a target in whole seconds that replaces
+ * the percent, or -1 for "use the percent". Written before s_seek_pct by
+ * request_seek(), so the loop never takes a percent with a stale target:
+ * s_seek_pct stays the one flag that says a seek is pending. */
+static volatile int32_t  s_seek_at_sec = -1;
+
 /*
  * When the outstanding seek was asked for, and by what.
  *
@@ -3644,7 +3650,16 @@ static void player_force_pause(void)
     s_pause_epoch++;
 }
 
+static void request_seek_at(int pct, int32_t sec, const char *why);
+
 static void request_seek(int pct, const char *why)
+{
+    request_seek_at(pct, -1, why);
+}
+
+/* 5259: `sec` >= 0 is a target in seconds, and `pct` is then only the
+ * pending flag's value. */
+static void request_seek_at(int pct, int32_t sec, const char *why)
 {
     /*
      * Refused rather than queued when there is nothing to seek in. A
@@ -3668,6 +3683,7 @@ static void request_seek(int pct, const char *why)
     }
     s_seek_why = why;
     s_seek_asked = xTaskGetTickCount();
+    s_seek_at_sec = sec;
     s_seek_pct = pct;
 }
 
@@ -8288,6 +8304,9 @@ static void ui_task(void *arg)
             if (act.kind == UI_ACTION_SEEK) {
                 ESP_LOGI(TAG, "button: %s -> %d%%",
                          ui_action_name(act.kind), act.value);
+            } else if (act.kind == UI_ACTION_SEEK_SEC) {
+                ESP_LOGI(TAG, "button: %s -> %d s",
+                         ui_action_name(act.kind), act.value);
             } else {
                 ESP_LOGI(TAG, "button: %s", ui_action_name(act.kind));
             }
@@ -8506,6 +8525,9 @@ static void ui_task(void *arg)
             break;
         case UI_ACTION_SEEK:
             request_seek(act.value, "slider");
+            break;
+        case UI_ACTION_SEEK_SEC:
+            request_seek_at(0, act.value < 0 ? 0 : act.value, "mpd");
             break;
         case UI_ACTION_PREV:
             /*
@@ -9828,6 +9850,7 @@ static track_end_t play_file(const char *path)
             }
 
             const int pct = s_seek_pct;
+            const int32_t at_sec = s_seek_at_sec;
             const uint32_t waited =
                 (uint32_t)pdTICKS_TO_MS(xTaskGetTickCount() - s_seek_asked);
             s_seek_pct = -1;
@@ -9843,7 +9866,11 @@ static track_end_t play_file(const char *path)
             if (len_sec == 0) {
                 ESP_LOGI(TAG, "seek ignored: no duration for this format");
             } else {
-                const uint32_t target = (uint32_t)((uint64_t)len_sec * pct / 100);
+                /* 5259: a target in seconds is clamped to the length, as
+                 * a percent of it is by construction. */
+                const uint32_t target = (at_sec >= 0)
+                    ? ((uint32_t)at_sec < len_sec ? (uint32_t)at_sec : len_sec)
+                    : (uint32_t)((uint64_t)len_sec * pct / 100);
 #if SEEK_NOOP
                 /* See SEEK_NOOP. Everything below runs as if the seek
                  * had succeeded; the decoder is simply never asked. */

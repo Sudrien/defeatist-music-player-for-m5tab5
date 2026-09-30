@@ -99,6 +99,13 @@ int main(void)
         match("(file contains 'BÔA ')", U, true, true);
         match("(any contains 'bÔa')", U, true, true);
         match("(artist starts_with 'BÔ')", U, true, true);
+        /* 5256: normalised -- ô typed as o and U+0302. find stays exact,
+         * byte for byte, as MPD's find is. */
+        match("(artist == 'BO\xcc\x82" "A')", U, true, true);
+        match("(artist == 'Bo\xcc\x82" "a')", U, false, false);
+        match("(file contains 'bo\xcc\x82" "a - get')", U, true, true);
+        match("(artist starts_with 'bo\xcc\x82')", U, true, true);
+        match("(artist == 'Boa')", U, true, false);          /* the accent is kept */
         match("(file starts_with 'USB/BÔA')", U, true, true);
         static const char *const G[MPDF_NFIELDS] = { "Οδός", "ΜΆΝΟΣ", "x", "sd/x" };
         match("(artist == 'μάνος')", G, true, true);          /* Σ and ς both σ */

@@ -76,18 +76,20 @@ int main(void)
                   "byte 0x%02x did not fold to one byte", c);
         }
 
-        /* 5243: casefold.h. The board's case: "BÔA" must find "Bôa". */
+        /* 5243: casefold.h. The board's case: "BÔA" must find "Bôa".
+         * 5256: the wants are decomposed (NFD) -- ô is o and U+0302 --
+         * which is what the search file now holds. */
         static const struct { const char *in, *want; } uc[] = {
-            { "Bôa", "bôa" }, { "BÔA", "bôa" },
-            { "Björk", "björk" }, { "SIGUR RÓS", "sigur rós" },
-            { "MÖTLEY CRÜE", "mötley crüe" }, { "Ÿ", "ÿ" },
-            { "ŁÓDŹ", "łódź" }, { "ŽELJKO ČAĆIĆ", "željko čaćić" },
+            { "Bôa", "bôa" }, { "BÔA", "bôa" },
+            { "Björk", "björk" }, { "SIGUR RÓS", "sigur rós" },
+            { "MÖTLEY CRÜE", "mötley crüe" }, { "Ÿ", "ÿ" },
+            { "ŁÓDŹ", "łódź" }, { "ŽELJKO ČAĆIĆ", "željko čaćić" },
             { "İSTANBUL", "istanbul" }, { "ſ", "s" },
-            { "ΜΆΝΟΣ ΧΑΤΖΙΔΆΚΙΣ", "μάνοσ χατζιδάκισ" }, { "ΟΔΟΣ", "οδοσ" },
+            { "ΜΆΝΟΣ ΧΑΤΖΙΔΆΚΙΣ", "μάνοσ χατζιδάκισ" }, { "ΟΔΟΣ", "οδοσ" },
             { "odoς", "odoσ" },
-            { "ЖАННА АГУЗАРОВА", "жанна агузарова" }, { "ЁЛКА", "ёлка" },
+            { "ЖАННА АГУЗАРОВА", "жанна агузарова" }, { "ЁЛКА", "ёлка" },
             { "ՀԱՅԱՍՏԱՆ", "հայաստան" },
-            { "ĐÀM VĨNH HƯNG", "đàm vĩnh hưng" }, { "Ơ", "ơ" },
+            { "ĐÀM VĨNH HƯNG", "đàm vĩnh hưng" }, { "Ơ", "ơ" },
             { "µ-Ziq", "μ-ziq" },
             { "ß", "ß" }, { "日本語", "日本語" }, { "Ƞ", "Ƞ" },
         };
@@ -110,9 +112,10 @@ int main(void)
         }
 
         /* The buffer bound holds for multi-byte output. */
-        CHECK(mediasearch_fold("ÀÀ", fold, 4) == -1, "4 bytes of output fitted in 4");
-        CHECK(mediasearch_fold("ÀÀ", fold, 5) == 4 && strcmp(fold, "àà") == 0,
-              "two À in 5 bytes: \"%s\"", fold);
+        /* 5256: À is a and U+0300, three bytes. */
+        CHECK(mediasearch_fold("ÀÀ", fold, 6) == -1, "6 bytes of output fitted in 6");
+        CHECK(mediasearch_fold("ÀÀ", fold, 7) == 6 && strcmp(fold, "a\xcc\x80" "a\xcc\x80") == 0,
+              "two À in 7 bytes: \"%s\"", fold);
 
         /* Folding is idempotent: what is folded folds to itself. */
         for (size_t i = 0; i < sizeof(uc) / sizeof(uc[0]); i++) {
@@ -121,12 +124,11 @@ int main(void)
             CHECK(strcmp(again, uc[i].want) == 0, "\"%s\" is not a fixed point", uc[i].want);
         }
 
-        /* And nothing above ASCII is touched, so UTF-8 is not corrupted
-         * into a different character. "Björk" must survive byte for
-         * byte apart from the B. */
+        /* And nothing above ASCII is corrupted into a different
+         * character: "Björk" survives, as b, j, o, U+0308, r, k. */
         const char bj[] = "Bj\xc3\xb6rk";
         mediasearch_fold(bj, fold, sizeof(fold));
-        CHECK(strcmp(fold, "bj\xc3\xb6rk") == 0, "utf-8 mangled");
+        CHECK(strcmp(fold, "bjo\xcc\x88rk") == 0, "utf-8 mangled");     /* 5256: ö as o U+0308 */
         for (int c = 0x80; c < 256; c++) {
             const char in[2] = { (char)c, 0 };
             char out[4];
@@ -134,6 +136,32 @@ int main(void)
             CHECK((unsigned char)out[0] == (unsigned char)c,
                   "byte 0x%02x was changed to 0x%02x", c,
                   (unsigned char)out[0]);
+        }
+
+        /* 5256: normalisation. Each pair must fold to the same bytes:
+         * a precomposed letter and its decomposed spelling, marks in
+         * either order, Greek Extended with its capital, a Hangul
+         * syllable and its jamo. And accents are kept: é is not e. */
+        static const struct { const char *a, *b; bool same; } nf[] = {
+            { "Béla", "Be\xcc\x81la", true },                   /* é, e U+0301 */
+            { "BÉLA", "be\xcc\x81la", true },
+            { "Tiến", "Tie\xcc\x82\xcc\x81n", true },         /* ế, e ^ ´ */
+            { "ệ", "e\xcc\xa3\xcc\x82", true },               /* dot below, then ^ */
+            { "ệ", "e\xcc\x82\xcc\xa3", true },               /* ^, then dot below */
+            { "ᾏ", "ᾇ", true },                                /* Greek Extended fold */
+            { "Ω", "Ω", true },                                /* U+2126, U+03A9 */
+            { "Å", "Å", true },                                /* U+212B, U+00C5 */
+            { "한", "\xe1\x84\x92\xe1\x85\xa1\xe1\x86\xab", true },   /* 한 as jamo */
+            { "Béla", "Bela", false },
+            { "İ", "i", true },
+        };
+        for (size_t i = 0; i < sizeof(nf) / sizeof(nf[0]); i++) {
+            char fa[64], fb[64];
+            const int na = mediasearch_fold(nf[i].a, fa, sizeof(fa));
+            const int nb = mediasearch_fold(nf[i].b, fb, sizeof(fb));
+            CHECK(na >= 0 && nb >= 0 && (strcmp(fa, fb) == 0) == nf[i].same,
+                  "normalisation pair %zu (%s / %s): %s", i, nf[i].a, nf[i].b,
+                  nf[i].same ? "differ" : "the same");
         }
 
         /* No room is a refusal, not a truncation. */

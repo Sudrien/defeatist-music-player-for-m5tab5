@@ -243,37 +243,53 @@ bool mpdfilter_parse(const char *s, mpdfilter_t *f)
  * folding the search file is written with, so a filter and the pass that
  * pre-filters for it cannot disagree. No buffers: this runs on the MPD
  * task, and a folded copy of a tag is a stack allocation CLAUDE.md says
- * not to make.
+ * not to make. 5256: the iterators casefold.h normalises with are 60
+ * bytes each, and str_has() holds three.
  */
 static bool str_eq(const char *a, const char *b, bool fold)
 {
     if (!fold) return strcmp(a, b) == 0;
+    /* 5256: normalised as well as folded -- casefold_get(). */
+    casefold_it_t x, y;
+    casefold_begin(&x, a);
+    casefold_begin(&y, b);
     for (;;) {
-        const uint32_t x = casefold_next(&a), y = casefold_next(&b);
-        if (casefold_cp(x) != casefold_cp(y)) return false;
-        if (!x) return true;
+        const uint32_t p = casefold_get(&x), q = casefold_get(&y);
+        if (p != q) return false;
+        if (!p) return true;
     }
 }
 
-/* Whether `needle`, folded, starts at `hay`, folded. */
+/* Whether `needle`, folded, starts where the iterator `h` is. `h` is a
+ * copy, a bookmark, and is used up. */
+static bool starts_it(casefold_it_t h, const char *needle)
+{
+    casefold_it_t n;
+    casefold_begin(&n, needle);
+    for (;;) {
+        const uint32_t y = casefold_get(&n);
+        if (!y) return true;
+        const uint32_t x = casefold_get(&h);
+        if (!x || x != y) return false;
+    }
+}
+
 static bool starts(const char *hay, const char *needle)
 {
-    for (;;) {
-        const uint32_t y = casefold_next(&needle);
-        if (!y) return true;
-        const uint32_t x = casefold_next(&hay);
-        if (!x || casefold_cp(x) != casefold_cp(y)) return false;
-    }
+    casefold_it_t h;
+    casefold_begin(&h, hay);
+    return starts_it(h, needle);
 }
 
 static bool str_has(const char *hay, const char *needle, bool fold)
 {
     if (!*needle) return true;
     if (!fold) return strstr(hay, needle) != NULL;
-    while (*hay) {
-        if (starts(hay, needle)) return true;
-        (void)casefold_next(&hay);          /* on by a whole character */
-    }
+    casefold_it_t h;
+    casefold_begin(&h, hay);
+    do {
+        if (starts_it(h, needle)) return true;
+    } while (casefold_get(&h));             /* on by a code point of the folded text */
     return false;
 }
 

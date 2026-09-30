@@ -44,7 +44,7 @@
 extern "C" {
 #endif
 
-#define MEDIASEARCH_NAME        ".defeatist.sr2"
+#define MEDIASEARCH_NAME        ".defeatist.sr3"
 #define MEDIASEARCH_TEMP_NAME   ".defeatist.srn"
 
 /*
@@ -54,9 +54,10 @@ extern "C" {
  * sr1 folded ASCII only (5129-5138); sr2 folds with casefold.h (5243).
  * The lines are written folded, so an sr1 read by this build would miss
  * every accented match -- a new name is the rebuild, as for the index.
- * The automatic reindex after each mount writes the sr2.
+ * sr3 normalises as well (5256). The automatic reindex after each mount
+ * writes the sr3.
  */
-#define MEDIASEARCH_OLD_NAMES   { ".defeatist.sr1" }
+#define MEDIASEARCH_OLD_NAMES   { ".defeatist.sr1", ".defeatist.sr2" }
 
 /*
  * A line: the catalog offset, then four folded fields, tab-separated.
@@ -74,7 +75,11 @@ extern "C" {
  * would make the scan a random read per track, which is the thing this
  * file exists to avoid.
  */
-#define MEDIASEARCH_LINE_MAX    (1024)
+/* 5256: 2048, from 1024. The longest line was about 710 bytes (three
+ * 63-byte tags and a 506-byte path), and decomposition can more than
+ * double an accented field: ᾏ, three bytes, is Α and three marks,
+ * seven. */
+#define MEDIASEARCH_LINE_MAX    (2048)
 #define MEDIASEARCH_OFF_DIGITS  (8)
 
 typedef enum {
@@ -88,7 +93,10 @@ typedef enum {
 
 /*
  * Folding: simple case folding by casefold.h, and tabs and newlines
- * turned into spaces.
+ * turned into spaces. 5256: and canonical decomposition (casefold_get()),
+ * so a precomposed letter and its decomposed spelling fold alike. A
+ * folded string can now be longer than the original (é, two bytes, is
+ * e and U+0301, three).
  *
  * 5243: NOT ASCII ONLY ANY MORE. This said there was no case table for
  * anything else on this device and "Ä" would fold to itself; a board run
@@ -109,13 +117,14 @@ static inline int mediasearch_fold(const char *in, char *out, size_t out_size)
 {
     if (!in || !out || out_size == 0) return -1;
     size_t n = 0;
-    const char *p = in;
+    casefold_it_t it;                   /* 5256: normalised, too */
+    casefold_begin(&it, in);
     for (;;) {
-        uint32_t c = casefold_next(&p);
+        uint32_t c = casefold_get(&it);
         if (!c) break;
         if (c == '\t' || c == '\n' || c == '\r') c = ' ';
         char u[4];
-        const int k = casefold_put(casefold_cp(c), u);
+        const int k = casefold_put(c, u);
         if (n + (size_t)k + 1 > out_size) return -1;
         memcpy(out + n, u, (size_t)k);
         n += (size_t)k;

@@ -19154,3 +19154,45 @@ duration over 10 s" on three-minute tracks that had passed them before.
 The check slept one second after playid and read status once; a track
 still opening has no duration yet. It now waits up to six seconds for
 one. Test only.
+
+### 5256 -- casefold: Unicode normalisation for case-insensitive search
+
+MPD 0.24 normalises case-insensitive filters, so "é" as U+00E9 and as
+e + U+0301 are one letter. casefold.h folded case by ranges and could not
+do that: where the marks go is not a pattern. ICU (MPD's own) is
+megabytes; utf8proc about 300 KB. What search needs is smaller.
+
+tools/gen_casefold.py generates main/casefold_tab.c from Python's
+unicodedata (Unicode 14 on this machine; decompositions are frozen by
+Unicode's stability policy): the full canonical decomposition of 810
+code points -- Latin-1, Latin Extended-A/-B, Greek and Greek Extended,
+Cyrillic, Latin Extended Additional, Ω K Å -- and the combining class of
+252 marks. 7792 bytes of flash, measured with riscv32-esp-elf-gcc. One
+.c, declared extern in casefold.h, so the three files that fold do not
+each carry a copy. Hangul syllables decompose by arithmetic. İ is left
+out: its decomposition is I + U+0307, and casefold.h's i is what a
+search for "istanbul" wants.
+
+casefold_get() is an iterator: it reads a starter and the marks after
+it, decomposes and folds each piece, sorts the marks by class (stable
+insertion; a starter is never crossed), and hands them out one at a
+time. The result is NFD, case-folded. Accents are kept -- é is not e, in
+MPD or here. A copy of the iterator is a bookmark, which is how
+mpdfilter's str_has() restarts at each position; three of them, about
+60 bytes each, are on the MPD task's stack there.
+
+mediasearch_fold() writes the search file with it, so the file is now
+.defeatist.sr3 and sr2 joins MEDIASEARCH_OLD_NAMES: the reindex after
+the next mount rebuilds it. MEDIASEARCH_LINE_MAX is 2048, from 1024: a
+decomposed field can be over twice as long (ᾏ, three bytes, is seven),
+and the longest line was about 710 bytes. mpdfilter's comparisons use
+the iterator too, so a filter and the search file's pre-pass agree.
+
+Tests: mediasearchtest's fold table is written in NFD now, with pairs
+that must fold alike (é both ways, ệ with its marks in both orders, ᾏ
+and ᾇ, U+2126 and Ω, 한 and its jamo, İ and i) and one that must not (é
+and e). mutation-checked: without the mark sort one pair fails, with a
+broken decomposition twenty checks do. mpdfiltertest: decomposed values
+against a precomposed tag, folded and not.
+
+texttest all passes; mpd.c compiles on the host stubs. Not on the board.

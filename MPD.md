@@ -551,7 +551,9 @@ on `find`. `listfiles` gives no `size` (a 32-bit off_t, 5228).
 
 **Case-insensitive search folds accented letters** (5243-5244): Latin
 with its diacritics, Vietnamese, Greek, Cyrillic and Armenian, by
-casefold.h's ranges -- simple folding, so ß does not match "ss". Other
+casefold.h's ranges -- simple folding, so ß does not match "ss". And
+normalised (5256): a precomposed letter matches its decomposed
+spelling, marks in either order, as MPD 0.24 does; accents are kept. Other
 scripts (Georgian, Greek Extended, CJK, which has no case) compare as
 they are.
 

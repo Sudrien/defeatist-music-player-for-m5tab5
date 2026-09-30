@@ -18985,3 +18985,23 @@ files, all of it passes.
 
 Compiled -O2 -Wall -Wextra on the host stubs: mpd.c, no warnings.
 texttest all passes. Not on the board.
+
+### 5250 -- mpd: the greeting says 0.22.4
+
+MPD's NEWS lists 0.22's protocol changes, and each is answered now:
+readpicture and binarylimit (5249); sort and window on findadd,
+searchadd and searchaddpl (window since 5221, sort ignored as find
+ignores it); moveoutput, delpartition and `partition:` in status (5180,
+for one partition); and in 0.22.4 duration and tags for songs in cue
+sheets. A cue track here is a song named "<sheet>.cue#NN" in the
+sheet's folder, carrying the tags the index read from the sheet; no song
+has a duration, cue or not, since the catalog keeps no lengths -- the
+gap MPD.md already names. 0.22.4 rather than 0.22.0 because binarylimit
+is 0.22.4's and a client that checks for it checks for that number.
+
+MPDPROTO_VERSION's comment says what 0.22 needed and where 0.23 starts;
+MPD.md's status is rewritten for 0.22.4; mpdcheck expects at least
+0.22.4. mpdprototest's greeting check follows MPDPROTO_VERSION.
+
+texttest all passes. Not on the board: `OK MPD 0.22.4`, and a client
+that shows embedded covers (ncmpcpp, Cantata) asking readpicture.

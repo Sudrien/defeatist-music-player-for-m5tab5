@@ -552,15 +552,16 @@ casefold.h's ranges -- simple folding, so ß does not match "ss". Other
 scripts (Georgian, Greek Extended, CJK, which has no case) compare as
 they are.
 
-**The greeting claims 0.21.0** (5241). 0.21's two -- filter
-expressions (5238-5239, in every command that filters) and `albumart`
-(5240, a cover file in the song's folder) -- are done, with `tagtypes`'
-subcommands and `single oneshot`. Refused in 0.21's terms, each with a
-reason: a regex in a filter (`=~`, `!~`: no regex library), a
-`modified-since` or `AudioFormat` filter (the catalog keeps neither),
-and `getfingerprint`. Newer and not claimed: 0.22's `readpicture` (the
-picture inside a file), `binarylimit`, `outputset`; answered anyway
-where it costs nothing: `getvol` (5218), `save`'s mode (0.24).
+**The greeting claims 0.22.4** (5250). 0.21's filter expressions and
+`albumart` (5238-5241), 0.22's `readpicture` -- the picture inside a
+file, the one the player shows -- and `binarylimit` (5249) are done, with
+0.22's partition and output changes answered for one partition (5180).
+Refused in these versions' terms, each with a reason: a regex in a
+filter, `modified-since` and `AudioFormat` filters, `getfingerprint`.
+Songs, cue tracks included, carry no duration -- the catalog keeps no
+lengths. Newer and answered anyway where it costs nothing: `getvol`
+(0.23), `save`'s mode (0.24). Next is 0.23: "+N"/"-N" positions relative
+to the playing song, and `playlistadd` at a position.
 
 Not yet driven on the board: `list` (5182), `search`/`find` (5180),
 Cantata's stored-playlists view (5184), and everything from 5218 on.

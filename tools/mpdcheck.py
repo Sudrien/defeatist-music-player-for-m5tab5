@@ -102,7 +102,7 @@ albumart readpicture binarylimit
 """.split()
 
 # 5241: the version this script's checks are written against.
-EXPECTED_VERSION = "0.21.0"
+EXPECTED_VERSION = "0.22.4"
 
 
 class Ack(Exception):

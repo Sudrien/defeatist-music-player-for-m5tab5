@@ -68,8 +68,18 @@ extern "C" {
  * in a filter, modified-since and AudioFormat (mpdfilter.h), and
  * getfingerprint (no chromaprint). The next ceiling is 0.22's
  * readpicture, which a client that believes in it will ask for.
+ *
+ * 5250: 0.22.4. 0.22's protocol list (MPD's NEWS) is readpicture and
+ * binarylimit (5249); sort and window on findadd/searchadd/searchaddpl
+ * (window since 5221, sort ignored as for find); moveoutput, delpartition
+ * and `partition:` in status (5180, one partition); and, in 0.22.4,
+ * duration and tags for songs in cue sheets -- here a cue track is a song
+ * named "<sheet>.cue#NN" with the tags the index read from the sheet,
+ * and no song has a duration (the catalog keeps no lengths, MPD.md). The
+ * next ceiling is 0.23: position arguments relative to the playing song
+ * ("+N"), getvol (answered since 5218), `playlistadd` at a position.
  */
-#define MPDPROTO_VERSION    "0.21.0"
+#define MPDPROTO_VERSION    "0.22.4"
 
 /* The first thing written to a new connection, newline included. */
 #define MPDPROTO_GREETING   "OK MPD " MPDPROTO_VERSION "\n"

@@ -5,7 +5,7 @@
  *
  * Two files per volume, both at the root beside .defeatist.dat, both
  * dotted and FAT-hidden: the catalog `.defeatist.cat` (mediacat.h) and
- * the index `.defeatist.ix2`, with `.defeatist.ixn` while a new one is
+ * the index `.defeatist.ix3`, with `.defeatist.ixn` while a new one is
  * being written.
  *
  * THE VERSION IS IN THE NAME. MEDIA-INDEX.md settled that a format
@@ -37,7 +37,7 @@
 extern "C" {
 #endif
 
-#define MEDIALIB_INDEX_NAME     ".defeatist.ix2"
+#define MEDIALIB_INDEX_NAME     ".defeatist.ix3"
 #define MEDIALIB_TEMP_NAME      ".defeatist.ixn"
 
 /*
@@ -46,8 +46,13 @@ extern "C" {
  * a different mtime through each, so an .ix1 read by this build would
  * call every track changed. A new name is the rebuild MEDIA-INDEX.md
  * settled on for a format change.
+ *
+ * .ix2 (5263): the index is the same format, but its catalog lines
+ * predate genre, date, album artist, track, disc and length, and a KEEP
+ * never reads the line to find out. A new name ADDs every track, so
+ * every tag is read again -- a first index's cost, once.
  */
-#define MEDIALIB_OLD_INDEX_NAMES    { ".defeatist.ix1" }
+#define MEDIALIB_OLD_INDEX_NAMES    { ".defeatist.ix1", ".defeatist.ix2" }
 
 /*
  * Reconcile one mounted volume's index with its card. Blocking: a walk

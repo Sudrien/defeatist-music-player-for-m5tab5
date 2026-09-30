@@ -16,6 +16,7 @@
 #endif
 
 #include "duration.h"
+#include "mp3count.h"         /* 5263: mp3_frame_len() */
 #include "oggseek.h"
 #include "storage_io.h"
 
@@ -343,6 +344,88 @@ static uint32_t probe_mp4(FILE *f, storage_io_class_t cls)
 }
 
 /* ------------------------------------------------------------------ */
+/* MP3 (5263)                                                          */
+/* ------------------------------------------------------------------ */
+
+/*
+ * The frame count an encoder wrote into the first frame: LAME's Xing or
+ * Info header, or Fraunhofer's VBRI. Both say how many frames follow, and
+ * the header says how many samples a frame is, so this is a length and
+ * not an estimate.
+ *
+ * A file with neither answers 0, and deliberately: its length would be
+ * file size over bitrate, which this file refuses at the top for the
+ * reason written there. LAME writes Info on CBR files too, so the
+ * answer-0 case is older rips and streams saved to disk.
+ *
+ * Before 5263 nothing here read MP3, because decoder.c asks minimp3
+ * first and minimp3 finds the same header. The library asks without
+ * opening a decoder. The window is on the heap: this runs on the decode
+ * task as well as the index task, and 4 KB is not a stack's to give.
+ */
+#define MP3_PROBE_WIN   (4096)
+
+static uint32_t probe_mp3(FILE *f, storage_io_class_t cls)
+{
+    uint8_t h[10];
+    long base = 0;
+
+    if (!read_at(f, 0, h, sizeof(h), cls)) return 0;
+    if (memcmp(h, "ID3", 3) == 0) {
+        /* Syncsafe size, after the 10-byte header, and a footer if flagged. */
+        base = 10 + (long)(((uint32_t)(h[6] & 0x7F) << 21) | ((uint32_t)(h[7] & 0x7F) << 14) |
+                           ((uint32_t)(h[8] & 0x7F) << 7)  |  (uint32_t)(h[9] & 0x7F));
+        if (h[5] & 0x10) base += 10;
+    }
+
+    const long end = file_size(f);
+    if (end <= base) return 0;
+    const size_t n = (size_t)(end - base) < MP3_PROBE_WIN ? (size_t)(end - base)
+                                                          : MP3_PROBE_WIN;
+    uint8_t *b = malloc(n);
+    if (!b) return 0;
+    uint32_t sec = 0;
+    if (!read_at(f, base, b, n, cls)) { free(b); return 0; }
+
+    /* The first frame: a sync whose computed length lands on another --
+     * mp3count.h's confirmation, since eleven bits of sync alone match
+     * padding and tag bytes. */
+    for (size_t i = 0; i + 4 <= n; i++) {
+        unsigned spf, rate, br, ver, layer, ch;
+        const unsigned len = mp3_frame_len(&b[i], &spf, &rate, &br, &ver, &layer, &ch);
+        if (!len || !rate) continue;
+        if (i + len + 4 <= n) {
+            unsigned s2, r2, b2, v2, l2, c2;
+            if (!mp3_frame_len(&b[i + len], &s2, &r2, &b2, &v2, &l2, &c2)) continue;
+        } else if (i + len != n) {
+            continue;                   /* cannot confirm; not trusted */
+        }
+
+        /* Xing sits after the side information, whose size depends on
+         * the version and on mono; VBRI is always 32 bytes in. */
+        const size_t side = (ver == 1) ? (ch == 1 ? 17 : 32) : (ch == 1 ? 9 : 17);
+        uint32_t frames = 0;
+        if (i + 4 + side + 12 <= n &&
+            (memcmp(&b[i + 4 + side], "Xing", 4) == 0 ||
+             memcmp(&b[i + 4 + side], "Info", 4) == 0)) {
+            const uint8_t *x = &b[i + 4 + side];
+            const uint32_t flags = ((uint32_t)x[4] << 24) | ((uint32_t)x[5] << 16) |
+                                   ((uint32_t)x[6] << 8) | x[7];
+            if (flags & 1) frames = ((uint32_t)x[8] << 24) | ((uint32_t)x[9] << 16) |
+                                    ((uint32_t)x[10] << 8) | x[11];
+        } else if (i + 4 + 32 + 18 <= n && memcmp(&b[i + 4 + 32], "VBRI", 4) == 0) {
+            const uint8_t *v = &b[i + 4 + 32];
+            frames = ((uint32_t)v[14] << 24) | ((uint32_t)v[15] << 16) |
+                     ((uint32_t)v[16] << 8) | v[17];
+        }
+        if (frames) sec = (uint32_t)ROUND_DIV((uint64_t)frames * spf, (uint64_t)rate);
+        break;
+    }
+    free(b);
+    return sec;
+}
+
+/* ------------------------------------------------------------------ */
 
 uint32_t duration_probe(FILE *f, storage_io_class_t cls)
 {
@@ -362,11 +445,17 @@ uint32_t duration_probe(FILE *f, storage_io_class_t cls)
             sec = probe_wav(f, cls);
         } else if (memcmp(magic + 4, "ftyp", 4) == 0) {
             sec = probe_mp4(f, cls);
+        } else if (memcmp(magic, "ID3", 3) == 0 ||
+                   (magic[0] == 0xFF && (magic[1] & 0xE0) == 0xE0)) {
+            sec = probe_mp3(f, cls);                /* 5263 */
         }
     }
 
     if (saved >= 0) fseek(f, saved, SEEK_SET);
 
-    if (sec) ESP_LOGI(TAG, "container says %" PRIu32 "s", sec);
+    /* 5263: DEBUG, not INFO. The library probes every track on a walk,
+     * and a line per track on the console is a first index's time spent
+     * on the UART; decoder.c logs the one it plays. */
+    if (sec) ESP_LOGD(TAG, "container says %" PRIu32 "s", sec);
     return sec;
 }

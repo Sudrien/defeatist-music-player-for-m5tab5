@@ -190,10 +190,11 @@ bool cuedir_row_tags(const cuedir_t *cd, int i, char *title, char *artist,
     return true;
 }
 /* 5262 */
-bool cuedir_row_extra(const cuedir_t *cd, int i, tag_extra_t *x)
+bool cuedir_row_extra(const cuedir_t *cd, int i, tag_extra_t *x, uint32_t *sec)
 {
     if (!cd || i < 0 || i >= cd->nrows) return false;
     memset(x, 0, sizeof(*x));
+    if (sec) *sec = 0;
     snprintf(x->track, sizeof(x->track), "%d", i + 1);
     return true;
 }
@@ -250,7 +251,7 @@ static bool collect(void *ctx, const char *path, midx_stamp_t st)
         const bool got = mwalk_cue_tags(path, t, a, al, sizeof(t));
         {
             tag_extra_t x;
-            const bool ex = mwalk_cue_extra(path, &x);
+            const bool ex = mwalk_cue_extra(path, &x, NULL);
             if (is_cue) s_cue_extra += ex && x.track[0];
             else        s_plain_extra += ex;
         }

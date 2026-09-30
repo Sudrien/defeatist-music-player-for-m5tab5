@@ -73,6 +73,13 @@ int mediacat_encode(const mediacat_rec_t *r, char *out, size_t out_size)
     if (ok && r->title[0])  ok = cJSON_AddStringToObject(o, "title", r->title);
     if (ok && r->artist[0]) ok = cJSON_AddStringToObject(o, "artist", r->artist);
     if (ok && r->album[0])  ok = cJSON_AddStringToObject(o, "album", r->album);
+    /* 5263, the same rule. */
+    if (ok && r->x.genre[0])       ok = cJSON_AddStringToObject(o, "genre", r->x.genre);
+    if (ok && r->x.date[0])        ok = cJSON_AddStringToObject(o, "date", r->x.date);
+    if (ok && r->x.albumartist[0]) ok = cJSON_AddStringToObject(o, "albumartist", r->x.albumartist);
+    if (ok && r->x.track[0])       ok = cJSON_AddStringToObject(o, "track", r->x.track);
+    if (ok && r->x.disc[0])        ok = cJSON_AddStringToObject(o, "disc", r->x.disc);
+    if (ok && r->time)             ok = cJSON_AddNumberToObject(o, "time", (double)r->time);
     ok = ok &&
         cJSON_AddNumberToObject(o, "written", (double)r->written) &&
         cJSON_AddStringToObject(o, "clock", clock);
@@ -138,7 +145,7 @@ bool mediacat_decode(const char *line, mediacat_rec_t *out)
 
     bool ok = cJSON_IsObject(o);
 
-    int64_t ver = 0, size = 0, del = 0;
+    int64_t ver = 0, size = 0, del = 0, time = 0;
     char clock[2];
     ok = ok &&
         take_int(o, "format_version", &ver, true) &&
@@ -149,6 +156,13 @@ bool mediacat_decode(const char *line, mediacat_rec_t *out)
         take_str(o, "title", out->title, sizeof(out->title), false) &&
         take_str(o, "artist", out->artist, sizeof(out->artist), false) &&
         take_str(o, "album", out->album, sizeof(out->album), false) &&
+        /* 5263: absent on a line from before it, and "" / 0 then. */
+        take_str(o, "genre", out->x.genre, sizeof(out->x.genre), false) &&
+        take_str(o, "date", out->x.date, sizeof(out->x.date), false) &&
+        take_str(o, "albumartist", out->x.albumartist, sizeof(out->x.albumartist), false) &&
+        take_str(o, "track", out->x.track, sizeof(out->x.track), false) &&
+        take_str(o, "disc", out->x.disc, sizeof(out->x.disc), false) &&
+        take_int(o, "time", &time, false) && time >= 0 && time <= UINT32_MAX &&
         take_int(o, "written", &out->written, true) && out->written >= 0 &&
         take_str(o, "clock", clock, sizeof(clock), true) &&
         (clock[0] == MIDX_CLOCK_FLOOR || clock[0] == MIDX_CLOCK_SYNCED) &&
@@ -159,6 +173,7 @@ bool mediacat_decode(const char *line, mediacat_rec_t *out)
     out->stamp.size = (uint64_t)size;
     out->clock = clock[0];
     out->deleted_at = del;
+    out->time = (uint32_t)time;
 
     /* The same test the encoder applied: a path the index cannot hold
      * is not a record, whoever wrote the line. */

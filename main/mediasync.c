@@ -17,7 +17,7 @@ static const char *TAG = "mediasync";
 
 /*
  * The merge's state. Static, and large for a stack: two paths, two
- * records of ~720 bytes, the previous path on each side.
+ * records of ~860 bytes, the previous path on each side.
  */
 static struct {
     const msync_ops_t *ops;

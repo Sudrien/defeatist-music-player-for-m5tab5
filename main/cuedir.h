@@ -69,8 +69,9 @@ bool cuedir_row_tags(const cuedir_t *cd, int i, char *title, char *artist,
                      char *album, size_t each);
 
 /* 5262: row i's library extras -- the sheet's PERFORMER as album artist,
- * its REM GENRE and REM DATE, and the track's number. */
-bool cuedir_row_extra(const cuedir_t *cd, int i, tag_extra_t *x);
+ * its REM GENRE and REM DATE, and the track's number. 5263: and into
+ * *sec (when not NULL) the track's length in seconds, 0 unknown. */
+bool cuedir_row_extra(const cuedir_t *cd, int i, tag_extra_t *x, uint32_t *sec);
 
 /*
  * One track, by virtual path. Everything in it is a copy.
@@ -89,6 +90,7 @@ typedef struct {
     char     albumartist[CUE_TEXT_MAX];     /* 5262: the sheet's PERFORMER */
     char     genre[CUE_GENRE_MAX];          /* 5262: REM GENRE */
     char     date[CUE_DATE_MAX];            /* 5262: REM DATE */
+    uint32_t sec;                           /* 5263: length, 0 unknown */
 } cuetrack_t;
 
 bool cuedir_track(const char *vpath, storage_io_class_t cls, cuetrack_t *out);
@@ -112,7 +114,7 @@ bool cuedir_tags(const char *vpath, char *title, char *artist, char *album,
                  size_t each);
 
 /* 5262: cuedir_row_extra() for a virtual path, reading the sheet. */
-bool cuedir_extra(const char *vpath, tag_extra_t *x);
+bool cuedir_extra(const char *vpath, tag_extra_t *x, uint32_t *sec);
 
 #ifdef __cplusplus
 }

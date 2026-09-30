@@ -117,6 +117,9 @@ typedef struct {
     char        genre[CUE_GENRE_MAX];   /* 5262 */
     char        date[CUE_DATE_MAX];     /* 5262 */
     char        files[CUE_MAX_FILES][CUE_FILE_MAX];
+    /* 5263: each file's length in seconds as cuedir probed it, 0 for
+     * unknown -- the end of a file's last track. Not the parser's. */
+    uint32_t    file_sec[CUE_MAX_FILES];
     int         nfiles;
     cue_track_t tracks[CUE_MAX_TRACKS];
     int         ntracks;

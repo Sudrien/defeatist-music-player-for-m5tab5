@@ -24,7 +24,15 @@
  *   {"format_version":1,"path":"Artist/Album/01 Song.flac",
  *    "mtime":1735500000,"size":8760320,
  *    "title":"Song","artist":"Artist","album":"Album",
+ *    "genre":"Rock","date":"1999","albumartist":"Artist",
+ *    "track":"1/12","disc":"1","time":241,
  *    "written":1789084800,"clock":"s"}
+ *
+ * genre through time are 5263's, each left out when there is nothing to
+ * say, as the three tags are. A build before 5263 skips them (the rule
+ * below), so format_version stays 1; a line before 5263 reads here with
+ * them empty and time 0. time is whole seconds from the container
+ * (duration_probe()), 0 for unknown.
  *
  * with "deleted_at" added on a tombstone. `written` and `deleted_at`
  * are times from settings_now(), and `clock` says whether that was the
@@ -56,6 +64,7 @@
 
 #include "mediaindex.h"
 #include "storage.h"
+#include "tagextra.h"         /* 5263 */
 
 #ifdef __cplusplus
 extern "C" {
@@ -67,17 +76,19 @@ extern "C" {
 /*
  * The longest line read or written. A path is at most MIDX_PATH_MAX,
  * three tags at 63 bytes each; JSON escaping can grow a control byte to
- * six ("\u001f"), so the worst honest line is about 2.2 KB. A line
- * longer than this is refused on write and skipped on read.
+ * six ("\u001f"), so the worst honest line is about 2.2 KB -- and
+ * 5263's extras, 139 more bytes of strings escaped the same way, take it
+ * to about 3.1 KB. A line longer than this is refused on write and
+ * skipped on read.
  */
-#define MEDIACAT_LINE_MAX        (3072)
+#define MEDIACAT_LINE_MAX        (4096)   /* 5263: was 3072, before the extras */
 
 /* Sized like id3_tags_t and replaygain_tags_t: what the rest of the
  * player can show. */
 #define MEDIACAT_TAG_LEN         (64)
 
 /*
- * One record. About 720 bytes -- a static or the heap, never a local.
+ * One record. About 860 bytes (5263) -- a static or the heap, never a local.
  */
 typedef struct {
     char         path[MIDX_PATH_MAX + 1];   /* relative to the volume */
@@ -85,6 +96,8 @@ typedef struct {
     char         title[MEDIACAT_TAG_LEN];
     char         artist[MEDIACAT_TAG_LEN];
     char         album[MEDIACAT_TAG_LEN];
+    tag_extra_t  x;             /* 5263: genre, date, album artist, track, disc */
+    uint32_t     time;          /* 5263: seconds; 0 unknown */
     int64_t      written;       /* settings_now() when the line was made */
     int64_t      deleted_at;    /* 0: live */
     char         clock;         /* MIDX_CLOCK_FLOOR or MIDX_CLOCK_SYNCED */

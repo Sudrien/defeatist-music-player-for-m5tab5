@@ -19386,3 +19386,50 @@ fields, and over test_audio_files under ASan: no faults. That harness
 stubbed the IDF and is not in texttest; tagextratest, cuesheettest and
 mediawalktest carry the parts that are pure. albumart.c and covertag.c
 compiled -Werror there. Not built with the IDF, not on the board.
+
+### 5263 -- the catalog keeps the extras and a length; the index is .ix3
+
+The second of three. 5262 read genre, date, album artist, track and disc;
+this writes them into each catalog record with the track's length, and
+rebuilds every volume's index so that every record gets them.
+
+**The line.** `genre`, `date`, `albumartist`, `track`, `disc` (strings)
+and `time` (whole seconds), each left out when there is nothing to say,
+as title, artist and album already were. A build before this one skips
+keys it does not know (mediacat.h), so format_version stays 1 and an old
+build reads a new catalog as it always did; this build reads an old line
+with the six empty. mediacat_rec_t grows to about 860 bytes -- still
+static in both places it lives. MEDIACAT_LINE_MAX is 4096: the worst
+line mediacat.h can argue for is about 3.1 KB now, past the old 3072.
+Round-tripped on a host against upstream cJSON, with a pre-5263 line, a
+negative and a fractional `time` refused, and the longest record
+encoding to 2620 bytes.
+
+**The rebuild.** A KEEP never reads the catalog line, so nothing in
+reconcile can see that a record predates the extras. MEDIALIB_OLD_INDEX
+_NAMES is the rule for that: the index is `.defeatist.ix3`, `.ix2` joins
+the names removed, and the first run ADDs every track and reads its tags
+again. That is a first index's time, once per volume -- on the board the
+ARCHITECTURE.md numbers for 1192 tracks are the figure to expect. The
+catalog is appended to, not rewritten: it grows by one line per track.
+
+**Length.** duration_probe() on the handle the tags were read from. It
+had no MP3 branch, because decoder.c asks minimp3 first; it has one now:
+past an ID3v2 tag, the first frame confirmed by the next one's header
+(mp3count.h's rule), then the frame count from a Xing/Info or VBRI
+header. No header answers 0 -- file size over bitrate is refused at the
+top of duration.c and stays refused. Exact on a host against ffmpeg's
+files -- MPEG-1 stereo CBR and VBR, MPEG-2 mono, an 800 KB cover in the
+tag in front -- and 0 on `-write_xing 0` and test_audio_files 03 and 12,
+which are the no-Xing cases; 04 reads 60. The window is heap: this runs
+on the decode task too. The probe's "container says" line is DEBUG now
+and decoder.c prints it for the track it opens, so an index does not
+spend a line per track on the UART; the line moves from tab5_dur to
+tab5_dec.
+
+A cue track's length is to the next INDEX 01 in its file, or to the
+file's end as probed; cue_sheet_t keeps each file's probed seconds
+(file_sec), which sheet_load() was already probing and throwing away.
+
+Not built with the IDF; medialib.c and cuedir.c syntax-checked against
+stubs. texttest all passes. Not on the board.

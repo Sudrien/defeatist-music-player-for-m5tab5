@@ -13,6 +13,7 @@
 #include "covertag.h"
 #include "cuedir.h"
 #include "cuesheet.h"
+#include "duration.h"         /* 5263 */
 #include "esp_heap_caps.h"
 #include "esp_log.h"
 #include "esp_timer.h"
@@ -117,6 +118,9 @@ static void tags_read(const ctx_t *c, const char *rel, mediacat_rec_t *r)
                             MEDIACAT_TAG_LEN)) {
             cuedir_tags(abs, r->title, r->artist, r->album, MEDIACAT_TAG_LEN);
         }
+        /* 5263: the sheet's extras and the track's length, the same two
+         * ways. */
+        if (!mwalk_cue_extra(rel, &r->x, &r->time)) cuedir_extra(abs, &r->x, &r->time);
         return;
     }
 
@@ -126,11 +130,17 @@ static void tags_read(const ctx_t *c, const char *rel, mediacat_rec_t *r)
     storage_io_release();
     if (!f) return;
     memset(&t, 0, sizeof(t));
-    if (covertag_read_tags(f, CLS, &t) == ESP_OK) {
+    /* 5263: with the extras straight into the record, which is static
+     * in mediasync.c; ESP_OK or not, since a file whose only tags are
+     * extras reads NOT_FOUND on FLAC and Ogg (covertag.h). */
+    if (covertag_read_tags_ext(f, CLS, &t, &r->x) == ESP_OK) {
         snprintf(r->title, sizeof(r->title), "%s", t.title);
         snprintf(r->artist, sizeof(r->artist), "%s", t.artist);
         snprintf(r->album, sizeof(r->album), "%s", t.album);
     }
+    /* 5263: the container's own length, on the handle already open. No
+     * audio is decoded; an MP3 without a Xing header says 0. */
+    r->time = duration_probe(f, CLS);
     storage_io_acquire(CLS);
     storage_io_close(f);
     storage_io_release();
@@ -379,7 +389,7 @@ static bool search_build(storage_id_t vol, const char *mount,
         return false;
     }
 
-    static mediacat_rec_t cat;          /* ~720 bytes: never a local */
+    static mediacat_rec_t cat;          /* ~860 bytes: never a local */
     static char line[MEDIASEARCH_LINE_MAX];
     uint32_t written = 0, skipped = 0, undecodable = 0;
     uint32_t base = 0;                  /* file offset of s_buf[0] */

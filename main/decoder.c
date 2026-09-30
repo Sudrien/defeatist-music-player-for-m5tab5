@@ -1299,6 +1299,9 @@ static uint32_t duration_raw(decoder_t *d)
         /* PLAYBACK: this runs from decoder_duration_sec() on the
          * decode loop, in the pause before the first sample. */
         d->probe_sec = duration_probe(d->f, STORAGE_IO_PLAYBACK);
+        /* 5263: the line duration_probe() used to print, which is now
+         * DEBUG there because the library probes every track. */
+        if (d->probe_sec) ESP_LOGI(TAG, "container says %" PRIu32 "s", d->probe_sec);
         /*
          * And the inference, when the container did not state one. This
          * is the length raw ADTS and AMR lost when the frame walk was

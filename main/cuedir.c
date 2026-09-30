@@ -52,6 +52,7 @@ typedef struct {
     char albumartist[CUE_TEXT_MAX];
     char genre[CUE_GENRE_MAX];
     char date[CUE_DATE_MAX];
+    uint32_t sec;               /* 5263: the track's length, 0 unknown */
 } cue_row_t;
 
 struct cuedir {
@@ -103,13 +104,25 @@ static void free_names(char **names, int n)
  * half-second of a file must not be dropped for a rounding. A start in
  * that slack that really is past the end fails at open instead, which is
  * the cheaper mistake. */
-static uint32_t audio_frames(const char *path, storage_io_class_t cls)
+static uint32_t audio_sec(const char *path, storage_io_class_t cls)
 {
     FILE *f = storage_io_open(path, "rb");
     if (!f) return 0;
     const uint32_t sec = duration_probe(f, cls);
     storage_io_close(f);
-    return sec ? (sec + 1) * CUE_FPS : 0;
+    return sec;
+}
+
+/* 5263: a track's length in whole seconds, rounded: to the next track in
+ * its file, or to the file's end as probed. 0 when neither is known. */
+static uint32_t track_sec(const cue_sheet_t *cs, int t)
+{
+    const uint32_t start = cs->tracks[t].start;
+    const uint32_t end = cue_track_end(cs, t);
+    if (end > start) return (end - start + CUE_FPS / 2) / CUE_FPS;
+    const uint32_t fs = cs->file_sec[cs->tracks[t].file];
+    const uint32_t ss = (start + CUE_FPS / 2) / CUE_FPS;
+    return fs > ss ? fs - ss : 0;
 }
 
 /*
@@ -169,7 +182,8 @@ static bool sheet_load(const char *dir, const char *sheet, char *const *names,
         char apath[512];
         uint32_t len = 0;
         if (storage_join_path(apath, sizeof apath, dir, names[file_name[fi]])) {
-            len = audio_frames(apath, cls);
+            cs->file_sec[fi] = audio_sec(apath, cls);           /* 5263 */
+            len = cs->file_sec[fi] ? (cs->file_sec[fi] + 1) * CUE_FPS : 0;
         }
         cue_finish(cs, fi, len);
     }
@@ -237,6 +251,7 @@ cuedir_t *cuedir_load(const char *dir, storage_io_class_t cls)
             snprintf(r->albumartist, sizeof r->albumartist, "%s", cs->performer);  /* 5262 */
             snprintf(r->genre, sizeof r->genre, "%s", cs->genre);
             snprintf(r->date, sizeof r->date, "%s", cs->date);
+            r->sec = track_sec(cs, t);                          /* 5263 */
             if (cs->tracks[t].title[0]) {
                 snprintf(r->label, sizeof r->label, "%02d  %s",
                          cs->tracks[t].number, cs->tracks[t].title);
@@ -313,11 +328,12 @@ static void extra_fill(tag_extra_t *x, const char *albumartist,
     if (number > 0) snprintf(x->track, sizeof x->track, "%d", number);
 }
 
-bool cuedir_row_extra(const cuedir_t *cd, int i, tag_extra_t *x)
+bool cuedir_row_extra(const cuedir_t *cd, int i, tag_extra_t *x, uint32_t *sec)
 {
     if (!cd || i < 0 || i >= cd->nrows || !x) return false;
     const cue_row_t *r = &cd->rows[i];
     extra_fill(x, r->albumartist, r->genre, r->date, r->number);
+    if (sec) *sec = r->sec;
     return true;
 }
 
@@ -360,6 +376,7 @@ bool cuedir_track(const char *vpath, storage_io_class_t cls, cuetrack_t *out)
         snprintf(out->albumartist, sizeof out->albumartist, "%s", cs->performer);  /* 5262 */
         snprintf(out->genre, sizeof out->genre, "%s", cs->genre);
         snprintf(out->date, sizeof out->date, "%s", cs->date);
+        out->sec = track_sec(cs, pos - 1);                      /* 5263 */
     }
     if (!ok) ESP_LOGW(TAG, "%s: no such track any more", vpath);
 
@@ -414,10 +431,11 @@ bool cuedir_tags(const char *vpath, char *title, char *artist, char *album,
     return true;
 }
 
-bool cuedir_extra(const char *vpath, tag_extra_t *x)
+bool cuedir_extra(const char *vpath, tag_extra_t *x, uint32_t *sec)
 {
     if (!x || !cue_vpath_split(vpath, NULL) || !look(vpath)) return false;
     extra_fill(x, s_look.albumartist, s_look.genre, s_look.date, s_look.number);
+    if (sec) *sec = s_look.sec;
     done();
     return true;
 }

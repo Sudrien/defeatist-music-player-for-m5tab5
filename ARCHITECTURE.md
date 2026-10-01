@@ -19745,3 +19745,35 @@ untouched, and so is the stream: only the recorder calls this.
 levelhist.h's "this is not a meter for setting gain" is still true of
 the stream's strip. Not built here -- no IDF; the mapping compiled and
 ran on the host. Not on the board.
+
+### 5274 -- ui: the status line under volume
+
+A v0.5.0 target: "statuses (USB power, MPD, HTTPS, SLEEP 13M, ????)
+below volume. Not toggles." Four words on one line under the volume
+groove, green (C_PLAY_ON) when on, dark grey (C_ICON_OFF) when off:
+
+- USB -- usbhost_vbus_on(), the USB-A port's VBUS, which the settings
+  panel's USB power switch drives. Not the bolt in the battery corner,
+  which is power coming in.
+- MPD -- mpd_running().
+- HTTPS -- remote_running(), the browser remote on 443.
+- SLEEP -- with the minutes left, rounded up ("SLEEP 13M"), while the
+  timer runs; the bare word, grey, when it does not.
+
+Every word is always drawn, rather than only the ones that are on: a
+word's position is half of how it is found at a glance, and a line that
+changes length reads as a line that changed meaning. Nothing is
+touchable -- ui_touch() is unchanged -- since each has its own switch
+elsewhere. The "????" in the target is left for whoever knows what it
+was; adding a fifth is one row in draw_status()'s table and one field.
+
+Laid out in vol_bounds()'s span, which clears the speaker icon on the
+left and the battery digits on the right, 52 px under row 9's centre --
+a 24 px line ending at 699 of the square's 720. Scale 2: scale 3 with
+"SLEEP 120M" is wider than the groove. Filled by player.c's
+status_overlay() at both places the bar's state is put together, beside
+the battery fields; the bar is redrawn whole each pass, so nothing else
+needed telling.
+
+Not built here -- no IDF. draw_status() was compiled on the host
+against stubs with -Wall -Wextra -Wshadow -Werror. Not on the board.

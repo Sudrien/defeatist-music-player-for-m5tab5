@@ -6594,6 +6594,20 @@ static void notice_post(const char *head, const char *body)
 static char s_rec_line[48];
 static char s_rec_name[40];
 
+/*
+ * 5274: the status line's four words. From ui_task, beside the battery,
+ * at both places the bar's state is put together.
+ */
+static void status_overlay(ui_state_t *st)
+{
+    st->usb_power = usbhost_vbus_on();
+    st->mpd_on = mpd_running();
+    st->https_on = remote_running();
+    const int64_t left = s_sleep_deadline_us
+        ? sleeptimer_seconds_left(esp_timer_get_time(), s_sleep_deadline_us) : 0;
+    st->sleep_min = left > 0 ? (int)((left + 59) / 60) : 0;
+}
+
 static void recording_overlay(ui_state_t *st)
 {
     recorder_status_t rs;
@@ -8279,6 +8293,7 @@ static void ui_task(void *arg)
         st.battery_pct = battery_pct();
         st.battery_charging = battery_charging();
         st.ext_power = battery_external();
+        status_overlay(&st);            /* 5274 */
 
         const bool down = bdown;
         recording_overlay(&st);         /* 5106: before the touch, see there */
@@ -8793,6 +8808,7 @@ static void ui_task(void *arg)
         st.battery_pct = battery_pct();
         st.battery_charging = battery_charging();
         st.ext_power = battery_external();
+        status_overlay(&st);            /* 5274 */
         recording_overlay(&st);         /* 5106: pos_sec was just rewritten */
         if (s_rec_count > 0) st.recording = true;   /* the knob stays on record */
         st.rec_ok = recorder_can_start();

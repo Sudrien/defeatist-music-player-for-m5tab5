@@ -237,6 +237,15 @@ typedef struct {
      * The REC pill says MUTED; the art square's microphone is crossed
      * out (ui_show_rec_art()). */
     bool rec_silent;
+    /*
+     * 5274: the status line under volume -- USB, MPD, HTTPS, SLEEP. A
+     * report, not a set of toggles: green when on, dark grey when off.
+     * `sleep_min` is the timer's minutes left, rounded up; 0 is off.
+     */
+    bool usb_power;
+    bool mpd_on;
+    bool https_on;
+    int  sleep_min;
     /* 5217: Record from is OFF -- the switch is drawn as two positions,
      * pause and play, and cannot be slid to record. */
     bool rec_off;

@@ -1608,6 +1608,49 @@ static void draw_battery(int pct, bool charging, bool ext)
     gfx_draw_pct_centred(cx, cy + 4, pct, c);
 }
 
+/*
+ * 5274: the status line, under the volume groove -- USB (the USB-A port's
+ * VBUS), MPD, HTTPS (the browser remote), SLEEP with its minutes. A v0.5.0
+ * target, and "not toggles": nothing here is a control, ui_touch() does
+ * not test it, and each word has a switch of its own somewhere else.
+ *
+ * Every word is always there, green when on and dark grey when off,
+ * rather than appearing and disappearing. A line that changes length is
+ * read as a line that changed meaning, and the place a word sits is
+ * half of how it is found at a glance.
+ *
+ * Within the groove's span so it clears the speaker on the left and the
+ * battery's digits on the right; scale 2, because scale 3 is wider than
+ * the groove with "SLEEP 120M" in it.
+ */
+#define STATUS_DY     (52)    /* row 9's centre to the line's top */
+#define STATUS_SCALE  (2)
+#define STATUS_GAP    (24)
+
+static void draw_status(const ui_state_t *st)
+{
+    int x0, x1, y;
+    vol_bounds(&x0, &x1, &y);
+
+    char sleepw[16];
+    if (st->sleep_min > 0) snprintf(sleepw, sizeof(sleepw), "SLEEP %dM", st->sleep_min);
+    else                   snprintf(sleepw, sizeof(sleepw), "SLEEP");
+
+    const struct { const char *word; bool on; } items[] = {
+        { "USB",   st->usb_power },
+        { "MPD",   st->mpd_on },
+        { "HTTPS", st->https_on },
+        { sleepw,  st->sleep_min > 0 },
+    };
+    const int top = y + STATUS_DY;
+    int x = x0;
+    for (size_t i = 0; i < sizeof(items) / sizeof(items[0]) && x < x1; i++) {
+        gfx_draw_text(x, top, items[i].word, STATUS_SCALE, x1 - x,
+                      items[i].on ? C_PLAY_ON : C_ICON_OFF);
+        x += gfx_text_w(items[i].word, STATUS_SCALE) + STATUS_GAP;
+    }
+}
+
 /* ------------------------------------------------------------------ */
 
 void ui_clear_art(void)
@@ -2268,6 +2311,7 @@ void ui_draw(const ui_state_t *st)
     draw_speaker(st->muted, st->route);
     draw_rg(st);
     draw_battery(st->battery_pct, st->battery_charging, st->ext_power);
+    draw_status(st);                                    /* 5274 */
     draw_folder();
     draw_gear();
     draw_star_btn(st->fav);

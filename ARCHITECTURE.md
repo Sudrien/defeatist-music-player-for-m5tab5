@@ -19898,3 +19898,38 @@ that way.
 The lesson for the next patch like it: a host check against stubs is not
 the build. A format into a fixed buffer is sized for the type's widest
 value, not for the values the program means to pass.
+
+### 5279 -- decoder: DECBENCH, minimp3's decode cost in cycles
+
+The board is the only place to tell whether -O3 (5276, 5277) is faster:
+qemu follows instructions, not the P4's in-order pipeline or its 16 KB
+I-cache. And no line in the log said how long decoding took -- `open
+took` and `first sound` are mostly card reads and moved both ways
+between the -O2 and O3CHECK boards.
+
+`idf.py -DDECBENCH=1 build` logs, as warnings so they stand out:
+
+    DECBENCH so far: mp3 N cycles/frame avg, M best, P% of one core at 44.1 kHz; ...
+    DECBENCH track:  (the same, for the whole track, when it closes)
+
+per 1152-sample frame. Comparing builds: play the same MP3 to the end
+on each and compare the `track` lines -- `best` first.
+
+**What is measured.** Around each mp3dec_ex_read() in minimp3_read(),
+the cycle counter; inside it, mp3_io_read()'s card reads timed and
+subtracted, because minimp3 reads the file as it decodes. What is left
+is minimp3. The I/O timing is only on while inside minimp3_read(), so
+mp3dec_ex_open_cb()'s index build is not counted as either.
+
+**What is not.** The counter is per core and the media task is unpinned,
+so a call that ends on a different core than it began is dropped and
+counted (`dropped`), not measured -- pinning the task for the benchmark
+would change what is being benchmarked. Preemption is invisible from
+here and inflates a call; `avg` carries it, `best` (the cheapest call
+seen) mostly does not, which is why `best` is the number to compare.
+The percentage assumes 44.1 kHz and CONFIG_ESP_DEFAULT_CPU_FREQ_MHZ.
+Streams decode in netdec.c, not here, and are not measured.
+
+Compiled with and without DECBENCH, at -O2 and -O3, against IDF v5.5.5's
+headers with IDF's flags (5278's method): no new warnings. Not on the
+board.

@@ -269,12 +269,70 @@ bool decoder_supports(const char *path)
 /* minimp3 backend                                                     */
 /* ------------------------------------------------------------------ */
 
+#ifdef DECBENCH
+/*
+ * 5279: minimp3's decode cost in CPU cycles, for comparing builds (-O2
+ * against -O3, 5276/5277) on the board. Off by default: `idf.py
+ * -DDECBENCH=1 build`, as HEAPCHECK is.
+ *
+ * mp3dec_ex_read() reads the card through mp3_io_read() as it goes, so
+ * its cycles are decode plus I/O. The I/O is timed separately inside it
+ * and subtracted: what is left is minimp3 alone.
+ *
+ * The cycle counter is per core and the media task is not pinned, so a
+ * call that starts on one core and ends on the other is dropped (and
+ * counted) rather than measured. Preemption cannot be seen from here and
+ * inflates a call; `best` -- the cheapest call, per 1152-sample frame --
+ * is the figure least touched by it, and the one to compare.
+ */
+#include "esp_cpu.h"
+
+static bool     s_db_in_read;       /* inside minimp3_read(): count I/O */
+static uint32_t s_db_io_cyc;        /* I/O cycles within the current read */
+static uint64_t s_db_cyc;           /* decode cycles, the track so far */
+static uint64_t s_db_frames;        /* sample frames (per channel) decoded */
+static uint64_t s_db_best;          /* fewest cycles per 1152 frames, x1 */
+static uint32_t s_db_calls, s_db_moved;
+static uint64_t s_db_next_log;      /* frames at which to log next */
+
+static void decbench_log(const char *when)
+{
+    if (!s_db_frames) return;
+    const uint64_t per = s_db_cyc * 1152u / s_db_frames;
+    /* The share of one core, for 44.1 kHz audio: a 1152-sample frame
+     * lasts 1152/44100 s, so per * 44100 / 1152 cycles a second against
+     * the clock. For 48 kHz multiply by 48/44.1. */
+    const uint32_t hz = 44100;
+    const uint64_t cpu = (uint64_t)CONFIG_ESP_DEFAULT_CPU_FREQ_MHZ * 1000000u;
+    const uint32_t pct10 = (uint32_t)(per * hz * 1000u / 1152u / cpu);
+    ESP_LOGW(TAG, "DECBENCH %s: mp3 %" PRIu64 " cycles/frame avg, %" PRIu64
+             " best, %" PRIu32 ".%" PRIu32 "%% of one core at 44.1 kHz; "
+             "%" PRIu32 " calls, %" PRIu32 " dropped (changed core)",
+             when, per, s_db_best, pct10 / 10, pct10 % 10, s_db_calls, s_db_moved);
+}
+
+static void decbench_reset(void)
+{
+    s_db_cyc = s_db_frames = s_db_best = 0;
+    s_db_calls = s_db_moved = 0;
+    s_db_next_log = 0;
+}
+#endif
+
 static size_t mp3_io_read(void *buf, size_t size, void *user)
 {
     /* Playback class: this is the read nothing may be queued in front
      * of. minimp3 calls it during mp3dec_ex_open_cb()'s index build as
      * well as during playback, which is the pause before the first
      * sample -- that one wants the lease just as much. */
+#ifdef DECBENCH
+    if (s_db_in_read) {
+        const uint32_t t0 = (uint32_t)esp_cpu_get_cycle_count();
+        const size_t got = storage_io_fread(buf, size, (FILE *)user, STORAGE_IO_PLAYBACK);
+        s_db_io_cyc += (uint32_t)esp_cpu_get_cycle_count() - t0;
+        return got;
+    }
+#endif
     return storage_io_fread(buf, size, (FILE *)user, STORAGE_IO_PLAYBACK);
 }
 
@@ -487,7 +545,34 @@ static esp_err_t minimp3_open(decoder_t *d, const char *path,
 
 static int minimp3_read(decoder_t *d, int16_t *out, int max_int16)
 {
+#ifdef DECBENCH
+    const int core0 = esp_cpu_get_core_id();
+    s_db_io_cyc = 0;
+    s_db_in_read = true;
+    const uint32_t t0 = (uint32_t)esp_cpu_get_cycle_count();
+#endif
     const size_t got = mp3dec_ex_read(&d->ex, out, (size_t)max_int16);
+#ifdef DECBENCH
+    const uint32_t total = (uint32_t)esp_cpu_get_cycle_count() - t0;
+    s_db_in_read = false;
+    const int ch = d->ex.info.channels > 0 ? d->ex.info.channels : 1;
+    if (esp_cpu_get_core_id() != core0) {
+        s_db_moved++;
+    } else if (got >= (size_t)ch && total > s_db_io_cyc) {
+        const uint64_t frames = got / (size_t)ch;
+        const uint64_t dec = total - s_db_io_cyc;
+        s_db_cyc += dec;
+        s_db_frames += frames;
+        s_db_calls++;
+        const uint64_t per = dec * 1152u / frames;
+        if (!s_db_best || per < s_db_best) s_db_best = per;
+        if (!s_db_next_log) s_db_next_log = 30u * 44100u;
+        if (s_db_frames >= s_db_next_log) {
+            decbench_log("so far");
+            s_db_next_log += 30u * 44100u;     /* about every 30 s of audio */
+        }
+    }
+#endif
 
     /* A short read is EOF *or* an error; ex.last_error distinguishes
      * them. minimp3 already skips damaged frames internally, so a
@@ -1517,6 +1602,10 @@ void decoder_close(decoder_t *d)
 {
     if (!d) return;
     if (d->backend == BACKEND_MINIMP3) {
+#ifdef DECBENCH
+        decbench_log("track");
+        decbench_reset();
+#endif
         mp3dec_ex_close(&d->ex);
     } else {
         if (d->esp_dec) esp_audio_simple_dec_close(d->esp_dec);

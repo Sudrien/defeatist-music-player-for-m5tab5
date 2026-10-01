@@ -60,6 +60,16 @@ if(O3CHECK)
     message(STATUS "O3CHECK: main compiled at -O3 (a warning check, not a release build)")
 endif()
 
+# 5279: minimp3's decode cost in CPU cycles, logged every ~30 s of audio
+# and at the end of each MP3 track. Off by default. Build with
+#   idf.py -DDECBENCH=1 build
+# and compare the "DECBENCH track" lines between builds. Like O3CHECK and
+# HEAPCHECK it stays in CMakeCache.txt until `-DDECBENCH=0`.
+if(DECBENCH)
+    target_compile_definitions(${COMPONENT_LIB} PRIVATE DECBENCH=1)
+    message(STATUS "DECBENCH: minimp3 decode cycles logged")
+endif()
+
 if(HEAPCHECK)
     target_compile_definitions(${COMPONENT_LIB} PRIVATE HEAPCHECK=1)
     message(STATUS "heap integrity checkpoints ENABLED (slow)")

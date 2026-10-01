@@ -20486,3 +20486,32 @@ recorder.c and audio_out.c compiled clean at -O2 and -O3 against IDF
 v5.5.5's headers with IDF's flags. Not on the board. The check: the
 same setup records, and stopping logs `capture: ended` with no
 `capture DMA reserve` warning after it.
+
+### 6011 -- the DMA reserve takes 12, 11 or 10 KB
+
+6010's 9 KB was a step too far. On the board:
+
+    capture before: DMA-capable internal 9743 free (largest 9216)
+    allocation failed: 960 bytes ... i2s_alloc_dma_desc  (x5)
+    allocation failed: 9216 bytes ... dma_reserve_take
+    capture DMA reserve: no 9216-byte block (largest 9216)
+
+Two TLSF properties, both now visible in one run. Every request is
+rounded up to its size class before a free block is chosen, so carving
+eighteen allocations (8 x 960 buffers, 8 descriptors, two arrays) out
+of a region barely larger than their sum fails -- 9216 did, 10240
+(6009) did not. And malloc(N) is not satisfied from a free block of
+exactly N, which is why both 6009's re-take (9728 free, 10240 asked)
+and this one (9216 free, 9216 asked) failed.
+
+So dma_reserve_take() tries 12 KB, then 11, then 10, keeps the first
+that fits, and logs the size when it changes. Boot gets 12 KB (the
+largest block is about 26 KB then); after a capture the region the
+driver frees back is at least what was given, so the next take finds
+one of the three.
+
+The recorder tasks (6010) are unaffected: they were not reached in
+this run because the microphones failed first.
+
+Compiled clean at -O2 and -O3 against IDF v5.5.5's headers with IDF's
+flags. Not on the board.

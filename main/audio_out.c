@@ -1027,23 +1027,38 @@ bool audio_out_headphones(void) { return s_headphones; }
  * about 8.2 KB; 10 KB leaves room. At boot the largest free block is
  * 26 KB, so this is taken whole before Wi-Fi fragments the heap.
  */
-/* 6010: 9 KB, was 10. The driver needs about 8.2; after a capture the
- * heap gave back 9728 contiguous, short of 10240, so the reserve was
- * never re-taken and the next recording competed again. */
-#define DMA_RESERVE_BYTES   (9 * 1024)
+/*
+ * 6011: as large as can be had, from 12 KB down to 10, never 9. On the
+ * board 9216 handed back was not enough for the driver's 8 buffers and
+ * descriptors -- TLSF rounds every request up to the next size class,
+ * and carving eighteen allocations from a region that close to their sum
+ * fails -- while 10240 was (6009). And TLSF will not satisfy malloc(N)
+ * from a free block of exactly N, so after a capture the 10 KB region
+ * came back as "largest 9728" and a fixed 10240 could not be re-taken.
+ * So: take the largest step that fits, and say which.
+ */
+static const int k_reserve_steps[] = { 12 * 1024, 11 * 1024, 10 * 1024 };
 static void *s_dma_reserve;
+static int   s_dma_reserve_bytes;
 
 static void dma_reserve_take(void)
 {
     if (s_dma_reserve) return;
-    s_dma_reserve = heap_caps_malloc(DMA_RESERVE_BYTES,
-                                     MALLOC_CAP_DMA | MALLOC_CAP_INTERNAL | MALLOC_CAP_8BIT);
-    if (!s_dma_reserve) {
-        ESP_LOGW(TAG, "capture DMA reserve: no %d-byte block (largest %u); "
-                      "recording will compete for DMA when it starts",
-                 DMA_RESERVE_BYTES,
-                 (unsigned)heap_caps_get_largest_free_block(MALLOC_CAP_DMA | MALLOC_CAP_INTERNAL));
+    for (size_t i = 0; i < sizeof(k_reserve_steps) / sizeof(k_reserve_steps[0]); i++) {
+        s_dma_reserve = heap_caps_malloc(k_reserve_steps[i],
+                                         MALLOC_CAP_DMA | MALLOC_CAP_INTERNAL | MALLOC_CAP_8BIT);
+        if (s_dma_reserve) {
+            if (s_dma_reserve_bytes != k_reserve_steps[i]) {
+                ESP_LOGI(TAG, "capture DMA reserve: %d bytes", k_reserve_steps[i]);
+            }
+            s_dma_reserve_bytes = k_reserve_steps[i];
+            return;
+        }
     }
+    s_dma_reserve_bytes = 0;
+    ESP_LOGW(TAG, "capture DMA reserve: none of 10-12 KB to be had (largest %u); "
+                  "recording will compete for DMA when it starts",
+             (unsigned)heap_caps_get_largest_free_block(MALLOC_CAP_DMA | MALLOC_CAP_INTERNAL));
 }
 
 static void dma_reserve_give(void)

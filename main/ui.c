@@ -1401,7 +1401,7 @@ static void draw_live(const ui_state_t *st)
  */
 #define STATUS_DY     (52)    /* row 9's centre to the line's top */
 #define STATUS_SCALE  (2)
-#define STATUS_GAP    (24)
+#define STATUS_GAP    (16)    /* 6001: was 24; five words need the room */
 
 static void draw_status(const ui_state_t *st)
 {
@@ -1411,12 +1411,16 @@ static void draw_status(const ui_state_t *st)
     char sleepw[24];                    /* 5278: "SLEEP " + any int + "M" */
     if (st->sleep_min > 0) snprintf(sleepw, sizeof(sleepw), "SLEEP %dM", st->sleep_min);
     else                   snprintf(sleepw, sizeof(sleepw), "SLEEP");
+    char idlew[24];                     /* 6001: Power off's countdown */
+    if (st->idle_min > 0) snprintf(idlew, sizeof(idlew), "IDLE %dM", st->idle_min);
+    else                  snprintf(idlew, sizeof(idlew), "IDLE");
 
     const struct { const char *word; bool on; } items[] = {
         { "USB",   st->usb_power },
         { "MPD",   st->mpd_on },
         { "HTTPS", st->https_on },
         { sleepw,  st->sleep_min > 0 },
+        { idlew,   st->idle_min > 0 },
     };
     const int top = y + STATUS_DY;
 
@@ -1456,7 +1460,15 @@ static void draw_status(const ui_state_t *st)
     gfx_draw_text(bx, top, batt, STATUS_SCALE, bw + STATUS_SCALE, bc);
     if (x1 > bx - STATUS_GAP / 2) x1 = bx - STATUS_GAP / 2;
 
-    int x = x0;
+    /*
+     * 6001: from the bar's left edge, not the groove's. Five words and the
+     * battery do not fit in the groove's span at scale 2 -- the widest,
+     * "SLEEP 120M IDLE 120M" beside "Charging 99%", needs about 490 px --
+     * and the speaker icon that the groove's left end clears is on the
+     * volume row above, which ends well before this line's top.
+     */
+    (void)x0;
+    int x = bar_x0();
     for (size_t i = 0; i < sizeof(items) / sizeof(items[0]) && x < x1; i++) {
         gfx_draw_text(x, top, items[i].word, STATUS_SCALE, x1 - x,
                       items[i].on ? C_PLAY_ON : C_ICON_OFF);

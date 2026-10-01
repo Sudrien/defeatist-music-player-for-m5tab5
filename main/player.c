@@ -6619,6 +6619,18 @@ static void status_overlay(ui_state_t *st)
     const int64_t left = s_sleep_deadline_us
         ? sleeptimer_seconds_left(esp_timer_get_time(), s_sleep_deadline_us) : 0;
     st->sleep_min = left > 0 ? (int)((left + 59) / 60) : 0;
+
+    /* 6001: the Power off countdown, from the same clock 6000 acts on. */
+    const int pd_s = powerdown_seconds(settings_poweroff_step());
+    if (pd_s <= 0) {
+        st->idle_min = 0;
+    } else {
+        const int64_t now = esp_timer_get_time();
+        const int64_t since = s_last_active_us ? now - s_last_active_us : 0;
+        int64_t rem = (int64_t)pd_s - since / 1000000;
+        if (rem < 1) rem = 1;                       /* "0M" would read as off */
+        st->idle_min = (int)((rem + 59) / 60);
+    }
 }
 
 static void recording_overlay(ui_state_t *st)

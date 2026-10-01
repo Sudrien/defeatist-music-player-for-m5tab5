@@ -246,6 +246,10 @@ typedef struct {
     bool mpd_on;
     bool https_on;
     int  sleep_min;
+    /* 6001: minutes until Power off (powerdown.h), rounded up; 0 when
+     * Power off is Never. While anything is going on it stays at the
+     * full wait, because that wait keeps restarting. */
+    int  idle_min;
     /* 5217: Record from is OFF -- the switch is drawn as two positions,
      * pause and play, and cannot be slid to record. */
     bool rec_off;

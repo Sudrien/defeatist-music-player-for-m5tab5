@@ -20169,3 +20169,26 @@ player.c, settings.c, sleeppage.c and ui.c compiled clean at -O2 and
 -O3 against IDF v5.5.5's headers with IDF's flags; powerdown.h's
 arithmetic tested on the host. Not on the board: the pulse is the
 part only the board can confirm.
+
+### 6001 -- the status line counts down to Power off
+
+Asked for on the board: an idle countdown after SLEEP. `IDLE 14M` is
+the minutes until 6000's Power off, rounded up and never shown as 0 --
+green when Power off is set, `IDLE` in dark grey when it is Never.
+status_overlay() computes it from s_last_active_us, the clock 6000
+acts on, so the number and the event cannot disagree; while anything
+is going on that clock keeps restarting and the word shows the full
+wait.
+
+Five words and the battery did not fit in the volume groove's span at
+scale 2, so the line now starts at the bar's left edge -- USB under the
+speaker, which is on the row above and ends before this line's top --
+and the gap between words is 16 px, was 24. The widest case, "USB MPD
+HTTPS SLEEP 120M IDLE 120M" (about 508 px from x=24) beside "Charging
+99%" (from about 528, with the half-gap the words stop short of), has
+about 8 px to spare, so the battery words keep their full spelling.
+"NO BATT" and "CHRG" were offered as shorter forms if needed; they
+were not.
+
+ui.c and player.c compiled clean at -O2 and -O3 against IDF v5.5.5's
+headers with IDF's flags. Not on the board.

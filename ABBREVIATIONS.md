@@ -30,6 +30,7 @@ is on, dark grey is off. Each has its own switch somewhere else.
 | `MPD` | The MPD server is running | NET tab, MPD server |
 | `HTTPS` | The browser remote is running | NET tab, Remote control |
 | `SLEEP xxM` | The sleep timer is set; minutes left, rounded up. Just `SLEEP` when it is not | Sleep page |
+| `IDLE xxM` | Power off is set; minutes until the device turns itself off, rounded up. Stays at the full wait while anything is playing, recording or being touched. Just `IDLE` when Power off is Never | Sleep page, Power off |
 
 At the right end of the same line, the battery (there is no battery
 icon):

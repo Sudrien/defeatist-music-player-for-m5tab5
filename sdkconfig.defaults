@@ -1,4 +1,4 @@
-//# Minimal deltas from the ESP32-P4 defaults. Everything not listed here
+# Minimal deltas from the ESP32-P4 defaults. Everything not listed here
 # falls back to the IDF default on purpose.
 
 # Pin the target. Without this, anything that deletes sdkconfig (a clean

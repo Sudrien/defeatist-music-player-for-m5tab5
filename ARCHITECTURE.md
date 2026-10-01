@@ -19777,3 +19777,38 @@ needed telling.
 
 Not built here -- no IDF. draw_status() was compiled on the host
 against stubs with -Wall -Wextra -Wshadow -Werror. Not on the board.
+
+### 5275 -- what "disable unused codecs" left behind
+
+A v0.5.0 target, "binary optimization (no unused libraries/features)",
+following the owner's 0deb00a, which turned off six esp_audio_codec
+decoders. Three things, none of them a size change on its own:
+
+- **sdkconfig.defaults line 1 had become `//#`.** The file has only `#`
+  comments; kconfgen reports anything else as a malformed line. Back to
+  `#`. The proof it took: no malformed-line warning for
+  sdkconfig.defaults in the configure output.
+- **`.amr` came out of decoder.c's k_formats[].** 0deb00a set
+  CONFIG_AUDIO_DECODER_AMRNB_SUPPORT=n and the row still mapped `.amr`
+  to it, so decoder_supports() said yes: AMR files were listed by the
+  chooser, the remote, MPD and the indexer, and failed when opened. The
+  AMR branches in cbrseek.c and decoder.c's length and resume paths are
+  now unreachable and stay -- taking them out is a restructure, not a
+  line, and they are what to keep if AMR-NB is turned back on.
+- **components/font8x8 is deleted.** One header, included by nothing
+  since ark12 replaced it; it had no CMakeLists, so it was never a
+  component and cost no flash. Comments in gfx.c, gfx.h, ui.c and
+  ark12/CMakeLists.txt still name it as history and are left alone.
+
+What was checked and is already as small as it should be: every
+esp_audio_codec decoder still on is one a listed extension needs (AAC,
+ALAC, FLAC, Opus, Vorbis, PCM and IMA-ADPCM for WAV), and all four
+simple-decoder containers are used. The encoders default on, but nothing
+calls esp_audio_enc_register_default(), so the linker should drop them
+already; `=n` for them is untested and would be tidiness, not size.
+Every IDF component main/CMakeLists.txt REQUIRES has callers. IPv6 is
+used (addrpin, mpd, remote) and stays.
+
+Further cuts want a size map: `idf.py size-components` on a build is
+the list to work from, rather than a guess from here. Not built here --
+no IDF.

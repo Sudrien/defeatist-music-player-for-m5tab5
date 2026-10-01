@@ -224,7 +224,6 @@ static const struct {
     { ".ogg",  BACKEND_ESP_CODEC, ESP_AUDIO_SIMPLE_DEC_TYPE_OGG,  "ogg",  DECODER_TRIM_UNKNOWN },
     { ".opus", BACKEND_ESP_CODEC, ESP_AUDIO_SIMPLE_DEC_TYPE_OGG,  "ogg",  DECODER_TRIM_UNKNOWN },
     { ".ts",   BACKEND_ESP_CODEC, ESP_AUDIO_SIMPLE_DEC_TYPE_TS,   "ts",   DECODER_TRIM_UNKNOWN },
-    { ".amr",  BACKEND_ESP_CODEC, ESP_AUDIO_SIMPLE_DEC_TYPE_AMRNB,"amr",  DECODER_TRIM_UNKNOWN },
 };
 
 const char *decoder_trim_name(decoder_trim_t t)

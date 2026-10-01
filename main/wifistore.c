@@ -8,6 +8,7 @@
 #include <stdio.h>
 #include <string.h>
 
+#include "nvsns.h"              /* 6006 */
 #include "wifistore.h"
 
 #ifdef WIFISTORE_HOST
@@ -23,7 +24,7 @@
 static const char *TAG = "tab5_wifi";
 #endif
 
-#define NVS_NAMESPACE   "wifistore"
+#define NVS_NAMESPACE   DEFEATIST_NVS_NS     /* 6006: was "wifistore" */
 #define NVS_BLOB_KEY    "nets"
 
 /*

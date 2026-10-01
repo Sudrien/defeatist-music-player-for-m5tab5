@@ -3,6 +3,7 @@
  *
  * SPDX-License-Identifier: MIT
  */
+#include "nvsns.h"              /* 6006 */
 #include "radiokeep.h"
 
 #include <string.h>
@@ -17,7 +18,7 @@
 
 static const char *TAG = "tab5_keep";
 
-#define NVS_NAMESPACE   "radiokeep"
+#define NVS_NAMESPACE   DEFEATIST_NVS_NS     /* 6006: was "radiokeep" */
 #define KEY_LAST        "last"
 #define KEY_STAR        "star"
 

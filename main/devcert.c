@@ -3,6 +3,7 @@
  *
  * SPDX-License-Identifier: MIT
  */
+#include "nvsns.h"              /* 6006 */
 #include "devcert.h"
 
 #include <stdio.h>
@@ -22,7 +23,7 @@
 
 static const char *TAG = "tab5_cert";
 
-#define DEVCERT_NS      "devcert"
+#define DEVCERT_NS      DEFEATIST_NVS_NS     /* 6006: was "devcert" */
 #define KEY_CAP         (512)
 #define CRT_CAP         (1400)
 

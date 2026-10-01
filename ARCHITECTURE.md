@@ -20330,3 +20330,39 @@ Expected on the board: "remote up" about 10 KB higher internal free
 and min-ever than 15915 / 376, and "reindex microSD: started" after
 Wi-Fi with no allocation failure. Compiled clean at -O2 and -O3 against
 IDF v5.5.5's headers with IDF's flags.
+
+### 6006 -- one NVS namespace, "defeatist"
+
+Under a launcher every firmware on the board shares the one 20 KB
+`nvs` partition (partitions.csv is the Arduino layout on purpose), and
+only the namespace keeps their data apart. This player used three,
+each named for the first module that needed one: "radiokeep"
+(radiokeep.c's stations, then the Wi-Fi switch, prefs blob and clock
+correction from settings.c), "wifistore" (the saved networks) and
+"devcert" (the remote's certificate and key) -- the last generic enough
+to meet someone else's. Now all eight keys live in "defeatist"
+(nvsns.h, DEFEATIST_NVS_NS); they were already distinct: last, star,
+wifi_on, prefs, clkfix, nets, key, crt.
+
+**The move is once, at boot** -- nvsns_migrate(), right after
+nvs_flash_init() succeeds and before wifistore_init() or anything else
+reads NVS. For each old namespace: copy every entry of every type
+across unless "defeatist" already has the key, commit, then erase the
+old namespace. One namespace at a time, so the partition never holds
+more than one namespace's worth twice; a failed copy (the partition
+full) leaves that namespace in place for the next boot, and nothing is
+erased that was not copied. The first boot after this logs `moved N
+entries from "radiokeep" into "defeatist"` and the same for the other
+two; later boots log nothing.
+
+What this does not change, from the question that started it: NVS here
+is not encrypted, so any firmware a launcher runs can still read the
+saved Wi-Fi passwords and the remote's private key -- a different name
+is not a lock -- and another firmware's boilerplate can still erase the
+whole partition. The settings come back from the card; networks and
+the certificate would not.
+
+Compiled clean at -O2 and -O3 against IDF v5.5.5's headers with IDF's
+flags. Not on the board. The check: first boot logs the three moves,
+the saved networks join as before, and the remote keeps the same
+certificate fingerprint (tab5_cert's SHA-256 line).

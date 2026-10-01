@@ -12,6 +12,7 @@
 #include <time.h>
 #include <sys/time.h>
 
+#include "nvsns.h"              /* 6006 */
 #include "esp_app_desc.h"
 #include "esp_log.h"
 #include "esp_timer.h"
@@ -43,7 +44,7 @@
  *
  * One byte, written only when it differs.
  */
-#define WIFI_NVS_NS     "radiokeep"
+#define WIFI_NVS_NS     DEFEATIST_NVS_NS     /* 6006: was "radiokeep" */
 #define WIFI_NVS_KEY    "wifi_on"
 
 static bool wifi_nvs_read(bool *on)

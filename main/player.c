@@ -100,6 +100,7 @@
 #include "brightness.h"
 #include "screendim.h"
 #include "powerdown.h"           /* 6000 */
+#include "nvsns.h"              /* 6006 */
 #include "rtc8130.h"             /* 6003 */
 #include "sleeptimer.h"
 #include "wifistore.h"
@@ -14889,6 +14890,7 @@ void app_main(void)
          * network list is a worse program than one that forgets them. */
         ESP_LOGE(TAG, "nvs_flash_init: %s", esp_err_to_name(nvs_err));
     }
+    if (nvs_err == ESP_OK) nvsns_migrate();     /* 6006: before anything reads it */
     wifistore_init();
 
     /* 5051: after NVS, not before it. 5049 made settings_init() read the

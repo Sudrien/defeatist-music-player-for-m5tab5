@@ -20257,3 +20257,36 @@ clean at -O2 and -O3 against IDF v5.5.5's headers with IDF's flags.
 Not on the board. The check: power off, wait some minutes, power on --
 the RX8130 line says "taken as the floor" and the system clock line
 lands near the real time, not the build's.
+
+### 6004 -- the low-battery guard
+
+Before this the player only warned: a card at 10% (notice_battery_low())
+and nothing after it, so it ran on until the pack's own protection cut
+the supply. The gauge's 0% is 6.0 V, 3.0 V a cell; that protection
+trips lower, typically 2.5-2.8 V a cell; everything between is deep
+discharge, which damages lithium cells, and a pack left cut off keeps
+self-discharging. That is the likeliest history of the NP-F550 that
+read 204.8 kOhm and no current, too flat for its charger.
+
+Now, on the pack -- a reading, not external (battery_external()), not
+charging -- and with battery_mv() below LOWBATT_MV, 6300 mV (3.15 V a
+cell, about 2% on battery.c's curve), for LOWBATT_HOLD_MS, 30 s without
+a break: a recording is stopped and waited for (up to 10 s, so its FLAC
+is closed and its name settled), a card says "Battery empty -- Turning
+off to protect the battery. Charge it before use." for 4 s, and
+power_off_now() runs: settings flushed (6000), the RX8130 written
+forward (6003), the pulse. If the board is still running it tries again
+a minute later rather than every pass.
+
+battery_mv() is already an eight-sample moving average; the 30 s hold
+is for sag under load, which an average of a second or two does not
+absorb. The first pass below the line logs that the countdown started,
+so a run that recovers above it is visible in the log as well.
+
+Not a substitute for taking the pack out: the power controller and the
+RX8130 still draw a little from it while the board is off. The README's
+advice for storage stands.
+
+Compiled clean at -O2 and -O3 against IDF v5.5.5's headers with IDF's
+flags. Not on the board; testing it means running a pack down, or a
+bench supply on the battery connector stepped below 6.3 V.

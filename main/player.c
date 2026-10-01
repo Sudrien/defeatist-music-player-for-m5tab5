@@ -6917,6 +6917,17 @@ static volatile int s_rec_count;
  */
 #define PWROFF_PULSE_BIT  (1u << 4)
 
+/*
+ * 6004: the low-battery guard's line. 6300 mV is 3.15 V a cell, about
+ * 2% on battery.c's curve -- above the pack's own protection (around
+ * 2.5-2.8 V a cell) by enough that the cells are never deep-discharged,
+ * and low enough that an album is not cut short. 30 s below it, without
+ * a break, so a sag under load is not taken for empty.
+ */
+#define LOWBATT_MV         (6300)
+#define LOWBATT_HOLD_MS    (30000)
+#define LOWBATT_NOTICE_MS  (4000)
+
 static void power_off_now(void)
 {
     const bool saved = settings_flush(3000);
@@ -7726,6 +7737,52 @@ static void ui_task(void *arg)
                          powerdown_label(settings_poweroff_step()));
                 power_off_now();
                 s_last_active_us = esp_timer_get_time();    /* still here: see there */
+            }
+
+            /*
+             * 6004: the low-battery guard. The pack's own protection cuts
+             * off far lower than the gauge's 0% (6.0 V), and everything
+             * between is deep discharge -- which is how an NP-F550 here
+             * ended up too flat for its charger. So the player powers off
+             * first, cleanly, at LOWBATT_MV.
+             *
+             * Only on the pack (not external, not charging, a reading),
+             * and only after LOWBATT_HOLD_MS below the line without a
+             * break: battery_mv() is already averaged, but a loud passage
+             * still sags a loaded pack, and a dip is not empty.
+             *
+             * A recording is finished first -- its FLAC is closed and its
+             * name settled -- and the card says why for a few seconds,
+             * so the cut is not mistaken for a crash. If the power-off
+             * does not take, the guard tries again a minute later.
+             */
+            {
+                static int64_t below_since, next_try;
+                const int mv = battery_mv();
+                const bool on_pack = mv > 0 && !battery_external() &&
+                                     !battery_charging() && battery_pct() >= 0;
+                if (!on_pack || mv >= LOWBATT_MV) {
+                    below_since = 0;
+                } else if (!below_since) {
+                    below_since = now_us;
+                    ESP_LOGW(TAG, "battery %d mV, under %d: powering off in %d s "
+                                  "if it stays there", mv, LOWBATT_MV, LOWBATT_HOLD_MS / 1000);
+                } else if (now_us - below_since >= (int64_t)LOWBATT_HOLD_MS * 1000 &&
+                           now_us >= next_try) {
+                    ESP_LOGW(TAG, "battery %d mV for %d s: powering off to protect it",
+                             mv, LOWBATT_HOLD_MS / 1000);
+                    if (recorder_active()) {
+                        recorder_stop();
+                        for (int i = 0; i < 100 && recorder_active(); i++) {
+                            vTaskDelay(pdMS_TO_TICKS(100));     /* up to 10 s */
+                        }
+                    }
+                    notice_post("Battery empty",
+                                "Turning off to protect the battery. Charge it before use.");
+                    vTaskDelay(pdMS_TO_TICKS(LOWBATT_NOTICE_MS));
+                    power_off_now();
+                    next_try = esp_timer_get_time() + 60 * 1000000LL;
+                }
             }
         }
 

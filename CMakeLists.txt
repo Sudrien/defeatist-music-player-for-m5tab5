@@ -89,4 +89,9 @@ endif()
 # bug report and a configure warning is not.
 include(${CMAKE_CURRENT_LIST_DIR}/cmake/defaults_check.cmake)
 idf_component_get_property(main_lib main COMPONENT_LIB)
+#target_compile_options(${main_lib} PRIVATE -O3)
+set_source_files_properties(
+    ${CMAKE_CURRENT_SOURCE_DIR}/main/decoder.c
+    PROPERTIES COMPILE_OPTIONS "-O3;-Wno-error=stringop-overflow"
+)
 target_compile_definitions(${main_lib} PRIVATE "SDKCONFIG_DRIFT=\"${SDKCONFIG_DRIFT}\"")

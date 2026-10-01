@@ -20387,3 +20387,39 @@ Power and stability after v0.5.0:
 - **One NVS namespace, `defeatist`** (6006). Board-checked: the three
   old namespaces moved, networks joined, the certificate fingerprint
   unchanged.
+
+### 6008 -- the recording's DMA, reserved from boot
+
+v0.5.0-7 on the board, playing from a USB drive with Wi-Fi up, record
+pressed:
+
+    capture before: DMA-capable internal 4651 free (largest 2432)
+    allocation failed: 960 bytes, caps 0x80c, in heap_caps_aligned_alloc  (x5)
+    record refused: The microphones did not start (ESP_ERR_NO_MEM).
+
+The microphone channel needs 8 x 960-byte DMA buffers and their
+descriptors, about 7.5 KB of DMA-capable internal RAM, at the moment
+record is pressed. 5213 cut the blocks to 960 bytes and retried for
+half a second, for a dip while Wi-Fi joins. This was not a dip: Wi-Fi,
+esp_hosted and lwIP grow into whatever internal RAM they find, and with
+a USB drive and playback as well, 4.6 KB is where it settles. Five
+retries 100 ms apart cannot win against that. (The "i2s controller 0
+has been occupied" warning before each try is the duplex pair's second
+channel joining the first, 5209 -- normal, not a leak.)
+
+So the memory is reserved: audio_out_init(), before Wi-Fi exists,
+claims nine blocks of 1088 bytes -- one per buffer plus alignment, and
+one for the descriptors -- from DMA-capable internal RAM, and holds
+them. audio_out_capture_begin() frees them immediately before
+rx_init(), so the driver's allocations land in the holes just given
+back; capture end and a failed start claim them again. 9.8 KB held
+while not recording, taken from what the radio would otherwise grow
+into. If a block cannot be had at boot, `capture DMA reserve: N of 9
+blocks` says so and recording falls back to 5213's retries.
+
+Not a guarantee: another task allocating between the free and the
+driver's allocation, a few microseconds, could take a hole. Compiled
+clean at -O2 and -O3 against IDF v5.5.5's headers with IDF's flags.
+Not on the board. The check: the same setup -- Wi-Fi up, playing from
+USB -- and record starts, `capture before` showing about 10 KB more
+free than the 4651 above.

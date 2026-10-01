@@ -999,6 +999,50 @@ static const uint8_t k_es7210_headset[][2] = {
 
 bool audio_out_headphones(void) { return s_headphones; }
 
+/*
+ * 6008: the capture's DMA, held from boot until a recording takes it.
+ *
+ * The RX channel's 8 x 960-byte buffers and their descriptors come from
+ * DMA-capable internal RAM when record is pressed. 5213 sized them to
+ * slip into a brief dip while Wi-Fi joins and retried for half a second.
+ * But with Wi-Fi up, a USB drive and playback, 4.6 KB free (largest 2.4
+ * KB) is not a dip but the steady state -- Wi-Fi, esp_hosted and lwIP
+ * grow into what they find -- and the v0.5.0-7 board refused every try.
+ *
+ * So the same memory is claimed in audio_out_init(), before the radio
+ * exists, as blocks the size the driver will ask for, and freed back
+ * immediately before rx_init(): the heap hands the driver the holes it
+ * just got back. Claimed again after every capture. The cost is 9 KB of
+ * DMA-capable internal RAM held while not recording -- memory the radio
+ * would otherwise take and, unlike the radio, could not give back.
+ */
+#define DMA_RESERVE_BLOCK   (CAPTURE_DMA_FRAMES * 8 + 128)   /* a buffer, aligned */
+#define DMA_RESERVE_N       (CAPTURE_DMA_DESC + 1)           /* + the descriptors */
+static void *s_dma_reserve[DMA_RESERVE_N];
+
+static void dma_reserve_take(void)
+{
+    int got = 0;
+    for (int i = 0; i < DMA_RESERVE_N; i++) {
+        if (!s_dma_reserve[i]) {
+            s_dma_reserve[i] = heap_caps_malloc(DMA_RESERVE_BLOCK,
+                                                MALLOC_CAP_DMA | MALLOC_CAP_INTERNAL | MALLOC_CAP_8BIT);
+        }
+        if (s_dma_reserve[i]) got++;
+    }
+    if (got < DMA_RESERVE_N) {
+        ESP_LOGW(TAG, "capture DMA reserve: %d of %d blocks", got, DMA_RESERVE_N);
+    }
+}
+
+static void dma_reserve_give(void)
+{
+    for (int i = 0; i < DMA_RESERVE_N; i++) {
+        heap_caps_free(s_dma_reserve[i]);       /* NULL is fine */
+        s_dma_reserve[i] = NULL;
+    }
+}
+
 static void dma_line(const char *when)
 {
     const uint32_t caps = MALLOC_CAP_DMA | MALLOC_CAP_INTERNAL;
@@ -1152,6 +1196,7 @@ esp_err_t audio_out_capture_begin(audio_capture_src_t src)
     }
     if (s_capturing || !s_tx) { xSemaphoreGive(s_i2s_lock); return ESP_ERR_INVALID_STATE; }
 
+    dma_reserve_give();                         /* 6008: to the driver, now */
     dma_line("before");
     /* The RX channel first: it is the only allocation, and if it fails
      * nothing else has moved. */
@@ -1172,6 +1217,7 @@ esp_err_t audio_out_capture_begin(audio_capture_src_t src)
         ESP_LOGE(TAG, "capture: %s; playback left as it was", esp_err_to_name(err));
         es7210_stop();
         rx_delete();
+        dma_reserve_take();                     /* 6008 */
         const esp_err_t back = tx_reclock(s_rate, false);
         if (back != ESP_OK) ESP_LOGE(TAG, "capture: playback re-clock at %" PRIu32 " Hz: %s",
                                      s_rate, esp_err_to_name(back));
@@ -1266,6 +1312,7 @@ void audio_out_capture_end(void)
     if (!s_capturing) { xSemaphoreGive(s_i2s_lock); return; }
     es7210_stop();
     rx_delete();
+    dma_reserve_take();                         /* 6008: for the next one */
     const esp_err_t err = tx_reclock(s_rate, false);
     if (err != ESP_OK) ESP_LOGE(TAG, "capture end: playback re-clock at %" PRIu32 " Hz: %s",
                                 s_rate, esp_err_to_name(err));
@@ -1375,5 +1422,6 @@ esp_err_t audio_out_init(i2c_master_bus_handle_t bus,
     if (rtctask_create(headphone_task, "hp_det", 3072, NULL, 3, NULL) != pdPASS) {
         return ESP_ERR_NO_MEM;
     }
+    dma_reserve_take();                         /* 6008: before Wi-Fi exists */
     return ESP_OK;
 }

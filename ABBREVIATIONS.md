@@ -16,7 +16,7 @@ the screen is newer -- fix this file.
 | `REC` | Recording. The bar shows the input's level, on a decibel scale (-60 to 0 dBFS). |
 | `MUTED` | Recording, but the input has been exact digital zero for 300 ms -- a muted headset, or a source sending nothing. |
 | `RG` | Under the speaker: ReplayGain is adjusting this track. The yellow mark on the volume slider is where the volume effectively sits. |
-| `UAC` | In place of the speaker icon: a USB audio device has the output. |
+| `UAC` | In place of the speaker icon: a USB Audio Class device has the output. |
 | `FILE` | On the format card, for a file with no extension. Otherwise the card shows the extension (`MP3`, `FLAC`, ...). |
 
 ### The status line, under volume
@@ -29,7 +29,7 @@ is on, dark grey is off. Each has its own switch somewhere else.
 | `USB` | The USB-A port is powered | USB tab, USB power |
 | `MPD` | The MPD server is running | NET tab, MPD server |
 | `HTTPS` | The browser remote is running | NET tab, Remote control |
-| `SLEEP 13M` | The sleep timer is set; minutes left, rounded up. Just `SLEEP` when it is not | Sleep page |
+| `SLEEP xxM` | The sleep timer is set; minutes left, rounded up. Just `SLEEP` when it is not | Sleep page |
 
 ## The chooser (folder button)
 

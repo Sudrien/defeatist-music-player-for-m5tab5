@@ -289,9 +289,8 @@ static void finish_file(void)
 
 /* ---- the tasks ---- */
 
-static void rec_in_task(void *arg)
+static void rec_in_run(void)
 {
-    (void)arg;
     uint32_t reads = 0;
     uint32_t settle = s_rate * REC_SETTLE_MS / 1000u;
     const bool usb = (s_src == SETTINGS_REC_UAC);
@@ -342,12 +341,10 @@ static void rec_in_task(void *arg)
     ESP_LOGI(TAG, "microphones off after %" PRIu32 " reads (the first %d ms dropped: "
              "the ADC settling)", reads, REC_SETTLE_MS);
     s_in_done = true;
-    vTaskDelete(NULL);
 }
 
-static void rec_enc_task(void *arg)
+static void rec_enc_run(void)
 {
-    (void)arg;
     uint64_t last_drop_logged = 0;
     for (;;) {
         /* Whole frames: rec_in sends only whole reads, one writer, so
@@ -412,7 +409,58 @@ static void rec_enc_task(void *arg)
     s_log_end = true;           /* the map prints from ui_task's stack */
     files_changed();            /* 5215 */
     s_active = false;
-    vTaskDelete(NULL);
+}
+
+/*
+ * 6010: the two tasks are created once and never deleted, their stacks
+ * in PSRAM, their TCBs static -- medialib.c's reindex task (6005), for
+ * the same reason. Created per recording with xTaskCreate(), they took
+ * 9 KB of stack from internal RAM at the moment record was pressed, and
+ * with Wi-Fi up and playing from USB that was not there: the v0.5.0-9
+ * board run got the microphones (6009) and then "No memory for the
+ * recording task". Now a recording asks them to run with a notification
+ * and they wait again when it ends. Neither writes flash -- rec_enc
+ * writes the card, rec_in reads I2S or the USB microphone -- so neither
+ * runs with the cache disabled.
+ */
+#if !CONFIG_FREERTOS_TASK_CREATE_ALLOW_EXT_MEM
+#error "recorder.c puts its task stacks in PSRAM and needs CONFIG_FREERTOS_TASK_CREATE_ALLOW_EXT_MEM=y"
+#endif
+static StaticTask_t s_in_tcb, s_enc_tcb;
+static StackType_t *s_in_stack, *s_enc_stack;
+static TaskHandle_t s_in_task, s_enc_task;
+
+static void rec_in_task(void *arg)
+{
+    (void)arg;
+    for (;;) { ulTaskNotifyTake(pdTRUE, portMAX_DELAY); rec_in_run(); }
+}
+
+static void rec_enc_task(void *arg)
+{
+    (void)arg;
+    for (;;) { ulTaskNotifyTake(pdTRUE, portMAX_DELAY); rec_enc_run(); }
+}
+
+/* Make both tasks, once. False when PSRAM could not be had. */
+static bool tasks_ready(void)
+{
+    const uint32_t caps = MALLOC_CAP_SPIRAM | MALLOC_CAP_8BIT;
+    if (!s_enc_task) {
+        if (!s_enc_stack) s_enc_stack = heap_caps_malloc(REC_ENC_STACK, caps);
+        if (s_enc_stack) {
+            s_enc_task = xTaskCreateStatic(rec_enc_task, "rec_enc", REC_ENC_STACK, NULL,
+                                           REC_ENC_PRIO, s_enc_stack, &s_enc_tcb);
+        }
+    }
+    if (!s_in_task) {
+        if (!s_in_stack) s_in_stack = heap_caps_malloc(REC_IN_STACK, caps);
+        if (s_in_stack) {
+            s_in_task = xTaskCreateStatic(rec_in_task, "rec_in", REC_IN_STACK, NULL,
+                                          REC_IN_PRIO, s_in_stack, &s_in_tcb);
+        }
+    }
+    return s_enc_task && s_in_task;
 }
 
 /* ---- the interface ---- */
@@ -559,7 +607,7 @@ bool recorder_start(char *why, size_t why_len)
 
     xStreamBufferReset(s_ring);
     s_active = true;
-    if (xTaskCreate(rec_enc_task, "rec_enc", REC_ENC_STACK, NULL, REC_ENC_PRIO, NULL) != pdPASS) {
+    if (!tasks_ready()) {                               /* 6010 */
         if (s_src != SETTINGS_REC_UAC) audio_out_capture_end();
         ABANDON();
         flacenc_close(s_enc, NULL);
@@ -570,15 +618,8 @@ bool recorder_start(char *why, size_t why_len)
         s_active = false;
         REFUSE("No memory for the recording task.");
     }
-    if (xTaskCreate(rec_in_task, "rec_in", REC_IN_STACK, NULL, REC_IN_PRIO, NULL) != pdPASS) {
-        /* rec_enc is running: let it close the (empty) file -- and, for
-         * 5208, the USB microphone. */
-        if (s_src != SETTINGS_REC_UAC) audio_out_capture_end();
-        s_write_failed = true;
-        s_stop = true;
-        s_in_done = true;
-        REFUSE("No memory for the recording task.");
-    }
+    xTaskNotifyGive(s_enc_task);                        /* 6010: both exist now */
+    xTaskNotifyGive(s_in_task);
     ESP_LOGI(TAG, "recording to %s (%s, %" PRIu32 " Hz, %u-bit%s%s)%s", s_path,
              s_src == SETTINGS_REC_UAC ? (s_auto ? "auto: USB microphone" : "USB microphone") :
              s_src == SETTINGS_REC_HEADSET ? (s_auto ? "auto: headset microphone, mono"

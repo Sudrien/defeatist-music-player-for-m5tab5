@@ -1027,7 +1027,10 @@ bool audio_out_headphones(void) { return s_headphones; }
  * about 8.2 KB; 10 KB leaves room. At boot the largest free block is
  * 26 KB, so this is taken whole before Wi-Fi fragments the heap.
  */
-#define DMA_RESERVE_BYTES   (10 * 1024)
+/* 6010: 9 KB, was 10. The driver needs about 8.2; after a capture the
+ * heap gave back 9728 contiguous, short of 10240, so the reserve was
+ * never re-taken and the next recording competed again. */
+#define DMA_RESERVE_BYTES   (9 * 1024)
 static void *s_dma_reserve;
 
 static void dma_reserve_take(void)

@@ -20451,3 +20451,38 @@ before 6008.
 
 Compiled clean at -O2 and -O3 against IDF v5.5.5's headers with IDF's
 flags. Not on the board.
+
+### 6010 -- the recorder's tasks off internal RAM; the reserve at 9 KB
+
+6009 on the board, the same setup:
+
+    capture before: DMA-capable internal 10279 free (largest 10240)
+    capture: ES7210 array microphones ... DMA 8 x 120 frames
+    allocation failed: 6144 bytes ... xTaskCreatePinnedToCore
+    capture DMA reserve: no 10240-byte block (largest 9728)
+    record refused: No memory for the recording task.
+
+The reserve worked -- the microphones started -- and the next internal
+allocation in line failed: rec_enc's 6 KB stack (rec_in's 3 KB would
+have been next), created per recording with xTaskCreate(), from
+internal RAM, at the moment record is pressed.
+
+**Both tasks are now created once and never deleted**, stacks in
+PSRAM and TCBs static, as 6005 did for the reindex: the bodies became
+rec_in_run() and rec_enc_run(), and each task waits on a notification,
+runs one recording, and waits again. recorder_start() makes them on
+the first recording (tasks_ready()) and notifies both. Neither writes
+flash -- rec_enc writes the card, rec_in reads I2S or the USB
+microphone -- so neither runs with the cache disabled. 9 KB of PSRAM,
+once. rec_in is the timing-sensitive one, reading 5 ms at a time; its
+stack is cached PSRAM, as mpd's has been since 5159.
+
+**The DMA reserve is 9 KB, was 10.** After the refused start the heap
+gave back 9728 contiguous bytes, short of 10240, so the reserve could
+not be re-taken and the next recording would have competed for DMA
+again. The driver needs about 8.2 KB.
+
+recorder.c and audio_out.c compiled clean at -O2 and -O3 against IDF
+v5.5.5's headers with IDF's flags. Not on the board. The check: the
+same setup records, and stopping logs `capture: ended` with no
+`capture DMA reserve` warning after it.

@@ -41,7 +41,8 @@ Note: the goal of this project is to max out the potential of this hardware with
   - The icon by the volume slider shows which one is actually playing - a speaker, headphones, or `UAC` when a USB audio device has the output. Tapping mutes and unmutes. 
 - Support for all (as far as I can tell) mp3 formats. This thing has fallback library after fallback library. Flac, ogg, wav, the standards are in here.
 - Album art display
-- Battery status, in words at the end of the status line: `Battery 73%`, `Charging 73%`, `Charged`, `No Battery`
+- Battery status, in words at the end of the status line: `BATT 73%`, `CHRG 73%`, `CHARGED`, `NO BATT`
+- Wi-Fi on the status line: green connected, yellow connecting, grey off
 - Volume control
 - play/pause
 - start of track/previous

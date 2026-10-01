@@ -245,6 +245,9 @@ typedef struct {
     bool usb_power;
     bool mpd_on;
     bool https_on;
+    /* 6012: 0 Wi-Fi switched off, 1 on and not yet connected (starting,
+     * scanning, joining, or failing to), 2 connected with an address. */
+    uint8_t wifi_state;
     int  sleep_min;
     /* 6001: minutes until Power off (powerdown.h), rounded up; 0 when
      * Power off is Never. While anything is going on it stays at the

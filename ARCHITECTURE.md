@@ -20515,3 +20515,28 @@ this run because the microphones failed first.
 
 Compiled clean at -O2 and -O3 against IDF v5.5.5's headers with IDF's
 flags. Not on the board.
+
+### 6012 -- WIFI on the status line, and the battery words shortened
+
+Asked for on the board: a Wi-Fi word on the status line -- green
+connected, yellow connecting, grey off. ui_state_t's wifi_state is 0
+when settings_wifi_enabled() is false, 2 when wifi_connected() (an
+address), and 1 otherwise: on and not connected, which covers starting,
+scanning, joining and failing to -- a radio that did not start (the
+`esp_hosted_connect_to_slave: -1` boot) stays yellow, which is the
+truth. Yellow is C_RG, already the palette's caution. The word sits
+after USB and before MPD and HTTPS, which need it; each word now
+carries its own colour instead of on/off.
+
+Six words and the battery did not fit, so the battery words take the
+short forms offered for this: BATT 73%, CHRG 73%, CHARGED, NO BATT,
+BATT (no reading) -- uppercase like the rest of the line -- and the gap
+is 15 px, was 16. CHARGED is tested before CHRG, so a full pack still
+taking a trickle never reads "CHRG 100%", nine characters. Measured at
+scale 2 (14 px a glyph): "USB WIFI MPD HTTPS SLEEP 120M IDLE 120M"
+from x=24 ends at 575; "CHRG 99%" starts at 584, and the words stop
+half a gap short of it, at 577. Two pixels in the worst case.
+
+ABBREVIATIONS.md and the README carry the new word and the new battery
+forms. ui.c and player.c compiled clean at -O2 and -O3 against IDF
+v5.5.5's headers with IDF's flags. Not on the board.

@@ -1401,7 +1401,7 @@ static void draw_live(const ui_state_t *st)
  */
 #define STATUS_DY     (52)    /* row 9's centre to the line's top */
 #define STATUS_SCALE  (2)
-#define STATUS_GAP    (16)    /* 6001: was 24; five words need the room */
+#define STATUS_GAP    (15)    /* 6012: was 16 (6001: was 24); six words and the battery */
 
 static void draw_status(const ui_state_t *st)
 {
@@ -1415,12 +1415,21 @@ static void draw_status(const ui_state_t *st)
     if (st->idle_min > 0) snprintf(idlew, sizeof(idlew), "IDLE %dM", st->idle_min);
     else                  snprintf(idlew, sizeof(idlew), "IDLE");
 
-    const struct { const char *word; bool on; } items[] = {
-        { "USB",   st->usb_power },
-        { "MPD",   st->mpd_on },
-        { "HTTPS", st->https_on },
-        { sleepw,  st->sleep_min > 0 },
-        { idlew,   st->idle_min > 0 },
+    /*
+     * 6012: WIFI, and a colour per word rather than on/off: green
+     * connected, yellow (C_RG, the ReplayGain mark's) switched on and not
+     * connected yet -- starting, scanning, joining, or failing to -- and
+     * grey switched off. After USB and before MPD and HTTPS, which need it.
+     */
+    const uint16_t wifi_c = st->wifi_state == 2 ? C_PLAY_ON
+                          : st->wifi_state == 1 ? C_RG : C_ICON_OFF;
+    const struct { const char *word; uint16_t c; } items[] = {
+        { "USB",   st->usb_power ? C_PLAY_ON : C_ICON_OFF },
+        { "WIFI",  wifi_c },
+        { "MPD",   st->mpd_on ? C_PLAY_ON : C_ICON_OFF },
+        { "HTTPS", st->https_on ? C_PLAY_ON : C_ICON_OFF },
+        { sleepw,  st->sleep_min > 0 ? C_PLAY_ON : C_ICON_OFF },
+        { idlew,   st->idle_min > 0 ? C_PLAY_ON : C_ICON_OFF },
     };
     const int top = y + STATUS_DY;
 
@@ -1441,18 +1450,18 @@ static void draw_status(const ui_state_t *st)
     char batt[24];
     uint16_t bc = C_ICON;
     if (st->ext_power) {
-        snprintf(batt, sizeof(batt), "No Battery");
+        snprintf(batt, sizeof(batt), "NO BATT");
         bc = C_ICON_OFF;
     } else if (st->battery_pct < 0) {
-        snprintf(batt, sizeof(batt), "Battery");
-    } else if (st->battery_charging) {
-        snprintf(batt, sizeof(batt), "Charging %d%%", st->battery_pct);
+        snprintf(batt, sizeof(batt), "BATT");
+    } else if (st->battery_pct >= 100) {         /* 6012: first, so never "CHRG 100%" */
+        snprintf(batt, sizeof(batt), "CHARGED");
         bc = C_BATT_CHG;
-    } else if (st->battery_pct >= 100) {
-        snprintf(batt, sizeof(batt), "Charged");
+    } else if (st->battery_charging) {
+        snprintf(batt, sizeof(batt), "CHRG %d%%", st->battery_pct);
         bc = C_BATT_CHG;
     } else {
-        snprintf(batt, sizeof(batt), "Battery %d%%", st->battery_pct);
+        snprintf(batt, sizeof(batt), "BATT %d%%", st->battery_pct);
         if (st->battery_pct <= BATT_LOW_PCT) bc = C_BATT_LOW;
     }
     const int bw = gfx_text_w(batt, STATUS_SCALE);
@@ -1471,7 +1480,7 @@ static void draw_status(const ui_state_t *st)
     int x = bar_x0();
     for (size_t i = 0; i < sizeof(items) / sizeof(items[0]) && x < x1; i++) {
         gfx_draw_text(x, top, items[i].word, STATUS_SCALE, x1 - x,
-                      items[i].on ? C_PLAY_ON : C_ICON_OFF);
+                      items[i].c);
         x += gfx_text_w(items[i].word, STATUS_SCALE) + STATUS_GAP;
     }
 }

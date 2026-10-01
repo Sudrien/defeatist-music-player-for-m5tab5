@@ -22,11 +22,13 @@ the screen is newer -- fix this file.
 ### The status line, under volume
 
 Reports, not switches -- nothing here does anything when tapped. Green
-is on, dark grey is off. Each has its own switch somewhere else.
+is on, dark grey is off (WIFI also has yellow). Each has its own switch
+somewhere else.
 
 | On screen | Green when | Switched from |
 |---|---|---|
 | `USB` | The USB-A port is powered | USB tab, USB power |
+| `WIFI` | Connected, with an address. **Yellow**: switched on but not connected yet -- starting, scanning, joining, or failing to | NET tab, Wi-Fi |
 | `MPD` | The MPD server is running | NET tab, MPD server |
 | `HTTPS` | The browser remote is running | NET tab, Remote control |
 | `SLEEP xxM` | The sleep timer is set; minutes left, rounded up. Just `SLEEP` when it is not | Sleep page |
@@ -37,11 +39,11 @@ icon):
 
 | On screen | Means | Colour |
 |---|---|---|
-| `Battery 73%` | Running on the battery | Light grey; red at 20% and under |
-| `Charging 73%` | Power is coming in and charging the battery | Green |
-| `Charged` | The battery is full | Green |
-| `No Battery` | No battery fitted; running from USB-C | Dark grey |
-| `Battery` | The battery gauge gives no reading | Light grey |
+| `BATT 73%` | Running on the battery | Light grey; red at 20% and under |
+| `CHRG 73%` | Power is coming in and charging the battery | Green |
+| `CHARGED` | The battery is full | Green |
+| `NO BATT` | No battery fitted; running from USB-C | Dark grey |
+| `BATT` | The battery gauge gives no reading | Light grey |
 
 ## The chooser (folder button)
 

@@ -20366,3 +20366,24 @@ Compiled clean at -O2 and -O3 against IDF v5.5.5's headers with IDF's
 flags. Not on the board. The check: first boot logs the three moves,
 the saved networks join as before, and the remote keeps the same
 certificate fingerprint (tab5_cert's SHA-256 line).
+
+## v0.5.1
+
+A point release in the 6000 series, which runs on to v0.6.0 (CLAUDE.md).
+Power and stability after v0.5.0:
+
+- **Power off after inactivity** (6000), its countdown on the status
+  line (6001) and in the log (6002). Board-checked: the countdown, the
+  power-off with USB-C connected, the side button bringing it back.
+- **The RX8130 keeps the time across a power-off** (6003).
+  Board-checked: "taken as the floor" at boot, within a second of NTP.
+- **The low-battery guard** (6004). NOT board-checked -- testing it
+  means a full discharge or a bench supply. It only ever acts below
+  6.3 V on the battery.
+- **Internal RAM** (6005): the reindex and the remote's task stacks in
+  PSRAM. Board-checked: the remote costs 1.2 KB of internal RAM coming
+  up, was 11.4 KB; min-ever 10680, was 376; the reindex runs after
+  Wi-Fi.
+- **One NVS namespace, `defeatist`** (6006). Board-checked: the three
+  old namespaces moved, networks joined, the certificate fingerprint
+  unchanged.

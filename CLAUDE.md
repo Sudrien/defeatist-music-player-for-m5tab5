@@ -135,7 +135,9 @@ without opening it.
 A series is named for the release it leads to: the 5000s were the work
 toward v0.5.0, the 6000s are toward v0.6.0, and the v0.6.0 tag starts
 the 7000s. Patches written before the v0.5.0 tag carry on the 5000s
-(5282 is the one this was written in). Before choosing a number, look
+(5282 is the one this was written in). A point release (v0.5.1) does
+not start a series: the 6000s run on through it to v0.6.0. Before
+choosing a number, look
 at the last one used (`git log`,
 and the series heading at the end of `ARCHITECTURE.md`) and take the
 next; never start a range from a round number without checking it is

@@ -1016,31 +1016,37 @@ bool audio_out_headphones(void) { return s_headphones; }
  * DMA-capable internal RAM held while not recording -- memory the radio
  * would otherwise take and, unlike the radio, could not give back.
  */
-#define DMA_RESERVE_BLOCK   (CAPTURE_DMA_FRAMES * 8 + 128)   /* a buffer, aligned */
-#define DMA_RESERVE_N       (CAPTURE_DMA_DESC + 1)           /* + the descriptors */
-static void *s_dma_reserve[DMA_RESERVE_N];
+/*
+ * 6009: ONE block, not nine. 6008 reserved 9 x 1088 bytes; on the board
+ * the free gave back 9847 bytes as nine holes, the driver's descriptors
+ * split some of them, seven buffers fitted and the eighth found only a
+ * 992-byte piece -- TLSF will not put a 960-byte request in a block that
+ * close to its size. One contiguous block is carved by the driver's
+ * allocations one after another and cannot strand the last one. 8 x 960
+ * buffers, 8 descriptors, two pointer arrays and their headers come to
+ * about 8.2 KB; 10 KB leaves room. At boot the largest free block is
+ * 26 KB, so this is taken whole before Wi-Fi fragments the heap.
+ */
+#define DMA_RESERVE_BYTES   (10 * 1024)
+static void *s_dma_reserve;
 
 static void dma_reserve_take(void)
 {
-    int got = 0;
-    for (int i = 0; i < DMA_RESERVE_N; i++) {
-        if (!s_dma_reserve[i]) {
-            s_dma_reserve[i] = heap_caps_malloc(DMA_RESERVE_BLOCK,
-                                                MALLOC_CAP_DMA | MALLOC_CAP_INTERNAL | MALLOC_CAP_8BIT);
-        }
-        if (s_dma_reserve[i]) got++;
-    }
-    if (got < DMA_RESERVE_N) {
-        ESP_LOGW(TAG, "capture DMA reserve: %d of %d blocks", got, DMA_RESERVE_N);
+    if (s_dma_reserve) return;
+    s_dma_reserve = heap_caps_malloc(DMA_RESERVE_BYTES,
+                                     MALLOC_CAP_DMA | MALLOC_CAP_INTERNAL | MALLOC_CAP_8BIT);
+    if (!s_dma_reserve) {
+        ESP_LOGW(TAG, "capture DMA reserve: no %d-byte block (largest %u); "
+                      "recording will compete for DMA when it starts",
+                 DMA_RESERVE_BYTES,
+                 (unsigned)heap_caps_get_largest_free_block(MALLOC_CAP_DMA | MALLOC_CAP_INTERNAL));
     }
 }
 
 static void dma_reserve_give(void)
 {
-    for (int i = 0; i < DMA_RESERVE_N; i++) {
-        heap_caps_free(s_dma_reserve[i]);       /* NULL is fine */
-        s_dma_reserve[i] = NULL;
-    }
+    heap_caps_free(s_dma_reserve);              /* NULL is fine */
+    s_dma_reserve = NULL;
 }
 
 static void dma_line(const char *when)

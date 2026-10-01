@@ -20423,3 +20423,31 @@ clean at -O2 and -O3 against IDF v5.5.5's headers with IDF's flags.
 Not on the board. The check: the same setup -- Wi-Fi up, playing from
 USB -- and record starts, `capture before` showing about 10 KB more
 free than the 4651 above.
+
+### 6009 -- the recording's DMA reserve, as one block
+
+6008 on the board, the same setup (playing from USB, Wi-Fi up):
+
+    capture before: DMA-capable internal 9847 free (largest 1088)
+    allocation failed: 960 bytes ... i2s_alloc_dma_desc
+    heap map: DMA free 2475, largest 992
+    capture DMA reserve: 0 of 9 blocks
+
+The reserve was there and was given back -- 9847 against 6008's 4651 --
+but as nine 1088-byte holes. Between those two lines about 7.4 KB was
+taken: seven of the eight buffers. The driver's small allocations (two
+pointer arrays, eight 12-byte descriptors) split holes, and the last
+960-byte buffer was left with a 992-byte piece, which TLSF does not
+hand to a request that close to its size. i2s_dma_calloc() asks for
+4-byte alignment only (i2s_common.c), so alignment was not it.
+
+Now one block of 10 KB, taken whole in audio_out_init() while the
+largest free block is still about 26 KB. Freed, it is one region the
+driver carves in order, so the last buffer cannot be stranded. Taken
+again after each capture, when the driver's buffers have freed back
+into it; if Wi-Fi has taken some of it meanwhile, the line says so
+with the largest block it found, and the next recording competes as
+before 6008.
+
+Compiled clean at -O2 and -O3 against IDF v5.5.5's headers with IDF's
+flags. Not on the board.

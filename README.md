@@ -76,7 +76,7 @@ Note: the goal of this project is to max out the potential of this hardware with
 - https web ui
 - Audio recording, since the hardware is  right there
 
-## v0.5.0 targets
+## v0.6.0 targets
 - "System Volume Information" should be hidden right, it's system
 - -03 target?
 - binary optimization (no unused libraries/features)

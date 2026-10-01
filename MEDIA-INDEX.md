@@ -1,15 +1,17 @@
 # The media index
 
-A plan, not a description. Nothing here is built. `ARCHITECTURE.md` is
-for code that exists; this is the reasoning behind a v0.5.0 target so
-that the decisions already argued out do not have to be argued again,
-and so the ones still open are visibly open.
+Written as the plan, before any of it was built, and kept as the
+reasoning: so the decisions already argued out do not have to be argued
+again, and the ones still open are visibly open. Most of it is built
+now -- medialib's catalog and index, and the MPD library commands on
+top of them, shipped in v0.5.0. `ARCHITECTURE.md` is the record of what
+was built; where the two disagree, it is right and this is history.
 
 ## What it is for
 
 Three consumers, one library:
 
-- **MPD compatibility**, which is the v0.5.0 API target. A control
+- **MPD compatibility**, v0.5.0's API target. A control
   client asks for a library and expects to browse and search it.
 - **The web UI**, which wants the same answers over a different
   transport.

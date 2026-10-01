@@ -131,14 +131,21 @@ subject. Two numbers on one patch means the filenames stop sorting with
 the series after ten of them, and nobody can say which patch `0003` is
 without opening it.
 
-**Where the numbering is now: the 5000 series.** v0.4.0 is released,
-and patches from here start at 5000 -- this one is 5000, the next is
-5001. Before choosing a number, look at the last one used (`git log`,
+**Where the numbering is now: the 6000 series once v0.5.0 is tagged.**
+A series is named for the release it leads to: the 5000s were the work
+toward v0.5.0, the 6000s are toward v0.6.0, and the v0.6.0 tag starts
+the 7000s. Patches written before the v0.5.0 tag carry on the 5000s
+(5282 is the one this was written in). Before choosing a number, look
+at the last one used (`git log`,
 and the series heading at the end of `ARCHITECTURE.md`) and take the
 next; never start a range from a round number without checking it is
 free. The 1000 series was restarted from 1000 once by a session that
 did not look, and there are two of each of 1000-1012 in the history
 because of it -- see "Two series called 1000" in `ARCHITECTURE.md`.
+
+**`ABBREVIATIONS.md` lists every short label and setting the screen
+shows.** A patch that adds, renames or removes one changes that file in
+the same patch.
 
 Within a patch, change the lines that must change and no others. No
 reflowing, no drive-by renames, no reorganising code being passed

@@ -19960,3 +19960,29 @@ I-cache, which was the reason to expect -O3 might lose here, evidently
 holds minimp3's hot loops either way. Streams decode MP3 in netdec.c
 through the same minimp3, so they get the same -O3 code; DECBENCH does
 not measure them.
+
+### 5282 -- before the v0.5.0 tag: the docs that the release makes stale
+
+- **CLAUDE.md**: the numbering moves to the 6000 series at the v0.5.0
+  tag. A series is named for the release it leads to -- the 5000s were
+  the work toward v0.5.0 -- so the 6000s lead to v0.6.0. And a line
+  that a patch changing an on-screen label or setting updates
+  ABBREVIATIONS.md (5281) with it.
+- **MEDIA-INDEX.md** opened "Nothing here is built". medialib's catalog
+  and index and the MPD library commands are built and ship in v0.5.0;
+  the file is now introduced as the plan kept for its reasoning, with
+  ARCHITECTURE.md the record where they disagree.
+- **README.md**: the play order line named four orders, two of them by
+  labels the button no longer shows (5252 added EAT, 5261 RPT and
+  renamed the single-track one RPT1); it now lists the six and points
+  to ABBREVIATIONS.md. The recording level meter (5273) and the status
+  line (5274) are in the feature list.
+- **CMakeLists.txt**: the commented-out `target_compile_options(... -O3)`
+  goes. It was 8589dd7's first try, and 5276 showed why this kind of
+  line does not reach main's files; left in, it reads as a switch.
+
+For the release build: O3CHECK and DECBENCH are kept in CMakeCache.txt
+once set, and both were on during 5280's measurements. `idf.py
+fullclean`, `rm sdkconfig`, then build; the configure output prints
+neither switch's line, and the boot log's segment 3 is about 1,682,000
+bytes (1,778,000 would be O3CHECK still on).

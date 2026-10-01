@@ -48,7 +48,7 @@ Note: the goal of this project is to max out the potential of this hardware with
 - next track
 - screen sleep
 - drag to seek. Every format in the list above.
-- play order button cycles ONE / ALL / RND (current folder) / RPT (single file)
+- play order button cycles ONE / ALL / RPT / EAT / RND / RPT1 -- what each one does, and every other short label on the screen, is in [ABBREVIATIONS.md](ABBREVIATIONS.md)
 - volume waveform on the seek bar. I thought it was cool.
 - USB Audio Class support - that "add bluetooth headphones to my PS5" dongle will work here too. USB A port only. 
 - pause cuts power to the amp
@@ -75,6 +75,8 @@ Note: the goal of this project is to max out the potential of this hardware with
 - Oh right, [Music Player Daemon](https://mpd.readthedocs.io/en/stable/user.html) support - yes, this should mean home assistant control too.
 - https web ui
 - Audio recording, since the hardware is right there
+  - with a level meter while it records
+- a status line under volume: USB power, MPD, HTTPS, and the sleep timer's minutes left. Green is on.
 
 ## What could happen
 - I think there is nothing in dependencies stopping from using esp-idf 6.1

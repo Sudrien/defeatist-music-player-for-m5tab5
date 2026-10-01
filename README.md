@@ -3,7 +3,7 @@ What do you mean no audio over Bluetooth
 
 Claude, do not touch this README unless explicitly asked to. Use your own file.
 
-![](screenshots/IMG_20260825_212600_264a.jpg)
+![](screenshots/IMG_20261001_151110_126.jpg)
 
 ( [Bôa has a bandcamp by the way](https://boa-uk.bandcamp.com/). You want this because you want artist to actually get paid for their work, right? Not some streaming cents. )
 

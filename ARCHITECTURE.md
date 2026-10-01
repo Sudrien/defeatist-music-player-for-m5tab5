@@ -19861,3 +19861,25 @@ Keep it only if the board says so: the same MP3s at both levels and the
 player's decode time compared. Revert this line if it does not.
 
 Not built here -- no IDF.
+
+### 5277 -- build: O3CHECK, all of main at -O3 as a warning check
+
+`idf.py -DO3CHECK=1 build` compiles every file in main at -O3. Asked for
+to catch more, not to ship: 5276 found -O3 no faster here, and -O3's
+analysis -- more inlining, more unrolling, more paths followed through
+them -- is what found 5276's stringop-overflow in minimp3 when -O2 did
+not. IDF builds with -Werror=all, so what it finds stops the build.
+Off by default, the way HEAPCHECK is, and like it kept in CMakeCache.txt
+until `-DO3CHECK=0`.
+
+Appended to each source file's COMPILE_OPTIONS rather than set with
+target_compile_options(). GCC takes the last -O it sees, and a source
+file's options come after the component's, where IDF's -O2 is; 5276's
+own line was inert for a related reason (it was set from the wrong
+directory). A mock target with -O2 on it and this block, CMake 3.28: every
+file's compile line ends -O2 ... -O3, and decoder.c keeps 5276's options
+with -O3 appended.
+
+The check that it took: the configure output prints "O3CHECK: main
+compiled at -O3", and build/compile_commands.json has -O3 on every main
+entry. Not built here -- no IDF.

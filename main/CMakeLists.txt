@@ -41,6 +41,25 @@ target_link_libraries(${COMPONENT_LIB} INTERFACE
     "-Wl,--wrap=eh_host_port_dma_alloc"
     "-Wl,-u,__wrap_eh_host_port_dma_alloc")
 
+# 5277: every file in main at -O3, off by default. Build with
+#   idf.py -DO3CHECK=1 build
+# to have GCC's stronger -O3 analysis -- deeper inlining, more unrolling,
+# more paths followed -- look at all of main, not only decoder.c (5276).
+# A CHECK, not a shipping setting: 5276 measured -O3 no faster here and
+# 13 KB bigger for minimp3 alone. IDF builds with -Werror=all, so what it
+# finds stops the build. Not cached away: a later plain `idf.py build`
+# keeps O3CHECK in CMakeCache.txt until `idf.py -DO3CHECK=0 build`.
+#
+# Per source file, APPENDed, and not target_compile_options(): GCC takes
+# the last -O it is given, and a source file's options come after the
+# component's, where IDF's own -O2 is -- the order 5245's -Os relied on.
+# APPEND keeps decoder.c's own options (5276).
+if(O3CHECK)
+    get_target_property(_o3_srcs ${COMPONENT_LIB} SOURCES)
+    set_property(SOURCE ${_o3_srcs} APPEND PROPERTY COMPILE_OPTIONS -O3)
+    message(STATUS "O3CHECK: main compiled at -O3 (a warning check, not a release build)")
+endif()
+
 if(HEAPCHECK)
     target_compile_definitions(${COMPONENT_LIB} PRIVATE HEAPCHECK=1)
     message(STATUS "heap integrity checkpoints ENABLED (slow)")

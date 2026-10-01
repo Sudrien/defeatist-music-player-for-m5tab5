@@ -1,4 +1,4 @@
-# Minimal deltas from the ESP32-P4 defaults. Everything not listed here
+//# Minimal deltas from the ESP32-P4 defaults. Everything not listed here
 # falls back to the IDF default on purpose.
 
 # Pin the target. Without this, anything that deletes sdkconfig (a clean
@@ -227,6 +227,12 @@ CONFIG_ESP_MAIN_TASK_STACK_SIZE=24576
 # the registration source, not the archive member, so the duplicate
 # symbols survive it. minimp3_prefix.h is what actually fixes that.
 CONFIG_AUDIO_DECODER_MP3_SUPPORT=n
+CONFIG_AUDIO_DECODER_G711_SUPPORT=n
+CONFIG_AUDIO_DECODER_AMRNB_SUPPORT=n
+CONFIG_AUDIO_DECODER_AMRWB_SUPPORT=n
+CONFIG_AUDIO_DECODER_SBC_SUPPORT=n
+CONFIG_AUDIO_DECODER_LC3_SUPPORT=n
+CONFIG_AUDIO_DECODER_G722_SUPPORT=n
 
 # --- the radio, which is a C6 on the other end of SDIO2 ----------------
 #

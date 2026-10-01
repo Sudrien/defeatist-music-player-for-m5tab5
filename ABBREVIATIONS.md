@@ -85,7 +85,14 @@ Five tabs: `SD`, `USB`, `BUILD`, `AUDIO`, `NET`. NET is short for network.
 
 ### BUILD
 
-What is running: version, IDF, build time. Nothing to set.
+What is running. Nothing to set.
+
+- `app`, `version`, `built`, `idf`, and free `heap`, `psram` and `uptime`.
+- **Source**: the repository, github.com/Sudrien/m5tab5_defeatist_music_player.
+- **Libraries**: every component and vendored library in this build, with
+  its version, or its commit's first seven characters for a git one.
+  Generated from `dependencies.lock` and the vendored pins when the build
+  is configured, so it is what was compiled.
 
 ### AUDIO
 

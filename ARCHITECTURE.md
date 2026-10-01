@@ -19986,3 +19986,36 @@ once set, and both were on during 5280's measurements. `idf.py
 fullclean`, `rm sdkconfig`, then build; the configure output prints
 neither switch's line, and the boot log's segment 3 is about 1,682,000
 bytes (1,778,000 would be O3CHECK still on).
+
+### 5283 -- BUILD tab: the app's name, its source, and its libraries
+
+Asked for on the board: the BUILD tab said version, build time and IDF,
+and nothing about what the thing is or what it is made from.
+
+**App and source.** An `app` row, "Defeatist Music Player" -- the name
+the boot banner and certgen's certificate already use. The repository
+is under the rows as a two-line note, `github.com/Sudrien/` and
+`m5tab5_defeatist_music_player`: at 48 characters it is wider than a
+row's value (460 px, about 32 characters at LABEL_SCALE) and than
+VAL_MAX, which would have cut it in memory before the screen did. The
+canonical repository, written in, not a clone's `git remote`.
+
+**Libraries.** cmake/libversions.cmake writes `libversions.h` into the
+build directory at configure time, from what the build itself used:
+every component in dependencies.lock with its resolved version (git
+ones by the first seven of the commit), less `idf` -- its own row -- and
+cmake_utilities, which is build tooling; usb_host_msc and usb_host_uac
+from their vendored manifests, marked "patched" (5026, 5035); minimp3,
+pngle and stb_image from cmake/vendored.cmake's commits; and the Ark
+Pixel commit gen_ark12.py cut the font from. 21 entries from the
+current lock, and they agree with what the drivers print at boot
+(iot_eth 1.1.0, iot_usbh_cdc 3.1.0, iot_usbh_ecm 0.4.0, uac 1.5.0,
+st7121 1.0.1, st7123 1.0.2). The header is only rewritten when its text
+changes, and the lock, the two manifests and gen_ark12.py are configure
+dependencies, so a re-resolved lock shows on the next build without a
+clean. Drawn by draw_build_notes() after the rows; the tab scrolls by
+measured height, so the length needs no layout constant.
+
+The script was run against the real lock in a scratch CMake project;
+panel.c compiled clean at -O2 and -O3 against IDF v5.5.5's headers with
+IDF's flags and that generated header. Not on the board.

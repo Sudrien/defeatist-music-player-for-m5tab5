@@ -89,4 +89,7 @@ endif()
 # bug report and a configure warning is not.
 include(${CMAKE_CURRENT_LIST_DIR}/cmake/defaults_check.cmake)
 idf_component_get_property(main_lib main COMPONENT_LIB)
+# 5283: libversions.h, the BUILD tab's list of libraries. See the file.
+include(${CMAKE_CURRENT_LIST_DIR}/cmake/libversions.cmake)
+target_include_directories(${main_lib} PRIVATE "${LIBVERSIONS_DIR}")
 target_compile_definitions(${main_lib} PRIVATE "SDKCONFIG_DRIFT=\"${SDKCONFIG_DRIFT}\"")

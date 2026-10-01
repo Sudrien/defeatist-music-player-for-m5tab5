@@ -13,6 +13,7 @@
 #include "freertos/task.h"
 
 #include "esp_app_desc.h"
+#include "libversions.h"           /* 5283: generated, see cmake/libversions.cmake */
 #include "esp_heap_caps.h"
 #include "esp_idf_version.h"
 #include "esp_log.h"
@@ -287,11 +288,24 @@ static int build_usb(row_t *rows)
     return index_row(rows, n, STORAGE_USB);
 }
 
+/*
+ * 5283: what this is and where it came from, for the BUILD tab. The
+ * name is the one the boot banner and the remote's certificate use. The
+ * repository is the canonical one, not a fork's remote, and is written
+ * in two lines under the rows -- at 48 characters it is wider than a
+ * row's value (about 32 at this scale) and than VAL_MAX -- broken at the
+ * slash so each half can be typed as read.
+ */
+#define PANEL_APP_NAME   "Defeatist Music Player"
+#define PANEL_SOURCE_1   "github.com/Sudrien/"
+#define PANEL_SOURCE_2   "m5tab5_defeatist_music_player"
+
 static int build_build(row_t *rows)
 {
     const esp_app_desc_t *d = esp_app_get_description();
 
     int n = 0;
+    n = row_add(rows, n, "app", false, "%s", PANEL_APP_NAME);     /* 5283 */
     n = row_add(rows, n, "version", false, "%s", d ? d->version : "?");
     n = row_add(rows, n, "built", false, "%s %s",
                 d ? d->date : "?", d ? d->time : "");
@@ -599,6 +613,28 @@ static int draw_note(int y, const char *const *lines, int count)
         y += AUDIO_NOTE_STEP;
     }
     return y;
+}
+
+/*
+ * 5283: under the BUILD tab's rows, the source and the libraries this
+ * image was built from -- libversions.h, generated from
+ * dependencies.lock and the vendored pins at configure time, so it is
+ * what was compiled and not what someone remembered to write down.
+ * Headings in the value colour, entries dim, as the rows do it. Returns
+ * where it ended, which the scroll measures.
+ */
+static int draw_build_notes(int y)
+{
+    y += AUDIO_NOTE_GAP;
+    gfx_draw_text(24, y, "Source", LABEL_SCALE, gfx_w() - 48, C_TEXT);
+    y += AUDIO_NOTE_STEP;
+    static const char *const src[] = { PANEL_SOURCE_1, PANEL_SOURCE_2 };
+    y = draw_note(y, src, 2);
+
+    y += AUDIO_NOTE_GAP;
+    gfx_draw_text(24, y, "Libraries", LABEL_SCALE, gfx_w() - 48, C_TEXT);
+    y += AUDIO_NOTE_STEP;
+    return draw_note(y, k_libversions, LIBVERSIONS_COUNT);
 }
 
 /*
@@ -1248,6 +1284,7 @@ void panel_draw(void)
                     : (s_tab == TAB_USB) ? build_usb(rows)
                                          : build_build(rows);
         used = draw_rows(rows, n);
+        if (s_tab == TAB_BUILD) used = draw_build_notes(used);   /* 5283 */
         if (s_tab == TAB_USB) draw_usb_switch();
         if (s_tab == TAB_SD || s_tab == TAB_USB) {
             used = draw_reindex(n);

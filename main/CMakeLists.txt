@@ -52,3 +52,13 @@ endif()
 # which they are on RISC-V.
 set_source_files_properties(decoder.c PROPERTIES COMPILE_FLAGS
     "-Wno-unused-function")
+
+# 5276: decoder.c at -O3 -- minimp3, the one decoder compiled from source.
+# Here and not in the top-level CMakeLists.txt: a source file property
+# reaches only targets made in the same directory, and this component's
+# target is made here, so from the top level it never arrived and the
+# file built at -O2. -O3 trips -Wstringop-overflow on minimp3's iscf[40]
+# (minimp3.h:696-697); a false positive -- the largest index the loop can
+# reach is 38 -- so it is kept a warning rather than an error.
+set_source_files_properties(decoder.c PROPERTIES COMPILE_OPTIONS
+    "-O3;-Wno-error=stringop-overflow")

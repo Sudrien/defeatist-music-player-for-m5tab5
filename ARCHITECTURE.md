@@ -19812,3 +19812,52 @@ used (addrpin, mpd, remote) and stays.
 Further cuts want a size map: `idf.py size-components` on a build is
 the list to work from, rather than a guess from here. Not built here --
 no IDF.
+
+### 5276 -- build: decoder.c's -O3 actually reaches decoder.c
+
+A v0.5.0 target, "-O3 target?", which the owner's 8589dd7 ("how to test
+-03") began: decoder.c alone at -O3, with -Wstringop-overflow kept a
+warning. decoder.c is the right file -- it holds MINIMP3_IMPLEMENTATION,
+and minimp3 is the only decoder built from source; everything else is
+esp_audio_codec's precompiled archive, which no flag here reaches.
+
+**The line was in the top-level CMakeLists.txt, where it did nothing.**
+A source file property is seen only by targets made in the directory
+that set it, and IDF makes the main component's target in main/. A mock
+of that layout with CMake 3.28: the top-level property put neither -O3
+nor a marker define on decoder.c's compile line; with TARGET_DIRECTORY
+both arrived. So a board run of 8589dd7 measured -O2. The property moves
+to main/CMakeLists.txt, as 5245's -Os did, with the same two options.
+The proof it took is the build's own compile line:
+`grep -c '\-O3' build/compile_commands.json` is 1 or more (decoder.c's
+entry), not 0. The commented global `-O3` line stays where it is.
+
+**What -O3 costs and gives, measured off the board:**
+
+- Size: minimp3 alone, riscv32-esp-elf-gcc 14.2.0 (esp-14.2.0_20241119),
+  rv32imafc, -ffunction-sections: .text 27,981 bytes at -O2, 41,191 at
+  -O3 -- 13.2 KB more, against 5248's roughly 200 KB of headroom.
+- The warning: two -Wstringop-overflow at minimp3.h:696-697, writes into
+  `iscf[40]`. A false positive. The index is n_long_sfb + i + 2 with i
+  stepping by 3 below n_short_sfb, and L3_read_side_info() sets those
+  pairs to 22/0, 0/39, 8/30 or 6/30: the largest index is 38. -O3's
+  unrolling makes paths GCC cannot rule out. The suppression covers all
+  of decoder.c, not only minimp3, which is the price of a per-file flag.
+- Output: not bit-identical to -O2, and correctly so. Decoding
+  03 mp3-cbr-noxing.mp3 (rv64 Linux build, qemu-user), 425 of 5,294,592
+  samples differ, by one LSB. With -ffp-contract=off both levels match
+  exactly, so it is fused multiply-add placement, not a bug -- and -O2
+  itself is already 1248 samples from uncontracted arithmetic.
+- Speed: unknown, and the board is the only place to find out. Under
+  qemu, twenty passes of that file took 36.6-37.2 s at -O2 and 38.3-39.1 s
+  at -O3 -- about 5% slower -- but qemu's time follows instructions
+  executed, not the P4's in-order pipeline or its 16 KB of L1 I-cache,
+  which is where 13 KB more of decoder is most likely to hurt. The P4
+  has no vector unit GCC can target, so -O3's main tool, vectorising,
+  has nothing to use; what is left is unrolling and inlining.
+
+**Viability: it builds, it is sound, and it is probably not faster.**
+Keep it only if the board says so: the same MP3s at both levels and the
+player's decode time compared. Revert this line if it does not.
+
+Not built here -- no IDF.

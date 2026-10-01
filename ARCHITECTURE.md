@@ -20290,3 +20290,43 @@ advice for storage stands.
 Compiled clean at -O2 and -O3 against IDF v5.5.5's headers with IDF's
 flags. Not on the board; testing it means running a pack down, or a
 bench supply on the battery connector stepped below 6.3 V.
+
+### 6005 -- internal RAM: the reindex and the remote off it
+
+The v0.5.0-5 board run, Wi-Fi on for the first time in a while:
+
+    I (11970) heap map (station up)   internal free 27343  min-ever 10504
+    I (12012) heap map (remote up)    internal free 15915  min-ever   376
+    W (12116) allocation failed: 8192 bytes ... medialib_request
+    W (12120) medialib: no memory for the reindex task
+
+The automatic reindex on mount comes about 10 s after boot, and Wi-Fi,
+esp_hosted and lwIP take what internal RAM is there when they start --
+so whichever asks second loses, and here the reindex asked second and
+was skipped for the boot. Two moves, each taking something off
+internal RAM for good rather than reordering who goes first:
+
+**The reindex task is created once and never deleted, its 8 KB stack
+in PSRAM.** Allocated on the first request; the TCB is .bss. Between
+runs it waits on a task notification (volume + 1) instead of
+exiting. A run therefore takes no internal RAM at all and cannot lose
+to Wi-Fi in either order. Not mpd.c's create-and-reuse: a static task
+that deletes itself reads eDeleted from eTaskGetState() while its TCB
+is still on the idle task's termination list, so reusing that TCB at
+once is a race; a task that never ends has none. The stack high-water
+line now accumulates across runs. Reindex writes the card and never
+flash, so it never runs with the cache disabled.
+
+**The HTTPS server's task stack is in PSRAM** (httpd task_caps):
+10240 bytes, HTTPD_SSL_CONFIG_DEFAULT's size, unchanged. Its handlers
+never write flash -- settings go to ui_task through uireq, and Wi-Fi
+joins run on remote_wifi, an internal-stack task, because they write
+NVS -- so a PSRAM stack is safe. httpd creates and deletes this task
+WithCaps whatever the caps (port/esp32/osal.h), so this adds no path;
+the cleanup helper vTaskDeleteWithCaps() spawns from internal RAM on
+stop now has 10 KB more to come from.
+
+Expected on the board: "remote up" about 10 KB higher internal free
+and min-ever than 15915 / 376, and "reindex microSD: started" after
+Wi-Fi with no allocation failure. Compiled clean at -O2 and -O3 against
+IDF v5.5.5's headers with IDF's flags.

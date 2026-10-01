@@ -632,9 +632,36 @@ static bool          s_was_present[STORAGE_COUNT];
 static TickType_t    s_mounted_at[STORAGE_COUNT];
 static uint32_t      s_seen_gen = UINT32_MAX;
 
-static void reindex_task(void *arg)
+/*
+ * 6005: ONE TASK, CREATED ONCE, NEVER DELETED, ITS STACK IN PSRAM.
+ *
+ * It used to be created per run with xTaskCreate(), which takes 8 KB of
+ * stack and the TCB from internal RAM at the moment of the request. The
+ * automatic run on mount comes about 10 s after boot -- just after Wi-Fi,
+ * esp_hosted, lwIP and the remote have come up and taken internal RAM
+ * down to its floor (376 bytes, min-ever, on the v0.5.0-5 board run) --
+ * and "no memory for the reindex task" skipped the run for the boot.
+ *
+ * Now the stack is PSRAM, allocated on the first request, and the TCB is
+ * .bss: a run takes nothing from internal RAM, so it no longer depends on
+ * whether Wi-Fi started first. The task waits for a notification between
+ * runs (the volume plus one) instead of exiting, because a static task's
+ * memory cannot safely be reused straight after it deletes itself --
+ * eTaskGetState() already says eDeleted while the TCB is still on the
+ * idle task's termination list -- and a task that never ends never has
+ * that race. mpd.c's reasons for PSRAM over xTaskCreateWithCaps() apply
+ * here as well; and this task writes the card, never flash, so it never
+ * runs with the cache disabled.
+ */
+#if !CONFIG_FREERTOS_TASK_CREATE_ALLOW_EXT_MEM
+#error "medialib.c puts its task stack in PSRAM and needs CONFIG_FREERTOS_TASK_CREATE_ALLOW_EXT_MEM=y"
+#endif
+static StaticTask_t  s_tcb;
+static StackType_t  *s_stack;
+static TaskHandle_t  s_task;
+
+static void reindex_run(storage_id_t vol)
 {
-    const storage_id_t vol = (storage_id_t)(intptr_t)arg;
     medialib_status_t *s = &s_status[vol];
 
     storage_hold_background(vol);
@@ -653,7 +680,16 @@ static void reindex_task(void *arg)
              (unsigned)MEDIALIB_STACK);
 
     s_busy = false;
-    vTaskDelete(NULL);
+}
+
+static void reindex_task(void *arg)
+{
+    (void)arg;
+    for (;;) {
+        const uint32_t n = ulTaskNotifyTake(pdTRUE, portMAX_DELAY);
+        if (n >= 1 && n <= STORAGE_COUNT) reindex_run((storage_id_t)(n - 1));
+        else s_busy = false;            /* nothing valid asked: do not stay busy */
+    }
 }
 
 /* 5176: readers open, per volume. Under s_mux with s_busy, so a reader
@@ -683,13 +719,22 @@ bool medialib_request(storage_id_t vol)
     /* This run is the one an automatic run was waiting to do. */
     s_pending[vol] = false;
 
-    if (xTaskCreate(reindex_task, "reindex", MEDIALIB_STACK,
-                    (void *)(intptr_t)vol, 1, NULL) != pdPASS) {
+    if (!s_task) {                                                  /* 6005 */
+        if (!s_stack) {
+            s_stack = heap_caps_malloc(MEDIALIB_STACK, MALLOC_CAP_SPIRAM | MALLOC_CAP_8BIT);
+        }
+        if (s_stack) {
+            s_task = xTaskCreateStatic(reindex_task, "reindex", MEDIALIB_STACK, NULL, 1,
+                                       s_stack, &s_tcb);
+        }
+    }
+    if (!s_task) {
         ESP_LOGW(TAG, "no memory for the reindex task");
         s_status[vol].state = MEDIALIB_FAILED;
         s_busy = false;
         return false;
     }
+    xTaskNotify(s_task, (uint32_t)vol + 1, eSetValueWithOverwrite);
     ESP_LOGI(TAG, "reindex %s: started", storage_label(vol));
     return true;
 }

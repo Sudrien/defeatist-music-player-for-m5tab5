@@ -1021,6 +1021,18 @@ static void start(void)
     cfg.httpd.max_open_sockets = REMOTE_SOCKETS;
     cfg.httpd.lru_purge_enable = true;
     cfg.httpd.max_uri_handlers = 10;
+    /*
+     * 6005: the server task's 10 KB stack in PSRAM, not internal RAM --
+     * the remote coming up took internal free from 27343 to 15915 on the
+     * v0.5.0-5 board run, min-ever 376. Safe: this task never writes
+     * flash (settings changes go to ui_task through uireq; Wi-Fi joins run
+     * on remote_wifi, an internal-stack task, because they write NVS), so
+     * it never runs with the cache disabled. httpd already creates and
+     * deletes this task WithCaps whatever the caps, so this adds no new
+     * path -- and the cleanup helper vTaskDeleteWithCaps() spawns from
+     * internal RAM is likelier to get its memory with 10 KB more free.
+     */
+    cfg.httpd.task_caps = MALLOC_CAP_SPIRAM | MALLOC_CAP_8BIT;
     cfg.port_secure = REMOTE_PORT;
     cfg.servercert = (const uint8_t *)crt;
     cfg.servercert_len = crt_len;

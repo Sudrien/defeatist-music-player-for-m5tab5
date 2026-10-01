@@ -153,6 +153,7 @@ if there is no card).
 | Dim screen | Never, or after 15 s to 2 min without a touch -- to half brightness. |
 | Screen off | Never, or 30 s to 5 min. Never while this page is open. |
 | Sleep timer | off, or 15 min to 2 h in 15-minute steps. The sound fades out over the last 20 seconds. |
+| Power off | Never, or after 15 min, 30 min, 1 h or 2 h with nothing playing, recording or touched. The device turns itself off; the side button turns it on. Separate from the sleep timer, and never while music plays. |
 
 ## Build switches
 

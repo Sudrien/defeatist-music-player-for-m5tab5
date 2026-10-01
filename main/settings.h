@@ -208,6 +208,24 @@ uint8_t settings_off_step(void);
 void settings_set_off_step(uint8_t step);
 
 /*
+ * 6000: how long with nothing going on before the device powers itself
+ * off, as a step in powerdown.h's table: 0 never, which is the default.
+ * Saved on the card only, like crossfade and Record from -- not in the
+ * flash blob, whose version bump would reset everything in it once.
+ */
+uint8_t settings_poweroff_step(void);
+void settings_set_poweroff_step(uint8_t step);
+
+/*
+ * 6000: write any change that is still settling, now, and wait for it --
+ * for a power-off, which would otherwise lose the last SETTINGS_SETTLE_MS
+ * of changes. The write is still done by the settings task, so the file
+ * never has two writers. True when nothing is left unwritten; false on
+ * timeout, or with no volume to write to.
+ */
+bool settings_flush(int timeout_ms);
+
+/*
  * Whether the screen is upside down -- portrait, rotated 180 degrees.
  *
  * PORTRAIT ONLY, AND ON PURPOSE.

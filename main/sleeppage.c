@@ -9,6 +9,7 @@
 #include "gfx.h"
 #include "menuscroll.h"
 #include "screendim.h"
+#include "powerdown.h"           /* 6000 */
 #include "settings.h"
 #include "sleeptimer.h"
 
@@ -210,6 +211,20 @@ static void timer_box(int *x, int *y, int *w, int *h)
     *h = SLIDER_H;
 }
 
+/* 6000: Power off, under the sleep timer and its one note line. */
+#define TIMER_NOTE_LINES    (1)
+#define POWEROFF_NOTE_LINES (2)
+
+static void poweroff_box(int *x, int *y, int *w, int *h)
+{
+    int tx, ty, tw, th;
+    timer_box(&tx, &ty, &tw, &th);
+    *x = 0;
+    *y = ty + th + NOTE_GAP + TIMER_NOTE_LINES * NOTE_STEP + GAP;
+    *w = gfx_w();
+    *h = OPTION_H;
+}
+
 /* A little air under the last note, so the end of the content does not
  * sit flush against the footer. */
 #define BOT_PAD (24)
@@ -222,8 +237,9 @@ static void timer_box(int *x, int *y, int *w, int *h)
 static void layout(void)
 {
     int x, y, w, h;
-    timer_box(&x, &y, &w, &h);
-    s_content_h = (y + h + NOTE_GAP + NOTE_STEP + BOT_PAD) - list_top();
+    poweroff_box(&x, &y, &w, &h);                                   /* 6000 */
+    s_content_h = (y + h + NOTE_GAP + POWEROFF_NOTE_LINES * NOTE_STEP + BOT_PAD)
+                - list_top();
 }
 
 void sleeppage_set_timer(int step, int64_t seconds_left)
@@ -433,6 +449,35 @@ void sleeppage_draw(void)
             "Fades out, pauses, and turns the screen off.",
         };
         gfx_draw_text(24, y + bh + NOTE_GAP, note[0], LABEL_SCALE, w - 48, C_DIM);
+    }
+
+    /* --- Power off after (6000) -------------------------------------- */
+    poweroff_box(&x, &y, &bw, &bh);
+    {
+        const int step = settings_poweroff_step();
+        gfx_fill_rect(x, y, bw, bh, C_ROW);
+        gfx_draw_text(24, y + (bh - GFX_GLYPH_H(NAME_SCALE)) / 2, "Power off",
+                      NAME_SCALE, 400, C_TEXT);
+
+        const int pw = 132, ph = 56;
+        const int px = w - 24 - pw, py = y + (bh - ph) / 2;
+        const char *text = powerdown_label(step);
+        gfx_fill_rect(px, py, pw, ph, step ? C_ON : C_BTN);
+        const int tw = gfx_text_w(text, NAME_SCALE);
+        gfx_draw_text(px + (pw - tw) / 2, py + (ph - GFX_GLYPH_H(NAME_SCALE)) / 2,
+                      text, NAME_SCALE, pw - 8, step ? C_BG : C_DIM);
+    }
+    {
+        /* Not the sleep timer, and the note says how: this one waits for
+         * nothing to be happening, and the side button is the way back. */
+        static const char *const note[] = {
+            "After this long with nothing playing, recording or touched. "
+            "Not while music plays.",
+            "The device turns off. The side button turns it back on.",
+        };
+        gfx_draw_text(24, y + bh + NOTE_GAP, note[0], LABEL_SCALE, w - 48, C_DIM);
+        gfx_draw_text(24, y + bh + NOTE_GAP + NOTE_STEP, note[1],
+                      LABEL_SCALE, w - 48, C_FAINT);
     }
 
     /*
@@ -646,6 +691,15 @@ sleeppage_result_t sleeppage_touch(bool down, int x, int y)
         ESP_LOGI(TAG, "dim screen: %s", screendim_label(want));
         s_dirty = true;
         return SLEEPPAGE_DIM;
+    }
+
+    poweroff_box(&bx, &by, &bw, &bh);                               /* 6000 */
+    if (y >= by && y < by + bh) {
+        const int want = (settings_poweroff_step() + 1) % (POWERDOWN_STEPS + 1);
+        settings_set_poweroff_step((uint8_t)want);
+        ESP_LOGI(TAG, "power off after: %s", powerdown_label(want));
+        s_dirty = true;
+        return SLEEPPAGE_POWER_OFF_AFTER;
     }
 
     off_box(&bx, &by, &bw, &bh);

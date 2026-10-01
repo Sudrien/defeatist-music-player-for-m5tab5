@@ -99,6 +99,7 @@
 #include "sleeppage.h"
 #include "brightness.h"
 #include "screendim.h"
+#include "powerdown.h"           /* 6000 */
 #include "sleeptimer.h"
 #include "wifistore.h"
 #include "waveform.h"
@@ -853,6 +854,18 @@ static esp_err_t backlight_set_counts(uint32_t duty)
  * watching a first flash is looking at.
  */
 static int64_t s_last_input_us;
+
+/*
+ * 6000: when anything last kept the device on, for powerdown.h. Wider
+ * than s_last_input_us, which is the glass only: a command from the
+ * browser remote, an MPD client or a HID remote counts, and so does
+ * playback, recording or a reindex, every pass they are running. A
+ * connected MPD client that only polls does not -- Home Assistant
+ * holding a connection open all day must not keep the device on.
+ * Started at boot rather than 0, unlike the screen's: a device switched
+ * on and left alone is exactly the case this is for.
+ */
+static int64_t s_last_active_us;
 static bool    s_dimmed;
 
 /*
@@ -6865,6 +6878,71 @@ static void service_clock_ab(void) { }
  */
 #define REC_COUNTDOWN_S     (3)
 static volatile int s_rec_count;
+
+/*
+ * 6000: turn the device off -- the Tab5's own way, as M5Stack's BSP does
+ * it (m5stack_tab5.c, bsp_generate_poweroff_signal()): PWROFF_PULSE is P4
+ * of the PI4IOE5V6416 at 0x44, read by the PMS150 power controller beside
+ * the side button, and it is pulsed high 100 ms, low 100 ms, three times.
+ *
+ * Before the pulse: the settings that are still settling are written
+ * (settings_flush()), and the screen goes dark first so the cut is not a
+ * frozen frame. A recording cannot be running -- powerdown waits for one
+ * to end -- and nothing is playing, so there is no open file being
+ * written but the settings.
+ *
+ * P4 is made an output and taken out of high impedance the way usbhost.c
+ * and wifi.c do P3 and P0, read-modify-write so they keep their states.
+ * Those two take no lock on the expander either; a power-off that races
+ * one of them loses nothing it would have kept.
+ *
+ * IF THE BOARD IS STILL HERE two seconds later, the controller did not
+ * act on it -- the pulse is the documented one, but the PMS150 runs
+ * M5Stack's own program and whether it switches off while USB-C supplies
+ * the board is not on the schematic. That is logged, the screen comes
+ * back, and the caller restarts the wait rather than pulsing every pass.
+ */
+#define PWROFF_PULSE_BIT  (1u << 4)
+
+static void power_off_now(void)
+{
+    const bool saved = settings_flush(3000);
+    ESP_LOGW(TAG, "powering off (settings %s)", saved ? "written" : "NOT written");
+    if (!s_screen_off) screen_fade_out(SCREEN_FADE_MS);
+
+    if (!s_exp2) {
+        ESP_LOGE(TAG, "power off: expander 0x44 not up");
+    } else {
+        const uint8_t setup[][2] = {
+            { PI4IOE_REG_IO_DIR,     1 },     /* output        */
+            { PI4IOE_REG_OUT_HIGH_Z, 0 },     /* out of high-Z */
+        };
+        for (size_t i = 0; i < sizeof(setup) / sizeof(setup[0]); i++) {
+            uint8_t reg = setup[i][0], val = 0;
+            if (i2c_master_transmit_receive(s_exp2, &reg, 1, &val, 1, I2C_TIMEOUT_MS) != ESP_OK) continue;
+            val = setup[i][1] ? (uint8_t)(val | PWROFF_PULSE_BIT)
+                              : (uint8_t)(val & (uint8_t)~PWROFF_PULSE_BIT);
+            (void)reg_write(s_exp2, reg, val);
+        }
+        uint8_t reg = PI4IOE_REG_OUT_SET, out = 0;
+        if (i2c_master_transmit_receive(s_exp2, &reg, 1, &out, 1, I2C_TIMEOUT_MS) == ESP_OK) {
+            for (int i = 0; i < 3; i++) {
+                (void)reg_write(s_exp2, PI4IOE_REG_OUT_SET, (uint8_t)(out | PWROFF_PULSE_BIT));
+                vTaskDelay(pdMS_TO_TICKS(100));
+                (void)reg_write(s_exp2, PI4IOE_REG_OUT_SET, (uint8_t)(out & (uint8_t)~PWROFF_PULSE_BIT));
+                vTaskDelay(pdMS_TO_TICKS(100));
+            }
+        }
+    }
+
+    vTaskDelay(pdMS_TO_TICKS(2000));
+    ESP_LOGW(TAG, "power off: still running -- the power controller did not "
+                  "switch off (on USB power?); waiting again");
+    if (s_screen_off) {                 /* as a tap wakes it */
+        s_screen_off = false;
+        backlight_set(screen_on_duty());
+    }
+}
 static int s_rec_card_n;
 static bool s_rec_art_up;           /* 5214: the microphone is in the square */
 static bool s_rec_art_silent;       /* 5214: drawn crossed out */
@@ -7255,7 +7333,7 @@ static void ui_task(void *arg)
          * make twice, and at half brightness the screen is readable --
          * this is a dim, not a blank.
          */
-        if (bdown) s_last_input_us = esp_timer_get_time();
+        if (bdown) s_last_input_us = s_last_active_us = esp_timer_get_time();
 
         /*
          * 5169: A TAP ON A SCREEN THAT IS OFF ONLY WAKES IT, WHEREVER IT
@@ -7600,6 +7678,20 @@ static void ui_task(void *arg)
                 screen_fade_out(SCREEN_FADE_MS);
                 s_screen_off = true;
             }
+
+            /* 6000: power off after a while with nothing going on. */
+            if (!s_last_active_us) s_last_active_us = now_us;
+            if (s_playing || s_decoding || s_streaming || recorder_active() ||
+                s_rec_count > 0 || medialib_busy()) {
+                s_last_active_us = now_us;
+            }
+            const int pd_s = powerdown_seconds(settings_poweroff_step());
+            if (powerdown_due(now_us, s_last_active_us, pd_s)) {
+                ESP_LOGW(TAG, "power off after %s with nothing going on",
+                         powerdown_label(settings_poweroff_step()));
+                power_off_now();
+                s_last_active_us = esp_timer_get_time();    /* still here: see there */
+            }
         }
 
         /* Every track start sets this, so it only writes and logs when
@@ -7789,7 +7881,8 @@ static void ui_task(void *arg)
                 sleeppage_draw();
             } else if (r == SLEEPPAGE_BRIGHTNESS_DONE) {
                 log_brightness();
-            } else if (r == SLEEPPAGE_OFF_AFTER) {
+            } else if (r == SLEEPPAGE_OFF_AFTER ||
+                       r == SLEEPPAGE_POWER_OFF_AFTER) {               /* 6000 */
                 /* Like the Dim row: redraw to show the new wait, and let
                  * the tap itself be the activity that restarts it. */
                 sleeppage_draw();
@@ -8325,6 +8418,7 @@ static void ui_task(void *arg)
          * an MPD client, on the same terms. MPD.md step 5: the two are
          * one queue (uireq.h), taken in the order they arrived. */
         if (act.kind == UI_ACTION_NONE) (void)uireq_take_press(&act);
+        if (act.kind != UI_ACTION_NONE) s_last_active_us = esp_timer_get_time();   /* 6000 */
 
         /*
          * One line per press, at the point they are dispatched rather

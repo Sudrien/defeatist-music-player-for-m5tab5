@@ -20098,3 +20098,74 @@ is a separate change that moves the slider.
 
 ui.c compiled clean at -O2 and -O3 against IDF v5.5.5's headers with
 IDF's flags. Not on the board.
+
+## Where v0.5.0 got to, and the 6000 series
+
+**v0.5.0 is tagged** after 5285. Its targets were the README's: System
+Volume Information hidden (5272), a level meter while recording
+(5273), the status line under volume (5274, 5278), unused codecs and
+what they left behind (5275), and -O3 -- measured on the board and kept
+for decoder.c only (5276-5280). After them: ABBREVIATIONS.md (5281),
+the docs the release made stale (5282), the BUILD tab's app, source,
+libraries and licences (5283, 5284), and the battery as words (5285).
+
+The 6000 series leads to v0.6.0.
+
+### 6000 -- power off after a while with nothing going on
+
+Asked for on the board: a timer that turns the device off when it has
+been left alone, separate from the sleep timer.
+
+**The two are different things and stay separate.** The sleep timer is
+a decision about tonight: it fades the music out at a time and pauses.
+This is a standing preference: it never acts while anything is
+happening, and when it acts the device is off. A new row on the Sleep
+page, Power off -- Never, 15 min, 30 min, 1 h, 2 h -- default Never,
+with powerdown.h's table and test in screendim.h's shape.
+
+**What counts as something going on** (player.c, s_last_active_us):
+a touch; any action from the panel, a HID remote, the browser remote
+or an MPD client; and, every pass they are true, playback, decoding,
+a stream, a recording or the countdown to one, and a reindex. Not an
+MPD client's connection by itself: Home Assistant holds one open all
+day, and polling is not using the player. The clock starts at boot,
+not at the first touch as the screen's does (screendim.h), because a
+device switched on and left is the case this exists for.
+
+**The off.** The Tab5 has a power controller -- U28, a PMS150 on page
+5 of the schematic, programmed by M5Stack, beside the side button --
+and it watches PWROFF_PULSE, P4 of the PI4IOE5V6416 at 0x44. M5Stack's
+BSP (M5Tab5-UserDemo, m5stack_tab5.c, bsp_generate_poweroff_signal())
+pulses it high 100 ms, low 100 ms, three times; power_off_now() does
+the same, after making P4 an output and taking it out of high
+impedance as usbhost.c and wifi.c do P3 and P0. PI4IOE2_IO_DIR already
+has bit 4 set. Before the pulse: settings_flush(), then the screen
+fades out.
+
+**settings_flush()** is new: the settings task writes 3 s after the
+last change (SETTINGS_SETTLE_MS), and a power-off inside those 3 s
+would have lost it. It back-dates the change so the task's next pass
+writes it, and waits for that pass to end -- a new s_writing flag
+covers the gap between the task clearing s_dirty and finishing its
+writes. The task stays the only writer.
+
+**If the board is still running 2 s later** the controller did not act
+-- whether it switches off while USB-C supplies the board is not on
+the schematic. That is logged, the screen comes back the way a tap
+wakes it, and the wait starts again rather than pulsing every pass.
+
+**Saved on the card only**, as `"poweroff_step"`, beside crossfade
+and Record from; not in the NVS blob, whose version bump would reset
+everything in it once (PREFS_NVS_VERSION's history). With no card it
+lasts until the next boot. The key costs 18 of the 283 characters the
+record has for the remembered track's path, which now fits paths up to
+about 265.
+
+**A catch-all caught.** player.c's sleep page handler closes the page
+for any result it does not name, so the new SLEEPPAGE_POWER_OFF_AFTER
+is named beside SLEEPPAGE_OFF_AFTER, which redraws and stays open.
+
+player.c, settings.c, sleeppage.c and ui.c compiled clean at -O2 and
+-O3 against IDF v5.5.5's headers with IDF's flags; powerdown.h's
+arithmetic tested on the host. Not on the board: the pulse is the
+part only the board can confirm.

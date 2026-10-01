@@ -27,6 +27,7 @@
 #include "cJSON.h"
 #include "nvs.h"
 #include "screendim.h"
+#include "powerdown.h"           /* 6000 */
 #include "rtctask.h"          /* 5183 */
 
 /*
@@ -234,6 +235,7 @@ static uint8_t    s_brightness = SETTINGS_BRIGHTNESS_DEFAULT;
 static uint8_t    s_screen_rot;
 static uint8_t    s_dim_step = SCREENDIM_DEFAULT_STEP;
 static uint8_t    s_off_step = SCREENOFF_DEFAULT_STEP;
+static uint8_t    s_poweroff_step = POWERDOWN_DEFAULT_STEP;   /* 6000 */
 
 /* Off. The radio does not come up because a firmware update happened.
  * See settings_wifi_enabled(). */
@@ -287,6 +289,9 @@ static bool       s_track_seen[STORAGE_COUNT];
 /* The volume settings_track() answers about -- the last one noted. */
 static storage_id_t s_last_id = STORAGE_COUNT;
 static volatile bool s_dirty;
+/* 6000: true from where settings_task() clears s_dirty to the end of
+ * that pass's writes, so settings_flush() does not return in between. */
+static volatile bool s_writing;
 static TickType_t s_dirty_since;
 
 /*
@@ -389,6 +394,17 @@ void settings_set_off_step(uint8_t step)
     if (step > SCREENOFF_STEPS) step = 0;       /* not ours: Never */
     if (step == s_off_step) return;
     s_off_step = step;
+    s_dirty = true;
+    s_dirty_since = xTaskGetTickCount();
+}
+
+uint8_t settings_poweroff_step(void) { return s_poweroff_step; }
+
+void settings_set_poweroff_step(uint8_t step)
+{
+    if (step > POWERDOWN_STEPS) step = 0;       /* not ours: Never */
+    if (step == s_poweroff_step) return;
+    s_poweroff_step = step;
     s_dirty = true;
     s_dirty_since = xTaskGetTickCount();
 }
@@ -891,6 +907,13 @@ static bool parse_line(char *line, storage_id_t id, bool take_settings,
             any = true;
         }
 
+        const cJSON *po = cJSON_GetObjectItemCaseSensitive(root, "poweroff_step");
+        if (take_settings && cJSON_IsNumber(po)) {             /* 6000 */
+            const int v = po->valueint;
+            s_poweroff_step = (v >= 0 && v <= POWERDOWN_STEPS) ? (uint8_t)v : 0;
+            any = true;
+        }
+
         const cJSON *dm = cJSON_GetObjectItemCaseSensitive(root, "dim_step");
         if (take_settings && cJSON_IsNumber(dm)) {
             const int v = dm->valueint;
@@ -1044,6 +1067,11 @@ static bool parse_line(char *line, storage_id_t id, bool take_settings,
     if (strcmp(key, "off_step") == 0) {
         const int v = atoi(val);
         s_off_step = (v >= 0 && v <= SCREENOFF_STEPS) ? (uint8_t)v : 0;
+        return true;
+    }
+    if (strcmp(key, "poweroff_step") == 0) {                   /* 6000 */
+        const int v = atoi(val);
+        s_poweroff_step = (v >= 0 && v <= POWERDOWN_STEPS) ? (uint8_t)v : 0;
         return true;
     }
     if (strcmp(key, "dim_step") == 0) {
@@ -1245,6 +1273,7 @@ static int record_line(storage_id_t id, char *out, size_t out_len)
                             "\"crossfade\":%u,\"crossfade_album\":%s," \
                             "\"brightness\":%u,\"dim_step\":%u," \
                             "\"off_step\":%u," \
+                            "\"poweroff_step\":%u," \
                             "\"screen_flipped\":%s," \
                             "\"screen_rotation\":%u," \
                             "\"wifi\":%s,\"ntp\":%s," \
@@ -1254,7 +1283,8 @@ static int record_line(storage_id_t id, char *out, size_t out_len)
 #define SETTINGS_FIELDS_ARGS s_volume, rg, (unsigned)s_crossfade_sec, xa, \
                              (unsigned)s_brightness, \
                              (unsigned)s_dim_step, \
-                             (unsigned)s_off_step, fl, \
+                             (unsigned)s_off_step, \
+                             (unsigned)s_poweroff_step, fl, \
                              (unsigned)s_screen_rot, \
                              wf, np, nte, ntb, rc, md, \
                              (unsigned)s_rec_from
@@ -1592,6 +1622,27 @@ bool settings_note_path(const char *path)
     return first;
 }
 
+/*
+ * 6000: settings_flush(). Back-dates the change so settings_task()'s next
+ * pass (every 500 ms) treats it as settled and writes it, then waits for
+ * that pass to finish. With no volume present the task keeps s_dirty set
+ * and this times out, which is the honest answer: there was nowhere to
+ * write it.
+ */
+bool settings_flush(int timeout_ms)
+{
+    if (!s_dirty && !s_writing) return true;
+    s_dirty_since = xTaskGetTickCount() - pdMS_TO_TICKS(SETTINGS_SETTLE_MS);
+    const TickType_t start = xTaskGetTickCount();
+    while (s_dirty || s_writing) {
+        if ((int32_t)(xTaskGetTickCount() - start) >= (int32_t)pdMS_TO_TICKS(timeout_ms)) {
+            return false;
+        }
+        vTaskDelay(pdMS_TO_TICKS(50));
+    }
+    return true;
+}
+
 static void settings_task(void *arg)
 {
     (void)arg;
@@ -1610,6 +1661,7 @@ static void settings_task(void *arg)
         /* Cleared before the write, not after. A change arriving while
          * the card is busy sets it again and is picked up on the next
          * pass; clearing afterwards would swallow that change instead. */
+        s_writing = true;                       /* 6000: see settings_flush() */
         s_dirty = false;
 
         /* 5064: flash first, card or no card. Settled already, and a
@@ -1652,6 +1704,7 @@ static void settings_task(void *arg)
              */
             s_dirty = true;
         }
+        s_writing = false;
     }
 }
 

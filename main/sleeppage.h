@@ -52,6 +52,10 @@ typedef enum {
                                the same as SLEEPPAGE_SCREEN_OFF, which
                                turns the backlight off NOW -- this only
                                changes how long the wait is */
+    SLEEPPAGE_POWER_OFF_AFTER,  /* 6000: the Power off row was tapped;
+                                   settings_poweroff_step() is the new
+                                   step. Nothing to apply: player.c reads
+                                   the setting each pass */
     SLEEPPAGE_FLIP,         /* the Rotation switch was tapped;
                                settings_screen_rotation() is already the
                                new value, one quarter turn on from the

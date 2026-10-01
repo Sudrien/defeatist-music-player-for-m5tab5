@@ -28,6 +28,7 @@
 #include "nvs.h"
 #include "screendim.h"
 #include "powerdown.h"           /* 6000 */
+#include "rtc8130.h"             /* 6003 */
 #include "rtctask.h"          /* 5183 */
 
 /*
@@ -722,7 +723,10 @@ bool settings_note_ntp_reply(int64_t epoch, int64_t boot_us)
         s_dirty_since = xTaskGetTickCount();
         ok = true;
     }
-    if (ok) s_ntp_truth = true;
+    if (ok) {
+        s_ntp_truth = true;
+        rtc8130_write(settings_now());          /* 6003: NTP is the truth, either way */
+    }
     return ok;
 }
 
@@ -1704,6 +1708,9 @@ static void settings_task(void *arg)
              */
             s_dirty = true;
         }
+        /* 6003: carry the player's time into the RX8130, forward only --
+         * after a power-off the RTC is usually AHEAD of this floor. */
+        rtc8130_write_forward(settings_now());
         s_writing = false;
     }
 }
@@ -1809,6 +1816,21 @@ void settings_init(void)
         const int64_t built = d ? parse_build_time(d->date, d->time) : 0;
         if (built > 0) settings_note_ntp_time(built, esp_timer_get_time());
         s_build_epoch = built;          /* 5101 */
+    }
+
+    /*
+     * 6003: the RX8130, one more floor -- the one that kept counting while
+     * the board was off. Through the same checked entry as the build, so
+     * it wins only when it is later; a time it cannot vouch for (VLF) is
+     * not offered at all. rtc8130_init() ran before this, in app_main().
+     */
+    {
+        int64_t rtc = 0;
+        if (rtc8130_read(&rtc)) {
+            const bool took = settings_note_ntp_time(rtc, esp_timer_get_time());
+            ESP_LOGI(TAG, "RX8130 says %lld: %s", (long long)rtc,
+                     took ? "taken as the floor" : "behind the floor, ignored");
+        }
     }
 
     /*

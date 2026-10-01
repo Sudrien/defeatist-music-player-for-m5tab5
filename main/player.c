@@ -100,6 +100,7 @@
 #include "brightness.h"
 #include "screendim.h"
 #include "powerdown.h"           /* 6000 */
+#include "rtc8130.h"             /* 6003 */
 #include "sleeptimer.h"
 #include "wifistore.h"
 #include "waveform.h"
@@ -6919,6 +6920,7 @@ static volatile int s_rec_count;
 static void power_off_now(void)
 {
     const bool saved = settings_flush(3000);
+    rtc8130_write_forward(settings_now());      /* 6003: the time, for the next boot */
     ESP_LOGW(TAG, "powering off (settings %s)", saved ? "written" : "NOT written");
     if (!s_screen_off) screen_fade_out(SCREEN_FADE_MS);
 
@@ -14837,6 +14839,7 @@ void app_main(void)
      * so the read always failed and a card-less boot always had the
      * radio off. Nothing between the old place and this one reads a
      * setting. */
+    rtc8130_init(s_i2c_bus);            /* 6003: before settings_init() reads it */
     settings_init();
     s_volume = settings_volume();
     audio_out_set_volume((uint8_t)s_volume);

@@ -20212,3 +20212,48 @@ minute; 120 lines for a 2 h wait.
 
 Compiled clean at -O2 and -O3 against IDF v5.5.5's headers. Not on the
 board.
+
+### 6003 -- the RX8130 keeps the time across a power-off
+
+6000's first board run showed the cost of a real power-off: the boot
+after it said `system clock 1970 -> 13:47:51 (this player's time, until
+NTP)` -- the build stamp. The floor policy (5110: uptime plus the
+latest of build, card record and last NTP) worked as designed, but
+every floor is a time the player saw before it went off, so the time
+spent off is lost until NTP answers. The Tab5's RX8130CE at 0x32,
+backed by BT1, keeps counting through it, and nothing read it.
+
+**Read at boot, as one more floor.** rtc8130_init() in app_main() just
+before settings_init(); settings_init() reads it after seeding the
+build stamp and offers it through settings_note_ntp_time(), the same
+checked entry as every other floor, so it is taken only when later. A
+reading with VLF set -- the oscillator stopped or the backup sagged
+since it was set -- is not offered at all. The log says which:
+`RX8130 says <epoch>: taken as the floor` or `behind the floor`.
+
+**Written forward from the player's time.** After every settings
+save (settings_task) and just before Power off's pulse, the player's
+time goes in with rtc8130_write_forward(): only if it is more than 2 s
+ahead of what the chip holds, or the chip holds nothing valid. Forward
+only because after a power-off the RTC is normally AHEAD of the floor,
+and writing the floor would set back the one clock that knew better.
+
+**Written always from NTP**, after settings_note_ntp_reply() accepts a
+reply: NTP may correct the RTC in either direction.
+
+**Not M5Stack's driver.** Registers and the backup init (CTRL1 bits 4
+and 5) are theirs, checked against Epson's manual; their setTime()
+stores the month 0-based and the weekday as a number, and is only
+self-consistent because their getTime() reads it back the same way.
+Here the month is 1-12 and the weekday one-hot, as the chip counts, so
+a time it carries over the end of a month is right. The counters are
+held with CTRL0 STOP while written, and VLF is cleared after a write.
+Epoch to calendar is Hinnant's days-from-civil, matched against libc's
+gmtime_r() on 5187 dates across 2000-2099, weekday included.
+
+A board without the chip, or a bus fault, logs one warning at boot and
+every call is then a no-op. rtc8130.c, settings.c and player.c compiled
+clean at -O2 and -O3 against IDF v5.5.5's headers with IDF's flags.
+Not on the board. The check: power off, wait some minutes, power on --
+the RX8130 line says "taken as the floor" and the system clock line
+lands near the real time, not the build's.

@@ -90,7 +90,9 @@ What is running. Nothing to set.
 - `app`, `version`, `built`, `idf`, and free `heap`, `psram` and `uptime`.
 - **Source**: the repository, github.com/Sudrien/m5tab5_defeatist_music_player.
 - **Libraries**: every component and vendored library in this build, with
-  its version, or its commit's first seven characters for a git one.
+  its version, or its commit's first seven characters for a git one, and
+  its licence after `--`. `licence not found` means the component shipped
+  neither a licence file nor a licence field.
   Generated from `dependencies.lock` and the vendored pins when the build
   is configured, so it is what was compiled.
 

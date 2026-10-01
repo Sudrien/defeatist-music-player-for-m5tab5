@@ -20019,3 +20019,42 @@ measured height, so the length needs no layout constant.
 The script was run against the real lock in a scratch CMake project;
 panel.c compiled clean at -O2 and -O3 against IDF v5.5.5's headers with
 IDF's flags and that generated header. Not on the board.
+
+### 5284 -- BUILD tab: each library's licence, by version
+
+Each line of 5283's library list now ends with the licence of that
+version: `esp_audio_codec 2.5.0 -- Espressif MIT`.
+
+**From the licence file of the copy that was compiled.** The component
+manager copies each dependency into managed_components/, and
+cmake/libversions.cmake reads the first lines of its licence file
+(license.txt, LICENSE, LICENCE, LICENSE.*, LICENSE-*): an SPDX or
+Valid-License-Identifier line is taken as written; "Espressif Modified
+MIT" is Espressif MIT; Apache's header with "Version 2.0" is
+Apache-2.0; "MIT License" is MIT; "CC0 1.0" is CC0-1.0. Not the
+manifest's `license:` field first, because of the components here only
+esp_hosted and esp_usbh_asix fill it in, and every one ships a file;
+the field is the fallback. With neither, the line says `licence not
+found` rather than guessing. A new version with a new licence shows on
+the next configure, with no table to update.
+
+**Written down, for what has no licence file here.** minimp3, pngle and
+stb_image are fetched as single headers without one, so their licences
+are in the script, checked at the pinned commits: minimp3's LICENSE is
+CC0 1.0, pngle's MIT, stb_image.h's two alternatives MIT or the
+Unlicense. The Ark Pixel font is OFL-1.1 (components/ark12/README.md).
+A new commit in cmake/vendored.cmake means checking these again; the
+script says so beside them.
+
+**esp_jpeg is two licences.** Its own code and licence file are
+Apache-2.0, but the decoder it wraps is ChaN's TJpgDec under ChaN's own
+terms (tjpgd/tjpgd.c's header; the README's Licensing section), so its
+line says `Apache-2.0 + TJpgDec (ChaN)`.
+
+Tested against the real lock with managed_components/ pointed at the
+components' GitHub sources: Apache-2.0 for esp_hosted, iot_eth,
+iot_usbh_cdc, iot_usbh_ecm, esp_lcd_st7121, esp_lcd_touch_gt911,
+eppp_link and esp_usbh_asix; Espressif MIT for esp_audio_codec; and the
+vendored USB drivers Apache-2.0 from their own files. The others had no
+source to test with here and read `licence not found` in that test; on
+a real build they read their registry copies. Not on the board.

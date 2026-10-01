@@ -33,6 +33,50 @@ function(_lv_short out ver)
     set(${out} "${ver}" PARENT_SCOPE)
 endfunction()
 
+# 5284: a component's licence, from the licence file in its directory --
+# the copy that was compiled, so a licence change in a new version shows.
+# The file, not idf_component.yml's `license:` field: of the components
+# here only esp_hosted and esp_usbh_asix fill the field in, and every
+# one ships a file. The field is the fallback.
+function(_lv_license out dir)
+    set(_lic "")
+    file(GLOB _files LIST_DIRECTORIES false
+         "${dir}/license.txt" "${dir}/LICENSE" "${dir}/LICENSE.*"
+         "${dir}/LICENCE" "${dir}/LICENSE-*")
+    foreach(_f IN LISTS _files)
+        file(STRINGS "${_f}" _head LIMIT_COUNT 15)
+        string(JOIN "\n" _head ${_head})
+        if(_head MATCHES "(Valid|SPDX)-License-Identifier: *([A-Za-z0-9.+-]+)")
+            set(_lic "${CMAKE_MATCH_2}")
+        elseif(_head MATCHES "Espressif Modified MIT")
+            set(_lic "Espressif MIT")
+        elseif(_head MATCHES "Apache License" AND _head MATCHES "Version 2\\.0")
+            set(_lic "Apache-2.0")
+        elseif(_head MATCHES "MIT License")
+            set(_lic "MIT")
+        elseif(_head MATCHES "CC0 1\\.0")
+            set(_lic "CC0-1.0")
+        endif()
+        if(_lic)
+            break()
+        endif()
+    endforeach()
+    if(NOT _lic AND EXISTS "${dir}/idf_component.yml")
+        file(STRINGS "${dir}/idf_component.yml" _f REGEX "^license:")
+        if(_f MATCHES "^license: *[\"']?([^\"']+)")
+            set(_lic "${CMAKE_MATCH_1}")
+        endif()
+    endif()
+    if(NOT _lic)
+        set(_lic "licence not found")
+    endif()
+    set(${out} "${_lic}" PARENT_SCOPE)
+endfunction()
+
+# Where the component manager put a lock entry: "espressif/esp_jpeg" is
+# managed_components/espressif__esp_jpeg, a git one by its bare name.
+set(_managed "${_root}/managed_components")
+
 if(EXISTS "${_lock}")
     set_property(DIRECTORY APPEND PROPERTY CMAKE_CONFIGURE_DEPENDS "${_lock}")
     file(STRINGS "${_lock}" _lines)
@@ -52,7 +96,15 @@ if(EXISTS "${_lock}")
             string(REGEX REPLACE "^espressif/" "" _short "${_name}")
             if(NOT _short STREQUAL "idf" AND NOT _short STREQUAL "cmake_utilities")
                 _lv_short(_ver "${_ver}")
-                list(APPEND _libs "${_short} ${_ver}")
+                string(REPLACE "/" "__" _dir "${_name}")
+                _lv_license(_lic "${_managed}/${_dir}")
+                # esp_jpeg's own code is Apache-2.0; the TJpgDec it wraps
+                # is ChaN's, under his terms, whose notice must travel
+                # with the binary (README, Licensing).
+                if(_short STREQUAL "esp_jpeg")
+                    string(APPEND _lic " + TJpgDec (ChaN)")
+                endif()
+                list(APPEND _libs "${_short} ${_ver} -- ${_lic}")
             endif()
             set(_name "")
         endif()
@@ -67,16 +119,24 @@ foreach(_c usb_host_msc usb_host_uac)
         set_property(DIRECTORY APPEND PROPERTY CMAKE_CONFIGURE_DEPENDS "${_yml}")
         file(STRINGS "${_yml}" _v REGEX "^version:")
         string(REGEX REPLACE "^version: *\"?([^\"]*)\"?.*$" "\\1" _v "${_v}")
-        list(APPEND _libs "${_c} ${_v}, patched")
+        _lv_license(_lic "${_root}/components/${_c}")
+        list(APPEND _libs "${_c} ${_v}, patched -- ${_lic}")
     endif()
 endforeach()
 
-foreach(_pair "minimp3;MINIMP3_COMMIT" "pngle;PNGLE_COMMIT" "stb_image;STB_COMMIT")
+# These three are fetched as single headers, without their licence files,
+# so their licences are written here -- checked at these commits (5284):
+# minimp3's LICENSE is CC0 1.0, pngle's MIT, and stb_image.h ends with
+# its two alternatives, MIT or the Unlicense. A new commit in
+# cmake/vendored.cmake means checking the licence again.
+foreach(_pair "minimp3;MINIMP3_COMMIT;CC0-1.0" "pngle;PNGLE_COMMIT;MIT"
+              "stb_image;STB_COMMIT;MIT or Unlicense")
     list(GET _pair 0 _n)
     list(GET _pair 1 _var)
+    list(GET _pair 2 _lic)
     if(DEFINED ${_var})
         _lv_short(_v "${${_var}}")
-        list(APPEND _libs "${_n} ${_v}")
+        list(APPEND _libs "${_n} ${_v} -- ${_lic}")
     endif()
 endforeach()
 
@@ -86,7 +146,9 @@ if(EXISTS "${_ark}")
     file(STRINGS "${_ark}" _v REGEX "^ARK_COMMIT *=")
     string(REGEX REPLACE "^ARK_COMMIT *= *\"([0-9a-f]+)\".*$" "\\1" _v "${_v}")
     _lv_short(_v "${_v}")
-    list(APPEND _libs "Ark Pixel font ${_v}")
+    # OFL-1.1, and components/ark12 with it -- see its README and
+    # LICENSE-OFL, which has to ship with the firmware.
+    list(APPEND _libs "Ark Pixel font ${_v} -- OFL-1.1")
 endif()
 
 list(LENGTH _libs _n)

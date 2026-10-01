@@ -81,6 +81,7 @@ Note: the goal of this project is to max out the potential of this hardware with
 - -03 target?
 - binary optimization (no unused libraries/features)
 - a level meter while recording would probably be good
+- statuses (USB power, MPD, HTTPS, SLEEP 13M, ????) below volume. Not toggles. 
 
 ## What could happen
 - I think there is nothing in dependencies stopping from using esp-idf 6.1

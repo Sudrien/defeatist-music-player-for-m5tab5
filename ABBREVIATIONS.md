@@ -31,6 +31,17 @@ is on, dark grey is off. Each has its own switch somewhere else.
 | `HTTPS` | The browser remote is running | NET tab, Remote control |
 | `SLEEP xxM` | The sleep timer is set; minutes left, rounded up. Just `SLEEP` when it is not | Sleep page |
 
+At the right end of the same line, the battery (there is no battery
+icon):
+
+| On screen | Means | Colour |
+|---|---|---|
+| `Battery 73%` | Running on the battery | Light grey; red at 20% and under |
+| `Charging 73%` | Power is coming in and charging the battery | Green |
+| `Charged` | The battery is full | Green |
+| `No Battery` | No battery fitted; running from USB-C | Dark grey |
+| `Battery` | The battery gauge gives no reading | Light grey |
+
 ## The chooser (folder button)
 
 ### Tabs

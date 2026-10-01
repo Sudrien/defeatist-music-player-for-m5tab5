@@ -275,18 +275,14 @@ static const char *TAG = "tab5_ui";
 #define SPK_HALF    (26)
 
 /*
- * The battery's own dimensions, up here rather than beside draw_battery()
- * because batt_cx() needs them and C compiles top to bottom -- the same
- * trap fill_rrect() fell into in 5001. BATT_BLOCK is what the row's
- * arithmetic spends on it: the outline plus the nub hanging off its
- * right edge, because a groove that stopped at the outline would run
- * under the nub.
+ * The width the volume row keeps at its right end, where the battery
+ * icon was: its outline plus the nub off its right edge. 5285 replaced
+ * the icon with words on the status line below (draw_status()); the
+ * block stays so the volume groove keeps the width every touch target
+ * and the RG mark were laid out against.
  */
 #define BATT_W      (46)
-#define BATT_H      (24)
 #define BATT_NUB_W  (5)
-#define BATT_NUB_H  (10)
-#define BATT_WALL   (3)
 #define BATT_BLOCK  (BATT_W + BATT_NUB_W)
 
 /* Hit targets are padded well beyond the drawn shapes. A 22 px slider on
@@ -534,14 +530,6 @@ static int spk_cx(void)
     return bar_x0() + SPK_HALF;
 }
 
-static int batt_cx(void)
-{
-    /* Drawn from cx - BATT_W/2 and extending BATT_NUB_W past
-     * cx + BATT_W/2, so flush right means the NUB touches the content
-     * edge, not the outline. */
-    return bar_x1() - BATT_NUB_W - BATT_W / 2;
-}
-
 static void vol_bounds(int *x0, int *x1, int *y)
 {
     /* Two gutters out of what the blocks leave. The /8 is not a typo
@@ -549,7 +537,7 @@ static void vol_bounds(int *x0, int *x1, int *y)
      * without letting the gutters dominate the row. */
     const int gut = ((bar_x1() - bar_x0()) - VOL_BLOCKS) / 8;
     *x0 = spk_cx() + SPK_HALF + gut;
-    *x1 = batt_cx() - BATT_W / 2 - gut;
+    *x1 = bar_x1() - BATT_BLOCK - gut;     /* 5285: where batt_cx() put it */
     *y  = s_bar_top + VOL_Y;
 }
 
@@ -1146,82 +1134,11 @@ static void draw_rg(const ui_state_t *st)
     gfx_fill_rect(mark - 1, y - THUMB_R, 3, 2 * THUMB_R + 1, C_RG);
 }
 
-/*
- * The battery, at the right end of the volume row.
- *
- * Opposite the speaker on purpose: that row already has an icon in the
- * left margin and 96 px of unused panel in the right one, and the two
- * things being reported -- how loud it is, how much is left -- are both
- * states of the device rather than of the track. Everything above this
- * row is about the song.
- *
- * Icon above, digits below, both centred on the same x. Side by side
- * would need 76 px of width in a 96 px margin, which leaves the outline
- * touching the slider groove.
- *
- * The fill is proportional and the outline is not: an outline that
- * shrinks reads as a smaller battery rather than as a flatter one.
- */
-
 /* Below 20% the fill turns red -- the same red as the seek bar's played
  * portion, because it is the same statement: this much is spent. */
 #define BATT_LOW_PCT (20)
 #define C_BATT_LOW   C_FILL
 #define C_BATT_CHG   RGB(0x4C, 0xC0, 0x5E)
-
-/*
- * EXTERNAL POWER: a bolt, a lamp, and a Type-C connector seen end on.
- *
- * The marker means the battery has stopped being the answer to "how
- * long has this got" -- something is feeding the device and the reading
- * that used to be here is no longer the interesting number.
- *
- * Two earlier attempts drew the connector in profile. 0723 drew a
- * hollow stadium the height of the battery with a lead beside it, which
- * at this size is a body with a cap on it: a memory stick, which is a
- * thing you also plug into this device, so the icon named the wrong
- * object. 0806 flattened the shell and ran the cable to the edge, which
- * fixed the silhouette and left the icon saying only "a cable".
- *
- * A cable is not the message. THE MESSAGE IS POWER, and the thing that
- * says power in one glance is a lightning bolt -- so the bolt is the
- * subject, the connector underneath says which kind of power, and a
- * green lamp beside the bolt says it is arriving. Type-C seen end on is
- * a shape nothing else on this panel resembles: a flat stadium with a
- * bar down the middle, which is the receptacle and its tongue. In
- * profile it competes with every other plug ever drawn; end on it does
- * not.
- *
- * Stacked rather than side by side. The battery it replaces is an
- * outline with digits under it, so the corner already reads top to
- * bottom, and keeping that means the eye lands in the same place
- * whether or not the pack is in.
- *
- * The bolt is solid. An outlined one at 26 px is four strokes meeting
- * at two acute angles, and the angles fill in.
- */
-#define USB_BOLT_W   (18)
-#define USB_BOLT_H   (26)
-#define USB_DOT_R    (4)
-#define USB_CONN_W   (46)   /* the battery's own width: the two icons
-                             * occupy the same column and must not make
-                             * the corner shift when power is connected */
-#define USB_CONN_H   (18)
-#define USB_CONN_WALL (3)   /* the battery's wall, for the same reason */
-#define USB_TONGUE_W (26)
-#define USB_TONGUE_H (4)
-
-/*
- * The bolt, as a closed path in a USB_BOLT_W x USB_BOLT_H box.
- *
- * Six points: down the left face, across the notch, down to the tip,
- * back up the right face, across the other notch. The two notches are
- * what make it a bolt rather than a Z -- without them the strokes meet
- * flush and it reads as a lightning-shaped arrow.
- */
-static const int8_t k_bolt[][2] = {
-    { 13,  0 }, {  2, 14 }, {  9, 14 }, {  7, 26 }, { 18, 11 }, { 11, 11 },
-};
 
 /* gfx has rectangles and circles; a rounded rectangle is four of one and
  * two of the other. Corners first, then the cross, so nothing lands on
@@ -1466,147 +1383,6 @@ static void draw_live(const ui_state_t *st)
     }
 }
 
-/*
- * Scanline fill of a small closed polygon, in whole pixels.
- *
- * One row at a time: find where the edges cross this row, sort the
- * crossings, fill between them in pairs. Six points means at most three
- * pairs and the insertion sort is over a list that never exceeds a
- * handful, so this is a loop over 26 rows and nothing more.
- *
- * Edges are counted half-open in y -- a vertex exactly on the row
- * belongs to the edge below it and not the one above -- which is what
- * stops a vertex being counted twice and leaving a row unfilled.
- */
-#define POLY_MAX_X  8
-
-static void fill_poly(const int8_t pts[][2], int n, int ox, int oy, uint16_t c)
-{
-    int ymin = pts[0][1], ymax = pts[0][1];
-    for (int i = 1; i < n; i++) {
-        if (pts[i][1] < ymin) ymin = pts[i][1];
-        if (pts[i][1] > ymax) ymax = pts[i][1];
-    }
-
-    for (int y = ymin; y <= ymax; y++) {
-        int xs[POLY_MAX_X];
-        int nx = 0;
-
-        for (int i = 0; i < n && nx < POLY_MAX_X; i++) {
-            const int x1 = pts[i][0], y1 = pts[i][1];
-            const int j = (i + 1 == n) ? 0 : i + 1;
-            const int x2 = pts[j][0], y2 = pts[j][1];
-            if ((y1 <= y && y < y2) || (y2 <= y && y < y1)) {
-                /* Rounded rather than truncated: at this size half a
-                 * pixel of error on an edge is a visible step. */
-                const int num = (x2 - x1) * (y - y1);
-                const int den = y2 - y1;
-                xs[nx++] = x1 + (num + den / 2) / den;
-            }
-        }
-
-        for (int i = 1; i < nx; i++) {
-            const int v = xs[i];
-            int k = i - 1;
-            while (k >= 0 && xs[k] > v) { xs[k + 1] = xs[k]; k--; }
-            xs[k + 1] = v;
-        }
-
-        for (int i = 0; i + 1 < nx; i += 2) {
-            const int w = xs[i + 1] - xs[i] + 1;
-            if (w > 0) gfx_fill_rect(ox + xs[i], oy + y, w, 1, c);
-        }
-    }
-}
-
-static void draw_usb_c(int cx, int cy)
-{
-    /* Top of the bolt sits where the battery's outline starts, and the
-     * connector where its digits were, so the block occupies the same
-     * rows either way. */
-    const int top = cy - 30;
-
-    /* Bolt left of centre, lamp to its right: the pair balances around
-     * the same axis the connector below is centred on. */
-    fill_poly(k_bolt, (int)(sizeof(k_bolt) / sizeof(k_bolt[0])),
-              cx - USB_BOLT_W + 1, top + 1, C_ICON);
-
-    gfx_fill_circle(cx + 16, top + 12, USB_DOT_R, C_BATT_CHG);
-
-    /* The receptacle: a stadium, hollowed to its wall. */
-    const int conn_x = cx - USB_CONN_W / 2;
-    const int conn_y = top + 35;
-    fill_rrect(conn_x, conn_y, USB_CONN_W, USB_CONN_H,
-               USB_CONN_H / 2, C_ICON);
-    fill_rrect(conn_x + USB_CONN_WALL, conn_y + USB_CONN_WALL,
-               USB_CONN_W - 2 * USB_CONN_WALL,
-               USB_CONN_H - 2 * USB_CONN_WALL,
-               (USB_CONN_H - 2 * USB_CONN_WALL) / 2, C_BG);
-
-    /* The tongue. Square ends, not rounded: rounded ones at 4 px tall
-     * turn the bar into a double-headed arrow. */
-    gfx_fill_rect(cx - USB_TONGUE_W / 2,
-                  conn_y + USB_CONN_H / 2 - USB_TONGUE_H / 2,
-                  USB_TONGUE_W, USB_TONGUE_H, C_ICON);
-}
-
-static void draw_battery(int pct, bool charging, bool ext)
-{
-    int x0, x1, y;
-    vol_bounds(&x0, &x1, &y);
-    (void)x0; (void)x1;             /* the row's y, not its groove */
-    const int cx = batt_cx(), cy = y;
-
-    /*
-     * Nothing of the battery is drawn when there is no battery. Not an
-     * outline with a connector next to it, and not a connector inside a
-     * battery -- one icon, saying one thing.
-     */
-    if (ext) {
-        draw_usb_c(cx, cy);
-        return;
-    }
-
-    const int left = cx - BATT_W / 2;
-    const int top  = cy - 30;
-
-    /* Outline: four walls rather than a filled rect with a hole punched
-     * in it, so nothing is drawn twice and the interior can be filled
-     * without clearing it first. */
-    gfx_fill_rect(left, top, BATT_W, BATT_WALL, C_ICON);
-    gfx_fill_rect(left, top + BATT_H - BATT_WALL, BATT_W, BATT_WALL, C_ICON);
-    gfx_fill_rect(left, top, BATT_WALL, BATT_H, C_ICON);
-    gfx_fill_rect(left + BATT_W - BATT_WALL, top, BATT_WALL, BATT_H, C_ICON);
-
-    /* The nub, which is what makes 46x24 read as a battery rather than
-     * as a text field. */
-    gfx_fill_rect(left + BATT_W, cy - 30 + (BATT_H - BATT_NUB_H) / 2,
-                  BATT_NUB_W, BATT_NUB_H, C_ICON);
-
-    if (pct < 0) {
-        /* No reading. An empty outline and no digits -- see ui_state_t.
-         * Drawing 0% here would be a claim, and the wrong one. */
-        return;
-    }
-
-    const int inner_x = left + BATT_WALL + 1;
-    const int inner_w = BATT_W - 2 * (BATT_WALL + 1);
-    const int inner_y = top + BATT_WALL + 1;
-    const int inner_h = BATT_H - 2 * (BATT_WALL + 1);
-
-    const uint16_t c = charging ? C_BATT_CHG
-                     : (pct <= BATT_LOW_PCT ? C_BATT_LOW : C_ICON);
-
-    int w = (inner_w * pct) / 100;
-    /* A nonzero charge always shows at least a sliver. Rounding 4% down
-     * to nothing draws the same picture as a flat pack. */
-    if (w == 0 && pct > 0) w = 1;
-    gfx_fill_rect(inner_x, inner_y, w, inner_h, c);
-
-    /* Same seven-segment digits as the clocks, so the two numbers on the
-     * panel that are not part of a song look like each other. */
-    gfx_draw_pct_centred(cx, cy + 4, pct, c);
-}
 
 /*
  * 5274: the status line, under the volume groove -- USB (the USB-A port's
@@ -1643,6 +1419,43 @@ static void draw_status(const ui_state_t *st)
         { sleepw,  st->sleep_min > 0 },
     };
     const int top = y + STATUS_DY;
+
+    /*
+     * 5285: the battery, as words at the right end of this line, in place
+     * of the icon that stood at the right end of the volume row:
+     *
+     *   No Battery    no pack fitted, running from USB-C (battery_external())
+     *   Charging N%   current flowing into the pack
+     *   Charged       full, and nothing flowing in
+     *   Battery N%    on the pack
+     *
+     * Green while power is coming in or the pack is full, red at 20% and
+     * under, as the icon's fill was; dark grey with no pack. A gauge that
+     * gives no reading says "Battery" alone rather than a made-up number.
+     * Drawn first so the words to its left stop short of it.
+     */
+    char batt[24];
+    uint16_t bc = C_ICON;
+    if (st->ext_power) {
+        snprintf(batt, sizeof(batt), "No Battery");
+        bc = C_ICON_OFF;
+    } else if (st->battery_pct < 0) {
+        snprintf(batt, sizeof(batt), "Battery");
+    } else if (st->battery_charging) {
+        snprintf(batt, sizeof(batt), "Charging %d%%", st->battery_pct);
+        bc = C_BATT_CHG;
+    } else if (st->battery_pct >= 100) {
+        snprintf(batt, sizeof(batt), "Charged");
+        bc = C_BATT_CHG;
+    } else {
+        snprintf(batt, sizeof(batt), "Battery %d%%", st->battery_pct);
+        if (st->battery_pct <= BATT_LOW_PCT) bc = C_BATT_LOW;
+    }
+    const int bw = gfx_text_w(batt, STATUS_SCALE);
+    const int bx = bar_x1() - bw;
+    gfx_draw_text(bx, top, batt, STATUS_SCALE, bw + STATUS_SCALE, bc);
+    if (x1 > bx - STATUS_GAP / 2) x1 = bx - STATUS_GAP / 2;
+
     int x = x0;
     for (size_t i = 0; i < sizeof(items) / sizeof(items[0]) && x < x1; i++) {
         gfx_draw_text(x, top, items[i].word, STATUS_SCALE, x1 - x,
@@ -2310,7 +2123,6 @@ void ui_draw(const ui_state_t *st)
 
     draw_speaker(st->muted, st->route);
     draw_rg(st);
-    draw_battery(st->battery_pct, st->battery_charging, st->ext_power);
     draw_status(st);                                    /* 5274 */
     draw_folder();
     draw_gear();

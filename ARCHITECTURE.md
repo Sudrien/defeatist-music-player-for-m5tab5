@@ -20058,3 +20058,43 @@ eppp_link and esp_usbh_asix; Espressif MIT for esp_audio_codec; and the
 vendored USB drivers Apache-2.0 from their own files. The others had no
 source to test with here and read `licence not found` in that test; on
 a real build they read their registry copies. Not on the board.
+
+### 5285 -- the battery as words, and no icon
+
+Asked for on the board: the battery icon goes, and the status line under
+volume (5274) says it in words at its right end:
+
+    No Battery     battery_external(): no pack, running from USB-C
+    Charging N%    battery_charging()
+    Charged        not charging, and battery_pct() at 100
+    Battery N%     on the pack
+    Battery        battery_pct() is -1 with a pack in: no gauge reading
+
+Green for Charging and Charged (C_BATT_CHG, the icon's charging green),
+red at BATT_LOW_PCT and under (C_BATT_LOW), light grey otherwise, dark
+grey for No Battery. "Charged" is a statement about the pack, not the
+cable: the INA226 is on the rail, so a full pack just unplugged says
+Charged until its percentage drops below 100.
+
+The text is right-aligned to the bar's edge and drawn before the four
+status words, which now stop half a gap short of it. The tightest case
+measured at scale 2: "SLEEP 120M" ends at about x=513 and "Charging
+99%" starts at about 528.
+
+**What went.** draw_battery(), draw_usb_c() -- the bolt, the lamp and
+the end-on USB-C connector of 0723/0806 -- fill_poly(), whose only use
+was the bolt, k_bolt, the USB_* sizes, batt_cx(), and BATT_H, BATT_NUB_H
+and BATT_WALL. Their comments went with them; ARCHITECTURE.md keeps the
+history of why they looked the way they did. fill_rrect() stays (the
+REC and LIVE pills). gfx_draw_pct_centred() in gfx.c now has no caller;
+it is not static, so it draws no warning, and is left for a patch that
+is about gfx.c.
+
+**What stayed.** BATT_BLOCK, so the volume groove keeps its width and
+every touch box and the RG mark keep their places: vol_bounds() writes
+out what batt_cx() computed, `bar_x1() - BATT_BLOCK - gut`. The right
+end of the volume row is empty space now; giving it back to the groove
+is a separate change that moves the slider.
+
+ui.c compiled clean at -O2 and -O3 against IDF v5.5.5's headers with
+IDF's flags. Not on the board.

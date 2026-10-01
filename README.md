@@ -72,16 +72,14 @@ Note: the goal of this project is to max out the potential of this hardware with
 - Ethernet to usb dongles: CDC-ECM (Realtek RTL8152 tested; RTL8153 same path, untested) and [ASIX AX88772](https://github.com/Sudrien/esp_usbh_asix) port, both confirmed on the board
 - Cue sheets
 - m3u/m3u8 - at least through MPD
-- Or right, [Music Player Daemon](https://mpd.readthedocs.io/en/stable/user.html) support - yes, this should mean home assistant control too. 
+- Oh right, [Music Player Daemon](https://mpd.readthedocs.io/en/stable/user.html) support - yes, this should mean home assistant control too.
+- https web ui
+- Audio recording, since the hardware is  right there
 
 ## v0.5.0 targets
-- Expand web ui (is there an api to mirror/ map to local functions?)
-- Audio recording, since the hardware is  right there
-  - input toggle (onboard array / headset mic / UAC)
-  - mono default with stereo option
-  - omnidirectional vs. GSC-directional (screen-forward) mode for onboard array
-  - all captures encoded to FLAC as master (mp3 it yourself, bub), named aftere best guess for datetime.
-  - match uac channels if that makes any sense
+- "System Volume Information" should be hidden right, it's system
+- -03 target?
+- binary optimization (no unused libraries/features)
 
 ## What could happen
 - I think there is nothing in dependencies stopping from using esp-idf 6.1

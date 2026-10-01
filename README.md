@@ -5,9 +5,6 @@ Claude, do not touch this README unless explicitly asked to. Use your own file.
 
 ![](screenshots/IMG_20261001_151110_126.jpg)
 
-( [Bôa has a bandcamp by the way](https://boa-uk.bandcamp.com/). You want this because you want artist to actually get paid for their work, right? Not some streaming cents. )
-
-
 ## The M5Tab5 is not an ideal music player.
 
 - You think it has bluetooth.

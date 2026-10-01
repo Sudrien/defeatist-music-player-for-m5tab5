@@ -19933,3 +19933,30 @@ Streams decode in netdec.c, not here, and are not measured.
 Compiled with and without DECBENCH, at -O2 and -O3, against IDF v5.5.5's
 headers with IDF's flags (5278's method): no new warnings. Not on the
 board.
+
+### 5280 -- -O3 measured on the board: decoder.c keeps it
+
+5276 left -O3 on decoder.c pending a board measurement; 5279's DECBENCH
+made one. The same track three times -- Advent Chamber Orchestra, Bach,
+Brandenburg Concerto no. 3, mvt. 3, 273 s, MP3 44.1 kHz stereo 256 kbit/s,
+no Xing -- from the SD card, to the end, DECBENCH on, v0.4.0-308. `best`
+is the 30-second figure: the `track` line's best is lower in every run,
+from minimp3 handing back samples it decoded in the previous call (a
+limit of 5279's per-call accounting, which the average does not share).
+
+    build                      code (seg 3)   avg cycles/frame   best     core
+    all -O2                    1,668,792      750,342            509,183  7.9%
+    decoder.c -O3 (5276)       1,682,040      679,024            394,892  7.2%
+    all main -O3 (O3CHECK)     1,778,660      689,937            397,855  7.3%
+
+decoder.c at -O3 is 9.5% faster on average and 22% on the best call, for
+13 KB -- well outside the 1-2% the two -O3 runs differ by. The rest of
+main at -O3 adds about 96 KB and no decode speed, as expected: minimp3
+is the only heavy arithmetic main compiles. So 5276 stays, and O3CHECK
+stays a warning check and is not a release setting.
+
+What it buys is small: 0.7% of one core while an MP3 plays. The P4's
+I-cache, which was the reason to expect -O3 might lose here, evidently
+holds minimp3's hot loops either way. Streams decode MP3 in netdec.c
+through the same minimp3, so they get the same -O3 code; DECBENCH does
+not measure them.

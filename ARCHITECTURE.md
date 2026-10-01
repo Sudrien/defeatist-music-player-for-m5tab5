@@ -19883,3 +19883,18 @@ with -O3 appended.
 The check that it took: the configure output prints "O3CHECK: main
 compiled at -O3", and build/compile_commands.json has -O3 on every main
 entry. Not built here -- no IDF.
+
+### 5278 -- ui: the status line's buffer holds any int
+
+5274 broke the build. draw_status() printed "SLEEP %dM" into a 16-byte
+buffer; sleep_min is an int, so GCC counts up to eleven digits and an
+output of up to 18 bytes, and -Wformat-truncation is an error under
+IDF's -Werror=all. Found compiling main against IDF v5.5.5's own headers
+with Espressif's riscv32-esp-elf-gcc 14.2.0 and IDF's flags, which 5274's
+host check against stubs did not reproduce: the warning needs the real
+flags to fire. The buffer is 24. ui.c now compiles clean at -O2 and -O3
+that way.
+
+The lesson for the next patch like it: a host check against stubs is not
+the build. A format into a fixed buffer is sized for the type's widest
+value, not for the values the program means to pass.

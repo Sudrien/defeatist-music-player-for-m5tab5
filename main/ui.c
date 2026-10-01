@@ -1632,7 +1632,7 @@ static void draw_status(const ui_state_t *st)
     int x0, x1, y;
     vol_bounds(&x0, &x1, &y);
 
-    char sleepw[16];
+    char sleepw[24];                    /* 5278: "SLEEP " + any int + "M" */
     if (st->sleep_min > 0) snprintf(sleepw, sizeof(sleepw), "SLEEP %dM", st->sleep_min);
     else                   snprintf(sleepw, sizeof(sleepw), "SLEEP");
 

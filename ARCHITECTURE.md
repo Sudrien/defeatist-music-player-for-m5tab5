@@ -20192,3 +20192,23 @@ were not.
 
 ui.c and player.c compiled clean at -O2 and -O3 against IDF v5.5.5's
 headers with IDF's flags. Not on the board.
+
+### 6002 -- Power off's countdown, in the console
+
+For testing 6000 on the board: between "nothing going on" and the
+power-off there was nothing in the log, so a countdown that was running
+and one that something kept restarting looked the same. Now, once a
+minute while the wait runs down:
+
+    idle: power off in 15 min (after 15 min idle)
+    idle: power off in 14 min (after 15 min idle)
+    ...
+
+Nothing while anything is going on -- the clock is restarted every pass
+then, so the idle time stays under a second -- and the first line after
+activity stops gives the whole wait. A line that keeps going back to
+the top value is something resetting the clock. At most one line a
+minute; 120 lines for a 2 h wait.
+
+Compiled clean at -O2 and -O3 against IDF v5.5.5's headers. Not on the
+board.

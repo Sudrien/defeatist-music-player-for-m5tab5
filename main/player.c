@@ -7698,6 +7698,27 @@ static void ui_task(void *arg)
                 s_last_active_us = now_us;
             }
             const int pd_s = powerdown_seconds(settings_poweroff_step());
+            {
+                /*
+                 * 6002: one line a minute while the wait runs down, so a
+                 * test of Power off can be watched from the console.
+                 * Quiet while anything is going on -- the clock is being
+                 * restarted every pass then -- and the first line after
+                 * activity ends says how long the whole wait is.
+                 */
+                static int logged_min = -1;
+                const int64_t idle_s = (now_us - s_last_active_us) / 1000000;
+                if (pd_s <= 0 || idle_s < 1) {
+                    logged_min = -1;
+                } else {
+                    const int left_min = (int)((pd_s - idle_s + 59) / 60);
+                    if (left_min != logged_min && left_min > 0) {
+                        logged_min = left_min;
+                        ESP_LOGI(TAG, "idle: power off in %d min (after %s idle)",
+                                 left_min, powerdown_label(settings_poweroff_step()));
+                    }
+                }
+            }
             if (powerdown_due(now_us, s_last_active_us, pd_s)) {
                 ESP_LOGW(TAG, "power off after %s with nothing going on",
                          powerdown_label(settings_poweroff_step()));

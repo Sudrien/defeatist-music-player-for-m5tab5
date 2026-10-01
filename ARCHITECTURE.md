@@ -19691,3 +19691,29 @@ section was not exercised (the fake plays nothing). Not run on the board.
 board's build. Designated, as every other ui_action_t initialiser in the
 tree already is; the field was zero either way, so nothing changes but
 the warning. Found by the build, not here -- no IDF.
+
+### 5272 -- storage: System Volume Information and $RECYCLE.BIN are hidden
+
+A v0.5.0 target. The chooser's comment and this file both said a card
+root "is mostly System Volume Information", and hid it only by accident:
+the folder is a directory, and the decoder_supports() filter that drops
+stray files lets every directory through. So it was a row in the
+chooser, in the remote's ls, in MPD's lsinfo and listfiles -- whose
+comment (5264's) already claimed "the volume's system folders" were
+left out -- and a folder the indexer walked and "play folder" opened.
+
+storage_is_hidden() is the one rule every scanner shares, so the names
+went there and nowhere else: "System Volume Information", which Windows
+writes to every volume it mounts, and "$RECYCLE.BIN", which it writes
+the first time anything on the volume is deleted and which holds files
+the listener threw away. Compared with strcasecmp() because FAT names
+are case-insensitive and Windows has written both spellings. Matched at
+any depth rather than only at a volume root: the check is per name and
+has no path, and a folder by either name further down is the same
+folder copied there.
+
+Not covered: cardtime.c and mpd.c's playlist scan test the leading dot
+themselves. cardtime still reads System Volume Information's times,
+which is unchanged behaviour; mpd.c's scan takes .m3u files only.
+
+Not built here -- no IDF.

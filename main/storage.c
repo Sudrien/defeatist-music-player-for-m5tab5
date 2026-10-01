@@ -5,6 +5,7 @@
  */
 
 #include <string.h>
+#include <strings.h>                /* 5272: strcasecmp */
 
 #include "driver/sdmmc_host.h"
 #include "esp_check.h"
@@ -217,7 +218,9 @@ bool storage_join_path(char *out, size_t out_len, const char *dir, const char *n
 
 bool storage_is_hidden(const char *name)
 {
-    return !name || name[0] == '.';
+    return !name || name[0] == '.' ||
+           strcasecmp(name, "System Volume Information") == 0 ||   /* 5272 */
+           strcasecmp(name, "$RECYCLE.BIN") == 0;
 }
 
 /*

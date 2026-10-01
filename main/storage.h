@@ -98,6 +98,10 @@ bool storage_join_path(char *out, size_t out_len, const char *dir, const char *n
 /*
  * Should this directory entry be ignored entirely?
  *
+ * True for the folders Windows puts on every volume it mounts --
+ * "System Volume Information" and "$RECYCLE.BIN", matched without case
+ * as FAT matches names -- which are the system's, not the listener's.
+ *
  * True for "." and "..", for dotfiles, and therefore for the "._Name.mp3"
  * AppleDouble sidecars macOS leaves on every FAT volume it touches. Those
  * are the reason this is shared rather than a line in each scanner: they

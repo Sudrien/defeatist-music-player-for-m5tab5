@@ -19717,3 +19717,31 @@ themselves. cardtime still reads System Volume Information's times,
 which is unchanged behaviour; mpd.c's scan takes .m3u files only.
 
 Not built here -- no IDF.
+
+### 5273 -- recorder: the level strip in decibels
+
+A v0.5.0 target, "a level meter while recording", which 5214 had
+already drawn -- the stream's strip, in the stream's units -- and which
+was still asked for. The units were the reason. The strip is linear,
+right for a station mastered to peak near full scale and wrong for a
+microphone on the ES7210's PGA alone: speech at arm's length peaks near
+-30 dBFS, two pixels of a 72 px column, and a quiet room is below
+-48 dBFS, where levelhist_push()'s `>> 7` makes the column zero. The
+recording strip drew flat.
+
+`levelhist_db_peak()` maps -60..0 dBFS onto push()'s 0..32767, and
+rec_in calls it in place of the shift to 16 bits. Measured on the host
+through peak_to_column() and ui.c's `v * 72 / 255`:
+
+    0 dBFS 72 px    -6 dBFS 64 px    -30 dBFS 35 px
+    -50 dBFS 11 px  -59 dBFS 1 px    below -60: ui.c's 1 px minimum
+
+Mapped from the input's own full scale, not after shifting a 24-bit
+read down to 16, because the bits that shift throws away are the quiet
+end -- the part a meter is for. Exact zero stays zero, so 5214's MUTED
+still draws as no strip at all. The ring, the read and the drawing are
+untouched, and so is the stream: only the recorder calls this.
+
+levelhist.h's "this is not a meter for setting gain" is still true of
+the stream's strip. Not built here -- no IDF; the mapping compiled and
+ran on the host. Not on the board.

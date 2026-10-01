@@ -321,7 +321,7 @@ static void rec_in_task(void *arg)
         s_hist_frames += (uint32_t)n;
         const int ms = (int)(s_hist_frames * 1000u / s_rate);
         s_hist_frames -= (uint32_t)ms * s_rate / 1000u;
-        levelhist_push(&s_hist, (int)(pk >> (s_bits - 16)), ms);
+        levelhist_push(&s_hist, levelhist_db_peak(pk, (int32_t)1 << (s_bits - 1)), ms);   /* 5273 */
         s_zero_frames = pk ? 0 : s_zero_frames + (uint32_t)n;
         portEXIT_CRITICAL(&s_mux);
         /* All of a read or none of it: a partial send would split a

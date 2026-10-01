@@ -48,6 +48,7 @@
 
 #include <stdbool.h>
 #include <stddef.h>
+#include <math.h>
 #include <stdint.h>
 #include <string.h>
 
@@ -275,6 +276,41 @@ static inline uint8_t levelhist_peak_to_column(int peak)
     if (v > 255) v = 255;
     if (v < 1) v = 1;
     return (uint8_t)v;
+}
+
+/*
+ * 5273: a recording's peak, put on a decibel scale for the strip.
+ *
+ * The strip is linear, which suits a station: it is mastered to peak
+ * near full scale, and a linear column says "was it playing" at a
+ * glance. A microphone on the ADC's PGA alone is not. Speech at arm's
+ * length peaks around -30 dBFS, which is two pixels of a 72 px column,
+ * and a quiet room sits below -48 dBFS, where push()'s shift turns the
+ * peak into a zero column. The recording strip drew flat, and the README
+ * still asked for a level meter while recording because of it.
+ *
+ * So the recorder maps first: LEVELHIST_DB_FLOOR..0 dBFS spread over
+ * the column, and the result handed to levelhist_push() in its usual
+ * 0..32767 units, so the ring, the read and ui.c's drawing are the
+ * stream's own. `full` is the input's full scale (1 << (bits - 1)), so
+ * a 24-bit microphone keeps the resolution below 16 bits that shifting
+ * down first would throw away -- which is exactly the quiet end.
+ *
+ * Exact zero stays zero, so a muted input (5214) still draws as
+ * nothing. Anything above zero is at least one column step, for the
+ * reason levelhist_peak_to_column() gives: quiet is not silent.
+ */
+#define LEVELHIST_DB_FLOOR (-60)
+
+static inline int levelhist_db_peak(int32_t peak, int32_t full)
+{
+    if (peak <= 0 || full <= 0) return 0;
+    if (peak >= full) return 32767;
+    const float db = 20.0f * log10f((float)peak / (float)full);
+    int v = (int)((db - LEVELHIST_DB_FLOOR) * (32767.0f / -LEVELHIST_DB_FLOOR));
+    if (v < 128) v = 128;               /* one column step: not silence */
+    if (v > 32767) v = 32767;
+    return v;
 }
 
 /*

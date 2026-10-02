@@ -43,6 +43,7 @@
 #include "wifistore.h"
 #include "wifijoin.h"
 #include "i18n.h"            /* 6024 */
+#include "esp_heap_caps.h"   /* 6027 */
 
 static const char *TAG = "tab5_portal";
 
@@ -106,7 +107,12 @@ static httpd_handle_t    s_httpd;
  * 6144-byte stack.
  */
 static i18n_lang_t       s_rl = I18N_EN;
-static char              s_msg[1024];
+/* 6027: from PSRAM, once (msg_buf()) -- 1 KB of internal .bss was part
+ * of what the Wi-Fi coprocessor's SDIO bring-up came up short of. */
+#define S_MSG_MAX 1024
+static char             *s_msg;
+static size_t            s_msg_cap;     /* S_MSG_MAX, or the fallback's */
+static char              s_msg_small[160];   /* if PSRAM is out: shorter, not NULL */
 static TickType_t        s_deadline;
 
 static SemaphoreHandle_t s_kick;                /* wakes the portal task */
@@ -268,6 +274,11 @@ static char s_lq[16];       /* "?lang=xx" while an override is in force, else ""
 
 static void req_lang(httpd_req_t *req)
 {
+    if (!s_msg) {
+        s_msg = heap_caps_malloc(S_MSG_MAX, MALLOC_CAP_SPIRAM | MALLOC_CAP_8BIT);
+        s_msg_cap = S_MSG_MAX;
+        if (!s_msg) { s_msg = s_msg_small; s_msg_cap = sizeof(s_msg_small); }
+    }
     char q[64], v[16];
     s_lq[0] = '\0';
     if (httpd_req_get_url_query_str(req, q, sizeof(q)) == ESP_OK &&
@@ -348,7 +359,7 @@ static void send_stations(httpd_req_t *req)
 
     const int have = stations_count();
     if (have >= STATIONLIST_MAX) {
-        snprintf(s_msg, sizeof(s_msg),
+        snprintf(s_msg, s_msg_cap,
                  _in(s_rl, "The list is full at %d stations. Remove one from "
                            "%s on the card to add another."),
                  STATIONLIST_MAX, "stations.m3u");
@@ -356,7 +367,7 @@ static void send_stations(httpd_req_t *req)
         return;
     }
 
-    snprintf(s_msg, sizeof(s_msg),
+    snprintf(s_msg, s_msg_cap,
              _in(s_rl, "Added to %s on the card. The name is optional — "
                        "without one the station is listed by its address."),
              "<code>stations.m3u</code>");
@@ -376,7 +387,7 @@ static void send_stations(httpd_req_t *req)
     chunk(req, "</button></form>");
 
     if (have > 0) {
-        snprintf(s_msg, sizeof(s_msg), _in(s_rl, "Already on the card (%d):"), have);
+        snprintf(s_msg, s_msg_cap, _in(s_rl, "Already on the card (%d):"), have);
         chunk_p(req, NULL, s_msg);
         chunk(req, "<ul>");
         for (int i = 0; i < have; i++) {
@@ -409,7 +420,7 @@ static esp_err_t send_form(httpd_req_t *req, const char *message)
      */
     if (station_mode()) {
         send_stations(req);
-        snprintf(s_msg, sizeof(s_msg),
+        snprintf(s_msg, s_msg_cap,
                  _in(s_rl, "To change Wi-Fi networks instead, use Network setup "
                            "on the player's screen. This page closes itself "
                            "after %d minutes."), PORTAL_TIMEOUT_S / 60);
@@ -460,7 +471,7 @@ static esp_err_t send_form(httpd_req_t *req, const char *message)
     chunk(req, _in(s_rl, "Join"));
     chunk(req, "</button></form>");
     if (s_hidden_n) {
-        snprintf(s_msg, sizeof(s_msg),
+        snprintf(s_msg, s_msg_cap,
                  _pin(s_rl, "%d hidden networks nearby. A hidden network's name "
                             "has to be typed.", s_hidden_n), s_hidden_n);
         chunk_p(req, NULL, s_msg);
@@ -493,18 +504,18 @@ static esp_err_t h_status(httpd_req_t *req)
     if (!portalweb_escape(st.last_ssid, esc, sizeof(esc))) esc[0] = '\0';
     switch (st.status) {
     case PORTAL_TRYING:
-        snprintf(s_msg, sizeof(s_msg),
+        snprintf(s_msg, s_msg_cap,
                  _in(s_rl, "Trying %s… This can take fifteen seconds, and "
                            "this phone may lose the setup network for a moment. "
                            "The player's screen shows the result either way."), esc);
         break;
     case PORTAL_SAVED:
-        snprintf(s_msg, sizeof(s_msg),
+        snprintf(s_msg, s_msg_cap,
                  _in(s_rl, "Joined and saved %s. The setup network is closing; "
                            "you can leave it."), esc);
         break;
     case PORTAL_FAILED:
-        snprintf(s_msg, sizeof(s_msg), "%s",
+        snprintf(s_msg, s_msg_cap, "%s",
                  last == ESP_ERR_NOT_FOUND
                  ? _in(s_rl, "That network was not found. Check the name and try again.")
                  : last == ESP_ERR_TIMEOUT
@@ -512,7 +523,7 @@ static esp_err_t h_status(httpd_req_t *req)
                  : _in(s_rl, "The password did not work. Try again."));
         break;
     default:
-        snprintf(s_msg, sizeof(s_msg), "%s", _in(s_rl, "Waiting for a network."));
+        snprintf(s_msg, s_msg_cap, "%s", _in(s_rl, "Waiting for a network."));
         break;
     }
     chunk_p(req, "m", s_msg);
@@ -657,7 +668,7 @@ static esp_err_t h_join(httpd_req_t *req)
         portalweb_non_ascii_hint(pass, hint, sizeof(hint));
         memset(pass, 0, sizeof(pass));
         if (!portalweb_escape(hint, esc_hint, sizeof(esc_hint))) esc_hint[0] = '\0';
-        snprintf(s_msg, sizeof(s_msg),
+        snprintf(s_msg, s_msg_cap,
                  _in(s_rl, "The password contains %s. A Wi-Fi password is plain "
                            "keyboard characters only; phones substitute these "
                            "when autocorrect or smart punctuation is on. Retype "

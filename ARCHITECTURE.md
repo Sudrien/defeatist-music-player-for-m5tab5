@@ -21082,3 +21082,33 @@ and changing it to Español switches the CSS-chosen text ("Cola"), an
 attribute ("opcional"), an option ("1 h"), the script-drawn queue
 message ("Vacía.") and stores "es". Not in a real browser, not on the
 board.
+
+### 6027 -- the web pages' buffers out of internal RAM
+
+Found on the board after 6026: the Wi-Fi coprocessor's SDIO bring-up
+failed at boot, fifteen times in a row, on a 512-byte DMA-capable
+allocation in sdmmc_card_init() -- "allocation failed: 512 bytes, caps
+0x00000008" -- and the radio stayed down (esp_hosted_connect_to_slave:
+-5).
+
+The cause was this series. 6024 added a 1 KB static message buffer to
+portal.c and 6025 two static escape buffers, 6 KB, to remote.c: .bss,
+which is internal RAM, the same DMA-capable pool the bring-up draws
+from. 6009-6011 had just settled the recording's 12 KB DMA reserve,
+taken at boot ahead of the Wi-Fi, with what was left measured to the
+kilobyte; 7 KB more of .bss took the rest. The translation tables are
+const and live in flash; they were never the problem.
+
+remote.c's h_page() now takes its two buffers from PSRAM for the length
+of the request, freeing them after, and serves the page in English if
+PSRAM refuses. portal.c's message buffer is a PSRAM allocation made on
+the first request and kept, with a 160-byte static fallback so a
+refusal shortens a message rather than crashing. Internal RAM is back
+to what 6023 used.
+
+The rule this restates is CLAUDE.md's about stacks, applied to .bss:
+a buffer of a few kilobytes on this device belongs in PSRAM unless DMA
+needs it.
+
+Not compiled with ESP-IDF here. The board is the check: the bring-up
+should reach "Card init success" again.

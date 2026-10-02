@@ -7,17 +7,215 @@
 ja:
   singular:
     # panel.c
+    "%.32s did not work. Try again.": "%.32s は失敗。再試行を。"
+    # panel.c
     "%d s": "%d 秒"
+    # panel.c
+    "%u KB free": "空き %u KB"
+    # panel.c
+    "%u bytes": "%u バイト"
+    # panel.c
+    "%u s": "%u 秒"
+    # powerdown.h
+    "1 h": "1時間"
+    # screendim.h
+    "1 min": "1分"
+    # powerdown.h
+    "15 min": "15分"
+    # screendim.h
+    "15 s": "15秒"
+    # powerdown.h, sleeppage.c
+    "2 h": "2時間"
+    # screendim.h
+    "2 min": "2分"
+    # powerdown.h
+    "30 min": "30分"
+    # screendim.h
+    "30 s": "30秒"
+    # screendim.h
+    "5 min": "5分"
+    # panel.c
+    "A phone supplies the password.": "パスワードはスマホから。"
+    # panel.c
+    "A sign-in page opens with the form.": "フォーム付きの画面が開く。"
+    # panel.c
+    "About twenty seconds.": "約20秒。"
+    # panel.c
+    "Add a network": "ネットワーク追加"
+    # panel.c
+    "Add a radio station to the card.": "カードに局を追加。"
+    # panel.c
+    "Benchmark": "速度測定"
+    # sleeppage.c
+    "Brightness   %d%%": "明るさ   %d%%"
+    # panel.c
+    "Cert %.29s...": "証明書 %.29s..."
+    # panel.c
+    "Clock": "時計"
+    # panel.c
+    "Connect an MPD app to %s": "MPDアプリで %s に接続"
+    # panel.c
+    "Connected to %.32s.": "%.32s に接続済み。"
+    # panel.c
+    "Could not start.": "起動できなかった。"
     # panel.c
     "Crossfade   %d s": "クロスフェード   %d 秒"
     # panel.c
     "Crossfade   off": "クロスフェード   オフ"
+    # sleeppage.c
+    "Dim screen": "画面を暗く"
+    # panel.c
+    "Join %s on a phone.": "スマホで %s に接続。"
+    # panel.c
+    "Libraries": "ライブラリ"
+    # panel.c
+    "MPD server": "MPDサーバー"
+    # panel.c
+    "Needs a network: Wi-Fi or a cable.": "ネットワークが必要：Wi-Fiかケーブル。"
+    # panel.c
+    "Network time": "ネット時刻"
+    # powerdown.h, screendim.h
+    "Never": "しない"
+    # panel.c
+    "No app connected.": "接続中のアプリなし。"
     # panel.c
     "OFF": "オフ"
     # panel.c
     "ON": "オン"
     # panel.c
+    "On a phone, open http://%s/": "スマホで http://%s/ を開く"
+    # panel.c
+    "Open %s": "%s を開く"
+    # panel.c
+    "Playback pauses while setup runs.": "設定中は再生を一時停止。"
+    # sleeppage.c
+    "Power off": "電源オフ"
+    # panel.c
+    "Record from": "録音元"
+    # panel.c
+    "Remote control": "リモコン"
+    # sleeppage.c
+    "Rotation": "回転"
+    # panel.c
+    "Same Wi-Fi as the player. %u:%02u left": "本機と同じWi-Fi。残り %u:%02u"
+    # panel.c
     "Same album": "同じアルバム"
     # panel.c
+    "Saved %.32s.": "%.32s を保存。"
+    # sleeppage.c
+    "Screen": "画面"
+    # sleeppage.c
+    "Screen off": "画面オフ"
+    # panel.c
+    "Setup closed after five minutes.": "設定は5分で閉じた。"
+    # panel.c
+    "Setup could not start.": "設定を開始できなかった。"
+    # sleeppage.c
+    "Sleep": "スリープ"
+    # sleeppage.c
+    "Sleep timer   %d min": "スリープタイマー   %d 分"
+    # sleeppage.c
+    "Sleep timer   %ld:%02ld": "スリープタイマー   %ld:%02ld"
+    # sleeppage.c
+    "Sleep timer   off": "スリープタイマー   オフ"
+    # panel.c
+    "Source": "ソース"
+    # panel.c
+    "Starting...": "起動中..."
+    # panel.c
+    "Station needs %d -- that is %d%%": "局の必要量 %d、その %d%%"
+    # panel.c
+    "The station does not say what it needs.": "局は必要量を示していない。"
+    # panel.c
+    "Trying %.32s...": "%.32s を試行中..."
+    # panel.c
+    "Turn Wi-Fi on first.": "先にWi-Fiをオン。"
+    # audio_out.c
+    "USB audio": "USBオーディオ"
+    # panel.c
+    "a guess": "推定"
+    # panel.c
+    "app": "アプリ"
+    # panel.c
+    "built": "ビルド日時"
+    # panel.c
+    "capacity": "容量"
+    # panel.c
+    "coming up": "起動中"
+    # panel.c
+    "connected": "接続済み"
+    # panel.c
+    "drive": "ドライブ"
+    # panel.c
+    "failed; the log says why": "失敗。理由はログに"
+    # panel.c
+    "from NTP": "NTPより"
+    # audio_out.c
+    "headphones": "ヘッドホン"
+    # panel.c
+    "headset": "ヘッドセット"
+    # panel.c
+    "index": "索引"
+    # panel.c
+    "indexing, %d so far": "索引作成中、%d 曲まで"
+    # panel.c
+    "maker": "メーカー"
+    # panel.c
+    "mount": "マウント"
+    # panel.c
+    "mounted": "マウント済み"
+    # panel.c
+    "name": "名前"
+    # panel.c
+    "no card in the slot": "スロットにカードなし"
+    # panel.c
+    "none": "なし"
+    # panel.c
+    "not run this session": "この起動では未実行"
+    # panel.c, sleeppage.c
     "off": "オフ"
+    # panel.c
+    "on": "オン"
+    # panel.c
+    "port": "ポート"
+    # panel.c
+    "product": "製品"
+    # panel.c
+    "route": "出力"
+    # panel.c
+    "sector": "セクタ"
+    # audio_out.c
+    "speaker": "スピーカー"
+    # panel.c
+    "speed": "速度"
+    # panel.c
+    "starts in a few seconds": "数秒後に開始"
+    # panel.c
+    "state": "状態"
+    # panel.c
+    "stopped: the volume went away": "停止：ボリュームが外れた"
+    # panel.c
+    "the setup network": "設定用ネットワーク"
+    # panel.c
+    "this player": "この機器"
+    # panel.c
+    "type": "種類"
+    # panel.c
+    "uptime": "稼働時間"
+    # panel.c
+    "version": "バージョン"
+    # panel.c
+    "waiting for a drive": "ドライブ待ち"
+    # panel.c
+    "was damaged; reindex rebuilds it": "破損。再索引で作り直す"
   plural:
+    "%d apps connected.":
+      other: "%d 個のアプリが接続中。"
+    "%d tracks (+%d ~%d -%d), %d s":
+      other: "%d 曲 (+%d ~%d -%d)、%d 秒"
+    "%d tracks, unchanged, %d s":
+      other: "%d 曲、更新なし、%d 秒"
+    "%u phones joined, %u:%02u left":
+      other: "%u 台が接続、残り %u:%02u"
+    "Not connected. %d networks saved.":
+      other: "未接続。保存済み %d 件。"

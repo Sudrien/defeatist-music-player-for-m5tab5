@@ -8,6 +8,11 @@
  * what the generator promised: the keys are in strcmp order with no
  * duplicates, so bsearch finds every one of them, in every language.
  *
+ * 6016: and that every character of every translation is in Ark12. The
+ * 12px cut holds 18299 of the CJK block, not all of it, and a missing
+ * one draws as a notdef box -- nothing fails, the word is just wrong on
+ * the board. Here it fails.
+ *
  * What it cannot see: whether a translation fits its button. That is
  * the board's to show.
  *
@@ -15,9 +20,13 @@
  */
 #include <assert.h>
 #include <stdio.h>
+#include <stdint.h>
 #include <string.h>
 
 #include "i18n.h"
+#ifndef I18NTEST_FIXTURE
+#include "ark12.h"
+#endif
 
 #ifdef I18NTEST_FIXTURE
 /* Sorted by strcmp, as the generator writes them. */
@@ -90,9 +99,46 @@ static void fixture(void)
 }
 #else
 extern const char *const i18n_vals[];
+extern const char *const i18n_pvals[];
+
+/* Every codepoint of s in the font; names the first one that is not. */
+static int glyphs_ok(const char *s, const char *what)
+{
+    const unsigned char *p = (const unsigned char *)s;
+    while (*p) {
+        uint32_t cp;
+        int n;
+        if (*p < 0x80)           { cp = *p; n = 1; }
+        else if (*p >> 5 == 6)   { cp = *p & 0x1F; n = 2; }
+        else if (*p >> 4 == 14)  { cp = *p & 0x0F; n = 3; }
+        else                     { cp = *p & 0x07; n = 4; }
+        for (int i = 1; i < n; i++) {
+            assert((p[i] & 0xC0) == 0x80);          /* well-formed UTF-8 */
+            cp = (cp << 6) | (p[i] & 0x3F);
+        }
+        int w;
+        uint16_t rows[ARK12_H];
+        if (!ark12_glyph(cp, &w, rows)) {
+            fprintf(stderr, "i18ntest: U+%04X in %s is not in Ark12: \"%s\"\n",
+                   (unsigned)cp, what, s);
+            return 0;
+        }
+        p += n;
+    }
+    return 1;
+}
 
 static void real_table(void)
 {
+    int ok = 1;
+    for (unsigned i = 0; i < I18N_LANG_COUNT * i18n_count; i++)
+        if (i18n_vals[i]) ok &= glyphs_ok(i18n_vals[i], i18n_lang_name((i18n_lang_t)(i / i18n_count)));
+    for (unsigned i = 0; i < I18N_LANG_COUNT * i18n_pcount * 2; i++)
+        if (i18n_pvals[i]) ok &= glyphs_ok(i18n_pvals[i], i18n_lang_name((i18n_lang_t)(i / (i18n_pcount * 2))));
+    for (int l = 0; l < I18N_LANG_COUNT; l++)
+        ok &= glyphs_ok(i18n_lang_name((i18n_lang_t)l), "the picker");
+    assert(ok);
+
     for (unsigned i = 1; i < i18n_count; i++)
         assert(strcmp(i18n_keys[i - 1], i18n_keys[i]) < 0);
     for (unsigned i = 1; i < i18n_pcount; i++)

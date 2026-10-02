@@ -15,6 +15,8 @@ THE MARKERS (main/i18n.h):
                                 which cannot call a function; pass the
                                 pointer through _() where it is drawn
     _p("%d tracks", n)          plural; the YAML holds one/other
+    same("NET")                 deliberately English: a landmark, a name,
+                                a unit. Not extracted; marks a decision
 
 The key is the English text itself, so an unmarked or untranslated
 string costs nothing and draws as English: _() of a string the table
@@ -84,6 +86,7 @@ _LEX = re.compile(r'//[^\n]*|/\*.*?\*/|"(?:\\.|[^"\\\n])*"|\'(?:\\.|[^\'\\\n])*\
 _STR = r'"(?:\\.|[^"\\\n])*"'
 _CALL = re.compile(r'(?<![A-Za-z0-9_])(_p|N_|_)\(\s*((?:' + _STR + r'\s*)+)([,)])')
 _ANY = re.compile(r'(?<![A-Za-z0-9_])(_p|N_|_)\(')
+_SAME = re.compile(r'(?<![A-Za-z0-9_])same\(\s*((?:' + _STR + r'\s*)+)\)')
 
 _C_ESC = {"n": "\n", "t": "\t", "r": "\r", "\\": "\\", '"': '"', "'": "'",
           "0": "\0", "a": "\a", "b": "\b", "f": "\f", "v": "\v", "?": "?"}
@@ -135,7 +138,7 @@ def scan_sources():
     """-> ({msgid: [where]}, {plural msgid: [where]}). Exits on a marker
     whose argument is not a literal: the extractor cannot see it, so it
     would silently never be translated."""
-    singular, plural, bad = {}, {}, []
+    singular, plural, bad, same = {}, {}, [], {}
     for name in sorted(os.listdir(SRC_DIR)):
         if not name.endswith((".c", ".h")) or name in ("i18n_tab.c", "i18n.h"):
             continue
@@ -143,6 +146,9 @@ def scan_sources():
         with open(path, encoding="utf-8") as f:
             text = _strip_comments(f.read())
         found = set()
+        for m in _SAME.finditer(text):
+            msgid = "".join(_c_literal(s) for s in re.findall(_STR, m.group(1)))
+            same.setdefault(msgid, name)
         for m in _CALL.finditer(text):
             found.add(m.start())
             kind = m.group(1)
@@ -170,6 +176,10 @@ def scan_sources():
                            "string literal")
     if bad:
         sys.exit("i18n: the extractor cannot read these:\n  " + "\n  ".join(bad))
+    both = sorted(k for k in same if k in singular or k in plural)
+    if both:
+        sys.exit("i18n: marked same() in one place and translated in another: "
+                 + ", ".join(repr(k) for k in both))
     for k in plural:
         if k in singular:
             sys.exit(f"i18n: {k!r} is used both as _() and _p()")

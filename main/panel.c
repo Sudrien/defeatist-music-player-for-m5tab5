@@ -104,8 +104,9 @@ typedef enum {
     TAB_COUNT
 } panel_tab_t;
 
-static const char *const k_tab_name[TAB_COUNT] = { "SD", "USB", "BUILD",
-                                                   "AUDIO", "NET" };
+/* 6016: same() -- the way back from a language nobody can read. */
+static const char *const k_tab_name[TAB_COUNT] = { same("SD"), same("USB"), same("BUILD"),
+                                                   same("AUDIO"), same("NET") };
 
 /*
  * A drag on the crossfade slider.
@@ -199,27 +200,28 @@ static int index_row(row_t *rows, int n, storage_id_t vol)
 
     switch (st.state) {
     case MEDIALIB_RUNNING:
-        return row_add(rows, n, "index", false, "indexing, %d so far", tracks);
+        return row_add(rows, n, _("index"), false, _("indexing, %d so far"), tracks);
     case MEDIALIB_DONE:
         if (c->add || c->update || c->revive || c->bury) {
-            return row_add(rows, n, "index", false,
-                           "%d tracks (+%d ~%d -%d), %d s", tracks,
+            return row_add(rows, n, _("index"), false,
+                           _p("%d tracks (+%d ~%d -%d), %d s", tracks), tracks,
                            c->add + c->revive, c->update, c->bury,
                            (st.ms + 500) / 1000);
         }
-        return row_add(rows, n, "index", false, "%d tracks, unchanged, %d s",
+        return row_add(rows, n, _("index"), false,
+                       _p("%d tracks, unchanged, %d s", tracks),
                        tracks, (st.ms + 500) / 1000);
     case MEDIALIB_STOPPED:
-        return row_add(rows, n, "index", true, "stopped: the volume went away");
+        return row_add(rows, n, _("index"), true, "%s", _("stopped: the volume went away"));
     case MEDIALIB_FAILED:
-        return row_add(rows, n, "index", true, "%s",
-                       c->index_damaged ? "was damaged; reindex rebuilds it"
-                                        : "failed; the log says why");
+        return row_add(rows, n, _("index"), true, "%s",
+                       c->index_damaged ? _("was damaged; reindex rebuilds it")
+                                        : _("failed; the log says why"));
     case MEDIALIB_NONE:
     default:
-        return row_add(rows, n, "index", true, "%s",
-                       st.pending ? "starts in a few seconds"
-                                  : "not run this session");
+        return row_add(rows, n, _("index"), true, "%s",
+                       st.pending ? _("starts in a few seconds")
+                                  : _("not run this session"));
     }
 }
 
@@ -229,19 +231,19 @@ static int build_sd(row_t *rows)
     storage_sd_info(&sd);
 
     int n = 0;
-    n = row_add(rows, n, "state", !sd.present, "%s",
-                sd.present ? "mounted" : "no card in the slot");
+    n = row_add(rows, n, _("state"), !sd.present, "%s",
+                sd.present ? _("mounted") : _("no card in the slot"));
     if (!sd.present) return n;
 
-    n = row_add(rows, n, "mount", false, "%s", storage_mount_path(STORAGE_SD));
-    n = row_add(rows, n, "name", false, "%s", sd.name[0] ? sd.name : "-");
-    n = row_add(rows, n, "type", false, "%s", sd.type);
-    n = row_add(rows, n, "capacity", false, "%llu MB",
+    n = row_add(rows, n, _("mount"), false, "%s", storage_mount_path(STORAGE_SD));
+    n = row_add(rows, n, _("name"), false, "%s", sd.name[0] ? sd.name : "-");
+    n = row_add(rows, n, _("type"), false, "%s", sd.type);
+    n = row_add(rows, n, _("capacity"), false, same("%llu MB"),
                 (unsigned long long)sd.capacity_mb);
     /* The negotiated clock and the width together, because they multiply:
      * 4-bit at 40 MHz and 1-bit at 40 MHz are a factor of four apart and
      * only one of them is the bus working. */
-    n = row_add(rows, n, "speed", false, "%d kHz, %d-bit",
+    n = row_add(rows, n, _("speed"), false, same("%d kHz, %d-bit"),
                 sd.speed_khz, sd.bus_width);
     return index_row(rows, n, STORAGE_SD);
 }
@@ -256,35 +258,35 @@ static int build_usb(row_t *rows)
      * the pill drawn over it says what it has been asked to do, and
      * "asked for, still coming up" is a real state worth being able to
      * see the difference of. */
-    n = row_add(rows, n, "port", !usbhost_vbus_on(), "%s",
-                !usbhost_vbus_on() ? "off"
-                : usbhost_running() ? "on"
-                                    : "coming up");
+    n = row_add(rows, n, _("port"), !usbhost_vbus_on(), "%s",
+                !usbhost_vbus_on() ? _("off")
+                : usbhost_running() ? _("on")
+                                    : _("coming up"));
 
     /*
      * The audio device is on this tab and not on AUDIO, because the
      * question it answers is "did the thing I plugged in enumerate" --
      * which is a port question. AUDIO is where preferences live.
      */
-    n = row_add(rows, n, "headset", !uac_present(), "%s",
-                uac_present() ? (uac_product() ? uac_product() : "connected")
-                              : "none");
-    n = row_add(rows, n, "route", false, "%s", audio_out_route_name());
+    n = row_add(rows, n, _("headset"), !uac_present(), "%s",
+                uac_present() ? (uac_product() ? uac_product() : _("connected"))
+                              : _("none"));
+    n = row_add(rows, n, _("route"), false, "%s", _(audio_out_route_name()));
 
-    n = row_add(rows, n, "drive", !usb.present, "%s",
-                usb.present ? "mounted"
-                            : usb.powered ? "waiting for a drive" : "-");
+    n = row_add(rows, n, _("drive"), !usb.present, "%s",
+                usb.present ? _("mounted")
+                            : usb.powered ? _("waiting for a drive") : "-");
     if (!usb.present) return n;
 
-    n = row_add(rows, n, "mount", false, "%s", storage_mount_path(STORAGE_USB));
-    n = row_add(rows, n, "product", false, "%s",
+    n = row_add(rows, n, _("mount"), false, "%s", storage_mount_path(STORAGE_USB));
+    n = row_add(rows, n, _("product"), false, "%s",
                 usb.product[0] ? usb.product : "-");
-    n = row_add(rows, n, "maker", false, "%s",
+    n = row_add(rows, n, _("maker"), false, "%s",
                 usb.manufacturer[0] ? usb.manufacturer : "-");
-    n = row_add(rows, n, "id", false, "%04X:%04X", usb.vid, usb.pid);
-    n = row_add(rows, n, "capacity", false, "%llu MB",
+    n = row_add(rows, n, same("id"), false, "%04X:%04X", usb.vid, usb.pid);
+    n = row_add(rows, n, _("capacity"), false, same("%llu MB"),
                 (unsigned long long)usb.capacity_mb);
-    n = row_add(rows, n, "sector", false, "%u bytes",
+    n = row_add(rows, n, _("sector"), false, _("%u bytes"),
                 (unsigned)usb.sector_size);
     return index_row(rows, n, STORAGE_USB);
 }
@@ -308,12 +310,12 @@ static int build_build(row_t *rows)
     int n = 0;
     /* 6015: row 0 is the language switch, drawn over it as the USB
      * tab's power switch is. See draw_lang_switch(). */
-    n = row_add(rows, n, "language", false, "%s", "");
-    n = row_add(rows, n, "app", false, "%s", PANEL_APP_NAME);     /* 5283 */
-    n = row_add(rows, n, "version", false, "%s", d ? d->version : "?");
-    n = row_add(rows, n, "built", false, "%s %s",
+    n = row_add(rows, n, same("language"), false, "%s", "");
+    n = row_add(rows, n, _("app"), false, "%s", PANEL_APP_NAME);     /* 5283 */
+    n = row_add(rows, n, _("version"), false, "%s", d ? d->version : "?");
+    n = row_add(rows, n, _("built"), false, "%s %s",
                 d ? d->date : "?", d ? d->time : "");
-    n = row_add(rows, n, "idf", false, "%s", d ? d->idf_ver : IDF_VER);
+    n = row_add(rows, n, same("idf"), false, "%s", d ? d->idf_ver : IDF_VER);
 
     /*
      * Free heap in both places, because they fail differently and the
@@ -322,11 +324,11 @@ static int build_build(row_t *rows)
      * and the cover decoder live in, and 7 MB of rings against a total
      * that has drifted down is how a leak in the art path would show.
      */
-    n = row_add(rows, n, "heap", false, "%u KB free",
+    n = row_add(rows, n, same("heap"), false, _("%u KB free"),
                 (unsigned)(heap_caps_get_free_size(MALLOC_CAP_INTERNAL) / 1024));
-    n = row_add(rows, n, "psram", false, "%u KB free",
+    n = row_add(rows, n, same("psram"), false, _("%u KB free"),
                 (unsigned)(heap_caps_get_free_size(MALLOC_CAP_SPIRAM) / 1024));
-    n = row_add(rows, n, "uptime", false, "%u s",
+    n = row_add(rows, n, _("uptime"), false, _("%u s"),
                 (unsigned)(pdTICKS_TO_MS(xTaskGetTickCount()) / 1000));
     return n;
 }
@@ -667,13 +669,13 @@ static int draw_note(int y, const char *const *lines, int count)
 static int draw_build_notes(int y)
 {
     y += AUDIO_NOTE_GAP;
-    gfx_draw_text(24, y, "Source", LABEL_SCALE, gfx_w() - 48, C_TEXT);
+    gfx_draw_text(24, y, _("Source"), LABEL_SCALE, gfx_w() - 48, C_TEXT);
     y += AUDIO_NOTE_STEP;
     static const char *const src[] = { PANEL_SOURCE_1, PANEL_SOURCE_2 };
     y = draw_note(y, src, 2);
 
     y += AUDIO_NOTE_GAP;
-    gfx_draw_text(24, y, "Libraries", LABEL_SCALE, gfx_w() - 48, C_TEXT);
+    gfx_draw_text(24, y, _("Libraries"), LABEL_SCALE, gfx_w() - 48, C_TEXT);
     y += AUDIO_NOTE_STEP;
     return draw_note(y, k_libversions, LIBVERSIONS_COUNT);
 }
@@ -781,7 +783,7 @@ static void bench_lines(const bench_result_t *b, bool wifi,
     for (int i = 0; i < NET_BENCH_NOTE_LINES; i++) l[i][0] = '\0';
 
     if (!wifi) {    /* 5096: `wifi` is any network here, cable included */
-        snprintf(l[0], 64, "Needs a network: Wi-Fi or a cable.");
+        snprintf(l[0], 64, "%s", _("Needs a network: Wi-Fi or a cable."));
         return;
     }
     if (b->running) {
@@ -791,7 +793,7 @@ static void bench_lines(const bench_result_t *b, bool wifi,
          * one -- 48 of the 64 there are. */
         snprintf(l[0], 64, "Reading %.20s without decoding...",
                  b->name[0] ? b->name : "the station");
-        snprintf(l[1], 64, "About twenty seconds.");
+        snprintf(l[1], 64, "%s", _("About twenty seconds."));
         return;
     }
     if (!b->have) {
@@ -811,10 +813,10 @@ static void bench_lines(const bench_result_t *b, bool wifi,
     snprintf(l[0], 64, "%.16s: %d mean, %d peak kbit/s", b->name,
              b->kbps_avg, b->kbps_peak);
     if (b->declared_kbps > 0) {
-        snprintf(l[1], 64, "Station needs %d -- that is %d%%",
+        snprintf(l[1], 64, _("Station needs %d -- that is %d%%"),
                  b->declared_kbps, (b->kbps_avg * 100) / b->declared_kbps);
     } else {
-        snprintf(l[1], 64, "The station does not say what it needs.");
+        snprintf(l[1], 64, "%s", _("The station does not say what it needs."));
     }
     /*
      * The read-size comparison replaces the byte/time line, which was
@@ -823,10 +825,10 @@ static void bench_lines(const bench_result_t *b, bool wifi,
      * see. 3 + 11 + 6 + 11 + 8 + NUL = 40 of 64, counted.
      */
     if (b->kbps_read_big > 0 && b->kbps_read_small > 0) {
-        snprintf(l[2], 64, "8K %d / 2K %d kbit/s",
+        snprintf(l[2], 64, same("8K %d / 2K %d kbit/s"),
                  b->kbps_read_big, b->kbps_read_small);
     } else {
-        snprintf(l[2], 64, "%u KB in %u ms", (unsigned)(b->bytes / 1024),
+        snprintf(l[2], 64, same("%u KB in %u ms"), (unsigned)(b->bytes / 1024),
                  (unsigned)b->ms);
     }
 }
@@ -848,49 +850,49 @@ static void setup_lines(const portal_state_t *st, bool wifi, bool running,
          * without the DNS hijack no sign-in sheet appears by itself.
          * The address has to be read off this screen and typed.
          */
-        snprintf(l[0], 64, "On a phone, open http://%s/",
-                 st->url_ip[0] ? st->url_ip : "this player");
+        snprintf(l[0], 64, _("On a phone, open http://%s/"),
+                 st->url_ip[0] ? st->url_ip : _("this player"));
         switch (st->status) {
-        case PORTAL_STARTING: snprintf(l[1], 64, "Starting..."); break;
-        case PORTAL_ERROR:    snprintf(l[1], 64, "Could not start."); break;
-        default:              snprintf(l[1], 64, "Add a radio station to the card."); break;
+        case PORTAL_STARTING: snprintf(l[1], 64, "%s", _("Starting...")); break;
+        case PORTAL_ERROR:    snprintf(l[1], 64, "%s", _("Could not start.")); break;
+        default:              snprintf(l[1], 64, "%s", _("Add a radio station to the card.")); break;
         }
-        snprintf(l[2], 64, "Same Wi-Fi as the player. %u:%02u left",
+        snprintf(l[2], 64, _("Same Wi-Fi as the player. %u:%02u left"),
                  (unsigned)(st->seconds_left / 60),
                  (unsigned)(st->seconds_left % 60));
         return;
     }
 
     if (running) {
-        snprintf(l[0], 64, "Join %s on a phone.", st->ap_ssid[0] ? st->ap_ssid : "the setup network");
+        snprintf(l[0], 64, _("Join %s on a phone."), st->ap_ssid[0] ? st->ap_ssid : _("the setup network"));
         switch (st->status) {
-        case PORTAL_STARTING: snprintf(l[1], 64, "Starting..."); break;
-        case PORTAL_TRYING:   snprintf(l[1], 64, "Trying %.32s...", st->last_ssid); break;
-        case PORTAL_FAILED:   snprintf(l[1], 64, "%.32s did not work. Try again.", st->last_ssid); break;
-        case PORTAL_SAVED:    snprintf(l[1], 64, "Saved %.32s.", st->last_ssid); break;
-        default:              snprintf(l[1], 64, "A sign-in page opens with the form."); break;
+        case PORTAL_STARTING: snprintf(l[1], 64, "%s", _("Starting...")); break;
+        case PORTAL_TRYING:   snprintf(l[1], 64, _("Trying %.32s..."), st->last_ssid); break;
+        case PORTAL_FAILED:   snprintf(l[1], 64, _("%.32s did not work. Try again."), st->last_ssid); break;
+        case PORTAL_SAVED:    snprintf(l[1], 64, _("Saved %.32s."), st->last_ssid); break;
+        default:              snprintf(l[1], 64, "%s", _("A sign-in page opens with the form.")); break;
         }
-        snprintf(l[2], 64, "%u phone%s joined, %u:%02u left", (unsigned)st->clients,
-                 st->clients == 1 ? "" : "s",
+        snprintf(l[2], 64, _p("%u phones joined, %u:%02u left", st->clients),
+                 (unsigned)st->clients,
                  (unsigned)(st->seconds_left / 60), (unsigned)(st->seconds_left % 60));
         return;
     }
 
     char ssid[33];
     if (wifi && wifi_sta_ssid(ssid, sizeof(ssid))) {
-        snprintf(l[0], 64, "Connected to %.32s.", ssid);
+        snprintf(l[0], 64, _("Connected to %.32s."), ssid);
     } else {
         const int n = wifistore_count();
-        snprintf(l[0], 64, "Not connected. %d network%s saved.", n, n == 1 ? "" : "s");
+        snprintf(l[0], 64, _p("Not connected. %d networks saved.", n), n);
     }
     switch (st->status) {
-    case PORTAL_SAVED:    snprintf(l[1], 64, "Saved %.32s.", st->last_ssid); break;
-    case PORTAL_TIMEDOUT: snprintf(l[1], 64, "Setup closed after five minutes."); break;
-    case PORTAL_ERROR:    snprintf(l[1], 64, "Setup could not start."); break;
-    default:              snprintf(l[1], 64, "A phone supplies the password."); break;
+    case PORTAL_SAVED:    snprintf(l[1], 64, _("Saved %.32s."), st->last_ssid); break;
+    case PORTAL_TIMEDOUT: snprintf(l[1], 64, "%s", _("Setup closed after five minutes.")); break;
+    case PORTAL_ERROR:    snprintf(l[1], 64, "%s", _("Setup could not start.")); break;
+    default:              snprintf(l[1], 64, "%s", _("A phone supplies the password.")); break;
     }
-    snprintf(l[2], 64, "%s", !wifi ? "Turn Wi-Fi on first."
-                                   : "Playback pauses while setup runs.");
+    snprintf(l[2], 64, "%s", !wifi ? _("Turn Wi-Fi on first.")
+                                   : _("Playback pauses while setup runs."));
 }
 
 /*
@@ -927,7 +929,7 @@ static int draw_net(void)
     /* --- Wi-Fi ------------------------------------------------------ */
     wifi_switch_box(&x, &y, &bw, &bh);
     gfx_fill_rect(x, y, bw, bh, C_ROW);
-    gfx_draw_text(24, y + (bh - GFX_GLYPH_H(NAME_SCALE)) / 2, "Wi-Fi",
+    gfx_draw_text(24, y + (bh - GFX_GLYPH_H(NAME_SCALE)) / 2, same("Wi-Fi"),
                   NAME_SCALE, 400, C_TEXT);
     {
         const int pw = 132, ph = 56;
@@ -951,7 +953,7 @@ static int draw_net(void)
     /* --- Remote control (5117) -------------------------------------- */
     remote_box(&x, &y, &bw, &bh);
     gfx_fill_rect(x, y, bw, bh, C_ROW);
-    gfx_draw_text(24, y + (bh - GFX_GLYPH_H(NAME_SCALE)) / 2, "Remote control",
+    gfx_draw_text(24, y + (bh - GFX_GLYPH_H(NAME_SCALE)) / 2, _("Remote control"),
                   NAME_SCALE, 400, netok ? C_TEXT : C_DISABLED);
     {
         const bool pref = settings_remote_enabled();
@@ -969,7 +971,7 @@ static int draw_net(void)
         const char *rn[NET_REMOTE_NOTE_LINES];
         char url[48];
         if (remote_running() && remote_url(url, sizeof(url))) {
-            snprintf(url_line, sizeof(url_line), "Open %s", url);
+            snprintf(url_line, sizeof(url_line), _("Open %s"), url);
             rn[0] = url_line;
             /* 5121: the start of the certificate's fingerprint, to match
              * against the browser's one-time warning. 10 of 32 bytes is
@@ -977,7 +979,7 @@ static int draw_net(void)
             static char fp_line[48];
             char fp[96];
             if (devcert_fingerprint(fp, sizeof(fp))) {
-                snprintf(fp_line, sizeof(fp_line), "Cert %.29s...", fp);
+                snprintf(fp_line, sizeof(fp_line), _("Cert %.29s..."), fp);
                 rn[1] = fp_line;
             } else {
                 rn[1] = "in a browser on the same network.";
@@ -1001,7 +1003,7 @@ static int draw_net(void)
     /* --- MPD server (5158) ------------------------------------------ */
     mpd_box(&x, &y, &bw, &bh);
     gfx_fill_rect(x, y, bw, bh, C_ROW);
-    gfx_draw_text(24, y + (bh - GFX_GLYPH_H(NAME_SCALE)) / 2, "MPD server",
+    gfx_draw_text(24, y + (bh - GFX_GLYPH_H(NAME_SCALE)) / 2, _("MPD server"),
                   NAME_SCALE, 400, netok ? C_TEXT : C_DISABLED);
     {
         const bool pref = settings_mpd_enabled();
@@ -1016,12 +1018,11 @@ static int draw_net(void)
         const char *mn[NET_MPD_NOTE_LINES];
         char addr[32];
         if (mpd_running() && mpd_address(addr, sizeof(addr))) {
-            snprintf(addr_line, sizeof(addr_line), "Connect an MPD app to %s", addr);
+            snprintf(addr_line, sizeof(addr_line), _("Connect an MPD app to %s"), addr);
             mn[0] = addr_line;
             const int n = mpd_clients();
-            if (n == 0)      snprintf(who_line, sizeof(who_line), "No app connected.");
-            else if (n == 1) snprintf(who_line, sizeof(who_line), "1 app connected.");
-            else             snprintf(who_line, sizeof(who_line), "%d apps connected.", n);
+            if (n == 0) snprintf(who_line, sizeof(who_line), "%s", _("No app connected."));
+            else        snprintf(who_line, sizeof(who_line), _p("%d apps connected.", n), n);
             mn[1] = who_line;
         } else if (settings_mpd_enabled()) {
             mn[0] = netok ? "Waiting for a network address."
@@ -1038,7 +1039,7 @@ static int draw_net(void)
     /* --- Network time ----------------------------------------------- */
     ntp_switch_box(&x, &y, &bw, &bh);
     gfx_fill_rect(x, y, bw, bh, C_ROW);
-    gfx_draw_text(24, y + (bh - GFX_GLYPH_H(NAME_SCALE)) / 2, "Network time",
+    gfx_draw_text(24, y + (bh - GFX_GLYPH_H(NAME_SCALE)) / 2, _("Network time"),
                   NAME_SCALE, 400, wifi ? C_TEXT : C_DISABLED);
     {
         const bool pref = settings_ntp_pref();
@@ -1060,7 +1061,7 @@ static int draw_net(void)
     portal_state(&st);
     const bool running = portal_running();
     gfx_fill_rect(x, y, bw, bh, C_ROW);
-    gfx_draw_text(24, y + (bh - GFX_GLYPH_H(NAME_SCALE)) / 2, "Add a network",
+    gfx_draw_text(24, y + (bh - GFX_GLYPH_H(NAME_SCALE)) / 2, _("Add a network"),
                   NAME_SCALE, 400, wifi ? C_TEXT : C_DISABLED);
     {
         const int pw = 132, ph = 56;
@@ -1080,7 +1081,7 @@ static int draw_net(void)
     bench_state(&bs);
     bench_box(&x, &y, &bw, &bh);
     gfx_fill_rect(x, y, bw, bh, C_ROW);
-    gfx_draw_text(24, y + (bh - GFX_GLYPH_H(NAME_SCALE)) / 2, "Benchmark",
+    gfx_draw_text(24, y + (bh - GFX_GLYPH_H(NAME_SCALE)) / 2, _("Benchmark"),
                   NAME_SCALE, 400, netok ? C_TEXT : C_DISABLED);
     {
         const int pw = 132, ph = 56;
@@ -1097,7 +1098,7 @@ static int draw_net(void)
     /* --- Clock (5114) ------------------------------------------------ */
     clock_box(&x, &y, &bw, &bh);
     gfx_fill_rect(x, y, bw, bh, C_ROW);
-    gfx_draw_text(24, y + (bh - GFX_GLYPH_H(NAME_SCALE)) / 2, "Clock",
+    gfx_draw_text(24, y + (bh - GFX_GLYPH_H(NAME_SCALE)) / 2, _("Clock"),
                   NAME_SCALE, 400, C_TEXT);
     const bool verified = settings_time_verified();
     {
@@ -1114,7 +1115,7 @@ static int draw_net(void)
         gmtime_r(&now, &tm);
         char when[24];
         strftime(when, sizeof(when), "%Y-%m-%d %H:%MZ", &tm);
-        snprintf(c0, sizeof(c0), "%s, %s", when, verified ? "from NTP" : "a guess");
+        snprintf(c0, sizeof(c0), "%s, %s", when, verified ? _("from NTP") : _("a guess"));
     }
     const char *clock_note[NET_CLOCK_NOTE_LINES] = {
         c0,
@@ -1146,7 +1147,7 @@ static int draw_audio(void)
     /* --- ReplayGain ------------------------------------------------- */
     rg_switch_box(&x, &y, &bw, &bh);
     gfx_fill_rect(x, y, bw, bh, C_ROW);
-    gfx_draw_text(24, y + (bh - GFX_GLYPH_H(NAME_SCALE)) / 2, "ReplayGain",
+    gfx_draw_text(24, y + (bh - GFX_GLYPH_H(NAME_SCALE)) / 2, same("ReplayGain"),
                   NAME_SCALE, 400, C_TEXT);
     {
         const bool on = settings_rg_enabled();
@@ -1254,7 +1255,7 @@ static int draw_audio(void)
     /* --- Record from (5208, 5216) ------------------------------------ */
     input_switch_box(&x, &y, &bw, &bh);
     gfx_fill_rect(x, y, bw, bh, C_ROW);
-    gfx_draw_text(24, y + (bh - GFX_GLYPH_H(NAME_SCALE)) / 2, "Record from",
+    gfx_draw_text(24, y + (bh - GFX_GLYPH_H(NAME_SCALE)) / 2, _("Record from"),
                   NAME_SCALE, 400, C_TEXT);
     {
         /*

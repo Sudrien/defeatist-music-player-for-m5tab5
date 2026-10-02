@@ -21,6 +21,8 @@
  */
 #pragma once
 
+#include "i18n.h"   /* 6016: N_() on the labels */
+
 #include <stdbool.h>
 #include <stdint.h>
 
@@ -47,11 +49,11 @@ static inline int powerdown_seconds(int step)
 static inline const char *powerdown_label(int step)
 {
     switch (step) {
-    case 1:  return "15 min";
-    case 2:  return "30 min";
-    case 3:  return "1 h";
-    case 4:  return "2 h";
-    default: return "Never";
+    case 1:  return N_("15 min");
+    case 2:  return N_("30 min");
+    case 3:  return N_("1 h");
+    case 4:  return N_("2 h");
+    default: return N_("Never");
     }
 }
 

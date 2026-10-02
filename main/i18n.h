@@ -54,6 +54,13 @@ const char *i18n_get_plural(const char *msgid, long n);
 
 #define _(s)      i18n_get(s)
 #define N_(s)     (s)
+
+/* 6016: deliberately NOT translated -- a tab name, the language row, a
+ * unit, a product or protocol name. Expands to its argument and does
+ * nothing else; what it adds is the decision, written where the string
+ * is, so English that was chosen is not mistaken for English nobody has
+ * converted yet. tools/i18n.py refuses a string marked both ways. */
+#define same(s)   (s)
 #define _p(s, n)  i18n_get_plural((s), (long)(n))
 
 /* The generated tables, for i18n.c and the host test. */

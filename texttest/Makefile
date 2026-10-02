@@ -295,11 +295,11 @@ $(WIFI_BIN): wifistoretest.c ../main/wifistore.c ../main/wifistore.h fake/wifist
 run-wifi: $(WIFI_BIN)
 	ASAN_OPTIONS=detect_leaks=1:abort_on_error=0 ./$(WIFI_BIN)
 
-$(I18N_BIN): i18ntest.c ../main/i18n.c ../main/i18n.h ../main/i18n_tab.c
+$(I18N_BIN): i18ntest.c ../main/i18n.c ../main/i18n.h ../main/i18n_tab.c ../components/ark12/ark12.c
 	$(CC) $(WARNCFLAGS) -c ../main/i18n.c -o /dev/null
 	$(CC) $(WARNCFLAGS) -c ../main/i18n_tab.c -o /dev/null
 	$(CC) $(CFLAGS) -DI18NTEST_FIXTURE -o $@-fixture i18ntest.c ../main/i18n.c $(LDFLAGS)
-	$(CC) $(CFLAGS) -o $@ i18ntest.c ../main/i18n.c ../main/i18n_tab.c $(LDFLAGS)
+	$(CC) $(CFLAGS) -o $@ i18ntest.c ../main/i18n.c ../main/i18n_tab.c ../components/ark12/ark12.c $(LDFLAGS)
 
 run-i18n: $(I18N_BIN)
 	python3 ../tools/i18n.py check

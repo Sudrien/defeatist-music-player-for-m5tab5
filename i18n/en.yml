@@ -7,17 +7,220 @@
 en:
   singular:
     # panel.c
+    "%.32s did not work. Try again.": ~
+    # panel.c
     "%d s": ~
+    # panel.c
+    "%u KB free": ~
+    # panel.c
+    "%u bytes": ~
+    # panel.c
+    "%u s": ~
+    # powerdown.h
+    "1 h": ~
+    # screendim.h
+    "1 min": ~
+    # powerdown.h
+    "15 min": ~
+    # screendim.h
+    "15 s": ~
+    # powerdown.h, sleeppage.c
+    "2 h": ~
+    # screendim.h
+    "2 min": ~
+    # powerdown.h
+    "30 min": ~
+    # screendim.h
+    "30 s": ~
+    # screendim.h
+    "5 min": ~
+    # panel.c
+    "A phone supplies the password.": ~
+    # panel.c
+    "A sign-in page opens with the form.": ~
+    # panel.c
+    "About twenty seconds.": ~
+    # panel.c
+    "Add a network": ~
+    # panel.c
+    "Add a radio station to the card.": ~
+    # panel.c
+    "Benchmark": ~
+    # sleeppage.c
+    "Brightness   %d%%": ~
+    # panel.c
+    "Cert %.29s...": ~
+    # panel.c
+    "Clock": ~
+    # panel.c
+    "Connect an MPD app to %s": ~
+    # panel.c
+    "Connected to %.32s.": ~
+    # panel.c
+    "Could not start.": ~
     # panel.c
     "Crossfade   %d s": ~
     # panel.c
     "Crossfade   off": ~
+    # sleeppage.c
+    "Dim screen": ~
+    # panel.c
+    "Join %s on a phone.": ~
+    # panel.c
+    "Libraries": ~
+    # panel.c
+    "MPD server": ~
+    # panel.c
+    "Needs a network: Wi-Fi or a cable.": ~
+    # panel.c
+    "Network time": ~
+    # powerdown.h, screendim.h
+    "Never": ~
+    # panel.c
+    "No app connected.": ~
     # panel.c
     "OFF": ~
     # panel.c
     "ON": ~
     # panel.c
+    "On a phone, open http://%s/": ~
+    # panel.c
+    "Open %s": ~
+    # panel.c
+    "Playback pauses while setup runs.": ~
+    # sleeppage.c
+    "Power off": ~
+    # panel.c
+    "Record from": ~
+    # panel.c
+    "Remote control": ~
+    # sleeppage.c
+    "Rotation": ~
+    # panel.c
+    "Same Wi-Fi as the player. %u:%02u left": ~
+    # panel.c
     "Same album": ~
     # panel.c
+    "Saved %.32s.": ~
+    # sleeppage.c
+    "Screen": ~
+    # sleeppage.c
+    "Screen off": ~
+    # panel.c
+    "Setup closed after five minutes.": ~
+    # panel.c
+    "Setup could not start.": ~
+    # sleeppage.c
+    "Sleep": ~
+    # sleeppage.c
+    "Sleep timer   %d min": ~
+    # sleeppage.c
+    "Sleep timer   %ld:%02ld": ~
+    # sleeppage.c
+    "Sleep timer   off": ~
+    # panel.c
+    "Source": ~
+    # panel.c
+    "Starting...": ~
+    # panel.c
+    "Station needs %d -- that is %d%%": ~
+    # panel.c
+    "The station does not say what it needs.": ~
+    # panel.c
+    "Trying %.32s...": ~
+    # panel.c
+    "Turn Wi-Fi on first.": ~
+    # audio_out.c
+    "USB audio": ~
+    # panel.c
+    "a guess": ~
+    # panel.c
+    "app": ~
+    # panel.c
+    "built": ~
+    # panel.c
+    "capacity": ~
+    # panel.c
+    "coming up": ~
+    # panel.c
+    "connected": ~
+    # panel.c
+    "drive": ~
+    # panel.c
+    "failed; the log says why": ~
+    # panel.c
+    "from NTP": ~
+    # audio_out.c
+    "headphones": ~
+    # panel.c
+    "headset": ~
+    # panel.c
+    "index": ~
+    # panel.c
+    "indexing, %d so far": ~
+    # panel.c
+    "maker": ~
+    # panel.c
+    "mount": ~
+    # panel.c
+    "mounted": ~
+    # panel.c
+    "name": ~
+    # panel.c
+    "no card in the slot": ~
+    # panel.c
+    "none": ~
+    # panel.c
+    "not run this session": ~
+    # panel.c, sleeppage.c
     "off": ~
+    # panel.c
+    "on": ~
+    # panel.c
+    "port": ~
+    # panel.c
+    "product": ~
+    # panel.c
+    "route": ~
+    # panel.c
+    "sector": ~
+    # audio_out.c
+    "speaker": ~
+    # panel.c
+    "speed": ~
+    # panel.c
+    "starts in a few seconds": ~
+    # panel.c
+    "state": ~
+    # panel.c
+    "stopped: the volume went away": ~
+    # panel.c
+    "the setup network": ~
+    # panel.c
+    "this player": ~
+    # panel.c
+    "type": ~
+    # panel.c
+    "uptime": ~
+    # panel.c
+    "version": ~
+    # panel.c
+    "waiting for a drive": ~
+    # panel.c
+    "was damaged; reindex rebuilds it": ~
   plural:
+    "%d apps connected.":
+      one: "%d app connected."
+      other: ~
+    "%d tracks (+%d ~%d -%d), %d s":
+      one: "%d track (+%d ~%d -%d), %d s"
+      other: ~
+    "%d tracks, unchanged, %d s":
+      one: "%d track, unchanged, %d s"
+      other: ~
+    "%u phones joined, %u:%02u left":
+      one: "%u phone joined, %u:%02u left"
+      other: ~
+    "Not connected. %d networks saved.":
+      one: "Not connected. %d network saved."
+      other: ~

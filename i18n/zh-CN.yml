@@ -7,17 +7,215 @@
 zh-CN:
   singular:
     # panel.c
+    "%.32s did not work. Try again.": "%.32s 未成功，请重试。"
+    # panel.c
     "%d s": "%d 秒"
+    # panel.c
+    "%u KB free": "可用 %u KB"
+    # panel.c
+    "%u bytes": "%u 字节"
+    # panel.c
+    "%u s": "%u 秒"
+    # powerdown.h
+    "1 h": "1小时"
+    # screendim.h
+    "1 min": "1分钟"
+    # powerdown.h
+    "15 min": "15分钟"
+    # screendim.h
+    "15 s": "15秒"
+    # powerdown.h, sleeppage.c
+    "2 h": "2小时"
+    # screendim.h
+    "2 min": "2分钟"
+    # powerdown.h
+    "30 min": "30分钟"
+    # screendim.h
+    "30 s": "30秒"
+    # screendim.h
+    "5 min": "5分钟"
+    # panel.c
+    "A phone supplies the password.": "由手机输入密码。"
+    # panel.c
+    "A sign-in page opens with the form.": "会打开带表单的登录页。"
+    # panel.c
+    "About twenty seconds.": "约二十秒。"
+    # panel.c
+    "Add a network": "添加网络"
+    # panel.c
+    "Add a radio station to the card.": "向卡中添加电台。"
+    # panel.c
+    "Benchmark": "测速"
+    # sleeppage.c
+    "Brightness   %d%%": "亮度   %d%%"
+    # panel.c
+    "Cert %.29s...": "证书 %.29s..."
+    # panel.c
+    "Clock": "时钟"
+    # panel.c
+    "Connect an MPD app to %s": "用 MPD 应用连接 %s"
+    # panel.c
+    "Connected to %.32s.": "已连接 %.32s。"
+    # panel.c
+    "Could not start.": "无法启动。"
     # panel.c
     "Crossfade   %d s": "交叉淡化   %d 秒"
     # panel.c
     "Crossfade   off": "交叉淡化   关"
+    # sleeppage.c
+    "Dim screen": "屏幕变暗"
+    # panel.c
+    "Join %s on a phone.": "用手机连接 %s。"
+    # panel.c
+    "Libraries": "库"
+    # panel.c
+    "MPD server": "MPD 服务器"
+    # panel.c
+    "Needs a network: Wi-Fi or a cable.": "需要网络：Wi-Fi 或网线。"
+    # panel.c
+    "Network time": "网络时间"
+    # powerdown.h, screendim.h
+    "Never": "从不"
+    # panel.c
+    "No app connected.": "没有应用连接。"
     # panel.c
     "OFF": "关"
     # panel.c
     "ON": "开"
     # panel.c
+    "On a phone, open http://%s/": "在手机上打开 http://%s/"
+    # panel.c
+    "Open %s": "打开 %s"
+    # panel.c
+    "Playback pauses while setup runs.": "设置期间暂停播放。"
+    # sleeppage.c
+    "Power off": "自动关机"
+    # panel.c
+    "Record from": "录音来源"
+    # panel.c
+    "Remote control": "远程控制"
+    # sleeppage.c
+    "Rotation": "屏幕方向"
+    # panel.c
+    "Same Wi-Fi as the player. %u:%02u left": "与本机同一 Wi-Fi。剩余 %u:%02u"
+    # panel.c
     "Same album": "同一专辑"
     # panel.c
+    "Saved %.32s.": "已保存 %.32s。"
+    # sleeppage.c
+    "Screen": "屏幕"
+    # sleeppage.c
+    "Screen off": "关闭屏幕"
+    # panel.c
+    "Setup closed after five minutes.": "设置已在五分钟后关闭。"
+    # panel.c
+    "Setup could not start.": "设置无法启动。"
+    # sleeppage.c
+    "Sleep": "睡眠"
+    # sleeppage.c
+    "Sleep timer   %d min": "睡眠定时   %d 分钟"
+    # sleeppage.c
+    "Sleep timer   %ld:%02ld": "睡眠定时   %ld:%02ld"
+    # sleeppage.c
+    "Sleep timer   off": "睡眠定时   关"
+    # panel.c
+    "Source": "源代码"
+    # panel.c
+    "Starting...": "正在启动..."
+    # panel.c
+    "Station needs %d -- that is %d%%": "电台需要 %d，达到 %d%%"
+    # panel.c
+    "The station does not say what it needs.": "电台未说明所需码率。"
+    # panel.c
+    "Trying %.32s...": "正在尝试 %.32s..."
+    # panel.c
+    "Turn Wi-Fi on first.": "请先打开 Wi-Fi。"
+    # audio_out.c
+    "USB audio": "USB 音频"
+    # panel.c
+    "a guess": "估计值"
+    # panel.c
+    "app": "应用"
+    # panel.c
+    "built": "构建时间"
+    # panel.c
+    "capacity": "容量"
+    # panel.c
+    "coming up": "启动中"
+    # panel.c
+    "connected": "已连接"
+    # panel.c
+    "drive": "驱动器"
+    # panel.c
+    "failed; the log says why": "失败；原因见日志"
+    # panel.c
+    "from NTP": "来自 NTP"
+    # audio_out.c
+    "headphones": "耳机"
+    # panel.c
+    "headset": "耳麦"
+    # panel.c
+    "index": "索引"
+    # panel.c
+    "indexing, %d so far": "索引中，已 %d 首"
+    # panel.c
+    "maker": "厂商"
+    # panel.c
+    "mount": "挂载点"
+    # panel.c
+    "mounted": "已挂载"
+    # panel.c
+    "name": "名称"
+    # panel.c
+    "no card in the slot": "卡槽中无卡"
+    # panel.c
+    "none": "无"
+    # panel.c
+    "not run this session": "本次启动未运行"
+    # panel.c, sleeppage.c
     "off": "关"
+    # panel.c
+    "on": "开"
+    # panel.c
+    "port": "端口"
+    # panel.c
+    "product": "产品"
+    # panel.c
+    "route": "输出"
+    # panel.c
+    "sector": "扇区"
+    # audio_out.c
+    "speaker": "扬声器"
+    # panel.c
+    "speed": "速度"
+    # panel.c
+    "starts in a few seconds": "几秒后开始"
+    # panel.c
+    "state": "状态"
+    # panel.c
+    "stopped: the volume went away": "已停止：卷已移除"
+    # panel.c
+    "the setup network": "设置网络"
+    # panel.c
+    "this player": "本机"
+    # panel.c
+    "type": "类型"
+    # panel.c
+    "uptime": "运行时间"
+    # panel.c
+    "version": "版本"
+    # panel.c
+    "waiting for a drive": "等待驱动器"
+    # panel.c
+    "was damaged; reindex rebuilds it": "已损坏；重新索引可重建"
   plural:
+    "%d apps connected.":
+      other: "已有 %d 个应用连接。"
+    "%d tracks (+%d ~%d -%d), %d s":
+      other: "%d 首 (+%d ~%d -%d)，%d 秒"
+    "%d tracks, unchanged, %d s":
+      other: "%d 首，无变化，%d 秒"
+    "%u phones joined, %u:%02u left":
+      other: "%u 台手机已连接，剩余 %u:%02u"
+    "Not connected. %d networks saved.":
+      other: "未连接。已保存 %d 个网络。"

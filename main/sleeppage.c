@@ -7,6 +7,7 @@
 
 #include "esp_log.h"
 #include "gfx.h"
+#include "i18n.h"         /* 6016 */
 #include "menuscroll.h"
 #include "screendim.h"
 #include "powerdown.h"           /* 6000 */
@@ -267,7 +268,7 @@ void sleeppage_draw(void)
     int x, y, bw, bh;
     screen_box(&x, &y, &bw, &bh);
     gfx_fill_rect(x, y, bw, bh, C_ROW);
-    gfx_draw_text(24, y + (bh - GFX_GLYPH_H(NAME_SCALE)) / 2, "Screen",
+    gfx_draw_text(24, y + (bh - GFX_GLYPH_H(NAME_SCALE)) / 2, _("Screen"),
                   NAME_SCALE, 400, C_TEXT);
     {
         /* panel.c's pill, same size and place. */
@@ -297,7 +298,7 @@ void sleeppage_draw(void)
     {
         const int b = settings_brightness();
         char head[32];
-        snprintf(head, sizeof(head), "Brightness   %d%%", b);
+        snprintf(head, sizeof(head), _("Brightness   %d%%"), b);
         gfx_draw_text(24, y + 20, head, NAME_SCALE, w - 48, C_TEXT);
 
         const int span = SETTINGS_BRIGHTNESS_MAX - SETTINGS_BRIGHTNESS_MIN;
@@ -322,7 +323,7 @@ void sleeppage_draw(void)
     {
         const int rot = settings_screen_rotation();
         gfx_fill_rect(x, y, bw, bh, C_ROW);
-        gfx_draw_text(24, y + (bh - GFX_GLYPH_H(NAME_SCALE)) / 2, "Rotation",
+        gfx_draw_text(24, y + (bh - GFX_GLYPH_H(NAME_SCALE)) / 2, _("Rotation"),
                       NAME_SCALE, 400, C_TEXT);
 
         /* The Screen row's pill, same size and place. Wider text than
@@ -352,7 +353,7 @@ void sleeppage_draw(void)
     {
         const int step = settings_dim_step();
         gfx_fill_rect(x, y, bw, bh, C_ROW);
-        gfx_draw_text(24, y + (bh - GFX_GLYPH_H(NAME_SCALE)) / 2, "Dim screen",
+        gfx_draw_text(24, y + (bh - GFX_GLYPH_H(NAME_SCALE)) / 2, _("Dim screen"),
                       NAME_SCALE, 400, C_TEXT);
 
         /* Rotation's pill, same size and place, so the two line up. Lit
@@ -360,7 +361,7 @@ void sleeppage_draw(void)
          * the row above: lit means "not as it shipped". */
         const int pw = 132, ph = 56;
         const int px = w - 24 - pw, py = y + (bh - ph) / 2;
-        const char *text = screendim_label(step);
+        const char *text = _(screendim_label(step));
         gfx_fill_rect(px, py, pw, ph, step ? C_ON : C_BTN);
         const int tw = gfx_text_w(text, NAME_SCALE);
         gfx_draw_text(px + (pw - tw) / 2, py + (ph - GFX_GLYPH_H(NAME_SCALE)) / 2,
@@ -385,12 +386,12 @@ void sleeppage_draw(void)
     {
         const int step = settings_off_step();
         gfx_fill_rect(x, y, bw, bh, C_ROW);
-        gfx_draw_text(24, y + (bh - GFX_GLYPH_H(NAME_SCALE)) / 2, "Screen off",
+        gfx_draw_text(24, y + (bh - GFX_GLYPH_H(NAME_SCALE)) / 2, _("Screen off"),
                       NAME_SCALE, 400, C_TEXT);
 
         const int pw = 132, ph = 56;
         const int px = w - 24 - pw, py = y + (bh - ph) / 2;
-        const char *text = screenoff_label(step);
+        const char *text = _(screenoff_label(step));
         gfx_fill_rect(px, py, pw, ph, step ? C_ON : C_BTN);
         const int tw = gfx_text_w(text, NAME_SCALE);
         gfx_draw_text(px + (pw - tw) / 2, py + (ph - GFX_GLYPH_H(NAME_SCALE)) / 2,
@@ -418,12 +419,12 @@ void sleeppage_draw(void)
         const int step = s_timer_drag ? s_drag_step : s_timer_step;
         char head[48];
         if (step == 0) {
-            snprintf(head, sizeof(head), "Sleep timer   off");
+            snprintf(head, sizeof(head), "%s", _("Sleep timer   off"));
         } else if (!s_timer_drag && s_timer_left > 0) {
             const long m = (long)(s_timer_left / 60), sec = (long)(s_timer_left % 60);
-            snprintf(head, sizeof(head), "Sleep timer   %ld:%02ld", m, sec);
+            snprintf(head, sizeof(head), _("Sleep timer   %ld:%02ld"), m, sec);
         } else {
-            snprintf(head, sizeof(head), "Sleep timer   %d min", sleeptimer_minutes(step));
+            snprintf(head, sizeof(head), _("Sleep timer   %d min"), sleeptimer_minutes(step));
         }
         gfx_draw_text(24, y + 20, head, NAME_SCALE, w - 48, step ? C_TEXT : C_DIM);
 
@@ -439,9 +440,9 @@ void sleeppage_draw(void)
         if (step) gfx_fill_rect(tx0, ty - 3, kx - tx0, 6, C_ACCENT);
         gfx_fill_circle(kx, ty, SLIDER_KNOB / 2, step ? C_TEXT : C_DIM);
 
-        gfx_draw_text(SLIDER_INSET, ty + SLIDER_KNOB, "off", LABEL_SCALE, 80, C_FAINT);
-        const int mw = gfx_text_w("2 h", LABEL_SCALE);
-        gfx_draw_text(w - SLIDER_INSET - mw, ty + SLIDER_KNOB, "2 h",
+        gfx_draw_text(SLIDER_INSET, ty + SLIDER_KNOB, _("off"), LABEL_SCALE, 80, C_FAINT);
+        const int mw = gfx_text_w(_("2 h"), LABEL_SCALE);
+        gfx_draw_text(w - SLIDER_INSET - mw, ty + SLIDER_KNOB, _("2 h"),
                       LABEL_SCALE, 80, C_FAINT);
     }
     {
@@ -456,12 +457,12 @@ void sleeppage_draw(void)
     {
         const int step = settings_poweroff_step();
         gfx_fill_rect(x, y, bw, bh, C_ROW);
-        gfx_draw_text(24, y + (bh - GFX_GLYPH_H(NAME_SCALE)) / 2, "Power off",
+        gfx_draw_text(24, y + (bh - GFX_GLYPH_H(NAME_SCALE)) / 2, _("Power off"),
                       NAME_SCALE, 400, C_TEXT);
 
         const int pw = 132, ph = 56;
         const int px = w - 24 - pw, py = y + (bh - ph) / 2;
-        const char *text = powerdown_label(step);
+        const char *text = _(powerdown_label(step));
         gfx_fill_rect(px, py, pw, ph, step ? C_ON : C_BTN);
         const int tw = gfx_text_w(text, NAME_SCALE);
         gfx_draw_text(px + (pw - tw) / 2, py + (ph - GFX_GLYPH_H(NAME_SCALE)) / 2,
@@ -487,7 +488,7 @@ void sleeppage_draw(void)
      * viewport. The footer does the same at the other end.
      */
     gfx_fill_rect(0, 0, w, LIST_TOP, C_BG);
-    gfx_draw_text(24, (HEAD_H - GFX_GLYPH_H(NAME_SCALE)) / 2, "Sleep",
+    gfx_draw_text(24, (HEAD_H - GFX_GLYPH_H(NAME_SCALE)) / 2, _("Sleep"),
                   NAME_SCALE, w - 48, C_TEXT);
     gfx_fill_rect(0, LIST_TOP - 2, w, 2, C_RULE);
 

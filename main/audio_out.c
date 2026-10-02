@@ -34,6 +34,7 @@
 #include "polyrsp.h"
 
 #include "audio_out.h"
+#include "i18n.h"         /* 6016 */
 #include "battery.h"
 #include "micpcm.h"           /* 5207 */
 #include "uac.h"
@@ -571,9 +572,11 @@ audio_out_route_t audio_out_route(void)
 const char *audio_out_route_name(void)
 {
     switch (s_route) {
-    case ROUTE_USB:        return "USB audio";
-    case ROUTE_HEADPHONES: return "headphones";
-    default:               return "speaker";
+    /* 6016: N_() -- the log prints these as they are; panel.c's route
+     * row passes them through _(). */
+    case ROUTE_USB:        return N_("USB audio");
+    case ROUTE_HEADPHONES: return N_("headphones");
+    default:               return N_("speaker");
     }
 }
 

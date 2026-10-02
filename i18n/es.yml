@@ -7,17 +7,220 @@
 es:
   singular:
     # panel.c
+    "%.32s did not work. Try again.": "%.32s falló. Reinténtalo."
+    # panel.c
     "%d s": "%d s"
+    # panel.c
+    "%u KB free": "%u KB libres"
+    # panel.c
+    "%u bytes": "%u bytes"
+    # panel.c
+    "%u s": "%u s"
+    # powerdown.h
+    "1 h": "1 h"
+    # screendim.h
+    "1 min": "1 min"
+    # powerdown.h
+    "15 min": "15 min"
+    # screendim.h
+    "15 s": "15 s"
+    # powerdown.h, sleeppage.c
+    "2 h": "2 h"
+    # screendim.h
+    "2 min": "2 min"
+    # powerdown.h
+    "30 min": "30 min"
+    # screendim.h
+    "30 s": "30 s"
+    # screendim.h
+    "5 min": "5 min"
+    # panel.c
+    "A phone supplies the password.": "Un teléfono da la contraseña."
+    # panel.c
+    "A sign-in page opens with the form.": "Se abre una página con el formulario."
+    # panel.c
+    "About twenty seconds.": "Unos veinte segundos."
+    # panel.c
+    "Add a network": "Añadir red"
+    # panel.c
+    "Add a radio station to the card.": "Añade una emisora a la tarjeta."
+    # panel.c
+    "Benchmark": "Medir velocidad"
+    # sleeppage.c
+    "Brightness   %d%%": "Brillo   %d%%"
+    # panel.c
+    "Cert %.29s...": "Cert. %.29s..."
+    # panel.c
+    "Clock": "Reloj"
+    # panel.c
+    "Connect an MPD app to %s": "Conecta una app MPD a %s"
+    # panel.c
+    "Connected to %.32s.": "Conectado a %.32s."
+    # panel.c
+    "Could not start.": "No se pudo iniciar."
     # panel.c
     "Crossfade   %d s": "Fundido cruzado   %d s"
     # panel.c
     "Crossfade   off": "Fundido cruzado   desactivado"
+    # sleeppage.c
+    "Dim screen": "Atenuar pantalla"
+    # panel.c
+    "Join %s on a phone.": "Únete a %s con el móvil."
+    # panel.c
+    "Libraries": "Bibliotecas"
+    # panel.c
+    "MPD server": "Servidor MPD"
+    # panel.c
+    "Needs a network: Wi-Fi or a cable.": "Necesita red: Wi-Fi o un cable."
+    # panel.c
+    "Network time": "Hora de red"
+    # powerdown.h, screendim.h
+    "Never": "Nunca"
+    # panel.c
+    "No app connected.": "Ninguna app conectada."
     # panel.c
     "OFF": "NO"
     # panel.c
     "ON": "SÍ"
     # panel.c
+    "On a phone, open http://%s/": "En un teléfono, abre http://%s/"
+    # panel.c
+    "Open %s": "Abre %s"
+    # panel.c
+    "Playback pauses while setup runs.": "Se pausa la reproducción al configurar."
+    # sleeppage.c
+    "Power off": "Apagado"
+    # panel.c
+    "Record from": "Grabar desde"
+    # panel.c
+    "Remote control": "Control remoto"
+    # sleeppage.c
+    "Rotation": "Rotación"
+    # panel.c
+    "Same Wi-Fi as the player. %u:%02u left": "Misma Wi-Fi que el equipo. Quedan %u:%02u"
+    # panel.c
     "Same album": "Mismo álbum"
     # panel.c
+    "Saved %.32s.": "Guardado %.32s."
+    # sleeppage.c
+    "Screen": "Pantalla"
+    # sleeppage.c
+    "Screen off": "Apagar pantalla"
+    # panel.c
+    "Setup closed after five minutes.": "La configuración se cerró a los 5 min."
+    # panel.c
+    "Setup could not start.": "La configuración no pudo iniciar."
+    # sleeppage.c
+    "Sleep": "Reposo"
+    # sleeppage.c
+    "Sleep timer   %d min": "Temporizador   %d min"
+    # sleeppage.c
+    "Sleep timer   %ld:%02ld": "Temporizador   %ld:%02ld"
+    # sleeppage.c
+    "Sleep timer   off": "Temporizador   desactivado"
+    # panel.c
+    "Source": "Código fuente"
+    # panel.c
+    "Starting...": "Iniciando..."
+    # panel.c
+    "Station needs %d -- that is %d%%": "La emisora pide %d: es el %d%%"
+    # panel.c
+    "The station does not say what it needs.": "La emisora no dice qué necesita."
+    # panel.c
+    "Trying %.32s...": "Probando %.32s..."
+    # panel.c
+    "Turn Wi-Fi on first.": "Activa primero la Wi-Fi."
+    # audio_out.c
+    "USB audio": "audio USB"
+    # panel.c
+    "a guess": "estimada"
+    # panel.c
+    "app": "aplicación"
+    # panel.c
+    "built": "compilado"
+    # panel.c
+    "capacity": "capacidad"
+    # panel.c
+    "coming up": "arrancando"
+    # panel.c
+    "connected": "conectado"
+    # panel.c
+    "drive": "unidad"
+    # panel.c
+    "failed; the log says why": "falló; el registro dice por qué"
+    # panel.c
+    "from NTP": "de NTP"
+    # audio_out.c
+    "headphones": "auriculares"
+    # panel.c
+    "headset": "auricular"
+    # panel.c
+    "index": "índice"
+    # panel.c
+    "indexing, %d so far": "indexando, %d hasta ahora"
+    # panel.c
+    "maker": "fabricante"
+    # panel.c
+    "mount": "montaje"
+    # panel.c
+    "mounted": "montado"
+    # panel.c
+    "name": "nombre"
+    # panel.c
+    "no card in the slot": "no hay tarjeta en la ranura"
+    # panel.c
+    "none": "ninguno"
+    # panel.c
+    "not run this session": "no ejecutado esta sesión"
+    # panel.c, sleeppage.c
     "off": "no"
+    # panel.c
+    "on": "sí"
+    # panel.c
+    "port": "puerto"
+    # panel.c
+    "product": "producto"
+    # panel.c
+    "route": "salida"
+    # panel.c
+    "sector": "sector"
+    # audio_out.c
+    "speaker": "altavoz"
+    # panel.c
+    "speed": "velocidad"
+    # panel.c
+    "starts in a few seconds": "empieza en unos segundos"
+    # panel.c
+    "state": "estado"
+    # panel.c
+    "stopped: the volume went away": "detenido: el volumen se fue"
+    # panel.c
+    "the setup network": "la red de configuración"
+    # panel.c
+    "this player": "este equipo"
+    # panel.c
+    "type": "tipo"
+    # panel.c
+    "uptime": "activo"
+    # panel.c
+    "version": "versión"
+    # panel.c
+    "waiting for a drive": "esperando una unidad"
+    # panel.c
+    "was damaged; reindex rebuilds it": "dañado; reindexar lo rehace"
   plural:
+    "%d apps connected.":
+      one: "%d app conectada."
+      other: "%d apps conectadas."
+    "%d tracks (+%d ~%d -%d), %d s":
+      one: "%d pista (+%d ~%d -%d), %d s"
+      other: "%d pistas (+%d ~%d -%d), %d s"
+    "%d tracks, unchanged, %d s":
+      one: "%d pista, sin cambios, %d s"
+      other: "%d pistas, sin cambios, %d s"
+    "%u phones joined, %u:%02u left":
+      one: "%u teléfono conectado, quedan %u:%02u"
+      other: "%u teléfonos conectados, quedan %u:%02u"
+    "Not connected. %d networks saved.":
+      one: "Sin conexión. %d red guardada."
+      other: "Sin conexión. %d redes guardadas."

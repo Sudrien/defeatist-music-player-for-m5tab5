@@ -20654,3 +20654,59 @@ is four fullwidth glyphs, 104 px at LABEL_SCALE, the widest of the
 four.
 
 Not compiled here -- no ESP-IDF in the session. Not on the board.
+
+### 6016 -- the settings panel and the Sleep page, translated
+
+The first real batch: every string a person reads on the SD, USB,
+BUILD, NET and AUDIO tabs and on the Sleep page, except the notes under
+controls -- 94 strings and 5 plurals, in Mandarin, Japanese and
+Spanish. Notices, the no-art card and the chooser are the next batch.
+
+Not wrapped, and why:
+
+- The notes under controls ("Evens out loudness between tracks." and
+  the rest). They are one paragraph cut into lines by hand, and
+  translating the lines one at a time would make a translator split a
+  sentence at an English line break. They need a draw_note() that
+  wraps, keyed by the whole paragraph, first.
+- "Reading %.20s without decoding..." on the benchmark row. %.20s cuts
+  a station name at 20 bytes, which can land inside a CJK character.
+
+`same()` (i18n.h) is new: an identity macro for text that stays English
+on purpose -- the tab names, the language row, heap/psram/idf/id, the
+units (MB, kHz, kbit/s), Wi-Fi, ReplayGain. It changes nothing in the
+build. It is there so that English somebody decided on reads
+differently from English nobody has got to yet, and `tools/i18n.py`
+refuses a string marked `same()` in one place and `_()` in another.
+
+Five plurals that were English-only by construction now go through
+`_p()`: "%u phone%s joined" and "%d network%s saved", which spelled the
+plural with a %s of "" or "s"; "1 app connected." / "%d apps
+connected.", folded into one; and both index-row counts, which said "1
+tracks". English's one-forms are in `en.yml`.
+
+The label functions that a log also prints -- screendim_label(),
+screenoff_label(), powerdown_label(), audio_out_route_name() -- return
+`N_()` literals and are passed through `_()` where they are drawn, so
+the log stays in English. screendim.h and powerdown.h include i18n.h
+for the macro.
+
+Checked, not guessed:
+
+- i18ntest now fails on any character of any translation that Ark12
+  does not have. The 12px cut holds 18299 of the CJK block, not all of
+  it, and a missing character draws as a box without failing anything.
+  It found three on the first run -- 旋 (rotation), 即 and 変 -- and
+  those strings were reworded around them: 屏幕方向, 达到, 更新なし.
+- Widths with the real gfx_text_w() on the host, against each site's
+  clip: row labels 220 px, row values 460, headings at NAME_SCALE 400,
+  pills 124, note lines 672, the slider's end labels 80. "30 分钟" was
+  141 px in a 124 px pill; Chinese and Japanese unit labels drop the
+  space ("30分钟", "30分"), as both languages write them. English "15
+  min" and "30 min" measure 126, which is the blank column after the
+  last glyph -- they fit, as they always have.
+- Bytes: row labels against label[24] (CJK is three bytes a
+  character), and every line built into a 64-byte buffer at its widest
+  argument -- a 32-byte SSID in "Saved %.32s." and the rest.
+
+Not compiled here -- no ESP-IDF in the session. Not on the board.

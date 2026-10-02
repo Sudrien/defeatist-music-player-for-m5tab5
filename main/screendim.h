@@ -24,6 +24,8 @@
  */
 #pragma once
 
+#include "i18n.h"   /* 6016: N_() on the labels */
+
 #include <stdbool.h>
 #include <stdint.h>
 
@@ -92,11 +94,11 @@ static inline int screenoff_step_for_seconds(int seconds)
 static inline const char *screenoff_label(int step)
 {
     switch (step) {
-    case 1:  return "30 s";
-    case 2:  return "1 min";
-    case 3:  return "2 min";
-    case 4:  return "5 min";
-    default: return "Never";
+    case 1:  return N_("30 s");
+    case 2:  return N_("1 min");
+    case 3:  return N_("2 min");
+    case 4:  return N_("5 min");
+    default: return N_("Never");
     }
 }
 
@@ -141,11 +143,11 @@ static inline int screendim_step_for_seconds(int seconds)
 static inline const char *screendim_label(int step)
 {
     switch (step) {
-    case 1:  return "15 s";
-    case 2:  return "30 s";
-    case 3:  return "1 min";
-    case 4:  return "2 min";
-    default: return "Never";
+    case 1:  return N_("15 s");
+    case 2:  return N_("30 s");
+    case 3:  return N_("1 min");
+    case 4:  return N_("2 min");
+    default: return N_("Never");
     }
 }
 

@@ -1306,7 +1306,7 @@ static void draw_rec(const ui_state_t *st)
     int x0, x1, y;
     seek_bounds(&x0, &x1, &y);
     (void)x0;
-    const char *word = st->rec_silent ? "MUTED" : "REC";
+    const char *word = st->rec_silent ? _("MUTED") : _("REC");
     const int tw = gfx_text_w(word, 3);
     const int pw = tw + 2 * LIVE_PAD_X;
     const int ph = GFX_GLYPH_H(3) + 2 * LIVE_PAD_Y;
@@ -1321,7 +1321,8 @@ static void draw_live(const ui_state_t *st)
     int x0, x1, y;
     seek_bounds(&x0, &x1, &y);
 
-    const int tw = gfx_text_w("LIVE", 3);
+    const char *live = _("LIVE");                              /* 6019 */
+    const int tw = gfx_text_w(live, 3);
     const int pw = tw + 2 * LIVE_PAD_X;
     const int ph = GFX_GLYPH_H(3) + 2 * LIVE_PAD_Y;
     /* Centred in the band the envelope would have stood in, not sat on
@@ -1330,7 +1331,7 @@ static void draw_live(const ui_state_t *st)
     const int py = y - UI_WAVE_H / 2 - ph / 2;
 
     fill_rrect(bar_x0(), py, pw, ph, ph / 2, C_LIVE);
-    gfx_draw_text(bar_x0() + LIVE_PAD_X, py + LIVE_PAD_Y, "LIVE", 3, pw, C_BG);
+    gfx_draw_text(bar_x0() + LIVE_PAD_X, py + LIVE_PAD_Y, live, 3, pw, C_BG);
 
     /*
      * THE MINUTE, in what is left of the band.
@@ -1411,11 +1412,11 @@ static void draw_status(const ui_state_t *st)
     vol_bounds(&x0, &x1, &y);
 
     char sleepw[24];                    /* 5278: "SLEEP " + any int + "M" */
-    if (st->sleep_min > 0) snprintf(sleepw, sizeof(sleepw), "SLEEP %dM", st->sleep_min);
-    else                   snprintf(sleepw, sizeof(sleepw), "SLEEP");
+    if (st->sleep_min > 0) snprintf(sleepw, sizeof(sleepw), _("SLEEP %dM"), st->sleep_min);
+    else                   snprintf(sleepw, sizeof(sleepw), "%s", _("SLEEP"));
     char idlew[24];                     /* 6001: Power off's countdown */
-    if (st->idle_min > 0) snprintf(idlew, sizeof(idlew), "IDLE %dM", st->idle_min);
-    else                  snprintf(idlew, sizeof(idlew), "IDLE");
+    if (st->idle_min > 0) snprintf(idlew, sizeof(idlew), _("IDLE %dM"), st->idle_min);
+    else                  snprintf(idlew, sizeof(idlew), "%s", _("IDLE"));
 
     /*
      * 6012: WIFI, and a colour per word rather than on/off: green
@@ -1426,10 +1427,10 @@ static void draw_status(const ui_state_t *st)
     const uint16_t wifi_c = st->wifi_state == 2 ? C_PLAY_ON
                           : st->wifi_state == 1 ? C_RG : C_ICON_OFF;
     const struct { const char *word; uint16_t c; } items[] = {
-        { "USB",   st->usb_power ? C_PLAY_ON : C_ICON_OFF },
-        { "WIFI",  wifi_c },
-        { "MPD",   st->mpd_on ? C_PLAY_ON : C_ICON_OFF },
-        { "HTTPS", st->https_on ? C_PLAY_ON : C_ICON_OFF },
+        { same("USB"),   st->usb_power ? C_PLAY_ON : C_ICON_OFF },
+        { same("WIFI"),  wifi_c },
+        { same("MPD"),   st->mpd_on ? C_PLAY_ON : C_ICON_OFF },
+        { same("HTTPS"), st->https_on ? C_PLAY_ON : C_ICON_OFF },
         { sleepw,  st->sleep_min > 0 ? C_PLAY_ON : C_ICON_OFF },
         { idlew,   st->idle_min > 0 ? C_PLAY_ON : C_ICON_OFF },
     };
@@ -1452,18 +1453,18 @@ static void draw_status(const ui_state_t *st)
     char batt[24];
     uint16_t bc = C_ICON;
     if (st->ext_power) {
-        snprintf(batt, sizeof(batt), "NO BATT");
+        snprintf(batt, sizeof(batt), "%s", _("NO BATT"));
         bc = C_ICON_OFF;
     } else if (st->battery_pct < 0) {
-        snprintf(batt, sizeof(batt), "BATT");
+        snprintf(batt, sizeof(batt), "%s", _("BATT"));
     } else if (st->battery_pct >= 100) {         /* 6012: first, so never "CHRG 100%" */
-        snprintf(batt, sizeof(batt), "CHARGED");
+        snprintf(batt, sizeof(batt), "%s", _("CHARGED"));
         bc = C_BATT_CHG;
     } else if (st->battery_charging) {
-        snprintf(batt, sizeof(batt), "CHRG %d%%", st->battery_pct);
+        snprintf(batt, sizeof(batt), _("CHRG %d%%"), st->battery_pct);
         bc = C_BATT_CHG;
     } else {
-        snprintf(batt, sizeof(batt), "BATT %d%%", st->battery_pct);
+        snprintf(batt, sizeof(batt), _("BATT %d%%"), st->battery_pct);
         if (st->battery_pct <= BATT_LOW_PCT) bc = C_BATT_LOW;
     }
     const int bw = gfx_text_w(batt, STATUS_SCALE);
@@ -1562,7 +1563,7 @@ void ui_show_rec_art(bool muted)
         const int slash[8] = { x0 - w, y0, x0, y0 - w, x1 + w, y1, x1, y1 + w };
         gfx_fill_poly(edge, 4, C_BG);
         gfx_fill_poly(slash, 4, C_THUMB);
-        const char *word = "MUTED";
+        const char *word = _("MUTED");
         const int tw = gfx_text_w(word, ART_INFO_HEAD_SCALE);
         gfx_draw_text((aw - tw) / 2, y1 + 3 * t, word, ART_INFO_HEAD_SCALE,
                       aw - 2 * TEXT_X, C_THUMB);

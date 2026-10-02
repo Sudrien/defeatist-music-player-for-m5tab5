@@ -40,6 +40,10 @@ ja:
     "A sign-in page opens with the form.": "フォーム付きの画面が開く。"
     # sleeppage.c
     "A tap anywhere brings it back, and does not press anything.": "どこかをタップすると戻る。ボタンは押されない。"
+    # browser.c
+    "ALL": "全曲"
+    # panel.c
+    "AUTO": "自動"
     # panel.c
     "About twenty seconds.": "約20秒。"
     # panel.c
@@ -56,6 +60,12 @@ ja:
     "Already recording.": "録音中です。"
     # panel.c
     "Auto: USB, jack, mono. Off: no record.": "自動：USB、端子、モノラル。オフ：録音しない。"
+    # ui.c
+    "BATT": "電池"
+    # ui.c
+    "BATT %d%%": "電池 %d%%"
+    # panel.c
+    "BUSY": "作業中"
     # player.c
     "Battery empty": "電池切れ"
     # player.c
@@ -66,6 +76,12 @@ ja:
     "Brightness   %d%%": "明るさ   %d%%"
     # streamplan.h
     "Buffering": "バッファ中"
+    # ui.c
+    "CHARGED": "満充電"
+    # ui.c
+    "CHRG %d%%": "充電 %d%%"
+    # panel.c, sleeppage.c
+    "CLOSE": "閉じる"
     # player.c
     "Cannot record": "録音できない"
     # panel.c
@@ -90,10 +106,20 @@ ja:
     "Crossfade   %d s": "クロスフェード   %d 秒"
     # panel.c
     "Crossfade   off": "クロスフェード   オフ"
+    # browser.c
+    "DN": "次頁"
     # sleeppage.c
     "Dim screen": "画面を暗く"
+    # browser.c
+    "EAT": "消費"
+    # browser.c
+    "EAT1": "消費1"
     # panel.c
     "Evens out loudness between tracks.": "曲ごとの音量差をならす。"
+    # browser.c
+    "FLDR": "フォルダ"
+    # panel.c
+    "FOCUSED": "フォーカス"
     # sleeppage.c
     "Fades out, pauses, and turns the screen off.": "フェードアウトして一時停止し、画面を消す。"
     # player.c
@@ -105,7 +131,17 @@ ja:
     # panel.c
     "Greyed while Wi-Fi is off; the setting is kept.": "Wi-Fiがオフの間は灰色。設定は残る。"
     # panel.c
+    "HEADSET": "ヘッドセット"
+    # panel.c
     "Headset, UAC: the jack, a USB mic.": "ヘッドセット、UAC：端子、USBマイク。"
+    # ui.c
+    "IDLE": "待機"
+    # ui.c
+    "IDLE %dM": "待機%d分"
+    # panel.c
+    "IN USE": "使用中"
+    # panel.c
+    "INDEXING": "索引中"
     # player.c, recorder.c
     "Insert a card or a USB drive to record to.": "カードかUSBドライブを\n入れて録音を。"
     # panel.c
@@ -114,6 +150,8 @@ ja:
     "It reached 4 GB, the most one file can hold.": "4 GB に達した。\n1ファイルの上限。"
     # panel.c
     "Join %s on a phone.": "スマホで %s に接続。"
+    # ui.c
+    "LIVE": "ライブ"
     # panel.c
     "Levels are still measured while off.": "オフでも音量は測定される。"
     # panel.c
@@ -121,7 +159,11 @@ ja:
     # sleeppage.c
     "Longer than the dim, and the backlight goes out altogether. Never while this page is open.": "暗くなるより長く、バックライトが完全に消える。このページを開いている間は消えない。"
     # panel.c
+    "MONO": "モノラル"
+    # panel.c
     "MPD server": "MPDサーバー"
+    # ui.c
+    "MUTED": "無音"
     # player.c
     "Media removed": "メディアが外れた"
     # panel.c
@@ -130,6 +172,8 @@ ja:
     "Most listened": "よく聴かれる局"
     # radiobrowser.h
     "Most voted": "投票の多い局"
+    # ui.c
+    "NO BATT": "電池なし"
     # panel.c
     "Needed for internet radio and the clock.": "ネットラジオと時計に必要。"
     # panel.c
@@ -152,10 +196,14 @@ ja:
     "Not enough memory to record.": "録音するメモリが足りない。"
     # recorder.c
     "Nothing is plugged into the headset jack.": "ヘッドセット端子に\n何もつながっていない。"
-    # panel.c
+    # panel.c, sleeppage.c
     "OFF": "オフ"
-    # panel.c
+    # panel.c, sleeppage.c
     "ON": "オン"
+    # browser.c
+    "ONE": "単曲"
+    # browser.c
+    "ONE1": "単曲1"
     # panel.c
     "Off by default. Nothing on the card needs it, and the radio draws power while on.": "初期設定はオフ。カードの再生には不要で、オン中は無線が電力を使う。"
     # sleeppage.c
@@ -180,8 +228,24 @@ ja:
     "Power off": "電源オフ"
     # sleeppage.c
     "Quarter turns. 90 and 270 are landscape; 180 is for when the cable is at the wrong end.": "90度単位。90と270は横向き。ケーブルが逆側にあるときは180。"
+    # ui.c
+    "REC": "録音"
+    # panel.c
+    "REINDEX": "再索引"
+    # panel.c
+    "RESET": "戻す"
     # panel.c
     "RESET: back to the build time; this boot's recordings are renamed to match.": "RESET：ビルド時刻に戻す。今回の起動の録音はそれに合わせて改名。"
+    # browser.c
+    "RLOD": "再読込"
+    # browser.c
+    "RND": "ランダム"
+    # browser.c
+    "RPT": "リピート"
+    # browser.c
+    "RPT1": "1曲反復"
+    # panel.c
+    "RUN": "実行"
     # player.c
     "Radio": "ラジオ"
     # panel.c
@@ -204,6 +268,16 @@ ja:
     "ReplayGain is listening...": "ReplayGain 測定中..."
     # sleeppage.c
     "Rotation": "回転"
+    # ui.c
+    "SLEEP": "睡眠"
+    # ui.c
+    "SLEEP %dM": "睡眠%d分"
+    # panel.c
+    "START": "開始"
+    # panel.c
+    "STEREO": "ステレオ"
+    # panel.c
+    "STOP": "停止"
     # panel.c
     "Same Wi-Fi as the player. %u:%02u left": "本機と同じWi-Fi。残り %u:%02u"
     # panel.c
@@ -266,6 +340,10 @@ ja:
     "Turn Wi-Fi on first.": "先にWi-Fiをオン。"
     # player.c
     "Turning off to protect the battery. Charge it before use.": "電池を守るため電源を切る。\n使う前に充電を。"
+    # browser.c
+    "UP": "上へ"
+    # browser.c
+    "UP^": "前頁"
     # audio_out.c
     "USB audio": "USBオーディオ"
     # browser.c

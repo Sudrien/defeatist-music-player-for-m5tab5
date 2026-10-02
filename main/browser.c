@@ -991,12 +991,14 @@ static void draw_button(int x, int y, int w, int h, const char *label, bool on)
 static const char *order_label(void)
 {
     switch (s_order) {
-    case PLAY_ORDER_ONE:     return "ONE";
-    case PLAY_ORDER_SHUFFLE: return "RND";
-    case PLAY_ORDER_REPEAT_ONE: return "RPT1";         /* 5261: was RPT */
-    case PLAY_ORDER_REPEAT_ALL: return "RPT";          /* 5261 */
-    case PLAY_ORDER_EAT:     return "EAT";              /* 5252 */
-    default:                 return "ALL";
+    /* 6019: N_() -- the log prints these; the button passes them
+     * through _(). */
+    case PLAY_ORDER_ONE:     return N_("ONE");
+    case PLAY_ORDER_SHUFFLE: return N_("RND");
+    case PLAY_ORDER_REPEAT_ONE: return N_("RPT1");     /* 5261: was RPT */
+    case PLAY_ORDER_REPEAT_ALL: return N_("RPT");      /* 5261 */
+    case PLAY_ORDER_EAT:     return N_("EAT");          /* 5252 */
+    default:                 return N_("ALL");
     }
 }
 
@@ -1007,8 +1009,8 @@ static const char *order_button_label(void)
 {
     if (!s_seen_oneshot) return order_label();
     switch (s_order) {
-    case PLAY_ORDER_ONE:     return "ONE1";         /* 5261: was ONE·1 */
-    case PLAY_ORDER_EAT:     return "EAT1";         /* 5261: was EAT·1 */
+    case PLAY_ORDER_ONE:     return N_("ONE1");     /* 5261: was ONE·1 */
+    case PLAY_ORDER_EAT:     return N_("EAT1");     /* 5261: was EAT·1 */
     default:                 return order_label();
     }
 }
@@ -1317,14 +1319,14 @@ void browser_draw(void)
          * offer, and the two never want the slot at once.
          */
         draw_button(bx + 4, fy + 8, bw - 8, FOOT_H - 16,
-                    s_radio_menu ? "RLOD" : "UP", true);
+                    s_radio_menu ? _("RLOD") : _("UP"), true);
     } else {
-        draw_button(bx + 4, fy + 8, bw - 8, FOOT_H - 16, "UP",   !at_root() && s_dir[0]);
+        draw_button(bx + 4, fy + 8, bw - 8, FOOT_H - 16, _("UP"), !at_root() && s_dir[0]);
     }
-    foot_box(1, &bx, &bw); draw_button(bx + 4, fy + 8, bw - 8, FOOT_H - 16, "FLDR", !s_radio && s_dir[0] != '\0');
-    foot_box(2, &bx, &bw); draw_button(bx + 4, fy + 8, bw - 8, FOOT_H - 16, "UP^",  s_top > 0);
-    foot_box(3, &bx, &bw); draw_button(bx + 4, fy + 8, bw - 8, FOOT_H - 16, "DN",   s_top + rows < s_count);
-    foot_box(4, &bx, &bw); draw_button(bx + 4, fy + 8, bw - 8, FOOT_H - 16, order_button_label(), true);
+    foot_box(1, &bx, &bw); draw_button(bx + 4, fy + 8, bw - 8, FOOT_H - 16, _("FLDR"), !s_radio && s_dir[0] != '\0');
+    foot_box(2, &bx, &bw); draw_button(bx + 4, fy + 8, bw - 8, FOOT_H - 16, _("UP^"), s_top > 0);
+    foot_box(3, &bx, &bw); draw_button(bx + 4, fy + 8, bw - 8, FOOT_H - 16, _("DN"), s_top + rows < s_count);
+    foot_box(4, &bx, &bw); draw_button(bx + 4, fy + 8, bw - 8, FOOT_H - 16, _(order_button_label()), true);
     foot_box(5, &bx, &bw); draw_button(bx + 4, fy + 8, bw - 8, FOOT_H - 16, "X",    true);
 
     gfx_blit(0, h);

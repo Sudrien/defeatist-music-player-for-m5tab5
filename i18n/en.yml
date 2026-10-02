@@ -40,6 +40,10 @@ en:
     "A sign-in page opens with the form.": ~
     # sleeppage.c
     "A tap anywhere brings it back, and does not press anything.": ~
+    # browser.c
+    "ALL": ~
+    # panel.c
+    "AUTO": ~
     # panel.c
     "About twenty seconds.": ~
     # panel.c
@@ -56,6 +60,12 @@ en:
     "Already recording.": ~
     # panel.c
     "Auto: USB, jack, mono. Off: no record.": ~
+    # ui.c
+    "BATT": ~
+    # ui.c
+    "BATT %d%%": ~
+    # panel.c
+    "BUSY": ~
     # player.c
     "Battery empty": ~
     # player.c
@@ -66,6 +76,12 @@ en:
     "Brightness   %d%%": ~
     # streamplan.h
     "Buffering": ~
+    # ui.c
+    "CHARGED": ~
+    # ui.c
+    "CHRG %d%%": ~
+    # panel.c, sleeppage.c
+    "CLOSE": ~
     # player.c
     "Cannot record": ~
     # panel.c
@@ -90,10 +106,20 @@ en:
     "Crossfade   %d s": ~
     # panel.c
     "Crossfade   off": ~
+    # browser.c
+    "DN": ~
     # sleeppage.c
     "Dim screen": ~
+    # browser.c
+    "EAT": ~
+    # browser.c
+    "EAT1": ~
     # panel.c
     "Evens out loudness between tracks.": ~
+    # browser.c
+    "FLDR": ~
+    # panel.c
+    "FOCUSED": ~
     # sleeppage.c
     "Fades out, pauses, and turns the screen off.": ~
     # player.c
@@ -105,7 +131,17 @@ en:
     # panel.c
     "Greyed while Wi-Fi is off; the setting is kept.": ~
     # panel.c
+    "HEADSET": ~
+    # panel.c
     "Headset, UAC: the jack, a USB mic.": ~
+    # ui.c
+    "IDLE": ~
+    # ui.c
+    "IDLE %dM": ~
+    # panel.c
+    "IN USE": ~
+    # panel.c
+    "INDEXING": ~
     # player.c, recorder.c
     "Insert a card or a USB drive to record to.": "Insert a card or a USB\ndrive to record to."
     # panel.c
@@ -114,6 +150,8 @@ en:
     "It reached 4 GB, the most one file can hold.": "It reached 4 GB, the\nmost one file can hold."
     # panel.c
     "Join %s on a phone.": ~
+    # ui.c
+    "LIVE": ~
     # panel.c
     "Levels are still measured while off.": ~
     # panel.c
@@ -121,7 +159,11 @@ en:
     # sleeppage.c
     "Longer than the dim, and the backlight goes out altogether. Never while this page is open.": ~
     # panel.c
+    "MONO": ~
+    # panel.c
     "MPD server": ~
+    # ui.c
+    "MUTED": ~
     # player.c
     "Media removed": ~
     # panel.c
@@ -130,6 +172,8 @@ en:
     "Most listened": ~
     # radiobrowser.h
     "Most voted": ~
+    # ui.c
+    "NO BATT": ~
     # panel.c
     "Needed for internet radio and the clock.": ~
     # panel.c
@@ -152,10 +196,14 @@ en:
     "Not enough memory to record.": "Not enough memory\nto record."
     # recorder.c
     "Nothing is plugged into the headset jack.": "Nothing is plugged into\nthe headset jack."
-    # panel.c
+    # panel.c, sleeppage.c
     "OFF": ~
-    # panel.c
+    # panel.c, sleeppage.c
     "ON": ~
+    # browser.c
+    "ONE": ~
+    # browser.c
+    "ONE1": ~
     # panel.c
     "Off by default. Nothing on the card needs it, and the radio draws power while on.": ~
     # sleeppage.c
@@ -180,8 +228,24 @@ en:
     "Power off": ~
     # sleeppage.c
     "Quarter turns. 90 and 270 are landscape; 180 is for when the cable is at the wrong end.": ~
+    # ui.c
+    "REC": ~
+    # panel.c
+    "REINDEX": ~
+    # panel.c
+    "RESET": ~
     # panel.c
     "RESET: back to the build time; this boot's recordings are renamed to match.": ~
+    # browser.c
+    "RLOD": ~
+    # browser.c
+    "RND": ~
+    # browser.c
+    "RPT": ~
+    # browser.c
+    "RPT1": ~
+    # panel.c
+    "RUN": ~
     # player.c
     "Radio": ~
     # panel.c
@@ -204,6 +268,16 @@ en:
     "ReplayGain is listening...": ~
     # sleeppage.c
     "Rotation": ~
+    # ui.c
+    "SLEEP": ~
+    # ui.c
+    "SLEEP %dM": ~
+    # panel.c
+    "START": ~
+    # panel.c
+    "STEREO": ~
+    # panel.c
+    "STOP": ~
     # panel.c
     "Same Wi-Fi as the player. %u:%02u left": ~
     # panel.c
@@ -266,6 +340,10 @@ en:
     "Turn Wi-Fi on first.": ~
     # player.c
     "Turning off to protect the battery. Charge it before use.": "Turning off to protect\nthe battery. Charge it\nbefore use."
+    # browser.c
+    "UP": ~
+    # browser.c
+    "UP^": ~
     # audio_out.c
     "USB audio": ~
     # browser.c

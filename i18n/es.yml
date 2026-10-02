@@ -40,6 +40,10 @@ es:
     "A sign-in page opens with the form.": "Se abre una página con el formulario."
     # sleeppage.c
     "A tap anywhere brings it back, and does not press anything.": "Un toque en cualquier sitio la recupera, sin pulsar nada."
+    # browser.c
+    "ALL": "TODAS"
+    # panel.c
+    "AUTO": "AUTO"
     # panel.c
     "About twenty seconds.": "Unos veinte segundos."
     # panel.c
@@ -56,6 +60,12 @@ es:
     "Already recording.": "Ya se está grabando."
     # panel.c
     "Auto: USB, jack, mono. Off: no record.": "Auto: USB, toma, mono. No: sin grabar."
+    # ui.c
+    "BATT": "BAT"
+    # ui.c
+    "BATT %d%%": "BAT %d%%"
+    # panel.c
+    "BUSY": "OCUP."
     # player.c
     "Battery empty": "Batería agotada"
     # player.c
@@ -66,6 +76,12 @@ es:
     "Brightness   %d%%": "Brillo   %d%%"
     # streamplan.h
     "Buffering": "Cargando"
+    # ui.c
+    "CHARGED": "CARGADA"
+    # ui.c
+    "CHRG %d%%": "CARG %d%%"
+    # panel.c, sleeppage.c
+    "CLOSE": "CERRAR"
     # player.c
     "Cannot record": "No se puede grabar"
     # panel.c
@@ -90,10 +106,20 @@ es:
     "Crossfade   %d s": "Fundido cruzado   %d s"
     # panel.c
     "Crossfade   off": "Fundido cruzado   desactivado"
+    # browser.c
+    "DN": "AV PÁG"
     # sleeppage.c
     "Dim screen": "Atenuar pantalla"
+    # browser.c
+    "EAT": "BORRAR"
+    # browser.c
+    "EAT1": "BORRAR1"
     # panel.c
     "Evens out loudness between tracks.": "Iguala el volumen entre pistas."
+    # browser.c
+    "FLDR": "CARPETA"
+    # panel.c
+    "FOCUSED": "ENFOCADO"
     # sleeppage.c
     "Fades out, pauses, and turns the screen off.": "Baja el volumen, pausa y apaga la pantalla."
     # player.c
@@ -105,7 +131,17 @@ es:
     # panel.c
     "Greyed while Wi-Fi is off; the setting is kept.": "En gris con la Wi-Fi apagada; el ajuste se guarda."
     # panel.c
+    "HEADSET": "AURICULAR"
+    # panel.c
     "Headset, UAC: the jack, a USB mic.": "Auricular, UAC: la toma, un micro USB."
+    # ui.c
+    "IDLE": "INAC"
+    # ui.c
+    "IDLE %dM": "INAC %dM"
+    # panel.c
+    "IN USE": "EN USO"
+    # panel.c
+    "INDEXING": "INDEXANDO"
     # player.c, recorder.c
     "Insert a card or a USB drive to record to.": "Inserta una tarjeta o\nunidad USB para grabar."
     # panel.c
@@ -114,6 +150,8 @@ es:
     "It reached 4 GB, the most one file can hold.": "Llegó a 4 GB, el máximo\nde un archivo."
     # panel.c
     "Join %s on a phone.": "Únete a %s con el móvil."
+    # ui.c
+    "LIVE": "VIVO"
     # panel.c
     "Levels are still measured while off.": "Los niveles se miden aunque esté apagado."
     # panel.c
@@ -121,7 +159,11 @@ es:
     # sleeppage.c
     "Longer than the dim, and the backlight goes out altogether. Never while this page is open.": "Más que la atenuación, y la retroiluminación se apaga del todo. Nunca con esta página abierta."
     # panel.c
+    "MONO": "MONO"
+    # panel.c
     "MPD server": "Servidor MPD"
+    # ui.c
+    "MUTED": "MUDO"
     # player.c
     "Media removed": "Medio retirado"
     # panel.c
@@ -130,6 +172,8 @@ es:
     "Most listened": "Más escuchadas"
     # radiobrowser.h
     "Most voted": "Más votadas"
+    # ui.c
+    "NO BATT": "SIN BAT"
     # panel.c
     "Needed for internet radio and the clock.": "Necesaria para la radio por internet y el reloj."
     # panel.c
@@ -152,10 +196,14 @@ es:
     "Not enough memory to record.": "No hay memoria\npara grabar."
     # recorder.c
     "Nothing is plugged into the headset jack.": "No hay nada en la\ntoma de auriculares."
-    # panel.c
+    # panel.c, sleeppage.c
     "OFF": "NO"
-    # panel.c
+    # panel.c, sleeppage.c
     "ON": "SÍ"
+    # browser.c
+    "ONE": "ÚNICA"
+    # browser.c
+    "ONE1": "ÚNICA1"
     # panel.c
     "Off by default. Nothing on the card needs it, and the radio draws power while on.": "Apagada por defecto. La tarjeta no la necesita, y la radio gasta energía mientras está encendida."
     # sleeppage.c
@@ -180,8 +228,24 @@ es:
     "Power off": "Apagado"
     # sleeppage.c
     "Quarter turns. 90 and 270 are landscape; 180 is for when the cable is at the wrong end.": "En cuartos de vuelta. 90 y 270 son horizontales; 180 es para cuando el cable queda al otro lado."
+    # ui.c
+    "REC": "GRAB"
+    # panel.c
+    "REINDEX": "REINDEXAR"
+    # panel.c
+    "RESET": "VOLVER"
     # panel.c
     "RESET: back to the build time; this boot's recordings are renamed to match.": "RESET: vuelve a la hora de compilación; las grabaciones de este arranque se renombran."
+    # browser.c
+    "RLOD": "RECARGAR"
+    # browser.c
+    "RND": "AZAR"
+    # browser.c
+    "RPT": "REPETIR"
+    # browser.c
+    "RPT1": "REPITE 1"
+    # panel.c
+    "RUN": "MEDIR"
     # player.c
     "Radio": "Radio"
     # panel.c
@@ -204,6 +268,16 @@ es:
     "ReplayGain is listening...": "ReplayGain escuchando..."
     # sleeppage.c
     "Rotation": "Rotación"
+    # ui.c
+    "SLEEP": "SUEÑO"
+    # ui.c
+    "SLEEP %dM": "SUEÑO %dM"
+    # panel.c
+    "START": "ABRIR"
+    # panel.c
+    "STEREO": "ESTÉREO"
+    # panel.c
+    "STOP": "PARAR"
     # panel.c
     "Same Wi-Fi as the player. %u:%02u left": "Misma Wi-Fi que el equipo. Quedan %u:%02u"
     # panel.c
@@ -266,6 +340,10 @@ es:
     "Turn Wi-Fi on first.": "Activa primero la Wi-Fi."
     # player.c
     "Turning off to protect the battery. Charge it before use.": "Apagando para proteger\nla batería. Cárgala\nantes de usarla."
+    # browser.c
+    "UP": "SUBIR"
+    # browser.c
+    "UP^": "RE PÁG"
     # audio_out.c
     "USB audio": "audio USB"
     # browser.c

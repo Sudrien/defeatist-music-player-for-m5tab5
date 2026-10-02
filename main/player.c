@@ -4731,12 +4731,12 @@ static void show_format_card(const char *path, long bytes, uint32_t gen)
     container_name(path, head, sizeof(head));
 
     if (s_fmt_known && s_fmt_rate > 0) {
-        snprintf(rate, sizeof(rate), "%d Hz  %s", s_fmt_rate,
+        snprintf(rate, sizeof(rate), same("%d Hz  %s"), s_fmt_rate,
                  s_fmt_chans == 1 ? _("mono")
                  : s_fmt_chans == 2 ? _("stereo") : _("multichannel"));
     }
     if (s_fmt_known && s_fmt_kbps > 0) {
-        snprintf(codec, sizeof(codec), "%s  %d kbps",
+        snprintf(codec, sizeof(codec), same("%s  %d kbps"),
                  s_fmt_codec[0] ? s_fmt_codec : head, s_fmt_kbps);
     } else if (s_fmt_known && s_fmt_codec[0]) {
         snprintf(codec, sizeof(codec), "%s", s_fmt_codec);
@@ -4746,7 +4746,7 @@ static void show_format_card(const char *path, long bytes, uint32_t gen)
          * worth having here and a cover-less file is never small enough
          * for KB to read better. */
         const long tenths = (bytes * 10) / (1024 * 1024);
-        snprintf(size, sizeof(size), "%ld.%ld MB", tenths / 10, tenths % 10);
+        snprintf(size, sizeof(size), same("%ld.%ld MB"), tenths / 10, tenths % 10);
     }
 
     const char *lines[5];
@@ -12484,7 +12484,7 @@ static void show_stream_card(stream_codec_t codec, uint32_t rate,
      */
     const int shown_br = kbps > 0 ? kbps : netstream_declared_kbps();
     if (shown_br > 0) {
-        snprintf(cline, sizeof(cline), "%s  %d kbps", head, shown_br);
+        snprintf(cline, sizeof(cline), same("%s  %d kbps"), head, shown_br);
     }
 
     const char *lines[4];

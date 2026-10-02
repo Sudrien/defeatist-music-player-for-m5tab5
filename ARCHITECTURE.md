@@ -20829,3 +20829,49 @@ i18ntest's glyph check found 即 and 然 again, and 聚; reworded (就能,
 panel.c and sleeppage.c passed a syntax-only host compile against
 texttest's fakes and stub headers; the errors left were all the stubs'.
 Not compiled with ESP-IDF here. Not on the board.
+
+### 6019 -- the short labels, and same() for what stays English
+
+The ABBREVIATIONS.md words, which 6018 left for a decision: translate
+the full word each one stands for, and re-shorten it where the button
+is narrower than the word. 39 labels in Mandarin, Japanese and Spanish;
+ABBREVIATIONS.md has them in a table at the end.
+
+Where there was precedent it was followed. The play-order words are
+MPD's modes, and Cantata -- an MPD client with maintained zh_CN, ja and
+es translations -- has words for all of them: 重复, 随机, 单曲, 播放后删除
+for consume (here 播完删除, four characters to fit the button);
+リピート, ランダム, and its コンシューム, which at six fullwidth
+characters does not fit, so 消費; Repetir. ON/OFF keep the 开/关 the Audio
+tab has used since 6013, now on every switch rather than on one, which
+was the inconsistency worth fixing first: "Same album" said 开 while
+ReplayGain above it said ON.
+
+Every label was measured with gfx_text_w() against where it is drawn:
+the chooser's six footer buttons (112 px of text, 8 Latin or 4 CJK
+characters), the settings pills (124 px at scale 3, 5 or 3; the clock's
+152), IN USE, REINDEX, CLOSE, the record-from pill against the heading
+beside it, and the LIVE/REC pill, which sizes itself. The status line
+was the tight one -- 6012 left it 2 px spare in English -- so the
+check is its worst case, SLEEP 120M, IDLE 120M and the widest battery
+word together: English 392 px, Chinese and Japanese 362, Spanish 378.
+That is why the Chinese and Japanese minute counts are "睡眠%d分" with
+no space, and Spanish idle is INAC rather than a word that does not
+fit. i18ntest's glyph check found 碌 and 処; BUSY is 进行中 and 作業中.
+
+order_label() is printed by the log as well as drawn, so it returns
+N_() literals and the button translates; the log still says "play
+order now RND".
+
+same() now marks what stays English on purpose: USB, WIFI, MPD and
+HTTPS on the status line, UAC, the app name and repository, the clock's
+strftime format, the art card's units, and the cue sheet's fallback
+title "Track %d" -- which is track metadata that MPD clients receive
+as the Title tag, so it must not change with the screen's language.
+
+Left: the two benchmark lines that cut a station name with %.20s and
+%.16s, the recorder's three formatted refusals, and the two web pages.
+
+Syntax-only host compile of ui.c, browser.c, cuedir.c, sleeppage.c,
+panel.c and player.c with stubs: the errors left are all the stubs'.
+Not compiled with ESP-IDF here. Not on the board.

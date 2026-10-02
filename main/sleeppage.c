@@ -331,7 +331,7 @@ void sleeppage_draw(void)
         /* panel.c's pill, same size and place. */
         const int pw = 132, ph = 56;
         const int px = w - 24 - pw, py = y + (bh - ph) / 2;
-        const char *text = s_screen_on ? "ON" : "OFF";
+        const char *text = s_screen_on ? _("ON") : _("OFF");
         gfx_fill_rect(px, py, pw, ph, s_screen_on ? C_ON : C_BTN);
         const int tw = gfx_text_w(text, NAME_SCALE);
         gfx_draw_text(px + (pw - tw) / 2, py + (ph - GFX_GLYPH_H(NAME_SCALE)) / 2,
@@ -542,10 +542,10 @@ void sleeppage_draw(void)
     int cbx, cby, cbw, cbh;
     close_box(&cbx, &cby, &cbw, &cbh);
     gfx_fill_rect(cbx, cby, cbw, cbh, C_BTN);
-    const int cw = gfx_text_w("CLOSE", LABEL_SCALE);
+    const int cw = gfx_text_w(_("CLOSE"), LABEL_SCALE);
     gfx_draw_text(cbx + (cbw - cw) / 2,
                   cby + (cbh - GFX_GLYPH_H(LABEL_SCALE)) / 2,
-                  "CLOSE", LABEL_SCALE, cbw - 8, C_TEXT);
+                  _("CLOSE"), LABEL_SCALE, cbw - 8, C_TEXT);
 
     gfx_blit(0, h);
 }

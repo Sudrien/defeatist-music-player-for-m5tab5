@@ -299,9 +299,9 @@ static int build_usb(row_t *rows)
  * row's value (about 32 at this scale) and than VAL_MAX -- broken at the
  * slash so each half can be typed as read.
  */
-#define PANEL_APP_NAME   "Defeatist Music Player"
-#define PANEL_SOURCE_1   "github.com/Sudrien/"
-#define PANEL_SOURCE_2   "m5tab5_defeatist_music_player"
+#define PANEL_APP_NAME   same("Defeatist Music Player")
+#define PANEL_SOURCE_1   same("github.com/Sudrien/")
+#define PANEL_SOURCE_2   same("m5tab5_defeatist_music_player")
 
 static int build_build(row_t *rows)
 {
@@ -472,7 +472,7 @@ static int draw_reindex(int nrows)
     /* Greyed while any reindex runs: one at a time, and a button that
      * looks live and does nothing reads as broken. */
     const bool live = !medialib_busy();
-    const char *label = mine ? "INDEXING" : live ? "REINDEX" : "BUSY";
+    const char *label = mine ? _("INDEXING") : live ? _("REINDEX") : _("BUSY");
 
     int bx, by, bw, bh;
     reindex_box(&bx, &by, &bw, &bh);
@@ -532,7 +532,7 @@ static void draw_usb_switch(void)
      * broken one. */
     const bool locked = storage_usb_busy();
 
-    const char *state = locked ? "IN USE" : on ? "ON" : "OFF";
+    const char *state = locked ? _("IN USE") : on ? _("ON") : _("OFF");
     const int pw = 132, ph = 44;
     const int px = gfx_w() - 24 - pw, py = y + (bh - ph) / 2;
 
@@ -995,7 +995,7 @@ static int draw_net(void)
     {
         const int pw = 132, ph = 56;
         draw_pill(w - 24 - pw, y + (bh - ph) / 2, pw, ph,
-                  wifi ? "ON" : "OFF", wifi, NAME_SCALE);
+                  wifi ? _("ON") : _("OFF"), wifi, NAME_SCALE);
     }
 
     /*
@@ -1015,7 +1015,7 @@ static int draw_net(void)
         const bool pref = settings_remote_enabled();
         const int pw = 132, ph = 56;
         draw_state_pill(w - 24 - pw, y + (bh - ph) / 2, pw, ph,
-                        pref ? "ON" : "OFF", pref, netok, NAME_SCALE);
+                        pref ? _("ON") : _("OFF"), pref, netok, NAME_SCALE);
     }
     {
         /*
@@ -1068,7 +1068,7 @@ static int draw_net(void)
         const bool pref = settings_mpd_enabled();
         const int pw = 132, ph = 56;
         draw_state_pill(w - 24 - pw, y + (bh - ph) / 2, pw, ph,
-                        pref ? "ON" : "OFF", pref, netok, NAME_SCALE);
+                        pref ? _("ON") : _("OFF"), pref, netok, NAME_SCALE);
     }
     {
         /* The remote's note, in the remote's order: what to type when it
@@ -1106,7 +1106,7 @@ static int draw_net(void)
         const bool pref = settings_ntp_pref();
         const int pw = 132, ph = 56;
         draw_state_pill(w - 24 - pw, y + (bh - ph) / 2, pw, ph,
-                        pref ? "ON" : "OFF", pref, wifi, NAME_SCALE);
+                        pref ? _("ON") : _("OFF"), pref, wifi, NAME_SCALE);
     }
 
     (void)draw_paras(y + bh + AUDIO_NOTE_GAP, k_ntp_note, COUNT(k_ntp_note), 99);
@@ -1122,7 +1122,7 @@ static int draw_net(void)
     {
         const int pw = 132, ph = 56;
         draw_state_pill(w - 24 - pw, y + (bh - ph) / 2, pw, ph,
-                        running ? "STOP" : "START", running, wifi, NAME_SCALE);
+                        running ? _("STOP") : _("START"), running, wifi, NAME_SCALE);
     }
     char lines[NET_SETUP_NOTE_LINES][64];
     setup_lines(&st, wifi, running, lines);
@@ -1142,7 +1142,7 @@ static int draw_net(void)
     {
         const int pw = 132, ph = 56;
         draw_state_pill(w - 24 - pw, y + (bh - ph) / 2, pw, ph,
-                        bs.running ? "BUSY" : "RUN", bs.running, netok,
+                        bs.running ? _("BUSY") : _("RUN"), bs.running, netok,
                         NAME_SCALE);
     }
     char blines[NET_BENCH_NOTE_LINES][64];
@@ -1169,7 +1169,7 @@ static int draw_net(void)
          * throw away the one time this player knows is right. */
         const int pw = 160, ph = 56;
         draw_state_pill(w - 24 - pw, y + (bh - ph) / 2, pw, ph,
-                        "RESET", false, !verified, NAME_SCALE);
+                        _("RESET"), false, !verified, NAME_SCALE);
     }
     char c0[48];
     {
@@ -1177,7 +1177,7 @@ static int draw_net(void)
         struct tm tm;
         gmtime_r(&now, &tm);
         char when[24];
-        strftime(when, sizeof(when), "%Y-%m-%d %H:%MZ", &tm);
+        strftime(when, sizeof(when), same("%Y-%m-%d %H:%MZ"), &tm);
         snprintf(c0, sizeof(c0), "%s, %s", when, verified ? _("from NTP") : _("a guess"));
     }
     const char *clock_note[] = {
@@ -1216,7 +1216,7 @@ static int draw_audio(void)
         const bool on = settings_rg_enabled();
         const int pw = 132, ph = 56;
         draw_pill(w - 24 - pw, y + (bh - ph) / 2, pw, ph,
-                  on ? "ON" : "OFF", on, NAME_SCALE);
+                  on ? _("ON") : _("OFF"), on, NAME_SCALE);
     }
 
     /*
@@ -1319,13 +1319,13 @@ static int draw_audio(void)
          * built-in pair and AUTO are always there.
          */
         static const char *const k_label[SETTINGS_REC_COUNT] = {
-            [SETTINGS_REC_MONO] = "MONO",       [SETTINGS_REC_STEREO] = "STEREO",
-            [SETTINGS_REC_FOCUSED] = "FOCUSED", [SETTINGS_REC_HEADSET] = "HEADSET",
-            [SETTINGS_REC_UAC] = "UAC",         [SETTINGS_REC_AUTO] = "AUTO",
-            [SETTINGS_REC_OFF] = "OFF",
+            [SETTINGS_REC_MONO] = N_("MONO"),       [SETTINGS_REC_STEREO] = N_("STEREO"),
+            [SETTINGS_REC_FOCUSED] = N_("FOCUSED"), [SETTINGS_REC_HEADSET] = N_("HEADSET"),
+            [SETTINGS_REC_UAC] = same("UAC"),       [SETTINGS_REC_AUTO] = N_("AUTO"),
+            [SETTINGS_REC_OFF] = N_("OFF"),
         };
         const settings_rec_from_t in = settings_rec_from();
-        const char *label = k_label[in < SETTINGS_REC_COUNT ? in : SETTINGS_REC_AUTO];
+        const char *label = _(k_label[in < SETTINGS_REC_COUNT ? in : SETTINGS_REC_AUTO]);
         const bool there = in == SETTINGS_REC_HEADSET ? audio_out_headphones()
                          : in == SETTINGS_REC_UAC     ? uac_mic_announced()
                          : in == SETTINGS_REC_OFF     ? false     /* 5217 */
@@ -1449,10 +1449,10 @@ void panel_draw(void)
     int cbx, cby, cbw, cbh;
     close_box(&cbx, &cby, &cbw, &cbh);
     gfx_fill_rect(cbx, cby, cbw, cbh, can_close ? C_BTN : C_TAB_OFF);
-    const int cw = gfx_text_w("CLOSE", LABEL_SCALE);
+    const int cw = gfx_text_w(_("CLOSE"), LABEL_SCALE);
     gfx_draw_text(w / 2 - cw / 2,
                   cby + (cbh - GFX_GLYPH_H(LABEL_SCALE)) / 2,
-                  "CLOSE", LABEL_SCALE, 172, can_close ? C_TEXT : C_DISABLED);
+                  _("CLOSE"), LABEL_SCALE, 172, can_close ? C_TEXT : C_DISABLED);
 
     gfx_blit(0, h);
 }

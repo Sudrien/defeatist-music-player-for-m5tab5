@@ -23,6 +23,7 @@ static const char *TAG = "tab5_cue";
 #include "decoder.h"
 #include "duration.h"
 #include "storage.h"
+#include "i18n.h"          /* 6019: same() */
 
 /* A sheet is text and a big one is a few KB. Anything past this is not
  * a sheet anyone wrote, and reading it whole on a touch is not free. */
@@ -256,7 +257,7 @@ cuedir_t *cuedir_load(const char *dir, storage_io_class_t cls)
                 snprintf(r->label, sizeof r->label, "%02d  %s",
                          cs->tracks[t].number, cs->tracks[t].title);
             } else {
-                snprintf(r->label, sizeof r->label, "%02d  Track %d",
+                snprintf(r->label, sizeof r->label, same("%02d  Track %d"),
                          cs->tracks[t].number, cs->tracks[t].number);
             }
         }
@@ -313,7 +314,7 @@ bool cuedir_row_tags(const cuedir_t *cd, int i, char *title, char *artist,
     cue_text(title,  each, r->title,     strlen(r->title),     false);
     cue_text(artist, each, r->performer, strlen(r->performer), false);
     cue_text(album,  each, r->album,     strlen(r->album),     false);
-    if (!title[0]) snprintf(title, each, "Track %d", r->number);
+    if (!title[0]) snprintf(title, each, same("Track %d"), r->number);
     return true;
 }
 
@@ -426,7 +427,7 @@ bool cuedir_tags(const char *vpath, char *title, char *artist, char *album,
     cue_text(title,  each, s_look.title,     strlen(s_look.title),     false);
     cue_text(artist, each, s_look.performer, strlen(s_look.performer), false);
     cue_text(album,  each, s_look.album,     strlen(s_look.album),     false);
-    if (!title[0]) snprintf(title, each, "Track %d", s_look.number);
+    if (!title[0]) snprintf(title, each, same("Track %d"), s_look.number);
     done();
     return true;
 }

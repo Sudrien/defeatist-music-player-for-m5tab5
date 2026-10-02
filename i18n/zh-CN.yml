@@ -40,6 +40,10 @@ zh-CN:
     "A sign-in page opens with the form.": "会打开带表单的登录页。"
     # sleeppage.c
     "A tap anywhere brings it back, and does not press anything.": "轻点任意处就能恢复，不会误按。"
+    # browser.c
+    "ALL": "顺序"
+    # panel.c
+    "AUTO": "自动"
     # panel.c
     "About twenty seconds.": "约二十秒。"
     # panel.c
@@ -56,6 +60,12 @@ zh-CN:
     "Already recording.": "正在录音。"
     # panel.c
     "Auto: USB, jack, mono. Off: no record.": "自动：USB、插孔、单声道。关：不录音。"
+    # ui.c
+    "BATT": "电池"
+    # ui.c
+    "BATT %d%%": "电池 %d%%"
+    # panel.c
+    "BUSY": "进行中"
     # player.c
     "Battery empty": "电池耗尽"
     # player.c
@@ -66,6 +76,12 @@ zh-CN:
     "Brightness   %d%%": "亮度   %d%%"
     # streamplan.h
     "Buffering": "缓冲中"
+    # ui.c
+    "CHARGED": "已充满"
+    # ui.c
+    "CHRG %d%%": "充电 %d%%"
+    # panel.c, sleeppage.c
+    "CLOSE": "关闭"
     # player.c
     "Cannot record": "无法录音"
     # panel.c
@@ -90,10 +106,20 @@ zh-CN:
     "Crossfade   %d s": "交叉淡化   %d 秒"
     # panel.c
     "Crossfade   off": "交叉淡化   关"
+    # browser.c
+    "DN": "下页"
     # sleeppage.c
     "Dim screen": "屏幕变暗"
+    # browser.c
+    "EAT": "播完删除"
+    # browser.c
+    "EAT1": "删除1"
     # panel.c
     "Evens out loudness between tracks.": "平衡曲目之间的响度。"
+    # browser.c
+    "FLDR": "播放目录"
+    # panel.c
+    "FOCUSED": "定向"
     # sleeppage.c
     "Fades out, pauses, and turns the screen off.": "淡出、暂停并关闭屏幕。"
     # player.c
@@ -105,7 +131,17 @@ zh-CN:
     # panel.c
     "Greyed while Wi-Fi is off; the setting is kept.": "Wi-Fi 关闭时变灰；设置会保留。"
     # panel.c
+    "HEADSET": "耳麦"
+    # panel.c
     "Headset, UAC: the jack, a USB mic.": "耳麦、UAC：插孔、USB 麦克风。"
+    # ui.c
+    "IDLE": "空闲"
+    # ui.c
+    "IDLE %dM": "空闲%d分"
+    # panel.c
+    "IN USE": "使用中"
+    # panel.c
+    "INDEXING": "索引中"
     # player.c, recorder.c
     "Insert a card or a USB drive to record to.": "请插入存储卡或 U 盘\n再录音。"
     # panel.c
@@ -114,6 +150,8 @@ zh-CN:
     "It reached 4 GB, the most one file can hold.": "已达 4 GB，\n单个文件的上限。"
     # panel.c
     "Join %s on a phone.": "用手机连接 %s。"
+    # ui.c
+    "LIVE": "直播"
     # panel.c
     "Levels are still measured while off.": "关闭时仍会测量电平。"
     # panel.c
@@ -121,7 +159,11 @@ zh-CN:
     # sleeppage.c
     "Longer than the dim, and the backlight goes out altogether. Never while this page is open.": "比变暗更久，背光会完全熄灭。此页面打开时不会熄灭。"
     # panel.c
+    "MONO": "单声道"
+    # panel.c
     "MPD server": "MPD 服务器"
+    # ui.c
+    "MUTED": "静音"
     # player.c
     "Media removed": "媒体已移除"
     # panel.c
@@ -130,6 +172,8 @@ zh-CN:
     "Most listened": "收听最多"
     # radiobrowser.h
     "Most voted": "得票最多"
+    # ui.c
+    "NO BATT": "无电池"
     # panel.c
     "Needed for internet radio and the clock.": "网络电台和时钟需要它。"
     # panel.c
@@ -152,10 +196,14 @@ zh-CN:
     "Not enough memory to record.": "内存不足，无法录音。"
     # recorder.c
     "Nothing is plugged into the headset jack.": "耳麦插孔未插入设备。"
-    # panel.c
+    # panel.c, sleeppage.c
     "OFF": "关"
-    # panel.c
+    # panel.c, sleeppage.c
     "ON": "开"
+    # browser.c
+    "ONE": "单曲"
+    # browser.c
+    "ONE1": "单曲1"
     # panel.c
     "Off by default. Nothing on the card needs it, and the radio draws power while on.": "默认关闭。播放卡上的内容不需要它，开启时无线模块会耗电。"
     # sleeppage.c
@@ -180,8 +228,24 @@ zh-CN:
     "Power off": "自动关机"
     # sleeppage.c
     "Quarter turns. 90 and 270 are landscape; 180 is for when the cable is at the wrong end.": "以 90 度为单位。90 和 270 为横屏；线缆在另一端时用 180。"
+    # ui.c
+    "REC": "录音"
+    # panel.c
+    "REINDEX": "重新索引"
+    # panel.c
+    "RESET": "重置"
     # panel.c
     "RESET: back to the build time; this boot's recordings are renamed to match.": "RESET：回到构建时间；本次启动的录音会相应改名。"
+    # browser.c
+    "RLOD": "重新加载"
+    # browser.c
+    "RND": "随机"
+    # browser.c
+    "RPT": "重复"
+    # browser.c
+    "RPT1": "单曲重复"
+    # panel.c
+    "RUN": "运行"
     # player.c
     "Radio": "电台"
     # panel.c
@@ -204,6 +268,16 @@ zh-CN:
     "ReplayGain is listening...": "ReplayGain 测量中..."
     # sleeppage.c
     "Rotation": "屏幕方向"
+    # ui.c
+    "SLEEP": "睡眠"
+    # ui.c
+    "SLEEP %dM": "睡眠%d分"
+    # panel.c
+    "START": "开始"
+    # panel.c
+    "STEREO": "立体声"
+    # panel.c
+    "STOP": "停止"
     # panel.c
     "Same Wi-Fi as the player. %u:%02u left": "与本机同一 Wi-Fi。剩余 %u:%02u"
     # panel.c
@@ -266,6 +340,10 @@ zh-CN:
     "Turn Wi-Fi on first.": "请先打开 Wi-Fi。"
     # player.c
     "Turning off to protect the battery. Charge it before use.": "正在关机以保护电池。\n使用前请充电。"
+    # browser.c
+    "UP": "上级"
+    # browser.c
+    "UP^": "上页"
     # audio_out.c
     "USB audio": "USB 音频"
     # browser.c

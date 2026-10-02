@@ -162,6 +162,65 @@ if there is no card).
 | Sleep timer | off, or 15 min to 2 h in 15-minute steps. The sound fades out over the last 20 seconds. |
 | Power off | Never, or after 15 min, 30 min, 1 h or 2 h with nothing playing, recording or touched. The device turns itself off; the side button turns it on. Separate from the sleep timer, and never while music plays. |
 
+## In other languages (6019)
+
+The labels above in Mandarin, Japanese and Spanish, chosen on the BUILD
+tab. Each translates the full word the label stands for, re-shortened
+where a button is narrower than the word: chooser buttons are 112 px
+(8 Latin or 4 CJK characters), the settings pills 124 px (5 or 3). The
+play-order words follow Cantata's MPD vocabulary where it has one --
+重复/随机/单曲 and 播完删除 (from 播放后删除), リピート/ランダム,
+Repetir -- and ON/OFF
+follow the 开/关 the Audio tab has used since 6013.
+
+Kept in English in every language, by `same()`: the tab names (SD, USB,
+BUILD, AUDIO, NET, RADIO), USB, WIFI, MPD, HTTPS, UAC, RG, and the
+units.
+
+| Where | English | 简体中文 | 日本語 | Español |
+|---|---|---|---|---|
+| Status line | `SLEEP` | 睡眠 | 睡眠 | SUEÑO |
+| Status line | `SLEEP %dM` | 睡眠%d分 | 睡眠%d分 | SUEÑO %dM |
+| Status line | `IDLE` | 空闲 | 待機 | INAC |
+| Status line | `IDLE %dM` | 空闲%d分 | 待機%d分 | INAC %dM |
+| Status line | `BATT` | 电池 | 電池 | BAT |
+| Status line | `BATT %d%%` | 电池 %d%% | 電池 %d%% | BAT %d%% |
+| Status line | `CHRG %d%%` | 充电 %d%% | 充電 %d%% | CARG %d%% |
+| Status line | `CHARGED` | 已充满 | 満充電 | CARGADA |
+| Status line | `NO BATT` | 无电池 | 電池なし | SIN BAT |
+| Now playing | `LIVE` | 直播 | ライブ | VIVO |
+| Now playing | `REC` | 录音 | 録音 | GRAB |
+| Now playing | `MUTED` | 静音 | 無音 | MUDO |
+| Chooser footer | `UP` | 上级 | 上へ | SUBIR |
+| Chooser footer | `RLOD` | 重新加载 | 再読込 | RECARGAR |
+| Chooser footer | `FLDR` | 播放目录 | フォルダ | CARPETA |
+| Chooser footer | `UP^` | 上页 | 前頁 | RE PÁG |
+| Chooser footer | `DN` | 下页 | 次頁 | AV PÁG |
+| Play order | `ONE` | 单曲 | 単曲 | ÚNICA |
+| Play order | `ALL` | 顺序 | 全曲 | TODAS |
+| Play order | `RPT` | 重复 | リピート | REPETIR |
+| Play order | `EAT` | 播完删除 | 消費 | BORRAR |
+| Play order | `RND` | 随机 | ランダム | AZAR |
+| Play order | `RPT1` | 单曲重复 | 1曲反復 | REPITE 1 |
+| Play order | `ONE1` | 单曲1 | 単曲1 | ÚNICA1 |
+| Play order | `EAT1` | 删除1 | 消費1 | BORRAR1 |
+| Settings | `ON` | 开 | オン | SÍ |
+| Settings | `OFF` | 关 | オフ | NO |
+| Settings | `IN USE` | 使用中 | 使用中 | EN USO |
+| Settings | `REINDEX` | 重新索引 | 再索引 | REINDEXAR |
+| Settings | `INDEXING` | 索引中 | 索引中 | INDEXANDO |
+| Settings | `BUSY` | 进行中 | 作業中 | OCUP. |
+| Settings | `START` | 开始 | 開始 | ABRIR |
+| Settings | `STOP` | 停止 | 停止 | PARAR |
+| Settings | `RUN` | 运行 | 実行 | MEDIR |
+| Settings | `RESET` | 重置 | 戻す | VOLVER |
+| Settings | `CLOSE` | 关闭 | 閉じる | CERRAR |
+| Record from | `MONO` | 单声道 | モノラル | MONO |
+| Record from | `STEREO` | 立体声 | ステレオ | ESTÉREO |
+| Record from | `FOCUSED` | 定向 | フォーカス | ENFOCADO |
+| Record from | `HEADSET` | 耳麦 | ヘッドセット | AURICULAR |
+| Record from | `AUTO` | 自动 | 自動 | AUTO |
+
 ## Build switches
 
 Not on the screen -- `idf.py -D<NAME>=1 build`. Each stays in

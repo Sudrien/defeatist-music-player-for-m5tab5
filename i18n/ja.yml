@@ -44,10 +44,22 @@ ja:
     "Add a network": "ネットワーク追加"
     # panel.c
     "Add a radio station to the card.": "カードに局を追加。"
+    # radiobrowser.h
+    "Add a station by phone...": "スマホで局を追加..."
+    # recorder.c
+    "Already recording.": "録音中です。"
+    # player.c
+    "Battery empty": "電池切れ"
+    # player.c
+    "Battery low": "電池残量低下"
     # panel.c
     "Benchmark": "速度測定"
     # sleeppage.c
     "Brightness   %d%%": "明るさ   %d%%"
+    # streamplan.h
+    "Buffering": "バッファ中"
+    # player.c
+    "Cannot record": "録音できない"
     # panel.c
     "Cert %.29s...": "証明書 %.29s..."
     # panel.c
@@ -56,6 +68,14 @@ ja:
     "Connect an MPD app to %s": "MPDアプリで %s に接続"
     # panel.c
     "Connected to %.32s.": "%.32s に接続済み。"
+    # streamplan.h
+    "Connecting": "接続中"
+    # recorder.c
+    "Could not make the Recordings folder.": "Recordings フォルダを\n作れなかった。"
+    # player.c
+    "Could not save": "保存できない"
+    # recorder.c
+    "Could not start the file.": "ファイルを開始できない。"
     # panel.c
     "Could not start.": "起動できなかった。"
     # panel.c
@@ -64,20 +84,42 @@ ja:
     "Crossfade   off": "クロスフェード   オフ"
     # sleeppage.c
     "Dim screen": "画面を暗く"
+    # player.c
+    "Favourites are full": "お気に入りが満杯"
+    # player.c, recorder.c
+    "Insert a card or a USB drive to record to.": "カードかUSBドライブを\n入れて録音を。"
+    # recorder.c
+    "It reached 4 GB, the most one file can hold.": "4 GB に達した。\n1ファイルの上限。"
     # panel.c
     "Join %s on a phone.": "スマホで %s に接続。"
     # panel.c
     "Libraries": "ライブラリ"
     # panel.c
     "MPD server": "MPDサーバー"
+    # player.c
+    "Media removed": "メディアが外れた"
+    # radiobrowser.h
+    "Most listened": "よく聴かれる局"
+    # radiobrowser.h
+    "Most voted": "投票の多い局"
     # panel.c
     "Needs a network: Wi-Fi or a cable.": "ネットワークが必要：Wi-Fiかケーブル。"
     # panel.c
     "Network time": "ネット時刻"
     # powerdown.h, screendim.h
     "Never": "しない"
+    # recorder.c
+    "No USB microphone is plugged in.": "USBマイクが\nつながっていない。"
     # panel.c
     "No app connected.": "接続中のアプリなし。"
+    # recorder.c
+    "No memory for the recording task.": "録音タスクのメモリ不足。"
+    # streamplan.h
+    "No signal": "信号なし"
+    # recorder.c
+    "Not enough memory to record.": "録音するメモリが足りない。"
+    # recorder.c
+    "Nothing is plugged into the headset jack.": "ヘッドセット端子に\n何もつながっていない。"
     # panel.c
     "OFF": "オフ"
     # panel.c
@@ -90,10 +132,24 @@ ja:
     "Playback pauses while setup runs.": "設定中は再生を一時停止。"
     # sleeppage.c
     "Power off": "電源オフ"
+    # player.c
+    "Radio": "ラジオ"
+    # streamplan.h
+    "Reconnecting": "再接続中"
     # panel.c
     "Record from": "録音元"
+    # player.c
+    "Recording in %d": "録音まで %d"
+    # recorder.c
+    "Recording is off (AUDIO, Record from).": "録音はオフ\n（AUDIO、録音元）。"
+    # recorder.c
+    "Recording saved": "録音を保存"
+    # recorder.c
+    "Recording stopped": "録音停止"
     # panel.c
     "Remote control": "リモコン"
+    # ui.c
+    "ReplayGain is listening...": "ReplayGain 測定中..."
     # sleeppage.c
     "Rotation": "回転"
     # panel.c
@@ -120,20 +176,46 @@ ja:
     "Sleep timer   off": "スリープタイマー   オフ"
     # panel.c
     "Source": "ソース"
+    # radiobrowser.h
+    "Starred stations": "お気に入りの局"
     # panel.c
     "Starting...": "起動中..."
     # panel.c
     "Station needs %d -- that is %d%%": "局の必要量 %d、その %d%%"
+    # player.c
+    "Station not answering": "局が応答しない"
+    # player.c
+    "Stream too slow here": "回線が遅すぎる"
+    # recorder.c
+    "The USB microphone has no 16-bit format.": "USBマイクに\n16ビット形式がない。"
+    # recorder.c
+    "The USB microphone is not there any more.": "USBマイクが\nもう見つからない。"
+    # recorder.c
+    "The USB microphone was unplugged.\n%u:%02u on %s": "USBマイクが抜かれた。\n%u:%02u、%s に保存"
+    # recorder.c
+    "The card would not take any more.": "カードがもう書き込めない。"
     # panel.c
     "The station does not say what it needs.": "局は必要量を示していない。"
     # panel.c
     "Trying %.32s...": "%.32s を試行中..."
     # panel.c
     "Turn Wi-Fi on first.": "先にWi-Fiをオン。"
+    # player.c
+    "Turning off to protect the battery. Charge it before use.": "電池を守るため電源を切る。\n使う前に充電を。"
     # audio_out.c
     "USB audio": "USBオーディオ"
+    # browser.c
+    "USB port coming up": "USBポート起動中"
+    # browser.c
+    "USB port on - waiting for a drive": "USBポートオン - ドライブ待ち"
+    # player.c
+    "Waiting for network": "ネット待ち"
+    # player.c
+    "Web setup is open": "Web設定が開いている"
     # panel.c
     "a guess": "推定"
+    # browser.c
+    "all start with  %s": "すべて %s で始まる"
     # panel.c
     "app": "アプリ"
     # panel.c
@@ -148,6 +230,8 @@ ja:
     "drive": "ドライブ"
     # panel.c
     "failed; the log says why": "失敗。理由はログに"
+    # player.c
+    "fetching %s...": "%s を取得中..."
     # panel.c
     "from NTP": "NTPより"
     # audio_out.c
@@ -158,32 +242,62 @@ ja:
     "index": "索引"
     # panel.c
     "indexing, %d so far": "索引作成中、%d 曲まで"
+    # player.c
+    "it played, then ran out of buffer": "再生後にバッファ切れ"
+    # player.c
+    "join %s": "%s に接続"
     # panel.c
     "maker": "メーカー"
+    # player.c
+    "mono": "モノラル"
     # panel.c
     "mount": "マウント"
     # panel.c
     "mounted": "マウント済み"
+    # player.c
+    "multichannel": "マルチチャンネル"
     # panel.c
     "name": "名前"
-    # panel.c
+    # browser.c
+    "no %s on the card": "カードに %s がない"
+    # browser.c, panel.c
     "no card in the slot": "スロットにカードなし"
+    # player.c
+    "no cover art": "カバーなし"
+    # player.c
+    "no network - check Wi-Fi or the cable, then tap again": "ネットなし - Wi-Fiかケーブルを確認して再タップ"
+    # player.c
+    "no network - the directory needs Wi-Fi or a cable": "ネットなし - ディレクトリにはWi-Fiかケーブルが必要"
     # panel.c
     "none": "なし"
+    # player.c
+    "not enough memory for that list": "そのリストにはメモリが足りない"
     # panel.c
     "not run this session": "この起動では未実行"
+    # player.c
+    "nothing starred yet - tap a star to keep one": "まだお気に入りなし - 星をタップで保存"
     # panel.c, sleeppage.c
     "off": "オフ"
     # panel.c
     "on": "オン"
+    # recorder.c
+    "on %s, %u:%02u\n%s": "%s に保存、%u:%02u\n%s"
+    # player.c
+    "playback stopped": "再生停止"
+    # player.c
+    "plug in to keep playing": "給電して再生を続ける"
     # panel.c
     "port": "ポート"
     # panel.c
     "product": "製品"
+    # browser.c
+    "radio - the card, the charts, or a tag": "ラジオ - カード、ランキング、タグ"
     # panel.c
     "route": "出力"
     # panel.c
     "sector": "セクタ"
+    # player.c
+    "slide or tap to cancel": "スライドかタップで中止"
     # audio_out.c
     "speaker": "スピーカー"
     # panel.c
@@ -192,25 +306,49 @@ ja:
     "starts in a few seconds": "数秒後に開始"
     # panel.c
     "state": "状態"
+    # radiobrowser.h
+    "stations.m3u on the card": "カードの stations.m3u"
+    # player.c
+    "stereo": "ステレオ"
     # panel.c
     "stopped: the volume went away": "停止：ボリュームが外れた"
+    # player.c
+    "that": "その局"
+    # player.c
+    "the card would not take the write": "カードが書き込みを拒否"
+    # player.c
+    "the directory did not answer": "ディレクトリが応答しない"
+    # player.c
+    "the directory has nothing there": "ディレクトリに何もない"
     # panel.c
     "the setup network": "設定用ネットワーク"
+    # player.c
+    "the stream did not start": "ストリームが始まらない"
+    # player.c
+    "then http://%s/": "次に http://%s/"
     # panel.c
     "this player": "この機器"
     # panel.c
     "type": "種類"
+    # player.c
+    "unstar one to make room": "1つ外して空きを作る"
     # panel.c
     "uptime": "稼働時間"
     # panel.c
     "version": "バージョン"
     # panel.c
     "waiting for a drive": "ドライブ待ち"
+    # player.c
+    "waiting for the network to play %s": "%s の再生はネット待ち"
+    # player.c
+    "waiting for the network...": "ネット待ち..."
     # panel.c
     "was damaged; reindex rebuilds it": "破損。再索引で作り直す"
   plural:
     "%d apps connected.":
       other: "%d 個のアプリが接続中。"
+    "%d stations from %s":
+      other: "%d 局、%s から"
     "%d tracks (+%d ~%d -%d), %d s":
       other: "%d 曲 (+%d ~%d -%d)、%d 秒"
     "%d tracks, unchanged, %d s":

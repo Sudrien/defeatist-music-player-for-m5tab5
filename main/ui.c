@@ -17,6 +17,7 @@
 #include "freertos/task.h"
 
 #include "ui.h"
+#include "i18n.h"         /* 6017 */
 #include "waveform.h"
 
 static const char *TAG = "tab5_ui";
@@ -1366,7 +1367,8 @@ static void draw_live(const ui_state_t *st)
      * recovered by comparing prose in a draw call.
      */
     const int sx = bar_x0() + pw + LIVE_GAP;
-    gfx_draw_text(sx, py + LIVE_PAD_Y, st->stream_status, 3,
+    const char *status = _(st->stream_status);                 /* 6017 */
+    gfx_draw_text(sx, py + LIVE_PAD_Y, status, 3,
                   x1 - sx, C_THUMB);
 
     /* 5067: waiting for the network. After the words, on the pill's
@@ -1374,7 +1376,7 @@ static void draw_live(const ui_state_t *st)
      * while streaming, so nothing else has to ask for it. */
     if (st->stream_spinner) {
         const int r = GFX_GLYPH_H(3) / 2 + 4;
-        const int cx = sx + gfx_text_w(st->stream_status, 3) + LIVE_GAP + r;
+        const int cx = sx + gfx_text_w(status, 3) + LIVE_GAP + r;
         if (cx + r <= x1) {
             gfx_draw_spinner(cx, py + ph / 2, r,
                              (uint32_t)(esp_timer_get_time() / 1000),
@@ -1937,7 +1939,7 @@ void ui_draw(const ui_state_t *st)
          */
         if (st->rg_measuring) {
             gfx_draw_text(x0 + 12, y - UI_WAVE_H / 2 - 8,
-                          "ReplayGain is listening...", 2, x1 - x0 - 24, C_RG);
+                          _("ReplayGain is listening..."), 2, x1 - x0 - 24, C_RG);
         }
 
         const int split = x0 + ((x1 - x0) * shown_pct) / 100;

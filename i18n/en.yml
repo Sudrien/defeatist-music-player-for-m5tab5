@@ -44,10 +44,22 @@ en:
     "Add a network": ~
     # panel.c
     "Add a radio station to the card.": ~
+    # radiobrowser.h
+    "Add a station by phone...": ~
+    # recorder.c
+    "Already recording.": ~
+    # player.c
+    "Battery empty": ~
+    # player.c
+    "Battery low": ~
     # panel.c
     "Benchmark": ~
     # sleeppage.c
     "Brightness   %d%%": ~
+    # streamplan.h
+    "Buffering": ~
+    # player.c
+    "Cannot record": ~
     # panel.c
     "Cert %.29s...": ~
     # panel.c
@@ -56,6 +68,14 @@ en:
     "Connect an MPD app to %s": ~
     # panel.c
     "Connected to %.32s.": ~
+    # streamplan.h
+    "Connecting": ~
+    # recorder.c
+    "Could not make the Recordings folder.": "Could not make the\nRecordings folder."
+    # player.c
+    "Could not save": ~
+    # recorder.c
+    "Could not start the file.": "Could not start\nthe file."
     # panel.c
     "Could not start.": ~
     # panel.c
@@ -64,20 +84,42 @@ en:
     "Crossfade   off": ~
     # sleeppage.c
     "Dim screen": ~
+    # player.c
+    "Favourites are full": ~
+    # player.c, recorder.c
+    "Insert a card or a USB drive to record to.": "Insert a card or a USB\ndrive to record to."
+    # recorder.c
+    "It reached 4 GB, the most one file can hold.": "It reached 4 GB, the\nmost one file can hold."
     # panel.c
     "Join %s on a phone.": ~
     # panel.c
     "Libraries": ~
     # panel.c
     "MPD server": ~
+    # player.c
+    "Media removed": ~
+    # radiobrowser.h
+    "Most listened": ~
+    # radiobrowser.h
+    "Most voted": ~
     # panel.c
     "Needs a network: Wi-Fi or a cable.": ~
     # panel.c
     "Network time": ~
     # powerdown.h, screendim.h
     "Never": ~
+    # recorder.c
+    "No USB microphone is plugged in.": "No USB microphone is\nplugged in."
     # panel.c
     "No app connected.": ~
+    # recorder.c
+    "No memory for the recording task.": "No memory for the\nrecording task."
+    # streamplan.h
+    "No signal": ~
+    # recorder.c
+    "Not enough memory to record.": "Not enough memory\nto record."
+    # recorder.c
+    "Nothing is plugged into the headset jack.": "Nothing is plugged into\nthe headset jack."
     # panel.c
     "OFF": ~
     # panel.c
@@ -90,10 +132,24 @@ en:
     "Playback pauses while setup runs.": ~
     # sleeppage.c
     "Power off": ~
+    # player.c
+    "Radio": ~
+    # streamplan.h
+    "Reconnecting": ~
     # panel.c
     "Record from": ~
+    # player.c
+    "Recording in %d": ~
+    # recorder.c
+    "Recording is off (AUDIO, Record from).": "Recording is off\n(AUDIO, Record from)."
+    # recorder.c
+    "Recording saved": ~
+    # recorder.c
+    "Recording stopped": ~
     # panel.c
     "Remote control": ~
+    # ui.c
+    "ReplayGain is listening...": ~
     # sleeppage.c
     "Rotation": ~
     # panel.c
@@ -120,20 +176,46 @@ en:
     "Sleep timer   off": ~
     # panel.c
     "Source": ~
+    # radiobrowser.h
+    "Starred stations": ~
     # panel.c
     "Starting...": ~
     # panel.c
     "Station needs %d -- that is %d%%": ~
+    # player.c
+    "Station not answering": ~
+    # player.c
+    "Stream too slow here": ~
+    # recorder.c
+    "The USB microphone has no 16-bit format.": "The USB microphone has\nno 16-bit format."
+    # recorder.c
+    "The USB microphone is not there any more.": "The USB microphone is\nnot there any more."
+    # recorder.c
+    "The USB microphone was unplugged.\n%u:%02u on %s": "The USB microphone was\nunplugged.\n%u:%02u on %s"
+    # recorder.c
+    "The card would not take any more.": "The card would not\ntake any more."
     # panel.c
     "The station does not say what it needs.": ~
     # panel.c
     "Trying %.32s...": ~
     # panel.c
     "Turn Wi-Fi on first.": ~
+    # player.c
+    "Turning off to protect the battery. Charge it before use.": "Turning off to protect\nthe battery. Charge it\nbefore use."
     # audio_out.c
     "USB audio": ~
+    # browser.c
+    "USB port coming up": ~
+    # browser.c
+    "USB port on - waiting for a drive": ~
+    # player.c
+    "Waiting for network": ~
+    # player.c
+    "Web setup is open": ~
     # panel.c
     "a guess": ~
+    # browser.c
+    "all start with  %s": ~
     # panel.c
     "app": ~
     # panel.c
@@ -148,6 +230,8 @@ en:
     "drive": ~
     # panel.c
     "failed; the log says why": ~
+    # player.c
+    "fetching %s...": ~
     # panel.c
     "from NTP": ~
     # audio_out.c
@@ -158,32 +242,62 @@ en:
     "index": ~
     # panel.c
     "indexing, %d so far": ~
+    # player.c
+    "it played, then ran out of buffer": "it played, then ran\nout of buffer"
+    # player.c
+    "join %s": ~
     # panel.c
     "maker": ~
+    # player.c
+    "mono": ~
     # panel.c
     "mount": ~
     # panel.c
     "mounted": ~
+    # player.c
+    "multichannel": ~
     # panel.c
     "name": ~
-    # panel.c
+    # browser.c
+    "no %s on the card": ~
+    # browser.c, panel.c
     "no card in the slot": ~
+    # player.c
+    "no cover art": ~
+    # player.c
+    "no network - check Wi-Fi or the cable, then tap again": ~
+    # player.c
+    "no network - the directory needs Wi-Fi or a cable": ~
     # panel.c
     "none": ~
+    # player.c
+    "not enough memory for that list": ~
     # panel.c
     "not run this session": ~
+    # player.c
+    "nothing starred yet - tap a star to keep one": ~
     # panel.c, sleeppage.c
     "off": ~
     # panel.c
     "on": ~
+    # recorder.c
+    "on %s, %u:%02u\n%s": ~
+    # player.c
+    "playback stopped": ~
+    # player.c
+    "plug in to keep playing": ~
     # panel.c
     "port": ~
     # panel.c
     "product": ~
+    # browser.c
+    "radio - the card, the charts, or a tag": ~
     # panel.c
     "route": ~
     # panel.c
     "sector": ~
+    # player.c
+    "slide or tap to cancel": ~
     # audio_out.c
     "speaker": ~
     # panel.c
@@ -192,25 +306,50 @@ en:
     "starts in a few seconds": ~
     # panel.c
     "state": ~
+    # radiobrowser.h
+    "stations.m3u on the card": ~
+    # player.c
+    "stereo": ~
     # panel.c
     "stopped: the volume went away": ~
+    # player.c
+    "that": ~
+    # player.c
+    "the card would not take the write": "the card would not take\nthe write"
+    # player.c
+    "the directory did not answer": ~
+    # player.c
+    "the directory has nothing there": ~
     # panel.c
     "the setup network": ~
+    # player.c
+    "the stream did not start": ~
+    # player.c
+    "then http://%s/": ~
     # panel.c
     "this player": ~
     # panel.c
     "type": ~
+    # player.c
+    "unstar one to make room": ~
     # panel.c
     "uptime": ~
     # panel.c
     "version": ~
     # panel.c
     "waiting for a drive": ~
+    # player.c
+    "waiting for the network to play %s": ~
+    # player.c
+    "waiting for the network...": ~
     # panel.c
     "was damaged; reindex rebuilds it": ~
   plural:
     "%d apps connected.":
       one: "%d app connected."
+      other: ~
+    "%d stations from %s":
+      one: "%d station from %s"
       other: ~
     "%d tracks (+%d ~%d -%d), %d s":
       one: "%d track (+%d ~%d -%d), %d s"

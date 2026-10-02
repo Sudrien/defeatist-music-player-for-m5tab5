@@ -118,7 +118,9 @@ static int glyphs_ok(const char *s, const char *what)
         }
         int w;
         uint16_t rows[ARK12_H];
-        if (!ark12_glyph(cp, &w, rows)) {
+        /* 6017: '\n' is a line break in a notice body, split before
+         * drawing -- never drawn as a glyph. */
+        if (cp != '\n' && !ark12_glyph(cp, &w, rows)) {
             fprintf(stderr, "i18ntest: U+%04X in %s is not in Ark12: \"%s\"\n",
                    (unsigned)cp, what, s);
             return 0;

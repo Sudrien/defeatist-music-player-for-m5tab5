@@ -20710,3 +20710,63 @@ Checked, not guessed:
   argument -- a 32-byte SSID in "Saved %.32s." and the rest.
 
 Not compiled here -- no ESP-IDF in the session. Not on the board.
+
+### 6017 -- notices, the no-art card, the chooser, the stream status
+
+The second batch: 68 strings and one plural. The notice card (player.c,
+recorder.c), the card shown where cover art would be, the chooser's
+status line and radio menu, the stream status beside LIVE, and
+"ReplayGain is listening...".
+
+Notices are translated where they are shown, not where they are
+posted. notice_post() and the recorder's notice() keep the English --
+marked N_() at each call -- and player.c translates s_notice_head and
+the whole of s_notice_body as it puts the card up, before the body is
+split on '\n'. Translating the whole body lets a translation choose its
+own line breaks, and the recorder's refusals reach the card through the
+same path: recorder_start() writes English into `why`, the log line
+says it in English, and the card says it in the reader's language. The
+three refusals that format a detail in -- "did not start (%s)" twice
+and "Could not create %s." -- stay English: once formatted there is no
+key to look up. Moving the detail to the log is the fix, and a change
+of behaviour, so not here.
+
+English notice bodies now break lines. The card gives a body line 528
+px at scale 3 in portrait, 25 halfwidth characters, and several
+English bodies were longer than that and clipped: "Turning off to
+protect the battery. Charge it before use." was 1197 px, the end of it
+off the card. `en.yml` gives sixteen bodies '\n' breaks with the
+wording unchanged, which is the English rewording 6013 made room for.
+Translations carry their own breaks, three lines at most. Two English
+headings still clip at scale 4 -- "Station not answering" 588 px and
+"Stream too slow here" 560 against 528 -- and the radio line "no
+network - check Wi-Fi or the cable, then tap again" is 742 px of 688,
+drawn tail-first, so it loses "no net". Rewording them is a wording
+decision and is left to whoever owns the wording.
+
+recorder.c's two formatted bodies used `"%" PRIu32` inside the
+literal. A macro between literals is one string to the compiler and
+none to tools/i18n.py, which would have skipped them silently, so they
+are `%u` with casts now, and the extractor refuses `_("..." MACRO
+"...")` outright.
+
+The chooser: "no " STATIONS_FILENAME " on the card" was a sentence
+built from three pieces and is one format, "no %s on the card"; "%d
+station%s from %s" is `_p()`. The radio menu's fixed rows are N_() in
+radiobrowser.h and translated as the list is built; the genre rows are
+radio-browser.info tag names, which are the query, and stay as they
+are. The menu label in "fetching %s..." is translated for the status
+line only -- the fetch builds its query from the row.
+
+streamplan_status_text() and "Waiting for network" are N_() and ui.c
+translates the status where it draws it and measures it for the
+spinner.
+
+Checked: i18ntest's glyph check found 覧, 挿, 護, 即 again and 然, all
+reworded around (ディレクトリ, リスト, つながっていない, 守る, 就能,
+再), and now skips '\n'. Heads, every body line, line count and the
+95-byte body copy measured with gfx_text_w(): every translation fits.
+The SDIO A/B measurement notices are same() -- a developer build's
+instrumentation.
+
+Not compiled here -- no ESP-IDF in the session. Not on the board.

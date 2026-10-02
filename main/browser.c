@@ -17,6 +17,7 @@
 #include "freertos/semphr.h"
 
 #include "browser.h"
+#include "i18n.h"         /* 6017 */
 #include "cuedir.h"
 #include "m3uline.h"
 #include "favorites.h"
@@ -594,7 +595,7 @@ static void load_radio_menu(void)
         }
     }
     for (int i = 0; i < RADIOBROWSER_MENU_ROWS && s_count < MAX_ENTRIES; i++) {
-        s_entries[s_count].name = strdup(radiobrowser_menu_label(i));
+        s_entries[s_count].name = strdup(_(radiobrowser_menu_label(i)));
         if (!s_entries[s_count].name) break;
         s_entries[s_count].is_dir = true;
         s_count++;
@@ -817,24 +818,24 @@ static const char *status_line(void)
          * fetch in flight or a fetch that failed is the only thing on
          * this tab worth the row while it is true. */
         if (s_radio_status[0]) return s_radio_status;
-        if (s_radio_menu) return "radio - the card, the charts, or a tag";
+        if (s_radio_menu) return _("radio - the card, the charts, or a tag");
         const int n = stations_count();
         if (n <= 0) {
             /* Names the file, because the fix is to make one. */
-            return "no " STATIONS_FILENAME " on the card";
+            snprintf(line, sizeof(line), _("no %s on the card"), STATIONS_FILENAME);
+            return line;
         }
-        snprintf(line, sizeof(line), "%d station%s from %s", n,
-                 n == 1 ? "" : "s", stations_source());
+        snprintf(line, sizeof(line), _p("%d stations from %s", n), n, stations_source());
         return line;
     }
     if (s_dir[0]) return s_dir;
     if (s_tab == BROWSER_TAB_USB) {
         /* The false branch is a few milliseconds of bring-up at boot,
          * not a state anyone can tap their way into any more. */
-        return storage_usb_powered() ? "USB port on - waiting for a drive"
-                                     : "USB port coming up";
+        return storage_usb_powered() ? _("USB port on - waiting for a drive")
+                                     : _("USB port coming up");
     }
-    return "no card in the slot";
+    return _("no card in the slot");
 }
 
 static void draw_tab(browser_tab_t id, int x, int w)
@@ -850,7 +851,7 @@ static void draw_tab(browser_tab_t id, int x, int w)
 
     /* storage_label() reports the volume's own label -- "SD8G" -- which
      * RADIO has no equivalent of and should not borrow. */
-    const char *label = (id == BROWSER_TAB_RADIO) ? "RADIO"
+    const char *label = (id == BROWSER_TAB_RADIO) ? same("RADIO")
                                                   : storage_label((storage_id_t)id);
     const int tw = gfx_text_w(label, NAME_SCALE);
     gfx_draw_text(x + (w - tw) / 2, (TAB_H - GFX_GLYPH_H(NAME_SCALE)) / 2, label,
@@ -1178,7 +1179,7 @@ void browser_draw(void)
                            w - 32, C_DIM);
 
         char note[160];
-        snprintf(note, sizeof(note), "all start with  %s", s_prefix);
+        snprintf(note, sizeof(note), _("all start with  %s"), s_prefix);
         /* Head kept, not tail: the front of the prefix is what identifies
          * it, and it is the front that the rows are missing. */
         gfx_draw_text(16, TAB_H + 2 * pad + gh, note, LABEL_SCALE,

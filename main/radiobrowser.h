@@ -116,6 +116,8 @@
  */
 #pragma once
 
+#include "i18n.h"   /* 6017: N_() on the labels */
+
 #include <stdbool.h>
 #include <stddef.h>
 #include <stdint.h>
@@ -523,11 +525,11 @@ static inline bool radiobrowser_search_url(char *url, size_t url_size,
 static inline const char *radiobrowser_menu_label(int row)
 {
     static const char *const tags[RADIOBROWSER_TAG_COUNT] = RADIOBROWSER_TAGS;
-    if (row == RADIOBROWSER_MENU_CARD) return "stations.m3u on the card";
-    if (row == RADIOBROWSER_MENU_ADD)  return "Add a station by phone...";
-    if (row == RADIOBROWSER_MENU_FAV)  return "Starred stations";
-    if (row == 3) return "Most voted";
-    if (row == 4) return "Most listened";
+    if (row == RADIOBROWSER_MENU_CARD) return N_("stations.m3u on the card");
+    if (row == RADIOBROWSER_MENU_ADD)  return N_("Add a station by phone...");
+    if (row == RADIOBROWSER_MENU_FAV)  return N_("Starred stations");
+    if (row == 3) return N_("Most voted");
+    if (row == 4) return N_("Most listened");
     if (row >= RADIOBROWSER_MENU_TAG0 && row < RADIOBROWSER_MENU_ROWS) {
         return tags[row - RADIOBROWSER_MENU_TAG0];
     }

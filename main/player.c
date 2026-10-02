@@ -93,6 +93,7 @@
 #include "uac.h"
 #include "levelhist.h"
 #include "ui.h"
+#include "i18n.h"         /* 6017 */
 #include "usbhost.h"
 #include "wifi.h"
 #include "portal.h"
@@ -4731,8 +4732,8 @@ static void show_format_card(const char *path, long bytes, uint32_t gen)
 
     if (s_fmt_known && s_fmt_rate > 0) {
         snprintf(rate, sizeof(rate), "%d Hz  %s", s_fmt_rate,
-                 s_fmt_chans == 1 ? "mono"
-                 : s_fmt_chans == 2 ? "stereo" : "multichannel");
+                 s_fmt_chans == 1 ? _("mono")
+                 : s_fmt_chans == 2 ? _("stereo") : _("multichannel"));
     }
     if (s_fmt_known && s_fmt_kbps > 0) {
         snprintf(codec, sizeof(codec), "%s  %d kbps",
@@ -4754,7 +4755,7 @@ static void show_format_card(const char *path, long bytes, uint32_t gen)
     if (rate[0])  lines[n++] = rate;
     if (codec[0]) lines[n++] = codec;
     if (size[0])  lines[n++] = size;
-    lines[n++] = "no cover art";
+    lines[n++] = _("no cover art");
 
     ui_show_art_info(lines, n);
 }
@@ -6470,7 +6471,7 @@ static void station_fetch_run(void)
         if (!s_fetch_wait_since) {
             s_fetch_wait_since = now;
             ESP_LOGI(TAG, "directory: waiting for the network");
-            browser_set_radio_status("waiting for the network...");
+            browser_set_radio_status(_("waiting for the network..."));
             browser_set_radio_busy(true);
         }
         if (now - s_fetch_wait_since < (int64_t)FETCH_NET_WAIT_MS * 1000) {
@@ -6499,12 +6500,12 @@ static void station_fetch_run(void)
          * this cannot work and the only one the listener can fix.
          */
         ESP_LOGW(TAG, "no network; cannot reach the directory");
-        browser_set_radio_status("no network - the directory needs Wi-Fi or a cable");
+        browser_set_radio_status(_("no network - the directory needs Wi-Fi or a cable"));
         return;
     }
 
     char status[96];
-    snprintf(status, sizeof(status), "fetching %s...", label);
+    snprintf(status, sizeof(status), _("fetching %s..."), _(label));
     browser_set_radio_status(status);
 
     char *body = heap_caps_malloc(STATIONS_FILE_MAX, MALLOC_CAP_SPIRAM);
@@ -6512,7 +6513,7 @@ static void station_fetch_run(void)
                                        MALLOC_CAP_SPIRAM);
     if (!body || !list) {
         ESP_LOGE(TAG, "no PSRAM for a directory fetch");
-        browser_set_radio_status("not enough memory for that list");
+        browser_set_radio_status(_("not enough memory for that list"));
         free(body);
         free(list);
         return;
@@ -6534,10 +6535,10 @@ static void station_fetch_run(void)
              */
             ESP_LOGW(TAG, "%s: nothing usable (%d bad scheme, %d too long)",
                      label, stats.bad_scheme, stats.too_long);
-            browser_set_radio_status("the directory has nothing there");
+            browser_set_radio_status(_("the directory has nothing there"));
         }
     } else {
-        browser_set_radio_status("the directory did not answer");
+        browser_set_radio_status(_("the directory did not answer"));
     }
 
     free(body);
@@ -6821,7 +6822,7 @@ static void service_clock_ab(void)
     if (s_clock_ab_done || !wifi_up()) return;
     s_clock_ab_done = true;
 
-    notice_post("Measuring the SDIO clock", "about four minutes");
+    notice_post(same("Measuring the SDIO clock"), same("about four minutes"));
 
     int sum[2] = { 0, 0 }, n[2] = { 0, 0 };
     int seen[CLOCK_AB_ROUNDS];
@@ -6877,7 +6878,7 @@ static void service_clock_ab(void)
     }
     ESP_LOGW(TAG, "------------------------");
 
-    notice_post("SDIO clock A/B done", "the table is in the log");
+    notice_post(same("SDIO clock A/B done"), same("the table is in the log"));
 }
 #else
 static void service_clock_ab(void) { }
@@ -6985,8 +6986,8 @@ static void service_notices(void)
     if (rc > 0) {
         if (rc != s_rec_card_n || !ui_notice_active()) {
             static char head[24];
-            snprintf(head, sizeof(head), "Recording in %d", rc);
-            const char *lines[1] = { "slide or tap to cancel" };
+            snprintf(head, sizeof(head), _("Recording in %d"), rc);
+            const char *lines[1] = { _("slide or tap to cancel") };
             ui_show_notice(head, lines, 1, false);
             s_rec_card_n = rc;
         }
@@ -7037,9 +7038,9 @@ static void service_notices(void)
         if (ps.mode == PORTAL_MODE_SETUP) {
             /* The SSID, because on the player's own AP the phone has to
              * find the network before any address means anything. */
-            snprintf(body, sizeof(body), "join %s", ps.ap_ssid);
+            snprintf(body, sizeof(body), _("join %s"), ps.ap_ssid);
         } else {
-            snprintf(body, sizeof(body), "http://%s/", ps.url_ip);
+            snprintf(body, sizeof(body), same("http://%s/"), ps.url_ip);
         }
 
         if (strcmp(body, s_portal_card) != 0) {
@@ -7048,10 +7049,10 @@ static void service_notices(void)
             lines[n++] = body;
             if (ps.mode == PORTAL_MODE_SETUP) {
                 static char addr[32];
-                snprintf(addr, sizeof(addr), "then http://%s/", ps.url_ip);
+                snprintf(addr, sizeof(addr), _("then http://%s/"), ps.url_ip);
                 lines[n++] = addr;
             }
-            ui_show_notice("Web setup is open", lines, n, false);
+            ui_show_notice(_("Web setup is open"), lines, n, false);
             snprintf(s_portal_card, sizeof(s_portal_card), "%s", body);
         }
         return;
@@ -7088,8 +7089,8 @@ static void service_notices(void)
     if (batt != s_batt_card || (batt && !ui_notice_active())) {
         s_batt_card = batt;
         if (batt) {
-            const char *lines[1] = { "plug in to keep playing" };
-            ui_show_notice("Battery low", lines, 1, false);
+            const char *lines[1] = { _("plug in to keep playing") };
+            ui_show_notice(_("Battery low"), lines, 1, false);
         } else {
             /* Charging, or back over the line. Nothing else will take a
              * non-dismissible card down. */
@@ -7106,7 +7107,7 @@ static void service_notices(void)
          * body at 21 px a character, about 25 to a line in portrait, and
          * a file name alone is 24. */
         static char body[sizeof(s_notice_body)];
-        memcpy(body, s_notice_body, sizeof(body));
+        snprintf(body, sizeof(body), "%s", _(s_notice_body));    /* 6017 */
         const char *lines[3];
         int n = 0;
         for (char *p = body; *p && n < 3; ) {
@@ -7116,7 +7117,7 @@ static void service_notices(void)
             *nl = '\0';
             p = nl + 1;
         }
-        ui_show_notice(s_notice_head, lines, n, true);
+        ui_show_notice(_(s_notice_head), lines, n, true);
     }
 }
 
@@ -7145,7 +7146,7 @@ static void service_favorites_load(void)
          * list on a tab that was full a moment ago reads as a failure.
          * The star is how one gets here and the line says so.
          */
-        browser_set_radio_status("nothing starred yet - tap a star to keep one");
+        browser_set_radio_status(_("nothing starred yet - tap a star to keep one"));
         return;
     }
 
@@ -7153,7 +7154,7 @@ static void service_favorites_load(void)
                                        MALLOC_CAP_SPIRAM);
     if (!list) {
         ESP_LOGE(TAG, "no PSRAM for the starred list");
-        browser_set_radio_status("not enough memory for that list");
+        browser_set_radio_status(_("not enough memory for that list"));
         return;
     }
 
@@ -7186,7 +7187,7 @@ static void service_star_toggle(void)
     const bool was = starred_contains(path, dir);
     const bool now = starred_toggle(path, dir);
     if (now == was) {
-        notice_post("Could not save", "the card would not take the write");
+        notice_post(N_("Could not save"), N_("the card would not take the write"));
     }
     s_stars_epoch++;
 }
@@ -7208,7 +7209,7 @@ static void service_favorite_toggle(void)
      * the panel says why, which reads as the button being broken.
      */
     if (!favorites_contains(st.url) && favorites_count() >= STATIONLIST_MAX) {
-        notice_post("Favourites are full", "unstar one to make room");
+        notice_post(N_("Favourites are full"), N_("unstar one to make room"));
         s_stations_epoch++;
         return;
     }
@@ -7225,7 +7226,7 @@ static void service_favorite_toggle(void)
 
     if (now == was) {
         ESP_LOGW(TAG, "the star did not change: %s", st.name);
-        notice_post("Could not save", "the card would not take the write");
+        notice_post(N_("Could not save"), N_("the card would not take the write"));
     } else {
         ESP_LOGI(TAG, "%s: %s", now ? "starred" : "unstarred", st.name);
     }
@@ -7779,8 +7780,8 @@ static void ui_task(void *arg)
                             vTaskDelay(pdMS_TO_TICKS(100));     /* up to 10 s */
                         }
                     }
-                    notice_post("Battery empty",
-                                "Turning off to protect the battery. Charge it before use.");
+                    notice_post(N_("Battery empty"),
+                                N_("Turning off to protect the battery. Charge it before use."));
                     vTaskDelay(pdMS_TO_TICKS(LOWBATT_NOTICE_MS));
                     power_off_now();
                     next_try = esp_timer_get_time() + 60 * 1000000LL;
@@ -8110,8 +8111,8 @@ static void ui_task(void *arg)
                 if (!net_online() && net_expected()) {        /* 5096 */
                     station_t held;
                     char line[96];
-                    snprintf(line, sizeof(line), "waiting for the network to play %s",
-                             stations_get(r.index, &held) ? held.name : "that");
+                    snprintf(line, sizeof(line), _("waiting for the network to play %s"),
+                             stations_get(r.index, &held) ? held.name : _("that"));
                     if (s_held_station < 0) s_held_since = esp_timer_get_time();
                     s_held_station = r.index;
                     ESP_LOGI(TAG, "station %d held until the network is up", r.index + 1);
@@ -8242,7 +8243,7 @@ static void ui_task(void *arg)
                              (long long)held_ms);
                     s_held_station = -1;
                     browser_set_radio_busy(false);
-                    browser_set_radio_status("no network - check Wi-Fi or the cable, then tap again");
+                    browser_set_radio_status(_("no network - check Wi-Fi or the cable, then tap again"));
                 } else if (net_online()) {
                     const int idx = s_held_station;
                     s_held_station = -1;
@@ -8382,7 +8383,7 @@ static void ui_task(void *arg)
         st.stream_status = streamplan_status_text(s_stream_status);
         /* 5067: held for a network, which "Connecting" does not say. */
         st.stream_spinner = s_streaming && netstream_waiting_for_net();
-        if (st.stream_spinner) st.stream_status = "Waiting for network";
+        if (st.stream_spinner) st.stream_status = N_("Waiting for network");
         st.stream_title = s_stream_bottom;
         /* The level strip, only while streaming: a file's bar already
          * has an envelope and a seek position, which say more. */
@@ -8585,7 +8586,7 @@ static void ui_task(void *arg)
                 char why[96];
                 if (!recorder_start(why, sizeof(why))) {
                     ESP_LOGW(TAG, "record refused: %s", why);
-                    notice_post("Cannot record", why);
+                    notice_post(N_("Cannot record"), why);
                 }
             } else {
                 s_rec_count = (int)((left + 999999) / 1000000);
@@ -8605,7 +8606,7 @@ static void ui_task(void *arg)
             !recorder_can_start()) {
             ESP_LOGI(TAG, "record refused: no media");
             player_force_pause();
-            notice_post("Cannot record", "Insert a card or a USB drive to record to.");
+            notice_post(N_("Cannot record"), N_("Insert a card or a USB drive to record to."));
             act.kind = UI_ACTION_NONE;
         }
         if (act.kind == UI_ACTION_RECORD && !recorder_active() && !s_rec_at_us) {
@@ -10114,7 +10115,7 @@ static track_end_t play_file(const char *path)
              * screen went empty, and "the drive was pulled" is the one
              * thing the listener already knows but the player never
              * confirmed. */
-            notice_post("Media removed", "playback stopped");
+            notice_post(N_("Media removed"), N_("playback stopped"));
             break;
         }
 
@@ -11465,7 +11466,7 @@ static track_end_t play_file(const char *path)
                           " s was the drive going, not the file ending",
                      frames_out / cur_rate, len_sec);
             why = TRACK_MEDIA_GONE;
-            notice_post("Media removed", "playback stopped");
+            notice_post(N_("Media removed"), N_("playback stopped"));
         }
     }
 
@@ -12457,14 +12458,14 @@ static void show_stream_card(stream_codec_t codec, uint32_t rate,
      * this line was the entire card.
      */
     snprintf(head, sizeof(head), "%s",
-             codec != STREAM_CODEC_NONE ? stream_codec_name(codec) : "Radio");
+             codec != STREAM_CODEC_NONE ? stream_codec_name(codec) : _("Radio"));
 
     if (rate > 0) {
         /* Mono is worth saying and so is stereo, because this is the
          * line that says what the STATION sends -- WUOM being 64 kbit/s
          * mono is a property of the broadcast, not a fault here. */
         snprintf(rline, sizeof(rline), "%" PRIu32 " Hz  %s", rate,
-                 chans == 1 ? "mono" : chans == 2 ? "stereo" : "multichannel");
+                 chans == 1 ? _("mono") : chans == 2 ? _("stereo") : _("multichannel"));
     }
     /*
      * `kbps` is already resolved by the caller -- measured, then
@@ -12491,7 +12492,7 @@ static void show_stream_card(stream_codec_t codec, uint32_t rate,
     lines[n++] = head;
     if (rline[0]) lines[n++] = rline;
     if (cline[0]) lines[n++] = cline;
-    lines[n++] = "no cover art";
+    lines[n++] = _("no cover art");
 
     ui_show_art_info(lines, n);
 }
@@ -14169,11 +14170,11 @@ static track_end_t play_stream(const char *url, const char *name)
      */
     if (why != TRACK_INTERRUPTED) {
         if (netdec_frames() == 0) {
-            notice_post("Station not answering", s_stream_name[0]
-                        ? s_stream_name : "the stream did not start");
+            notice_post(N_("Station not answering"), s_stream_name[0]
+                        ? s_stream_name : N_("the stream did not start"));
         } else if (plan.silent_ms >= BUFPLAN_PREROLL_GIVEUP_MS) {
-            notice_post("Stream too slow here",
-                        "it played, then ran out of buffer");
+            notice_post(N_("Stream too slow here"),
+                        N_("it played, then ran out of buffer"));
         }
     }
 

@@ -44,10 +44,22 @@ zh-CN:
     "Add a network": "添加网络"
     # panel.c
     "Add a radio station to the card.": "向卡中添加电台。"
+    # radiobrowser.h
+    "Add a station by phone...": "用手机添加电台..."
+    # recorder.c
+    "Already recording.": "正在录音。"
+    # player.c
+    "Battery empty": "电池耗尽"
+    # player.c
+    "Battery low": "电量低"
     # panel.c
     "Benchmark": "测速"
     # sleeppage.c
     "Brightness   %d%%": "亮度   %d%%"
+    # streamplan.h
+    "Buffering": "缓冲中"
+    # player.c
+    "Cannot record": "无法录音"
     # panel.c
     "Cert %.29s...": "证书 %.29s..."
     # panel.c
@@ -56,6 +68,14 @@ zh-CN:
     "Connect an MPD app to %s": "用 MPD 应用连接 %s"
     # panel.c
     "Connected to %.32s.": "已连接 %.32s。"
+    # streamplan.h
+    "Connecting": "连接中"
+    # recorder.c
+    "Could not make the Recordings folder.": "无法创建\nRecordings 文件夹。"
+    # player.c
+    "Could not save": "无法保存"
+    # recorder.c
+    "Could not start the file.": "无法开始写文件。"
     # panel.c
     "Could not start.": "无法启动。"
     # panel.c
@@ -64,20 +84,42 @@ zh-CN:
     "Crossfade   off": "交叉淡化   关"
     # sleeppage.c
     "Dim screen": "屏幕变暗"
+    # player.c
+    "Favourites are full": "收藏已满"
+    # player.c, recorder.c
+    "Insert a card or a USB drive to record to.": "请插入存储卡或 U 盘\n再录音。"
+    # recorder.c
+    "It reached 4 GB, the most one file can hold.": "已达 4 GB，\n单个文件的上限。"
     # panel.c
     "Join %s on a phone.": "用手机连接 %s。"
     # panel.c
     "Libraries": "库"
     # panel.c
     "MPD server": "MPD 服务器"
+    # player.c
+    "Media removed": "媒体已移除"
+    # radiobrowser.h
+    "Most listened": "收听最多"
+    # radiobrowser.h
+    "Most voted": "得票最多"
     # panel.c
     "Needs a network: Wi-Fi or a cable.": "需要网络：Wi-Fi 或网线。"
     # panel.c
     "Network time": "网络时间"
     # powerdown.h, screendim.h
     "Never": "从不"
+    # recorder.c
+    "No USB microphone is plugged in.": "未插入 USB 麦克风。"
     # panel.c
     "No app connected.": "没有应用连接。"
+    # recorder.c
+    "No memory for the recording task.": "录音任务内存不足。"
+    # streamplan.h
+    "No signal": "无信号"
+    # recorder.c
+    "Not enough memory to record.": "内存不足，无法录音。"
+    # recorder.c
+    "Nothing is plugged into the headset jack.": "耳麦插孔未插入设备。"
     # panel.c
     "OFF": "关"
     # panel.c
@@ -90,10 +132,24 @@ zh-CN:
     "Playback pauses while setup runs.": "设置期间暂停播放。"
     # sleeppage.c
     "Power off": "自动关机"
+    # player.c
+    "Radio": "电台"
+    # streamplan.h
+    "Reconnecting": "重新连接中"
     # panel.c
     "Record from": "录音来源"
+    # player.c
+    "Recording in %d": "%d 秒后录音"
+    # recorder.c
+    "Recording is off (AUDIO, Record from).": "录音已关闭\n（AUDIO，录音来源）。"
+    # recorder.c
+    "Recording saved": "录音已保存"
+    # recorder.c
+    "Recording stopped": "录音已停止"
     # panel.c
     "Remote control": "远程控制"
+    # ui.c
+    "ReplayGain is listening...": "ReplayGain 测量中..."
     # sleeppage.c
     "Rotation": "屏幕方向"
     # panel.c
@@ -120,20 +176,46 @@ zh-CN:
     "Sleep timer   off": "睡眠定时   关"
     # panel.c
     "Source": "源代码"
+    # radiobrowser.h
+    "Starred stations": "收藏的电台"
     # panel.c
     "Starting...": "正在启动..."
     # panel.c
     "Station needs %d -- that is %d%%": "电台需要 %d，达到 %d%%"
+    # player.c
+    "Station not answering": "电台无响应"
+    # player.c
+    "Stream too slow here": "网络太慢"
+    # recorder.c
+    "The USB microphone has no 16-bit format.": "USB 麦克风\n不支持 16 位格式。"
+    # recorder.c
+    "The USB microphone is not there any more.": "USB 麦克风已不在。"
+    # recorder.c
+    "The USB microphone was unplugged.\n%u:%02u on %s": "USB 麦克风已拔出。\n%u:%02u，保存在 %s"
+    # recorder.c
+    "The card would not take any more.": "卡已写不下。"
     # panel.c
     "The station does not say what it needs.": "电台未说明所需码率。"
     # panel.c
     "Trying %.32s...": "正在尝试 %.32s..."
     # panel.c
     "Turn Wi-Fi on first.": "请先打开 Wi-Fi。"
+    # player.c
+    "Turning off to protect the battery. Charge it before use.": "正在关机以保护电池。\n使用前请充电。"
     # audio_out.c
     "USB audio": "USB 音频"
+    # browser.c
+    "USB port coming up": "USB 端口启动中"
+    # browser.c
+    "USB port on - waiting for a drive": "USB 端口已开 - 等待驱动器"
+    # player.c
+    "Waiting for network": "等待网络"
+    # player.c
+    "Web setup is open": "网页设置已开启"
     # panel.c
     "a guess": "估计值"
+    # browser.c
+    "all start with  %s": "全部以 %s 开头"
     # panel.c
     "app": "应用"
     # panel.c
@@ -148,6 +230,8 @@ zh-CN:
     "drive": "驱动器"
     # panel.c
     "failed; the log says why": "失败；原因见日志"
+    # player.c
+    "fetching %s...": "正在获取 %s..."
     # panel.c
     "from NTP": "来自 NTP"
     # audio_out.c
@@ -158,32 +242,62 @@ zh-CN:
     "index": "索引"
     # panel.c
     "indexing, %d so far": "索引中，已 %d 首"
+    # player.c
+    "it played, then ran out of buffer": "播放后缓冲耗尽"
+    # player.c
+    "join %s": "连接 %s"
     # panel.c
     "maker": "厂商"
+    # player.c
+    "mono": "单声道"
     # panel.c
     "mount": "挂载点"
     # panel.c
     "mounted": "已挂载"
+    # player.c
+    "multichannel": "多声道"
     # panel.c
     "name": "名称"
-    # panel.c
+    # browser.c
+    "no %s on the card": "卡上没有 %s"
+    # browser.c, panel.c
     "no card in the slot": "卡槽中无卡"
+    # player.c
+    "no cover art": "无封面"
+    # player.c
+    "no network - check Wi-Fi or the cable, then tap again": "无网络 - 请检查 Wi-Fi 或网线后再点"
+    # player.c
+    "no network - the directory needs Wi-Fi or a cable": "无网络 - 目录需要 Wi-Fi 或网线"
     # panel.c
     "none": "无"
+    # player.c
+    "not enough memory for that list": "内存不足，无法显示该列表"
     # panel.c
     "not run this session": "本次启动未运行"
+    # player.c
+    "nothing starred yet - tap a star to keep one": "还没有收藏 - 点星标就能保存"
     # panel.c, sleeppage.c
     "off": "关"
     # panel.c
     "on": "开"
+    # recorder.c
+    "on %s, %u:%02u\n%s": "保存在 %s，%u:%02u\n%s"
+    # player.c
+    "playback stopped": "播放已停止"
+    # player.c
+    "plug in to keep playing": "请接上电源继续播放"
     # panel.c
     "port": "端口"
     # panel.c
     "product": "产品"
+    # browser.c
+    "radio - the card, the charts, or a tag": "电台 - 卡、排行或标签"
     # panel.c
     "route": "输出"
     # panel.c
     "sector": "扇区"
+    # player.c
+    "slide or tap to cancel": "滑动或轻点以取消"
     # audio_out.c
     "speaker": "扬声器"
     # panel.c
@@ -192,25 +306,49 @@ zh-CN:
     "starts in a few seconds": "几秒后开始"
     # panel.c
     "state": "状态"
+    # radiobrowser.h
+    "stations.m3u on the card": "卡上的 stations.m3u"
+    # player.c
+    "stereo": "立体声"
     # panel.c
     "stopped: the volume went away": "已停止：卷已移除"
+    # player.c
+    "that": "该电台"
+    # player.c
+    "the card would not take the write": "卡拒绝写入"
+    # player.c
+    "the directory did not answer": "目录无响应"
+    # player.c
+    "the directory has nothing there": "目录中没有内容"
     # panel.c
     "the setup network": "设置网络"
+    # player.c
+    "the stream did not start": "音频流未能开始"
+    # player.c
+    "then http://%s/": "再打开 http://%s/"
     # panel.c
     "this player": "本机"
     # panel.c
     "type": "类型"
+    # player.c
+    "unstar one to make room": "取消一个收藏以腾出空间"
     # panel.c
     "uptime": "运行时间"
     # panel.c
     "version": "版本"
     # panel.c
     "waiting for a drive": "等待驱动器"
+    # player.c
+    "waiting for the network to play %s": "等待网络以播放 %s"
+    # player.c
+    "waiting for the network...": "等待网络..."
     # panel.c
     "was damaged; reindex rebuilds it": "已损坏；重新索引可重建"
   plural:
     "%d apps connected.":
       other: "已有 %d 个应用连接。"
+    "%d stations from %s":
+      other: "%d 个电台，来自 %s"
     "%d tracks (+%d ~%d -%d), %d s":
       other: "%d 首 (+%d ~%d -%d)，%d 秒"
     "%d tracks, unchanged, %d s":

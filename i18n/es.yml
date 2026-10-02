@@ -44,10 +44,22 @@ es:
     "Add a network": "Añadir red"
     # panel.c
     "Add a radio station to the card.": "Añade una emisora a la tarjeta."
+    # radiobrowser.h
+    "Add a station by phone...": "Añadir emisora por teléfono..."
+    # recorder.c
+    "Already recording.": "Ya se está grabando."
+    # player.c
+    "Battery empty": "Batería agotada"
+    # player.c
+    "Battery low": "Batería baja"
     # panel.c
     "Benchmark": "Medir velocidad"
     # sleeppage.c
     "Brightness   %d%%": "Brillo   %d%%"
+    # streamplan.h
+    "Buffering": "Cargando"
+    # player.c
+    "Cannot record": "No se puede grabar"
     # panel.c
     "Cert %.29s...": "Cert. %.29s..."
     # panel.c
@@ -56,6 +68,14 @@ es:
     "Connect an MPD app to %s": "Conecta una app MPD a %s"
     # panel.c
     "Connected to %.32s.": "Conectado a %.32s."
+    # streamplan.h
+    "Connecting": "Conectando"
+    # recorder.c
+    "Could not make the Recordings folder.": "No se pudo crear la\ncarpeta Recordings."
+    # player.c
+    "Could not save": "No se pudo guardar"
+    # recorder.c
+    "Could not start the file.": "No se pudo iniciar\nel archivo."
     # panel.c
     "Could not start.": "No se pudo iniciar."
     # panel.c
@@ -64,20 +84,42 @@ es:
     "Crossfade   off": "Fundido cruzado   desactivado"
     # sleeppage.c
     "Dim screen": "Atenuar pantalla"
+    # player.c
+    "Favourites are full": "Favoritos llenos"
+    # player.c, recorder.c
+    "Insert a card or a USB drive to record to.": "Inserta una tarjeta o\nunidad USB para grabar."
+    # recorder.c
+    "It reached 4 GB, the most one file can hold.": "Llegó a 4 GB, el máximo\nde un archivo."
     # panel.c
     "Join %s on a phone.": "Únete a %s con el móvil."
     # panel.c
     "Libraries": "Bibliotecas"
     # panel.c
     "MPD server": "Servidor MPD"
+    # player.c
+    "Media removed": "Medio retirado"
+    # radiobrowser.h
+    "Most listened": "Más escuchadas"
+    # radiobrowser.h
+    "Most voted": "Más votadas"
     # panel.c
     "Needs a network: Wi-Fi or a cable.": "Necesita red: Wi-Fi o un cable."
     # panel.c
     "Network time": "Hora de red"
     # powerdown.h, screendim.h
     "Never": "Nunca"
+    # recorder.c
+    "No USB microphone is plugged in.": "No hay micrófono USB\nconectado."
     # panel.c
     "No app connected.": "Ninguna app conectada."
+    # recorder.c
+    "No memory for the recording task.": "Sin memoria para la\ntarea de grabación."
+    # streamplan.h
+    "No signal": "Sin señal"
+    # recorder.c
+    "Not enough memory to record.": "No hay memoria\npara grabar."
+    # recorder.c
+    "Nothing is plugged into the headset jack.": "No hay nada en la\ntoma de auriculares."
     # panel.c
     "OFF": "NO"
     # panel.c
@@ -90,10 +132,24 @@ es:
     "Playback pauses while setup runs.": "Se pausa la reproducción al configurar."
     # sleeppage.c
     "Power off": "Apagado"
+    # player.c
+    "Radio": "Radio"
+    # streamplan.h
+    "Reconnecting": "Reconectando"
     # panel.c
     "Record from": "Grabar desde"
+    # player.c
+    "Recording in %d": "Grabando en %d"
+    # recorder.c
+    "Recording is off (AUDIO, Record from).": "Grabación desactivada\n(AUDIO, Grabar desde)."
+    # recorder.c
+    "Recording saved": "Grabación guardada"
+    # recorder.c
+    "Recording stopped": "Grabación detenida"
     # panel.c
     "Remote control": "Control remoto"
+    # ui.c
+    "ReplayGain is listening...": "ReplayGain escuchando..."
     # sleeppage.c
     "Rotation": "Rotación"
     # panel.c
@@ -120,20 +176,46 @@ es:
     "Sleep timer   off": "Temporizador   desactivado"
     # panel.c
     "Source": "Código fuente"
+    # radiobrowser.h
+    "Starred stations": "Emisoras favoritas"
     # panel.c
     "Starting...": "Iniciando..."
     # panel.c
     "Station needs %d -- that is %d%%": "La emisora pide %d: es el %d%%"
+    # player.c
+    "Station not answering": "Emisora sin señal"
+    # player.c
+    "Stream too slow here": "Red muy lenta"
+    # recorder.c
+    "The USB microphone has no 16-bit format.": "El micrófono USB no\ntiene formato de 16 bits."
+    # recorder.c
+    "The USB microphone is not there any more.": "El micrófono USB\nya no está."
+    # recorder.c
+    "The USB microphone was unplugged.\n%u:%02u on %s": "Se desconectó el\nmicrófono USB.\n%u:%02u en %s"
+    # recorder.c
+    "The card would not take any more.": "La tarjeta no admite\nmás datos."
     # panel.c
     "The station does not say what it needs.": "La emisora no dice qué necesita."
     # panel.c
     "Trying %.32s...": "Probando %.32s..."
     # panel.c
     "Turn Wi-Fi on first.": "Activa primero la Wi-Fi."
+    # player.c
+    "Turning off to protect the battery. Charge it before use.": "Apagando para proteger\nla batería. Cárgala\nantes de usarla."
     # audio_out.c
     "USB audio": "audio USB"
+    # browser.c
+    "USB port coming up": "Puerto USB arrancando"
+    # browser.c
+    "USB port on - waiting for a drive": "Puerto USB encendido - esperando una unidad"
+    # player.c
+    "Waiting for network": "Esperando red"
+    # player.c
+    "Web setup is open": "Ajuste web abierto"
     # panel.c
     "a guess": "estimada"
+    # browser.c
+    "all start with  %s": "todos empiezan por  %s"
     # panel.c
     "app": "aplicación"
     # panel.c
@@ -148,6 +230,8 @@ es:
     "drive": "unidad"
     # panel.c
     "failed; the log says why": "falló; el registro dice por qué"
+    # player.c
+    "fetching %s...": "obteniendo %s..."
     # panel.c
     "from NTP": "de NTP"
     # audio_out.c
@@ -158,32 +242,62 @@ es:
     "index": "índice"
     # panel.c
     "indexing, %d so far": "indexando, %d hasta ahora"
+    # player.c
+    "it played, then ran out of buffer": "sonó y luego se quedó\nsin búfer"
+    # player.c
+    "join %s": "únete a %s"
     # panel.c
     "maker": "fabricante"
+    # player.c
+    "mono": "mono"
     # panel.c
     "mount": "montaje"
     # panel.c
     "mounted": "montado"
+    # player.c
+    "multichannel": "multicanal"
     # panel.c
     "name": "nombre"
-    # panel.c
+    # browser.c
+    "no %s on the card": "no hay %s en la tarjeta"
+    # browser.c, panel.c
     "no card in the slot": "no hay tarjeta en la ranura"
+    # player.c
+    "no cover art": "sin portada"
+    # player.c
+    "no network - check Wi-Fi or the cable, then tap again": "sin red - revisa Wi-Fi o cable y vuelve a tocar"
+    # player.c
+    "no network - the directory needs Wi-Fi or a cable": "sin red - el directorio necesita Wi-Fi o cable"
     # panel.c
     "none": "ninguno"
+    # player.c
+    "not enough memory for that list": "no hay memoria para esa lista"
     # panel.c
     "not run this session": "no ejecutado esta sesión"
+    # player.c
+    "nothing starred yet - tap a star to keep one": "aún no hay favoritos - toca una estrella"
     # panel.c, sleeppage.c
     "off": "no"
     # panel.c
     "on": "sí"
+    # recorder.c
+    "on %s, %u:%02u\n%s": "en %s, %u:%02u\n%s"
+    # player.c
+    "playback stopped": "reproducción detenida"
+    # player.c
+    "plug in to keep playing": "conéctalo para seguir"
     # panel.c
     "port": "puerto"
     # panel.c
     "product": "producto"
+    # browser.c
+    "radio - the card, the charts, or a tag": "radio - la tarjeta, las listas o una etiqueta"
     # panel.c
     "route": "salida"
     # panel.c
     "sector": "sector"
+    # player.c
+    "slide or tap to cancel": "toca o desliza: cancela"
     # audio_out.c
     "speaker": "altavoz"
     # panel.c
@@ -192,26 +306,51 @@ es:
     "starts in a few seconds": "empieza en unos segundos"
     # panel.c
     "state": "estado"
+    # radiobrowser.h
+    "stations.m3u on the card": "stations.m3u de la tarjeta"
+    # player.c
+    "stereo": "estéreo"
     # panel.c
     "stopped: the volume went away": "detenido: el volumen se fue"
+    # player.c
+    "that": "esa"
+    # player.c
+    "the card would not take the write": "la tarjeta no aceptó\nla escritura"
+    # player.c
+    "the directory did not answer": "el directorio no respondió"
+    # player.c
+    "the directory has nothing there": "el directorio no tiene nada ahí"
     # panel.c
     "the setup network": "la red de configuración"
+    # player.c
+    "the stream did not start": "el flujo no empezó"
+    # player.c
+    "then http://%s/": "luego http://%s/"
     # panel.c
     "this player": "este equipo"
     # panel.c
     "type": "tipo"
+    # player.c
+    "unstar one to make room": "quita una estrella\npara hacer sitio"
     # panel.c
     "uptime": "activo"
     # panel.c
     "version": "versión"
     # panel.c
     "waiting for a drive": "esperando una unidad"
+    # player.c
+    "waiting for the network to play %s": "esperando la red para %s"
+    # player.c
+    "waiting for the network...": "esperando la red..."
     # panel.c
     "was damaged; reindex rebuilds it": "dañado; reindexar lo rehace"
   plural:
     "%d apps connected.":
       one: "%d app conectada."
       other: "%d apps conectadas."
+    "%d stations from %s":
+      one: "%d emisora de %s"
+      other: "%d emisoras de %s"
     "%d tracks (+%d ~%d -%d), %d s":
       one: "%d pista (+%d ~%d -%d), %d s"
       other: "%d pistas (+%d ~%d -%d), %d s"

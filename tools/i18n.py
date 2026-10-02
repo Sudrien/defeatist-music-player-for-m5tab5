@@ -166,7 +166,17 @@ def scan_sources():
         # drawn, so only N_() insists on a literal: N_(x) of anything
         # else marks nothing and is always a mistake.
         for m in _ANY.finditer(text):
-            if m.group(1) == "N_" and m.start() not in found:
+            if m.start() in found:
+                continue
+            # 6017: _("..." PRIu32 "...") -- a literal joined to a macro.
+            # The compiler sees one string; the extractor cannot, and
+            # would skip it without a word.
+            if text[m.end():].lstrip().startswith('"'):
+                line = text.count("\n", 0, m.start()) + 1
+                bad.append(f"{name}:{line}: {m.group(1)}() of a literal joined to a "
+                           "macro; spell the format out (%u, not PRIu32)")
+                continue
+            if m.group(1) == "N_":
                 line = text.count("\n", 0, m.start()) + 1
                 # Inside a string literal is not a call ("ab_(" in text).
                 pre = text[text.rfind("\n", 0, m.start()) + 1:m.start()]

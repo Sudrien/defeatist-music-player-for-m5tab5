@@ -4,6 +4,7 @@
  * SPDX-License-Identifier: MIT
  */
 #include "recorder.h"
+#include "i18n.h"         /* 6017 */
 
 #include <dirent.h>
 #include <errno.h>
@@ -202,7 +203,7 @@ static bool file_write(void *ctx, const uint8_t *buf, size_t n)
     if (s_bytes + n > REC_MAX_BYTES) {
         ESP_LOGW(TAG, "4 GB: ending the recording");
         s_write_failed = true;
-        notice("Recording stopped", "It reached 4 GB, the most one file can hold.");
+        notice(N_("Recording stopped"), N_("It reached 4 GB, the most one file can hold."));
         return false;
     }
     storage_io_acquire(STORAGE_IO_BACKGROUND);
@@ -211,7 +212,7 @@ static bool file_write(void *ctx, const uint8_t *buf, size_t n)
     if (put != n) {
         ESP_LOGE(TAG, "write failed after %" PRIu64 " bytes (errno %d)", s_bytes, errno);
         s_write_failed = true;
-        notice("Recording stopped", "The card would not take any more.");
+        notice(N_("Recording stopped"), N_("The card would not take any more."));
         return false;
     }
     portENTER_CRITICAL(&s_mux);
@@ -392,19 +393,21 @@ static void rec_enc_run(void)
          * unplug is whole: rec_in stopped, rec_enc drained the ring. */
         char body[96];
         const storage_id_t vol = storage_of_path(s_path);
-        snprintf(body, sizeof(body), "The USB microphone was unplugged.\n"
-                 "%" PRIu32 ":%02" PRIu32 " on %s", secs / 60, secs % 60,
+        /* 6017: %u rather than PRIu32 -- a macro between the literals
+         * would hide the format from tools/i18n.py. */
+        snprintf(body, sizeof(body), _("The USB microphone was unplugged.\n"
+                 "%u:%02u on %s"), (unsigned)(secs / 60), (unsigned)(secs % 60),
                  vol < STORAGE_COUNT ? storage_label(vol) : "?");
-        notice("Recording stopped", body);
+        notice(N_("Recording stopped"), body);
     } else if (!s_write_failed) {
         char body[96];
         /* Which volume, first: with a card and a drive both in, "saved"
          * alone does not say where to look. */
         const storage_id_t vol = storage_of_path(s_path);
-        snprintf(body, sizeof(body), "on %s, %" PRIu32 ":%02" PRIu32 "\n%s",
+        snprintf(body, sizeof(body), _("on %s, %u:%02u\n%s"),
                  vol < STORAGE_COUNT ? storage_label(vol) : "?",
-                 secs / 60, secs % 60, s_name);
-        notice("Recording saved", body);
+                 (unsigned)(secs / 60), (unsigned)(secs % 60), s_name);
+        notice(N_("Recording saved"), body);
     }
     s_log_end = true;           /* the map prints from ui_task's stack */
     files_changed();            /* 5215 */
@@ -487,14 +490,14 @@ static bool buffers(void)
 bool recorder_start(char *why, size_t why_len)
 {
 #define REFUSE(...) do { if (why) snprintf(why, why_len, __VA_ARGS__); return false; } while (0)
-    if (s_active) REFUSE("Already recording.");
+    if (s_active) REFUSE(N_("Already recording."));
 
     storage_id_t vol = STORAGE_COUNT;
     if (storage_present(STORAGE_SD)) vol = STORAGE_SD;
     else if (storage_present(STORAGE_USB)) vol = STORAGE_USB;
-    if (vol == STORAGE_COUNT) REFUSE("Insert a card or a USB drive to record to.");
+    if (vol == STORAGE_COUNT) REFUSE(N_("Insert a card or a USB drive to record to."));
 
-    if (!buffers()) REFUSE("Not enough memory to record.");
+    if (!buffers()) REFUSE(N_("Not enough memory to record."));
 
     /*
      * 5208: the input, and the format it decides. A USB microphone is
@@ -510,7 +513,7 @@ bool recorder_start(char *why, size_t why_len)
      * rather than refusing: AUTO promised "whatever is there".
      */
     settings_rec_from_t want = settings_rec_from();
-    if (want == SETTINGS_REC_OFF) REFUSE("Recording is off (AUDIO, Record from).");  /* 5217 */
+    if (want == SETTINGS_REC_OFF) REFUSE(N_("Recording is off (AUDIO, Record from)."));  /* 5217 */
     const bool autom = (want == SETTINGS_REC_AUTO);
     if (autom) {
         want = uac_mic_announced() ? SETTINGS_REC_UAC
@@ -521,7 +524,7 @@ bool recorder_start(char *why, size_t why_len)
     s_use_beam = false;
     s_fold = false;
     if (want == SETTINGS_REC_UAC) {
-        if (!uac_mic_announced()) REFUSE("No USB microphone is plugged in.");
+        if (!uac_mic_announced()) REFUSE(N_("No USB microphone is plugged in."));
         uint32_t rate = 0;
         uint8_t ch = 0;
         const esp_err_t e = uac_mic_open(&rate, &ch);
@@ -535,9 +538,9 @@ bool recorder_start(char *why, size_t why_len)
                      esp_err_to_name(e));
             want = audio_out_headphones() ? SETTINGS_REC_HEADSET : SETTINGS_REC_MONO;
         } else if (e == ESP_ERR_NOT_FOUND) {
-            REFUSE("The USB microphone is not there any more.");
+            REFUSE(N_("The USB microphone is not there any more."));
         } else if (e == ESP_ERR_NOT_SUPPORTED) {
-            REFUSE("The USB microphone has no 16-bit format.");
+            REFUSE(N_("The USB microphone has no 16-bit format."));
         } else {
             REFUSE("The USB microphone did not start (%s).", esp_err_to_name(e));
         }
@@ -545,7 +548,7 @@ bool recorder_start(char *why, size_t why_len)
     if (want == SETTINGS_REC_HEADSET) {
         /* The jack detect cannot tell a headset from headphones; plain
          * headphones record silence, and nothing here can know. */
-        if (!audio_out_headphones()) REFUSE("Nothing is plugged into the headset jack.");
+        if (!audio_out_headphones()) REFUSE(N_("Nothing is plugged into the headset jack."));
         s_rate = AUDIO_CAPTURE_RATE;
         s_in_ch = AUDIO_CAPTURE_HEADSET_CHANNELS;
         s_bits = AUDIO_CAPTURE_HEADSET_BITS;
@@ -564,7 +567,7 @@ bool recorder_start(char *why, size_t why_len)
 
     if (!pick_path(storage_mount_path(vol))) {
         ABANDON();
-        REFUSE("Could not make the Recordings folder.");
+        REFUSE(N_("Could not make the Recordings folder."));
     }
 
     s_file = storage_io_open(s_path, "wb");
@@ -588,7 +591,7 @@ bool recorder_start(char *why, size_t why_len)
         s_file = NULL;
         remove(s_path);
         ABANDON();
-        REFUSE("Could not start the file.");
+        REFUSE(N_("Could not start the file."));
     }
 
     if (s_src != SETTINGS_REC_UAC) {
@@ -616,7 +619,7 @@ bool recorder_start(char *why, size_t why_len)
         s_file = NULL;
         remove(s_path);
         s_active = false;
-        REFUSE("No memory for the recording task.");
+        REFUSE(N_("No memory for the recording task."));
     }
     xTaskNotifyGive(s_enc_task);                        /* 6010: both exist now */
     xTaskNotifyGive(s_in_task);

@@ -67,6 +67,8 @@
  */
 #pragma once
 
+#include "i18n.h"   /* 6017: N_() on the labels */
+
 #include <stdbool.h>
 #include <stddef.h>
 #include <stdint.h>
@@ -99,10 +101,10 @@ static inline const char *streamplan_status_text(streamplan_status_t s)
      * draw, and a NULL that has to be checked before each one is a crash
      * waiting for the one call site that forgets. */
     case STREAMPLAN_STATUS_NONE: return "";
-    case STREAMPLAN_CONNECTING:  return "Connecting";
-    case STREAMPLAN_BUFFERING:   return "Buffering";
-    case STREAMPLAN_RECONNECTING: return "Reconnecting";
-    case STREAMPLAN_FAILED:      return "No signal";
+    case STREAMPLAN_CONNECTING:  return N_("Connecting");
+    case STREAMPLAN_BUFFERING:   return N_("Buffering");
+    case STREAMPLAN_RECONNECTING: return N_("Reconnecting");
+    case STREAMPLAN_FAILED:      return N_("No signal");
     default:                     return "";
     }
 }

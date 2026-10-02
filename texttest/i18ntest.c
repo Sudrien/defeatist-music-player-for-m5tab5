@@ -27,6 +27,7 @@ const char *const i18n_vals[] = {
     /* en */    NULL,  NULL,  "One", NULL,
     /* zh-CN */ "关",  "开",  NULL,  "同一专辑",
     /* ja */    "オフ", NULL,  NULL,  NULL,
+    /* es */    "NO",  "SÍ",  NULL,  "Mismo álbum",
 };
 const unsigned i18n_pcount = 1;
 const char *const i18n_pkeys[] = { "%d tracks" };
@@ -34,6 +35,7 @@ const char *const i18n_pvals[] = {
     /* en */    "%d track", NULL,
     /* zh-CN */ NULL,       "%d 首",
     /* ja */    NULL,       NULL,
+    /* es */    "%d pista", "%d pistas",
 };
 
 static void fixture(void)
@@ -70,6 +72,12 @@ static void fixture(void)
     assert(strcmp(_p("%d tracks", 1), "%d track") == 0);    /* en text, en rule */
     assert(strcmp(_p("%d tracks", 3), "%d tracks") == 0);
     assert(strcmp(_p("unknown %d", 3), "unknown %d") == 0);
+    i18n_set_lang(I18N_ES);                        /* 6014: one/other */
+    assert(strcmp(_p("%d tracks", 1), "%d pista") == 0);
+    assert(strcmp(_p("%d tracks", 0), "%d pistas") == 0);
+    assert(strcmp(_p("%d tracks", 2), "%d pistas") == 0);
+    assert(strcmp(_("ON"), "SÍ") == 0);
+    assert(strcmp(_("ONE"), "One") == 0);          /* es NULL: en rewording */
 
     i18n_set_lang((i18n_lang_t)7);                 /* from a bad NVS byte */
     assert(i18n_lang() == I18N_EN);
@@ -77,6 +85,7 @@ static void fixture(void)
     assert(i18n_lang() == I18N_EN);
     assert(strcmp(i18n_lang_name((i18n_lang_t)9), "English") == 0);
     assert(strcmp(i18n_lang_name(I18N_JA), "日本語") == 0);
+    assert(strcmp(i18n_lang_name(I18N_ES), "Español") == 0);
     puts("i18ntest (fixture): ok");
 }
 #else

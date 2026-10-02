@@ -1,6 +1,6 @@
 /*
- * i18n.h -- the screen's text in English, Mandarin (simplified) or
- * Japanese, chosen at run time. lv_i18n's shape without LVGL:
+ * i18n.h -- the screen's text in English, Mandarin (simplified),
+ * Japanese or Spanish, chosen at run time. lv_i18n's shape without LVGL:
  *
  *     gfx_draw_text(..., _("Same album"), ...);
  *     static const char *const k[] = { N_("Off"), N_("On") };
@@ -33,6 +33,7 @@ typedef enum {
     I18N_EN = 0,        /* also the fallback: the keys are English */
     I18N_ZH_CN,
     I18N_JA,
+    I18N_ES,            /* 6014 */
     I18N_LANG_COUNT,
 } i18n_lang_t;
 
@@ -43,7 +44,8 @@ typedef enum {
 void i18n_set_lang(i18n_lang_t lang);
 i18n_lang_t i18n_lang(void);
 
-/* Endonym for a language picker: "English", "简体中文", "日本語".
+/* Endonym for a language picker: "English", "简体中文", "日本語",
+ * "Español".
  * Deliberately not translated -- a reader has to find their own. */
 const char *i18n_lang_name(i18n_lang_t lang);
 

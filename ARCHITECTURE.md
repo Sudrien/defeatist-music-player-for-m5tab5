@@ -20604,3 +20604,21 @@ patch; the setting and its row are next. i18n.c and i18n_tab.c built
 clean at -O2 -Werror and ran under ASan in texttest, against fixtures
 and against the real table. panel.c's seven edits were not compiled:
 no ESP-IDF in the session. Not on the board.
+
+### 6014 -- Spanish
+
+6013 built. Spanish is the fourth locale: an i18n_lang_t entry
+(I18N_ES, after JA, so the numbers already handed out do not move), a
+line in tools/i18n.py's LOCALES, `i18n/es.yml`, and "Español" for the
+picker. Plurals are English's shape, one/other, and plural_form() says
+so; CLDR's third Spanish form, "many", is for exact millions and no
+count on this screen reaches one.
+
+The seven crossfade strings are translated. The widest is the heading
+off -- "Fundido cruzado   desactivado", 29 halfwidth glyphs, 609 px at
+NAME_SCALE against the 672 it is clipped to. The slider's end label is
+"no" rather than "desactivado", which at LABEL_SCALE would be 154 px in
+an 80 px clip. The pill is SÍ / NO; Í is Latin-1, already in Ark12.
+
+texttest's fixture gained an es column and the es plural cases. Not on
+the board.

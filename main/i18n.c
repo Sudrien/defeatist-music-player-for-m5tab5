@@ -35,6 +35,7 @@ const char *i18n_lang_name(i18n_lang_t lang)
         [I18N_EN]    = "English",
         [I18N_ZH_CN] = "简体中文",
         [I18N_JA]    = "日本語",
+        [I18N_ES]    = "Español",
     };
     return names[(unsigned)lang < I18N_LANG_COUNT ? lang : I18N_EN];
 }
@@ -64,10 +65,11 @@ const char *i18n_get(const char *msgid)
 }
 
 /* CLDR cardinal rules, cut to what the table has: English one/other;
+ * Spanish one/other too (CLDR's "many" is for exact millions);
  * Chinese and Japanese only other. Index 0 is one, 1 is other. */
 static int plural_form(int lang, long n)
 {
-    if (lang == I18N_EN) return n == 1 ? 0 : 1;
+    if (lang == I18N_EN || lang == I18N_ES) return n == 1 ? 0 : 1;
     return 1;
 }
 

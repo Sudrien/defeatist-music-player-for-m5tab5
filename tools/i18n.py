@@ -65,11 +65,13 @@ OUT_C = os.path.join(SRC_DIR, "i18n_tab.c")
 # Order is the i18n_lang_t order in main/i18n.h, and index 0 is the
 # fallback. Adding a locale is a line here, an enum entry there, and a
 # YAML file -- `extract` creates the file.
-LOCALES = ["en", "zh-CN", "ja"]
+LOCALES = ["en", "zh-CN", "ja", "es"]
 
 # Plural categories per locale (CLDR). Chinese and Japanese have one
-# form; English two. i18n.c's rule function has to agree with this.
-PLURAL_FORMS = {"en": ["one", "other"], "zh-CN": ["other"], "ja": ["other"]}
+# form; English and Spanish two. (CLDR gives Spanish a third, "many", for
+# exact millions -- "1 000 000 de pistas" -- which no count here reaches.) i18n.c's rule function has to agree with this.
+PLURAL_FORMS = {"en": ["one", "other"], "zh-CN": ["other"], "ja": ["other"],
+                "es": ["one", "other"]}
 
 
 # ---------------------------------------------------------------- C side
@@ -382,7 +384,7 @@ def build_c():
     L.append("};")
     L.append("")
     L.append("/* [(lang * i18n_pcount + key) * 2 + form], form 0 one, 1 other -- the two")
-    L.append(" * categories en, zh and ja use between them. */")
+    L.append(" * categories en, zh, ja and es use between them. */")
     L.append("const char *const i18n_pvals[] = {")
     for loc in LOCALES:
         plur = tabs[loc][1]

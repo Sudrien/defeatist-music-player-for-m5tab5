@@ -46,6 +46,14 @@ const char *const i18n_vals[] = {
     "オン",
     "同じアルバム",
     "オフ",
+    /* es */
+    "%d s",
+    "Fundido cruzado   %d s",
+    "Fundido cruzado   desactivado",
+    "NO",
+    "SÍ",
+    "Mismo álbum",
+    "no",
 };
 
 const unsigned i18n_pcount = 0;
@@ -54,10 +62,11 @@ const char *const i18n_pkeys[] = {
 };
 
 /* [(lang * i18n_pcount + key) * 2 + form], form 0 one, 1 other -- the two
- * categories en, zh and ja use between them. */
+ * categories en, zh, ja and es use between them. */
 const char *const i18n_pvals[] = {
     /* en */
     /* zh-CN */
     /* ja */
+    /* es */
     NULL,                      /* C has no empty arrays */
 };

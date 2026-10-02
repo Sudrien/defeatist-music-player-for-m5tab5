@@ -136,8 +136,6 @@ en:
     "Headset, UAC: the jack, a USB mic.": ~
     # ui.c
     "IDLE": ~
-    # ui.c
-    "IDLE %dM": ~
     # panel.c
     "IN USE": ~
     # panel.c

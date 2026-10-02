@@ -136,8 +136,6 @@ zh-CN:
     "Headset, UAC: the jack, a USB mic.": "耳麦、UAC：插孔、USB 麦克风。"
     # ui.c
     "IDLE": "空闲"
-    # ui.c
-    "IDLE %dM": "空闲%d分"
     # panel.c
     "IN USE": "使用中"
     # panel.c

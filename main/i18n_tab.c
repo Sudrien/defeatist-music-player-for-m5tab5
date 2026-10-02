@@ -9,7 +9,7 @@
 #include <stddef.h>
 #include "i18n.h"
 
-const unsigned i18n_count = 242;
+const unsigned i18n_count = 241;
 const char *const i18n_keys[] = {
     "%.32s did not work. Try again.",
     "%d s",
@@ -76,7 +76,6 @@ const char *const i18n_keys[] = {
     "HEADSET",
     "Headset, UAC: the jack, a USB mic.",
     "IDLE",
-    "IDLE %dM",
     "IN USE",
     "INDEXING",
     "Insert a card or a USB drive to record to.",
@@ -305,7 +304,6 @@ const char *const i18n_vals[] = {
     "Could not make the\012Recordings folder.",
     NULL,
     "Could not start\012the file.",
-    NULL,
     NULL,
     NULL,
     NULL,
@@ -566,7 +564,6 @@ const char *const i18n_vals[] = {
     "耳麦",
     "耳麦、UAC：插孔、USB 麦克风。",
     "空闲",
-    "空闲%d分",
     "使用中",
     "索引中",
     "请插入存储卡或 U 盘\012再录音。",
@@ -809,7 +806,6 @@ const char *const i18n_vals[] = {
     "ヘッドセット",
     "ヘッドセット、UAC：端子、USBマイク。",
     "待機",
-    "待機%d分",
     "使用中",
     "索引中",
     "カードかUSBドライブを\012入れて録音を。",
@@ -1052,7 +1048,6 @@ const char *const i18n_vals[] = {
     "AURICULAR",
     "Auricular, UAC: la toma, un micro USB.",
     "INAC",
-    "INAC %dM",
     "EN USO",
     "INDEXANDO",
     "Inserta una tarjeta o\012unidad USB para grabar.",

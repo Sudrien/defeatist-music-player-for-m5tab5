@@ -136,8 +136,6 @@ ja:
     "Headset, UAC: the jack, a USB mic.": "ヘッドセット、UAC：端子、USBマイク。"
     # ui.c
     "IDLE": "待機"
-    # ui.c
-    "IDLE %dM": "待機%d分"
     # panel.c
     "IN USE": "使用中"
     # panel.c

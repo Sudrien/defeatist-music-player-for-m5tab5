@@ -20875,3 +20875,33 @@ Left: the two benchmark lines that cut a station name with %.20s and
 Syntax-only host compile of ui.c, browser.c, cuedir.c, sleeppage.c,
 panel.c and player.c with stubs: the errors left are all the stubs'.
 Not compiled with ESP-IDF here. Not on the board.
+
+### 6020 -- IDLE without a number, yellow while held
+
+Asked for on the board: the status line's IDLE word loses its minutes
+and turns yellow while something is going on that keeps Power off from
+counting. 6001's "IDLE 14M" was the minutes left, and for most of the
+time anyone looked at it -- music playing -- it sat at the full wait,
+because playback restarts the wait on every pass. The number was
+accurate and said nothing; the colour says the one thing that matters,
+whether the countdown is running.
+
+ui_state_t's idle_min is idle_state now, the shape wifi_state has
+(6012): 0 Power off is Never (grey), 1 set but held (yellow, C_RG), 2
+counting down (green). "Held" is idle_held(), the test 6000's pass
+already made -- playing, decoding, streaming, recording, the record
+countdown, a reindex -- moved into one function that the pass and the
+status line both call, so the yellow cannot drift from what actually
+restarts the clock. A touch restarts the wait too, but once rather than
+continuously, so it does not turn the word yellow; the countdown simply
+starts again from that moment.
+
+The console's once-a-minute "idle: power off in N min" line stays: the
+minutes are still worth having in a log someone is watching a test
+through, and nowhere else.
+
+The status line is narrower for it -- "IDLE 120M" was its widest word
+-- and the translated "IDLE %dM" key is pruned.
+
+ABBREVIATIONS.md and the README say what the colours mean. Not compiled
+with ESP-IDF here. Not on the board.

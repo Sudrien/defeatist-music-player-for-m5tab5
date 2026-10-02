@@ -32,7 +32,7 @@ somewhere else.
 | `MPD` | The MPD server is running | NET tab, MPD server |
 | `HTTPS` | The browser remote is running | NET tab, Remote control |
 | `SLEEP xxM` | The sleep timer is set; minutes left, rounded up. Just `SLEEP` when it is not | Sleep page |
-| `IDLE xxM` | Power off is set; minutes until the device turns itself off, rounded up. Stays at the full wait while anything is playing, recording or being touched. Just `IDLE` when Power off is Never | Sleep page, Power off |
+| `IDLE` | Power off is set and counting down: nothing is playing, streaming, recording or indexing. **Yellow**: set, but held -- something is going on, so the wait keeps restarting. Grey when Power off is Never. No minutes (6020) | Sleep page, Power off |
 
 At the right end of the same line, the battery (there is no battery
 icon):
@@ -182,7 +182,6 @@ units.
 | Status line | `SLEEP` | 睡眠 | 睡眠 | SUEÑO |
 | Status line | `SLEEP %dM` | 睡眠%d分 | 睡眠%d分 | SUEÑO %dM |
 | Status line | `IDLE` | 空闲 | 待機 | INAC |
-| Status line | `IDLE %dM` | 空闲%d分 | 待機%d分 | INAC %dM |
 | Status line | `BATT` | 电池 | 電池 | BAT |
 | Status line | `BATT %d%%` | 电池 %d%% | 電池 %d%% | BAT %d%% |
 | Status line | `CHRG %d%%` | 充电 %d%% | 充電 %d%% | CARG %d%% |

@@ -1414,9 +1414,6 @@ static void draw_status(const ui_state_t *st)
     char sleepw[24];                    /* 5278: "SLEEP " + any int + "M" */
     if (st->sleep_min > 0) snprintf(sleepw, sizeof(sleepw), _("SLEEP %dM"), st->sleep_min);
     else                   snprintf(sleepw, sizeof(sleepw), "%s", _("SLEEP"));
-    char idlew[24];                     /* 6001: Power off's countdown */
-    if (st->idle_min > 0) snprintf(idlew, sizeof(idlew), _("IDLE %dM"), st->idle_min);
-    else                  snprintf(idlew, sizeof(idlew), "%s", _("IDLE"));
 
     /*
      * 6012: WIFI, and a colour per word rather than on/off: green
@@ -1426,13 +1423,17 @@ static void draw_status(const ui_state_t *st)
      */
     const uint16_t wifi_c = st->wifi_state == 2 ? C_PLAY_ON
                           : st->wifi_state == 1 ? C_RG : C_ICON_OFF;
+    /* 6020: Power off -- green counting down, yellow held by activity,
+     * grey Never. No minutes: the word and its colour say it. */
+    const uint16_t idle_c = st->idle_state == 2 ? C_PLAY_ON
+                          : st->idle_state == 1 ? C_RG : C_ICON_OFF;
     const struct { const char *word; uint16_t c; } items[] = {
         { same("USB"),   st->usb_power ? C_PLAY_ON : C_ICON_OFF },
         { same("WIFI"),  wifi_c },
         { same("MPD"),   st->mpd_on ? C_PLAY_ON : C_ICON_OFF },
         { same("HTTPS"), st->https_on ? C_PLAY_ON : C_ICON_OFF },
         { sleepw,  st->sleep_min > 0 ? C_PLAY_ON : C_ICON_OFF },
-        { idlew,   st->idle_min > 0 ? C_PLAY_ON : C_ICON_OFF },
+        { _("IDLE"), idle_c },
     };
     const int top = y + STATUS_DY;
 

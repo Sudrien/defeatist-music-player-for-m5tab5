@@ -62,7 +62,7 @@ Note: the goal of this project is to max out the potential of this hardware with
 - actually paying attention to gapless playback data
 - Internet Radio via https://www.radio-browser.info API, or manual list entry. This is "power tether" territory.
 - Sleep timer (up t 2 hours, 15 minute intervals)
-- Power off after 15 min to 2 h with nothing playing, recording or touched -- separate from the sleep timer. `IDLE 14M` on the status line counts it down; the side button turns it back on
+- Power off after 15 min to 2 h with nothing playing, recording or touched -- separate from the sleep timer. `IDLE` on the status line is green while it counts down and yellow while something holds it off; the side button turns it back on
 - Low-battery guard: below 6.3 V for 30 s on the battery, it finishes any recording and turns itself off, before the pack is run flat enough to damage it. Not yet tested through a real discharge
 - brightness control
 - Network Time Protocol (if wifi has been setup)

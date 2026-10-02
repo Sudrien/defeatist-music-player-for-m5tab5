@@ -6614,6 +6614,8 @@ static char s_rec_name[40];
  * 5274: the status line's four words. From ui_task, beside the battery,
  * at both places the bar's state is put together.
  */
+static bool idle_held(void);     /* 6020: below s_rec_count */
+
 static void status_overlay(ui_state_t *st)
 {
     st->usb_power = usbhost_vbus_on();
@@ -6624,17 +6626,9 @@ static void status_overlay(ui_state_t *st)
         ? sleeptimer_seconds_left(esp_timer_get_time(), s_sleep_deadline_us) : 0;
     st->sleep_min = left > 0 ? (int)((left + 59) / 60) : 0;
 
-    /* 6001: the Power off countdown, from the same clock 6000 acts on. */
-    const int pd_s = powerdown_seconds(settings_poweroff_step());
-    if (pd_s <= 0) {
-        st->idle_min = 0;
-    } else {
-        const int64_t now = esp_timer_get_time();
-        const int64_t since = s_last_active_us ? now - s_last_active_us : 0;
-        int64_t rem = (int64_t)pd_s - since / 1000000;
-        if (rem < 1) rem = 1;                       /* "0M" would read as off */
-        st->idle_min = (int)((rem + 59) / 60);
-    }
+    /* 6020: Power off as a state, not minutes (was 6001's countdown). */
+    st->idle_state = powerdown_seconds(settings_poweroff_step()) <= 0 ? 0
+                   : idle_held() ? 1 : 2;
 }
 
 static void recording_overlay(ui_state_t *st)
@@ -6894,6 +6888,18 @@ static void service_clock_ab(void) { }
  */
 #define REC_COUNTDOWN_S     (3)
 static volatile int s_rec_count;
+
+/*
+ * 6020: what restarts Power off's wait on every pass -- one test for the
+ * pass that acts on it and the status line that shows it, so the yellow
+ * IDLE means exactly "the countdown is not running". A touch restarts
+ * the wait too, but once, not continuously, so it is not here.
+ */
+static bool idle_held(void)
+{
+    return s_playing || s_decoding || s_streaming || recorder_active() ||
+           s_rec_count > 0 || medialib_busy();
+}
 
 /*
  * 6000: turn the device off -- the Tab5's own way, as M5Stack's BSP does
@@ -7709,10 +7715,7 @@ static void ui_task(void *arg)
 
             /* 6000: power off after a while with nothing going on. */
             if (!s_last_active_us) s_last_active_us = now_us;
-            if (s_playing || s_decoding || s_streaming || recorder_active() ||
-                s_rec_count > 0 || medialib_busy()) {
-                s_last_active_us = now_us;
-            }
+            if (idle_held()) s_last_active_us = now_us;           /* 6020 */
             const int pd_s = powerdown_seconds(settings_poweroff_step());
             {
                 /*

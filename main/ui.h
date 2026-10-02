@@ -249,10 +249,12 @@ typedef struct {
      * scanning, joining, or failing to), 2 connected with an address. */
     uint8_t wifi_state;
     int  sleep_min;
-    /* 6001: minutes until Power off (powerdown.h), rounded up; 0 when
-     * Power off is Never. While anything is going on it stays at the
-     * full wait, because that wait keeps restarting. */
-    int  idle_min;
+    /* 6020: Power off's countdown, as a colour -- 0 Power off is Never,
+     * 1 set but held (something is playing, streaming, recording or
+     * indexing, which restarts the wait every pass), 2 counting down.
+     * Was the minutes left (6001); a number that sat at the full wait
+     * whenever anything was going on said less than the colour does. */
+    uint8_t idle_state;
     /* 5217: Record from is OFF -- the switch is drawn as two positions,
      * pause and play, and cannot be slid to record. */
     bool rec_off;

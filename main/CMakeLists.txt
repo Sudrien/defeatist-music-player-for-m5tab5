@@ -6,7 +6,7 @@ idf_component_register(
          "sleeppage.c" "streamprobe.c" "netstream.c" "netdec.c" "stations.c" "favorites.c" "starred.c" "streamgain.c" "radiobrowser.c" "bench.c" "ethernet.c" "cuedir.c" "cardtime.c" "mediacat.c" "mediawalk.c" "mediasync.c" "medialib.c" "mediadir.c" "rateconv.c" "polyrsp.c" "radiokeep.c" "icoimg.c" "hostedwrap.c" "heapmap.c" "flacenc.c" "recorder.c" "beam.c"
          "mpdqueue.c" "mpdproto.c" "mpdfilter.c" "casefold_tab.c" "mpduri.c" "mpdmode.c" "mpdidle.c" "mpd.c" "uireq.c" "m3uline.c" "urlclean.c" "remote.c" "remoteproto.c" "certgen.c" "devcert.c" "wifijoin.c" "rtc8130.c" "nvsns.c"
     INCLUDE_DIRS "."
-    EMBED_TXTFILES "remote.html"
+    EMBED_TXTFILES "remote_i18n.html"    # 6028: generated from remote.html
     EMBED_FILES "favicon.ico"
     REQUIRES driver esp_app_format esp_driver_i2c esp_driver_i2s esp_driver_sdmmc
              esp_driver_jpeg esp_lcd esp_lcd_touch fatfs sdmmc

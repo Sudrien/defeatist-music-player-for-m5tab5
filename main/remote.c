@@ -52,8 +52,8 @@ static const char *TAG = "tab5_remote";
 
 /* The page, embedded by main/CMakeLists.txt (EMBED_TXTFILES, so it is
  * NUL-terminated and the NUL is not part of it). */
-extern const char remote_html_start[] asm("_binary_remote_html_start");
-extern const char remote_html_end[]   asm("_binary_remote_html_end");
+extern const char remote_html_start[] asm("_binary_remote_i18n_html_start");   /* 6028 */
+extern const char remote_html_end[]   asm("_binary_remote_i18n_html_end");
 /* 5119: a white disc with the switch's green play arrow, 16/32/48 px.
  * EMBED_FILES, so no NUL is added and the length is end - start. */
 extern const uint8_t favicon_ico_start[] asm("_binary_favicon_ico_start");
@@ -165,101 +165,19 @@ static void keep_and_send(char *keep, size_t *keep_len, size_t cap,
 /* ---- handlers ---------------------------------------------------------- */
 
 /*
- * 6025: the page, with every language's strings written into it at
- * <!--i18n--> -- one request, where a separate fetch would be another
- * TLS round trip -- and the one this request's Accept-Language asks for
- * named as the page's language. The page shows one language at a time by
- * CSS, html[lang] against each string's per-language spans, so changing
- * language is changing an attribute: nothing is fetched again. Only the
- * keys the remote uses (i18n_remote[], from tools/i18n.py). A string the
- * same as its key goes as null; English is in the page already.
- *
- * 6027: the escape buffers come from PSRAM for the length of the
- * request. They were 6 KB of static .bss -- internal, DMA-capable RAM --
- * and that was what the SDIO bring-up of the Wi-Fi coprocessor then
- * could not find 512 bytes of at boot.
+ * 6028: the page, sent as it is. remote_i18n.html already holds every
+ * language -- tools/i18n.py compile writes it from remote.html -- and
+ * the browser chooses which to show, so nothing here depends on the
+ * request. (6025 assembled a dictionary into the page on every request,
+ * in hundreds of small writes that went on failing after a browser had
+ * hung up; that is gone.)
  */
-#define PAGE_KB (400 * 6 + 3)
-#define PAGE_VB (600 * 6 + 3)
-static char *s_pkb, *s_pvb;     /* this request's; NULL outside h_page() */
-extern const unsigned char i18n_remote[], i18n_premote[];
-
-static void send_str_or_null(httpd_req_t *req, const char *v, const char *key)
-{
-    if (key && strcmp(v, key) == 0) { httpd_resp_send_chunk(req, "null", 4); return; }
-    if (!remoteproto_json_str(v, s_pvb, PAGE_VB)) { httpd_resp_send_chunk(req, "null", 4); return; }
-    httpd_resp_send_chunk(req, s_pvb, HTTPD_RESP_USE_STRLEN);
-}
-
 static esp_err_t h_page(httpd_req_t *req)
 {
-    char al[96];
-    const i18n_lang_t lang =
-        httpd_req_get_hdr_value_str(req, "Accept-Language", al, sizeof(al)) == ESP_OK
-        ? i18n_from_accept_language(al) : I18N_EN;
-
     httpd_resp_set_type(req, "text/html; charset=utf-8");
     httpd_resp_set_hdr(req, "Cache-Control", "no-cache");
-    httpd_resp_set_hdr(req, "Vary", "Accept-Language");
-
-    const char *page = remote_html_start;
-    const size_t len = (size_t)(remote_html_end - remote_html_start - 1);
-    const char *mark = strstr(page, "<!--i18n-->");
-    s_pkb = mark ? heap_caps_malloc(PAGE_KB, MALLOC_CAP_SPIRAM | MALLOC_CAP_8BIT) : NULL;
-    s_pvb = mark ? heap_caps_malloc(PAGE_VB, MALLOC_CAP_SPIRAM | MALLOC_CAP_8BIT) : NULL;
-    if (!s_pkb || !s_pvb) {         /* English, as written, rather than nothing */
-        free(s_pkb); free(s_pvb); s_pkb = s_pvb = NULL;
-        return httpd_resp_send(req, page, (ssize_t)len);
-    }
-    char *const kb = s_pkb;
-    httpd_resp_send_chunk(req, page, (ssize_t)(mark - page));
-    httpd_resp_send_chunk(req, "<script>window.I18N={\"lang\":\"", HTTPD_RESP_USE_STRLEN);
-    httpd_resp_send_chunk(req, i18n_lang_code(lang), HTTPD_RESP_USE_STRLEN);
-    httpd_resp_send_chunk(req, "\",\"langs\":[", HTTPD_RESP_USE_STRLEN);
-    for (int l = 0; l < I18N_LANG_COUNT; l++) {
-        if (l) httpd_resp_send_chunk(req, ",", 1);
-        httpd_resp_send_chunk(req, "[\"", 2);
-        httpd_resp_send_chunk(req, i18n_lang_code((i18n_lang_t)l), HTTPD_RESP_USE_STRLEN);
-        httpd_resp_send_chunk(req, "\",", 2);
-        send_str_or_null(req, i18n_lang_name((i18n_lang_t)l), NULL);
-        httpd_resp_send_chunk(req, "]", 1);
-    }
-    httpd_resp_send_chunk(req, "],\"t\":{", HTTPD_RESP_USE_STRLEN);
-    bool first = true;
-    for (unsigned i = 0; i < i18n_count; i++) {
-        if (!i18n_remote[i] || !remoteproto_json_str(i18n_keys[i], kb, PAGE_KB)) continue;
-        httpd_resp_send_chunk(req, first ? "" : ",", HTTPD_RESP_USE_STRLEN);
-        httpd_resp_send_chunk(req, kb, HTTPD_RESP_USE_STRLEN);
-        httpd_resp_send_chunk(req, ":[", 2);
-        for (int l = 0; l < I18N_LANG_COUNT; l++) {
-            if (l) httpd_resp_send_chunk(req, ",", 1);
-            send_str_or_null(req, i18n_get_in((i18n_lang_t)l, i18n_keys[i]), i18n_keys[i]);
-        }
-        httpd_resp_send_chunk(req, "]", 1);
-        first = false;
-    }
-    /* Plurals as [one, other] per language: English needs its one too. */
-    httpd_resp_send_chunk(req, "},\"p\":{", HTTPD_RESP_USE_STRLEN);
-    first = true;
-    for (unsigned i = 0; i < i18n_pcount; i++) {
-        if (!i18n_premote[i] || !remoteproto_json_str(i18n_pkeys[i], kb, PAGE_KB)) continue;
-        httpd_resp_send_chunk(req, first ? "" : ",", HTTPD_RESP_USE_STRLEN);
-        httpd_resp_send_chunk(req, kb, HTTPD_RESP_USE_STRLEN);
-        httpd_resp_send_chunk(req, ":[", 2);
-        for (int l = 0; l < I18N_LANG_COUNT; l++) {
-            httpd_resp_send_chunk(req, l ? ",[" : "[", HTTPD_RESP_USE_STRLEN);
-            send_str_or_null(req, i18n_get_plural_in((i18n_lang_t)l, i18n_pkeys[i], 1), NULL);
-            httpd_resp_send_chunk(req, ",", 1);
-            send_str_or_null(req, i18n_get_plural_in((i18n_lang_t)l, i18n_pkeys[i], 2), NULL);
-            httpd_resp_send_chunk(req, "]", 1);
-        }
-        httpd_resp_send_chunk(req, "]", 1);
-        first = false;
-    }
-    httpd_resp_send_chunk(req, "}};</script>", HTTPD_RESP_USE_STRLEN);
-    free(s_pkb); free(s_pvb); s_pkb = s_pvb = NULL;
-    httpd_resp_send_chunk(req, mark, (ssize_t)(page + len - mark));
-    return httpd_resp_send_chunk(req, NULL, 0);
+    return httpd_resp_send(req, remote_html_start,
+                           (ssize_t)(remote_html_end - remote_html_start - 1));
 }
 
 static esp_err_t h_icon(httpd_req_t *req)

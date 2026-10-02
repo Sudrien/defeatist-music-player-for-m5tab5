@@ -459,13 +459,6 @@ def build_c():
         return repr(k[:40]).replace("*/", "* /").replace("/*", "/ *")
     L += [f"    {1 if _on_screen(where_s.get(k)) else 0},  /* {_cmt(k)} */" for k in keys] or ["    1,"]
     L.append("};")
-    L.append("/* 6025: 1 when the browser remote uses the key -- remote.c sends these */")
-    L.append("const unsigned char i18n_remote[] = {")
-    L += [f"    {1 if set(where_s.get(k, [])) & REMOTE_FILES else 0}," for k in keys] or ["    0,"]
-    L.append("};")
-    L.append("const unsigned char i18n_premote[] = {")
-    L += [f"    {1 if set(where_p.get(k, [])) & REMOTE_FILES else 0}," for k in pkeys] or ["    0,"]
-    L.append("};")
     L.append("const unsigned char i18n_pon_screen[] = {")
     L += [f"    {1 if _on_screen(where_p.get(k)) else 0}," for k in pkeys] or ["    1,"]
     L.append("};")
@@ -510,10 +503,105 @@ def build_c():
     return "\n".join(L) + "\n", report
 
 
+# ---------------------------------------------------------------- remote page
+
+# 6028: the browser remote with every language in it. remote.html is the
+# source, English as written; this writes main/remote_i18n.html, which is
+# what main/CMakeLists.txt embeds and remote.c sends unchanged:
+#   - each data-t / data-k element's text becomes a span per language,
+#     <span data-l="ja">...</span>, and a stylesheet shows the span whose
+#     data-l is html[lang] -- switching language is changing that one
+#     attribute;
+#   - at <!--i18n--> (in <head>), window.I18N: langs, and t / p for what
+#     cannot hold spans (an <option>, attributes, the script's own text),
+#     and a few lines choosing the first language -- kept in localStorage,
+#     else navigator.languages -- before anything is drawn.
+# Committed, like i18n_tab.c; `check` says when it is stale.
+REMOTE_SRC = os.path.join(SRC_DIR, "remote.html")
+REMOTE_OUT = os.path.join(SRC_DIR, "remote_i18n.html")
+LANG_NAMES = {"en": "English", "zh-CN": "简体中文", "ja": "日本語", "es": "Español"}
+
+_PICK_JS = (
+    "(function(){var L=window.I18N.langs.map(function(l){return l[0]}),c='en';"
+    "try{var k=localStorage.getItem('lang');if(L.indexOf(k)>=0)c=k;else throw 0}catch(e){"
+    "var n=navigator.languages||[navigator.language||'en'];"
+    "for(var i=0;i<n.length;i++){var t=String(n[i]).toLowerCase();"
+    "if(/^zh(-|$)/.test(t)){if(/-(hant|tw|hk|mo)(-|$)/.test(t))continue;if(L.indexOf('zh-CN')>=0){c='zh-CN';break}continue}"
+    "var p=t.split('-')[0];if(L.indexOf(p)>=0){c=p;break}}}"
+    "document.documentElement.lang=c})();")
+
+
+def build_remote_html(tabs, where_s, where_p):
+    import html as _html
+    src = open(REMOTE_SRC, encoding="utf-8").read()
+
+    def val(loc, k):
+        v = tabs[loc][0].get(k) or tabs["en"][0].get(k)
+        return v if v else k
+
+    def spans(texts):
+        return "".join(f'<span data-l="{loc}">{t}</span>' for loc, t in zip(LOCALES, texts))
+
+    def fill(fmt, arg):         # %s, the only conversion data-k keys use
+        return fmt.replace("%s", arg, 1)
+
+    def t_sub(m):
+        if m.group(1).lower() == "option":
+            return m.group(0)                       # the script sets these
+        k = _ws(_html.unescape(m.group(3)))
+        return m.group(0)[:m.end(2) - m.start(0) + 1] + \
+            spans([_html.escape(val(loc, k), quote=False) for loc in LOCALES]) + f"</{m.group(1)}>"
+
+    out = re.sub(r'<(\w+)\b([^>]*\sdata-t(?=[\s>])[^>]*)>([^<]*)</\1>', t_sub, src)
+
+    def k_sub(m):
+        tag, attrs = m.group(1), m.group(2)
+        k = _ws(_html.unescape(re.search(r'\sdata-k="([^"]*)"', attrs).group(1)))
+        a = re.search(r'\sdata-arg="([^"]*)"', attrs)
+        arg = _html.unescape(a.group(1)) if a else ""
+        return f"<{tag}{attrs}>" + spans([fill(_html.escape(val(loc, k), quote=False), arg)
+                                          for loc in LOCALES]) + f"</{tag}>"
+
+    out = re.sub(r'<(\w+)\b([^>]*\sdata-k="[^"]*"[^>]*)>(.*?)</\1>', k_sub, out, flags=re.S)
+
+    t = {}
+    for k, w in sorted(where_s.items()):
+        if "remote.html" in w or "remote.c" in w:
+            t[k] = [None if val(loc, k) == k else val(loc, k) for loc in LOCALES]
+    p = {}
+    for k, w in sorted(where_p.items()):
+        if "remote.html" in w or "remote.c" in w:
+            row = []
+            for loc in LOCALES:
+                f, e = tabs[loc][1].get(k, {}), tabs["en"][1].get(k, {})
+                one = f.get("one") or e.get("one") or f.get("other") or k
+                other = f.get("other") or e.get("other") or k
+                row.append([one, other])
+            p[k] = row
+    blob = json.dumps({"langs": [[l, LANG_NAMES[l]] for l in LOCALES], "t": t, "p": p},
+                      ensure_ascii=False, separators=(",", ":")).replace("</", "<\\/")
+    css = "[data-l]{display:none}" + ",".join(
+        f'html[lang="{l}"] [data-l="{l}"]' for l in LOCALES) + "{display:inline}"
+    head = (f"<style>{css}</style><script>window.I18N={blob};{_PICK_JS}</script>")
+    if out.count("<!--i18n-->") != 1:
+        sys.exit("i18n: remote.html needs exactly one <!--i18n--> in its <head>")
+    out = out.replace("<!--i18n-->", head)
+    return ("<!-- GENERATED by ./tools/i18n.py compile from remote.html; do not edit. -->\n"
+            + out)
+
+
+def _remote_inputs():
+    tabs = {loc: read_yml(yml_path(loc), loc) for loc in LOCALES}
+    where_s, where_p = scan_sources()
+    return build_remote_html(tabs, where_s, where_p)
+
+
 def cmd_compile(args):
     text, report = build_c()
     with open(OUT_C, "w", encoding="utf-8") as f:
         f.write(text)
+    with open(REMOTE_OUT, "w", encoding="utf-8") as f:            # 6028
+        f.write(_remote_inputs())
     print("i18n: wrote main/i18n_tab.c; " + "; ".join(report))
 
 
@@ -527,6 +615,9 @@ def cmd_check(args):
     old = open(OUT_C, encoding="utf-8").read() if os.path.exists(OUT_C) else None
     if text != old:
         sys.exit("i18n: main/i18n_tab.c is out of date (run compile)")
+    old = open(REMOTE_OUT, encoding="utf-8").read() if os.path.exists(REMOTE_OUT) else None
+    if _remote_inputs() != old:
+        sys.exit("i18n: main/remote_i18n.html is out of date (run compile)")
     print("i18n: up to date; " + "; ".join(report))
 
 

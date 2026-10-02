@@ -21112,3 +21112,44 @@ needs it.
 
 Not compiled with ESP-IDF here. The board is the check: the bring-up
 should reach "Card init success" again.
+
+### 6028 -- the remote's languages in the page as built, not as served
+
+What was asked for in 6025 and not what was built then: a page that
+holds every language in its markup, with CSS switching between them.
+6025 had the player assemble a dictionary into the page on every
+request and the browser build the per-language spans from it. That
+also cost the board: the dictionary went out as hundreds of small
+writes, each a TLS record, nothing checked their results, and once a
+browser gave up on the page (or reloaded) every remaining write failed
+-- hundreds of "esp-tls-mbedtls: write error :-0x004E" in a row and
+"uri handler execution failed".
+
+Now tools/i18n.py compile writes main/remote_i18n.html from
+main/remote.html, and that is what main/CMakeLists.txt embeds and
+h_page() sends, unchanged, in one call:
+
+- each data-t and data-k string is already a span per language,
+  <span data-l="ja">...</span>, data-k's <code> carried into each;
+- a stylesheet in <head> shows the span whose data-l is html[lang];
+- a script in <head>, before anything is drawn, sets html[lang] from a
+  choice kept in localStorage (6026's select), else from
+  navigator.languages read the way the setup pages read
+  Accept-Language -- primary subtag, Traditional Chinese passing to
+  the next preference -- else English;
+- window.I18N carries what cannot hold spans -- an <option>'s text,
+  data-ta attributes, the script's own strings, server messages -- for
+  T(), P() and F().
+
+The player no longer reads Accept-Language for this page at all, and
+6027's PSRAM buffers for it are gone with the code that needed them.
+`check` fails if remote_i18n.html is stale; CLAUDE.md says an edit to
+remote.html carries a recompile. The page is 55 KB against 36 KB
+English-only, from flash.
+
+Checked in jsdom against the generated file: zh-TW then ja-JP opens in
+Japanese (キュー, the station paragraph with its <code>, オフ, 前へ);
+the select to Español switches spans, option and the script-drawn
+queue message and keeps "es"; a kept zh-CN wins over a ja-JP browser;
+fr-FR opens in English. Not in a real browser, not on the board, not
+compiled with ESP-IDF here.

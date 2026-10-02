@@ -159,7 +159,10 @@ purpose -- a tab name, the language row, a unit, a product name -- is
 a paragraph, never a sentence split across array elements: the draw
 wraps it (6018), and a translator cannot rejoin a split. A web page's text
 is `_in(lang, "...")` with the request's language (6024), its markup
-kept outside the key. Never `_()` a log line,
+kept outside the key. The remote's page is edited in `main/remote.html` and
+sent as `main/remote_i18n.html`, which `./tools/i18n.py compile` writes
+with every language in it (6028) -- an edit to the first goes with a
+recompile of the second in the same patch. Never `_()` a log line,
 protocol word, NVS key or anything parsed back. A translation Claude
 writes is named in the commit message as not yet read by a native
 speaker.

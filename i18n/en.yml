@@ -321,11 +321,11 @@ en:
     # panel.c
     "Station needs %d -- that is %d%%": ~
     # player.c
-    "Station not answering": ~
+    "Station not answering": "Station silent"
     # panel.c
     "Stop playback first.": ~
     # player.c
-    "Stream too slow here": ~
+    "Stream too slow here": "Stream too slow"
     # recorder.c
     "The USB microphone did not start.": "The USB microphone\ndid not start."
     # recorder.c
@@ -433,7 +433,7 @@ en:
     # player.c
     "no cover art": ~
     # player.c
-    "no network - check Wi-Fi or the cable, then tap again": ~
+    "no network - check Wi-Fi or the cable, then tap again": "no network - check Wi-Fi or cable, tap again"
     # player.c
     "no network - the directory needs Wi-Fi or a cable": ~
     # panel.c

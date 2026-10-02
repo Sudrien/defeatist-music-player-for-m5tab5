@@ -20957,3 +20957,18 @@ a sentence it can show in the reader's language. English gets '\n'
 breaks for the two that were over the card's 25 characters.
 
 Thirteen strings. Not compiled with ESP-IDF here. Not on the board.
+
+### 6023 -- three English lines that clipped, reworded
+
+Found by 6017's width check and left for a wording decision; reworded
+in `en.yml`, so the keys and the three translations of each stay as
+they are, and a better English wording is one line of YAML:
+
+- "Station not answering" (notice heading, 588 px of 528) -> "Station
+  silent", 392.
+- "Stream too slow here" (560 of 528) -> "Stream too slow", 420.
+- "no network - check Wi-Fi or the cable, then tap again" (chooser
+  status line, 742 of 688, drawn tail-first so it lost "no net") ->
+  "no network - check Wi-Fi or cable, tap again", 616.
+
+Not on the board.

@@ -38,6 +38,8 @@ ja:
     "A phone supplies the password.": "パスワードはスマホから。"
     # panel.c
     "A sign-in page opens with the form.": "フォーム付きの画面が開く。"
+    # sleeppage.c
+    "A tap anywhere brings it back, and does not press anything.": "どこかをタップすると戻る。ボタンは押されない。"
     # panel.c
     "About twenty seconds.": "約20秒。"
     # panel.c
@@ -46,8 +48,14 @@ ja:
     "Add a radio station to the card.": "カードに局を追加。"
     # radiobrowser.h
     "Add a station by phone...": "スマホで局を追加..."
+    # sleeppage.c
+    "After this long with nothing playing, recording or touched. Not while music plays.": "再生・録音・タッチがない状態がこの時間続いたとき。音楽の再生中は切れない。"
+    # sleeppage.c
+    "After this long without a touch the screen drops to half brightness. Any touch puts it back.": "この時間タッチがないと画面が半分の明るさになる。タッチで元に戻る。"
     # recorder.c
     "Already recording.": "録音中です。"
+    # panel.c
+    "Auto: USB, jack, mono. Off: no record.": "自動：USB、端子、モノラル。オフ：録音しない。"
     # player.c
     "Battery empty": "電池切れ"
     # player.c
@@ -84,24 +92,46 @@ ja:
     "Crossfade   off": "クロスフェード   オフ"
     # sleeppage.c
     "Dim screen": "画面を暗く"
+    # panel.c
+    "Evens out loudness between tracks.": "曲ごとの音量差をならす。"
+    # sleeppage.c
+    "Fades out, pauses, and turns the screen off.": "フェードアウトして一時停止し、画面を消す。"
     # player.c
     "Favourites are full": "お気に入りが満杯"
+    # panel.c
+    "Focused: those two aimed out of it.": "フォーカス：その2つを画面の外へ向ける。"
+    # sleeppage.c
+    "For backlight life and battery. This panel cannot burn in.": "バックライト寿命と電池のため。この画面は焼き付かない。"
+    # panel.c
+    "Greyed while Wi-Fi is off; the setting is kept.": "Wi-Fiがオフの間は灰色。設定は残る。"
+    # panel.c
+    "Headset, UAC: the jack, a USB mic.": "ヘッドセット、UAC：端子、USBマイク。"
     # player.c, recorder.c
     "Insert a card or a USB drive to record to.": "カードかUSBドライブを\n入れて録音を。"
+    # panel.c
+    "It comes back when setup closes.": "設定が閉じると戻る。"
     # recorder.c
     "It reached 4 GB, the most one file can hold.": "4 GB に達した。\n1ファイルの上限。"
     # panel.c
     "Join %s on a phone.": "スマホで %s に接続。"
     # panel.c
+    "Levels are still measured while off.": "オフでも音量は測定される。"
+    # panel.c
     "Libraries": "ライブラリ"
+    # sleeppage.c
+    "Longer than the dim, and the backlight goes out altogether. Never while this page is open.": "暗くなるより長く、バックライトが完全に消える。このページを開いている間は消えない。"
     # panel.c
     "MPD server": "MPDサーバー"
     # player.c
     "Media removed": "メディアが外れた"
+    # panel.c
+    "Mono/stereo: the two by the screen.": "モノラル/ステレオ：画面横の2つ。"
     # radiobrowser.h
     "Most listened": "よく聴かれる局"
     # radiobrowser.h
     "Most voted": "投票の多い局"
+    # panel.c
+    "Needed for internet radio and the clock.": "ネットラジオと時計に必要。"
     # panel.c
     "Needs a network: Wi-Fi or a cable.": "ネットワークが必要：Wi-Fiかケーブル。"
     # panel.c
@@ -114,6 +144,8 @@ ja:
     "No app connected.": "接続中のアプリなし。"
     # recorder.c
     "No memory for the recording task.": "録音タスクのメモリ不足。"
+    # panel.c
+    "No password: anyone on it can use it.": "パスワードなし：同じネットワークの誰でも使える。"
     # streamplan.h
     "No signal": "信号なし"
     # recorder.c
@@ -125,15 +157,35 @@ ja:
     # panel.c
     "ON": "オン"
     # panel.c
+    "Off by default. Nothing on the card needs it, and the radio draws power while on.": "初期設定はオフ。カードの再生には不要で、オン中は無線が電力を使う。"
+    # sleeppage.c
+    "Off fades the backlight out. Playback carries on.": "オフでバックライトが消える。再生は続く。"
+    # panel.c
+    "Off keeps deliberate segues intact: live sets, mixes, and movements that are meant to run into each other.": "オフなら意図された曲間がそのまま残る。ライブ、ミックス、続けて聴く楽章など。"
+    # panel.c
+    "Off while network setup has the page.": "ネット設定がページを使う間はオフ。"
+    # panel.c
     "On a phone, open http://%s/": "スマホで http://%s/ を開く"
     # panel.c
+    "One folder counts as one album.": "1つのフォルダを1枚のアルバムとみなす。"
+    # panel.c
     "Open %s": "%s を開く"
+    # panel.c
+    "Play, pause, skip, seek and volume from a browser on the same network.": "同じネットワークのブラウザから再生、一時停止、スキップ、シーク、音量。"
+    # panel.c
+    "Play, pause, skip, seek and volume from an MPD app such as MALP or mpc.": "MALPやmpcなどのMPDアプリから再生、一時停止、スキップ、シーク、音量。"
     # panel.c
     "Playback pauses while setup runs.": "設定中は再生を一時停止。"
     # sleeppage.c
     "Power off": "電源オフ"
+    # sleeppage.c
+    "Quarter turns. 90 and 270 are landscape; 180 is for when the cable is at the wrong end.": "90度単位。90と270は横向き。ケーブルが逆側にあるときは180。"
+    # panel.c
+    "RESET: back to the build time; this boot's recordings are renamed to match.": "RESET：ビルド時刻に戻す。今回の起動の録音はそれに合わせて改名。"
     # player.c
     "Radio": "ラジオ"
+    # panel.c
+    "Reads the selected station without decoding it, to tell a slow network from a slow decoder.": "選んだ局をデコードせずに読み、遅いのがネットかデコーダかを見分ける。"
     # streamplan.h
     "Reconnecting": "再接続中"
     # panel.c
@@ -163,6 +215,8 @@ ja:
     # sleeppage.c
     "Screen off": "画面オフ"
     # panel.c
+    "Sets the clock, in UTC. Streams need it: a certificate is invalid at an unset clock.": "時計をUTCで合わせる。配信に必要：時計が未設定だと証明書が無効になる。"
+    # panel.c
     "Setup closed after five minutes.": "設定は5分で閉じた。"
     # panel.c
     "Setup could not start.": "設定を開始できなかった。"
@@ -184,6 +238,8 @@ ja:
     "Station needs %d -- that is %d%%": "局の必要量 %d、その %d%%"
     # player.c
     "Station not answering": "局が応答しない"
+    # panel.c
+    "Stop playback first.": "先に再生を止める。"
     # player.c
     "Stream too slow here": "回線が遅すぎる"
     # recorder.c
@@ -194,8 +250,16 @@ ja:
     "The USB microphone was unplugged.\n%u:%02u on %s": "USBマイクが抜かれた。\n%u:%02u、%s に保存"
     # recorder.c
     "The card would not take any more.": "カードがもう書き込めない。"
+    # sleeppage.c
+    "The device turns off. The side button turns it back on.": "本体の電源が切れる。側面のボタンで入る。"
     # panel.c
     "The station does not say what it needs.": "局は必要量を示していない。"
+    # panel.c
+    "Then it shows the address to open.": "その後、開くアドレスが出る。"
+    # panel.c
+    "Then it shows the address to use.": "その後、使うアドレスが出る。"
+    # sleeppage.c
+    "Touch anywhere to wake it.": "どこかに触れると戻る。"
     # panel.c
     "Trying %.32s...": "%.32s を試行中..."
     # panel.c
@@ -208,6 +272,8 @@ ja:
     "USB port coming up": "USBポート起動中"
     # browser.c
     "USB port on - waiting for a drive": "USBポートオン - ドライブ待ち"
+    # panel.c
+    "Waiting for a network address.": "ネットのアドレス待ち。"
     # player.c
     "Waiting for network": "ネット待ち"
     # player.c
@@ -238,6 +304,8 @@ ja:
     "headphones": "ヘッドホン"
     # panel.c
     "headset": "ヘッドセット"
+    # panel.c
+    "in a browser on the same network.": "同じネットワークのブラウザで。"
     # panel.c
     "index": "索引"
     # panel.c

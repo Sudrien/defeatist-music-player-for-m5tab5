@@ -960,6 +960,96 @@ int gfx_text_w(const char *s, int scale)
     return w;
 }
 
+/* 6018: CJK punctuation a line may not start with (closing) or end with
+ * (opening) -- the short form of kinsoku shori. */
+static bool cp_is_closing(uint32_t cp)
+{
+    switch (cp) {
+    case 0x3001: case 0x3002: case 0xFF0C: case 0xFF0E: case 0xFF1A:
+    case 0xFF1B: case 0xFF01: case 0xFF1F: case 0xFF09: case 0x300D:
+    case 0x300F: case 0x3011: case 0x30FC: case 0x30FB:
+        return true;
+    default:
+        return false;
+    }
+}
+
+static bool cp_is_opening(uint32_t cp)
+{
+    return cp == 0xFF08 || cp == 0x300C || cp == 0x300E || cp == 0x3010;
+}
+
+size_t gfx_wrap_line(const char *s, int scale, int max_w, const char **next)
+{
+    const char *p = s;
+    const char *brk = NULL, *brk_next = NULL;   /* last place a line may end */
+    uint32_t prev = 0;
+    int w = 0;
+
+    for (;;) {
+        const char *at = p;
+        const uint32_t cp = utf8_next(&p);
+        if (cp == 0) {
+            *next = NULL;
+            return (size_t)(at - s);
+        }
+        if (cp == '\n') {
+            *next = *p ? p : NULL;
+            return (size_t)(at - s);
+        }
+
+        /* May this line end just before cp? */
+        if (at > s) {
+            if (cp == ' ') {
+                if (prev != ' ') {      /* the first space of a run */
+                    brk = at;
+                    brk_next = p;
+                }
+            } else if ((cp_is_wide(cp) || cp_is_wide(prev)) && prev != ' ' &&
+                       !cp_is_closing(cp) && !cp_is_opening(prev)) {
+                brk = at;
+                brk_next = at;
+            }
+        }
+
+        const glyph_t g = glyph_for(cp);
+        const int adv = g.bits ? (g.w + 1) * scale : 0;
+        if (w + adv > max_w && at > s && cp != ' ') {
+            const char *end = brk ? brk : at;
+            const char *rest = brk ? brk_next : at;
+            while (*rest == ' ') rest++;
+            *next = *rest ? rest : NULL;
+            return (size_t)(end - s);
+        }
+        w += adv;
+        prev = cp;
+    }
+}
+
+int gfx_para_rows(const char *s, int scale, int max_w)
+{
+    int rows = 0;
+    for (const char *p = s; p && *p; rows++) {
+        (void)gfx_wrap_line(p, scale, max_w, &p);
+    }
+    return rows ? rows : 1;
+}
+
+int gfx_draw_para(int x, int y, const char *s, int scale, int max_w,
+                  int step, int max_rows, uint16_t c)
+{
+    int rows = 0;
+    for (const char *p = s; p && *p && rows < max_rows; rows++) {
+        const char *next;
+        const size_t len = gfx_wrap_line(p, scale, max_w, &next);
+        char line[192];
+        snprintf(line, sizeof(line), "%.*s", (int)len, p);
+        gfx_draw_text(x, y + rows * step, line, scale, max_w, c);
+        p = next;
+    }
+    return rows ? rows : (max_rows > 0 ? 1 : 0);
+}
+
 void gfx_draw_text(int x, int y, const char *s, int scale, int max_w, uint16_t c)
 {
     if (!s || !*s || max_w <= 0) return;

@@ -545,6 +545,71 @@ static void test_font_unchanged_by_tiling(void)
     CHECK(!ark12_glyph(0x10000, &w, rows), "a codepoint past U+FFFF was found");
 }
 
+/* ------------------------------------------------------------------ */
+/* 6018: gfx_wrap_line()                                               */
+/* ------------------------------------------------------------------ */
+
+/* Walks a whole paragraph and returns its lines joined with '|'. */
+static int wrap_all(const char *s, int scale, int max_w, char *out, size_t cap)
+{
+    int n = 0;
+    out[0] = '\0';
+    for (const char *p = s; p; ) {
+        const char *next;
+        const size_t len = gfx_wrap_line(p, scale, max_w, &next);
+        char line[256];
+        snprintf(line, sizeof(line), "%.*s", (int)len, p);
+        CHECK(gfx_text_w(line, scale) <= max_w || len == strlen(p) || len <= 4,
+              "wrap: line '%s' is %d px of %d", line, gfx_text_w(line, scale), max_w);
+        if (n) strncat(out, "|", cap - strlen(out) - 1);
+        strncat(out, line, cap - strlen(out) - 1);
+        n++;
+        CHECK(next == NULL || next > p, "wrap: no progress at '%s'", p);
+        if (n > 64) break;
+        p = next;
+    }
+    return n;
+}
+
+static void test_wrap(void)
+{
+    printf("gfx_wrap_line()\n");
+    const int hw = GFX_GLYPH_W(1);          /* 7 */
+    const int fw = GFX_GLYPH_W_FULL(1);     /* 13 */
+    char out[512];
+
+    wrap_all("aaa bbb ccc", 1, 7 * hw, out, sizeof(out));
+    CHECK(strcmp(out, "aaa bbb|ccc") == 0, "latin at spaces: '%s'", out);
+
+    wrap_all("aaa   bbb", 1, 4 * hw, out, sizeof(out));
+    CHECK(strcmp(out, "aaa|bbb") == 0, "a run of spaces is dropped: '%s'", out);
+
+    wrap_all("abcdefghij", 1, 4 * hw, out, sizeof(out));
+    CHECK(strcmp(out, "abcd|efgh|ij") == 0, "a word wider than the line is cut: '%s'", out);
+
+    wrap_all("one\ntwo", 1, 40 * hw, out, sizeof(out));
+    CHECK(strcmp(out, "one|two") == 0, "newline always breaks: '%s'", out);
+
+    wrap_all("一二三四五", 1, 3 * fw, out, sizeof(out));
+    CHECK(strcmp(out, "一二三|四五") == 0, "CJK between characters: '%s'", out);
+
+    /* 。 may not start a line: the break moves back one character. */
+    wrap_all("一二。三", 1, 2 * fw, out, sizeof(out));
+    CHECK(strcmp(out, "一|二。|三") == 0, "closing punctuation stays put: '%s'", out);
+
+    /* （ may not end a line. */
+    wrap_all("一二（三）", 1, 3 * fw, out, sizeof(out));
+    CHECK(strcmp(out, "一二|（三）") == 0,
+          "opening punctuation stays with what follows: '%s'", out);
+
+    wrap_all("Wi-Fi 或网线", 1, 7 * hw, out, sizeof(out));
+    CHECK(strcmp(out, "Wi-Fi|或网线") == 0, "mixed scripts: '%s'", out);
+
+    const char *next = (const char *)1;
+    CHECK(gfx_wrap_line("", 2, 100, &next) == 0 && next == NULL, "empty paragraph");
+    CHECK(gfx_wrap_line("abc", 2, 0, &next) == 1, "zero width still takes one character");
+}
+
 int main(void)
 {
     if (gfx_init(NULL, W, H) != ESP_OK) {
@@ -576,6 +641,7 @@ int main(void)
     test_poly_basics();
     test_star_has_five_points();
     test_font_unchanged_by_tiling();                     /* 5247 */
+    test_wrap();                                         /* 6018 */
 
     printf("\n%d checks, %d failures\n", checks, failures);
     return failures ? 1 : 0;

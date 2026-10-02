@@ -279,6 +279,32 @@ void gfx_draw_text_clipped(int x, int y, int win_x, int win_w,
  * glyph costs roughly twice what a halfwidth one does. */
 int gfx_text_w(const char *s, int scale);
 
+/*
+ * 6018: one line of a paragraph -- the byte length of the longest
+ * leading run of s that fits max_w by the same test gfx_draw_text() uses
+ * (gfx_text_w() <= max_w), so a wrapped line never draws an ellipsis.
+ * *next is where the following line starts, or NULL when s is done.
+ *
+ * Breaks at a space (which is dropped, with any that follow it), at a
+ * '\n' (always, and dropped), and either side of a fullwidth character
+ * -- CJK has no spaces to break at -- except before closing punctuation
+ * (。，、）」 and friends) or after opening punctuation, which must not
+ * start or end a line. A word wider than max_w is cut where it stops
+ * fitting; a line always takes at least one character, so a caller
+ * walking *next always finishes.
+ */
+size_t gfx_wrap_line(const char *s, int scale, int max_w, const char **next);
+
+/* 6018: a paragraph through gfx_wrap_line(). gfx_para_rows() is how many
+ * lines it takes (at least one, so an empty string still holds its row);
+ * gfx_draw_para() draws at most max_rows of them, `step` px apart, and
+ * returns how many it drew. A layout that reserves gfx_para_rows() and a
+ * draw that calls gfx_draw_para() with the same width agree by
+ * construction. */
+int gfx_para_rows(const char *s, int scale, int max_w);
+int gfx_draw_para(int x, int y, const char *s, int scale, int max_w,
+                  int step, int max_rows, uint16_t c);
+
 #ifdef __cplusplus
 }
 #endif

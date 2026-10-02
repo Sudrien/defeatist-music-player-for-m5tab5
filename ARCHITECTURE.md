@@ -20770,3 +20770,62 @@ The SDIO A/B measurement notices are same() -- a developer build's
 instrumentation.
 
 Not compiled here -- no ESP-IDF in the session. Not on the board.
+
+### 6018 -- notes as paragraphs, wrapped
+
+The notes under the settings controls and on the Sleep page were the
+one block of text 6016 could not translate: each was a paragraph cut
+into lines by hand at English line breaks, and asking a translator to
+render "live sets, mixes, and movements that" on its own is asking for
+a sentence nobody can write. Now every note is an array of paragraphs,
+each translated whole and wrapped at the note's width when drawn.
+
+gfx_wrap_line() (gfx.c) gives one line of a paragraph by the same fit
+test gfx_draw_text() uses, so a wrapped line never draws an ellipsis.
+It breaks at spaces (a run of them dropped), at '\n', and either side
+of a fullwidth character -- CJK has no spaces to break at -- but not
+before closing punctuation (。，、）」ー and the rest) or after opening
+punctuation, the short form of kinsoku shori. gfx_para_rows() counts
+the lines and gfx_draw_para() draws them. texttest checks the rules.
+
+The layout used to count note lines from constants (RG_NOTE_LINES 2,
+ALBUM_NOTE_LINES 4, ...), and that cannot survive translation: a
+paragraph is two lines in English and three in Spanish, and fewer in
+landscape than in portrait. So a fixed note's X_NOTE_LINES is now
+note_rows() of its paragraphs, measured at the current width in the
+current language, and the layout arithmetic that uses those names is
+otherwise untouched. The paragraphs moved to file scope (k_rg_note and
+the rest) so the layout functions can see them; the comments saying
+why each note says what it says stay where it is drawn. This is a
+restructure of both files' note handling, and the smallest one that
+makes the layout follow the text.
+
+Notes whose words depend on state -- the remote, MPD, benchmark and
+clock rows on NET -- keep their budget of three rows, because a layout
+that moved every time the remote came up would move under a finger.
+They are drawn wrapped and capped at three, and i18ntest now formats
+every variant with real-length arguments (a full IP and port, a
+certificate prefix, "12 apps") and fails if any language takes more
+than three rows at portrait width. Spanish did, on six of eleven
+variants, and was tightened ("Sin contraseña: cualquiera en la red lo
+usa."). The sentences that were split across two of those rows -- "Play,
+pause, skip, seek and volume / from a browser on the same network." --
+are one paragraph now, with a NULL slot that takes no row.
+
+English reflows. The hand breaks are gone, so a note fills the width
+it has: in landscape most notes are a line shorter than they were, and
+in portrait they break where they fit rather than where they were
+typed. One English note was broken before this and is not now: the
+Sleep page's rotation note was a single 87-character line, which
+fitted landscape and ran off a 720 px portrait screen; it wraps to two
+lines and what is below it moves down.
+
+draw_note() in panel.c is still there for what is genuinely lines --
+the BUILD tab's library list and the setup row's three status lines.
+
+i18ntest's glyph check found 即 and 然 again, and 聚; reworded (就能,
+之后, 定向).
+
+panel.c and sleeppage.c passed a syntax-only host compile against
+texttest's fakes and stub headers; the errors left were all the stubs'.
+Not compiled with ESP-IDF here. Not on the board.

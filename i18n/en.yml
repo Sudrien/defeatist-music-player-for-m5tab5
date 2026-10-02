@@ -38,6 +38,8 @@ en:
     "A phone supplies the password.": ~
     # panel.c
     "A sign-in page opens with the form.": ~
+    # sleeppage.c
+    "A tap anywhere brings it back, and does not press anything.": ~
     # panel.c
     "About twenty seconds.": ~
     # panel.c
@@ -46,8 +48,14 @@ en:
     "Add a radio station to the card.": ~
     # radiobrowser.h
     "Add a station by phone...": ~
+    # sleeppage.c
+    "After this long with nothing playing, recording or touched. Not while music plays.": ~
+    # sleeppage.c
+    "After this long without a touch the screen drops to half brightness. Any touch puts it back.": ~
     # recorder.c
     "Already recording.": ~
+    # panel.c
+    "Auto: USB, jack, mono. Off: no record.": ~
     # player.c
     "Battery empty": ~
     # player.c
@@ -84,24 +92,46 @@ en:
     "Crossfade   off": ~
     # sleeppage.c
     "Dim screen": ~
+    # panel.c
+    "Evens out loudness between tracks.": ~
+    # sleeppage.c
+    "Fades out, pauses, and turns the screen off.": ~
     # player.c
     "Favourites are full": ~
+    # panel.c
+    "Focused: those two aimed out of it.": ~
+    # sleeppage.c
+    "For backlight life and battery. This panel cannot burn in.": ~
+    # panel.c
+    "Greyed while Wi-Fi is off; the setting is kept.": ~
+    # panel.c
+    "Headset, UAC: the jack, a USB mic.": ~
     # player.c, recorder.c
     "Insert a card or a USB drive to record to.": "Insert a card or a USB\ndrive to record to."
+    # panel.c
+    "It comes back when setup closes.": ~
     # recorder.c
     "It reached 4 GB, the most one file can hold.": "It reached 4 GB, the\nmost one file can hold."
     # panel.c
     "Join %s on a phone.": ~
     # panel.c
+    "Levels are still measured while off.": ~
+    # panel.c
     "Libraries": ~
+    # sleeppage.c
+    "Longer than the dim, and the backlight goes out altogether. Never while this page is open.": ~
     # panel.c
     "MPD server": ~
     # player.c
     "Media removed": ~
+    # panel.c
+    "Mono/stereo: the two by the screen.": ~
     # radiobrowser.h
     "Most listened": ~
     # radiobrowser.h
     "Most voted": ~
+    # panel.c
+    "Needed for internet radio and the clock.": ~
     # panel.c
     "Needs a network: Wi-Fi or a cable.": ~
     # panel.c
@@ -114,6 +144,8 @@ en:
     "No app connected.": ~
     # recorder.c
     "No memory for the recording task.": "No memory for the\nrecording task."
+    # panel.c
+    "No password: anyone on it can use it.": ~
     # streamplan.h
     "No signal": ~
     # recorder.c
@@ -125,15 +157,35 @@ en:
     # panel.c
     "ON": ~
     # panel.c
+    "Off by default. Nothing on the card needs it, and the radio draws power while on.": ~
+    # sleeppage.c
+    "Off fades the backlight out. Playback carries on.": ~
+    # panel.c
+    "Off keeps deliberate segues intact: live sets, mixes, and movements that are meant to run into each other.": ~
+    # panel.c
+    "Off while network setup has the page.": ~
+    # panel.c
     "On a phone, open http://%s/": ~
     # panel.c
+    "One folder counts as one album.": ~
+    # panel.c
     "Open %s": ~
+    # panel.c
+    "Play, pause, skip, seek and volume from a browser on the same network.": ~
+    # panel.c
+    "Play, pause, skip, seek and volume from an MPD app such as MALP or mpc.": ~
     # panel.c
     "Playback pauses while setup runs.": ~
     # sleeppage.c
     "Power off": ~
+    # sleeppage.c
+    "Quarter turns. 90 and 270 are landscape; 180 is for when the cable is at the wrong end.": ~
+    # panel.c
+    "RESET: back to the build time; this boot's recordings are renamed to match.": ~
     # player.c
     "Radio": ~
+    # panel.c
+    "Reads the selected station without decoding it, to tell a slow network from a slow decoder.": ~
     # streamplan.h
     "Reconnecting": ~
     # panel.c
@@ -163,6 +215,8 @@ en:
     # sleeppage.c
     "Screen off": ~
     # panel.c
+    "Sets the clock, in UTC. Streams need it: a certificate is invalid at an unset clock.": ~
+    # panel.c
     "Setup closed after five minutes.": ~
     # panel.c
     "Setup could not start.": ~
@@ -184,6 +238,8 @@ en:
     "Station needs %d -- that is %d%%": ~
     # player.c
     "Station not answering": ~
+    # panel.c
+    "Stop playback first.": ~
     # player.c
     "Stream too slow here": ~
     # recorder.c
@@ -194,8 +250,16 @@ en:
     "The USB microphone was unplugged.\n%u:%02u on %s": "The USB microphone was\nunplugged.\n%u:%02u on %s"
     # recorder.c
     "The card would not take any more.": "The card would not\ntake any more."
+    # sleeppage.c
+    "The device turns off. The side button turns it back on.": ~
     # panel.c
     "The station does not say what it needs.": ~
+    # panel.c
+    "Then it shows the address to open.": ~
+    # panel.c
+    "Then it shows the address to use.": ~
+    # sleeppage.c
+    "Touch anywhere to wake it.": ~
     # panel.c
     "Trying %.32s...": ~
     # panel.c
@@ -208,6 +272,8 @@ en:
     "USB port coming up": ~
     # browser.c
     "USB port on - waiting for a drive": ~
+    # panel.c
+    "Waiting for a network address.": ~
     # player.c
     "Waiting for network": ~
     # player.c
@@ -238,6 +304,8 @@ en:
     "headphones": ~
     # panel.c
     "headset": ~
+    # panel.c
+    "in a browser on the same network.": ~
     # panel.c
     "index": ~
     # panel.c

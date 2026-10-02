@@ -38,6 +38,8 @@ es:
     "A phone supplies the password.": "Un teléfono da la contraseña."
     # panel.c
     "A sign-in page opens with the form.": "Se abre una página con el formulario."
+    # sleeppage.c
+    "A tap anywhere brings it back, and does not press anything.": "Un toque en cualquier sitio la recupera, sin pulsar nada."
     # panel.c
     "About twenty seconds.": "Unos veinte segundos."
     # panel.c
@@ -46,8 +48,14 @@ es:
     "Add a radio station to the card.": "Añade una emisora a la tarjeta."
     # radiobrowser.h
     "Add a station by phone...": "Añadir emisora por teléfono..."
+    # sleeppage.c
+    "After this long with nothing playing, recording or touched. Not while music plays.": "Tras este tiempo sin reproducir, grabar ni tocar nada. Nunca con música sonando."
+    # sleeppage.c
+    "After this long without a touch the screen drops to half brightness. Any touch puts it back.": "Tras este tiempo sin tocarla, la pantalla baja a la mitad de brillo. Cualquier toque la restaura."
     # recorder.c
     "Already recording.": "Ya se está grabando."
+    # panel.c
+    "Auto: USB, jack, mono. Off: no record.": "Auto: USB, toma, mono. No: sin grabar."
     # player.c
     "Battery empty": "Batería agotada"
     # player.c
@@ -84,24 +92,46 @@ es:
     "Crossfade   off": "Fundido cruzado   desactivado"
     # sleeppage.c
     "Dim screen": "Atenuar pantalla"
+    # panel.c
+    "Evens out loudness between tracks.": "Iguala el volumen entre pistas."
+    # sleeppage.c
+    "Fades out, pauses, and turns the screen off.": "Baja el volumen, pausa y apaga la pantalla."
     # player.c
     "Favourites are full": "Favoritos llenos"
+    # panel.c
+    "Focused: those two aimed out of it.": "Enfocado: esos dos, apuntando hacia fuera."
+    # sleeppage.c
+    "For backlight life and battery. This panel cannot burn in.": "Por la vida de la retroiluminación y la batería. Esta pantalla no se quema."
+    # panel.c
+    "Greyed while Wi-Fi is off; the setting is kept.": "En gris con la Wi-Fi apagada; el ajuste se guarda."
+    # panel.c
+    "Headset, UAC: the jack, a USB mic.": "Auricular, UAC: la toma, un micro USB."
     # player.c, recorder.c
     "Insert a card or a USB drive to record to.": "Inserta una tarjeta o\nunidad USB para grabar."
+    # panel.c
+    "It comes back when setup closes.": "Vuelve cuando se cierra la configuración."
     # recorder.c
     "It reached 4 GB, the most one file can hold.": "Llegó a 4 GB, el máximo\nde un archivo."
     # panel.c
     "Join %s on a phone.": "Únete a %s con el móvil."
     # panel.c
+    "Levels are still measured while off.": "Los niveles se miden aunque esté apagado."
+    # panel.c
     "Libraries": "Bibliotecas"
+    # sleeppage.c
+    "Longer than the dim, and the backlight goes out altogether. Never while this page is open.": "Más que la atenuación, y la retroiluminación se apaga del todo. Nunca con esta página abierta."
     # panel.c
     "MPD server": "Servidor MPD"
     # player.c
     "Media removed": "Medio retirado"
+    # panel.c
+    "Mono/stereo: the two by the screen.": "Mono/estéreo: los dos junto a la pantalla."
     # radiobrowser.h
     "Most listened": "Más escuchadas"
     # radiobrowser.h
     "Most voted": "Más votadas"
+    # panel.c
+    "Needed for internet radio and the clock.": "Necesaria para la radio por internet y el reloj."
     # panel.c
     "Needs a network: Wi-Fi or a cable.": "Necesita red: Wi-Fi o un cable."
     # panel.c
@@ -114,6 +144,8 @@ es:
     "No app connected.": "Ninguna app conectada."
     # recorder.c
     "No memory for the recording task.": "Sin memoria para la\ntarea de grabación."
+    # panel.c
+    "No password: anyone on it can use it.": "Sin contraseña: cualquiera en la red lo usa."
     # streamplan.h
     "No signal": "Sin señal"
     # recorder.c
@@ -125,15 +157,35 @@ es:
     # panel.c
     "ON": "SÍ"
     # panel.c
+    "Off by default. Nothing on the card needs it, and the radio draws power while on.": "Apagada por defecto. La tarjeta no la necesita, y la radio gasta energía mientras está encendida."
+    # sleeppage.c
+    "Off fades the backlight out. Playback carries on.": "Apagar desvanece la retroiluminación. La reproducción sigue."
+    # panel.c
+    "Off keeps deliberate segues intact: live sets, mixes, and movements that are meant to run into each other.": "Apagado respeta las transiciones buscadas: directos, mezclas y movimientos que van seguidos."
+    # panel.c
+    "Off while network setup has the page.": "Apagado mientras se configura la red."
+    # panel.c
     "On a phone, open http://%s/": "En un teléfono, abre http://%s/"
     # panel.c
+    "One folder counts as one album.": "Una carpeta cuenta como un álbum."
+    # panel.c
     "Open %s": "Abre %s"
+    # panel.c
+    "Play, pause, skip, seek and volume from a browser on the same network.": "Reproducir, pausar, saltar, buscar y volumen desde un navegador en la misma red."
+    # panel.c
+    "Play, pause, skip, seek and volume from an MPD app such as MALP or mpc.": "Reproducir, pausar, saltar, buscar y volumen desde una app MPD como MALP o mpc."
     # panel.c
     "Playback pauses while setup runs.": "Se pausa la reproducción al configurar."
     # sleeppage.c
     "Power off": "Apagado"
+    # sleeppage.c
+    "Quarter turns. 90 and 270 are landscape; 180 is for when the cable is at the wrong end.": "En cuartos de vuelta. 90 y 270 son horizontales; 180 es para cuando el cable queda al otro lado."
+    # panel.c
+    "RESET: back to the build time; this boot's recordings are renamed to match.": "RESET: vuelve a la hora de compilación; las grabaciones de este arranque se renombran."
     # player.c
     "Radio": "Radio"
+    # panel.c
+    "Reads the selected station without decoding it, to tell a slow network from a slow decoder.": "Lee la emisora sin decodificar, para separar una red lenta de un decodificador lento."
     # streamplan.h
     "Reconnecting": "Reconectando"
     # panel.c
@@ -163,6 +215,8 @@ es:
     # sleeppage.c
     "Screen off": "Apagar pantalla"
     # panel.c
+    "Sets the clock, in UTC. Streams need it: a certificate is invalid at an unset clock.": "Pone el reloj, en UTC. Las emisiones lo necesitan: un certificado no vale con el reloj sin poner."
+    # panel.c
     "Setup closed after five minutes.": "La configuración se cerró a los 5 min."
     # panel.c
     "Setup could not start.": "La configuración no pudo iniciar."
@@ -184,6 +238,8 @@ es:
     "Station needs %d -- that is %d%%": "La emisora pide %d: es el %d%%"
     # player.c
     "Station not answering": "Emisora sin señal"
+    # panel.c
+    "Stop playback first.": "Detén primero la reproducción."
     # player.c
     "Stream too slow here": "Red muy lenta"
     # recorder.c
@@ -194,8 +250,16 @@ es:
     "The USB microphone was unplugged.\n%u:%02u on %s": "Se desconectó el\nmicrófono USB.\n%u:%02u en %s"
     # recorder.c
     "The card would not take any more.": "La tarjeta no admite\nmás datos."
+    # sleeppage.c
+    "The device turns off. The side button turns it back on.": "El equipo se apaga. El botón lateral lo vuelve a encender."
     # panel.c
     "The station does not say what it needs.": "La emisora no dice qué necesita."
+    # panel.c
+    "Then it shows the address to open.": "Luego muestra la dirección que abrir."
+    # panel.c
+    "Then it shows the address to use.": "Luego muestra la dirección que usar."
+    # sleeppage.c
+    "Touch anywhere to wake it.": "Toca en cualquier sitio para despertarla."
     # panel.c
     "Trying %.32s...": "Probando %.32s..."
     # panel.c
@@ -208,6 +272,8 @@ es:
     "USB port coming up": "Puerto USB arrancando"
     # browser.c
     "USB port on - waiting for a drive": "Puerto USB encendido - esperando una unidad"
+    # panel.c
+    "Waiting for a network address.": "Esperando una dirección de red."
     # player.c
     "Waiting for network": "Esperando red"
     # player.c
@@ -238,6 +304,8 @@ es:
     "headphones": "auriculares"
     # panel.c
     "headset": "auricular"
+    # panel.c
+    "in a browser on the same network.": "en un navegador de la misma red."
     # panel.c
     "index": "índice"
     # panel.c

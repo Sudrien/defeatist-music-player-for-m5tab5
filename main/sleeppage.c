@@ -53,7 +53,64 @@ static const char *TAG = "tab5_sleep";
 #define OPTION_H    (ROW_H + 24)    /* panel.c's AUDIO_SWITCH_H */
 #define NOTE_GAP    (14)
 #define NOTE_STEP   (GFX_GLYPH_H(LABEL_SCALE) + 12)
-#define NOTE_LINES  (2)
+/*
+ * 6018: the notes as paragraphs, out here so the layout can measure
+ * them -- translated, wrapped at the note width, and counted, so a note
+ * that takes three lines in Spanish or two in portrait moves what is
+ * below it instead of running under it. The rotation note was one
+ * 87-character line and ran off a 720 px screen in portrait. Why each
+ * says what it says is where it is drawn.
+ */
+static const char *const k_screen_note[] = {
+    N_("Off fades the backlight out. Playback carries on."),
+    N_("Touch anywhere to wake it."),
+};
+static const char *const k_rot_note[] = {
+    N_("Quarter turns. 90 and 270 are landscape; 180 is for when "
+       "the cable is at the wrong end."),
+};
+static const char *const k_dim_note[] = {
+    N_("After this long without a touch the screen drops to half "
+       "brightness. Any touch puts it back."),
+    N_("For backlight life and battery. This panel cannot burn in."),
+};
+static const char *const k_off_note[] = {
+    N_("Longer than the dim, and the backlight goes out altogether. "
+       "Never while this page is open."),
+    N_("A tap anywhere brings it back, and does not press anything."),
+};
+static const char *const k_timer_note[] = {
+    N_("Fades out, pauses, and turns the screen off."),
+};
+static const char *const k_poweroff_note[] = {
+    N_("After this long with nothing playing, recording or touched. "
+       "Not while music plays."),
+    N_("The device turns off. The side button turns it back on."),
+};
+#define COUNT(a) ((int)(sizeof(a) / sizeof((a)[0])))
+
+static int note_rows(const char *const *paras, int n)
+{
+    int rows = 0;
+    for (int i = 0; i < n; i++) {
+        rows += gfx_para_rows(_(paras[i]), LABEL_SCALE, gfx_w() - 48);
+    }
+    return rows;
+}
+
+/* The first paragraph in c_first, the rest in c_rest -- the second line
+ * of a note here is the one in the fainter colour. */
+static void draw_note(int y, const char *const *paras, int n,
+                      uint16_t c_first, uint16_t c_rest)
+{
+    for (int i = 0; i < n; i++) {
+        y += NOTE_STEP * gfx_draw_para(24, y, _(paras[i]), LABEL_SCALE,
+                                       gfx_w() - 48, NOTE_STEP, 99,
+                                       i ? c_rest : c_first);
+    }
+}
+
+#define NOTE_LINES  note_rows(k_screen_note, COUNT(k_screen_note))
 #define GAP         (36)            /* panel.c's AUDIO_GAP */
 #define SLIDER_H    (ROW_H + 96)    /* panel.c's AUDIO_SLIDER_H */
 #define SLIDER_INSET (24)
@@ -160,7 +217,7 @@ static void slider_track(int *x0, int *x1)
  * music is about to stop doing. Grouping by that is why it is not simply
  * appended to the bottom.
  */
-#define ROT_NOTE_LINES  (1)
+#define ROT_NOTE_LINES  note_rows(k_rot_note, COUNT(k_rot_note))
 
 static void rotation_box(int *x, int *y, int *w, int *h)
 {
@@ -178,7 +235,7 @@ static void rotation_box(int *x, int *y, int *w, int *h)
  * doing, then what the music is about to stop doing. It is last of the
  * three because it is the one a listener sets once.
  */
-#define DIM_NOTE_LINES  (2)
+#define DIM_NOTE_LINES  note_rows(k_dim_note, COUNT(k_dim_note))
 
 static void dim_box(int *x, int *y, int *w, int *h)
 {
@@ -190,7 +247,7 @@ static void dim_box(int *x, int *y, int *w, int *h)
     *h = OPTION_H;
 }
 
-#define OFF_NOTE_LINES  (2)
+#define OFF_NOTE_LINES  note_rows(k_off_note, COUNT(k_off_note))
 
 static void off_box(int *x, int *y, int *w, int *h)
 {
@@ -213,8 +270,8 @@ static void timer_box(int *x, int *y, int *w, int *h)
 }
 
 /* 6000: Power off, under the sleep timer and its one note line. */
-#define TIMER_NOTE_LINES    (1)
-#define POWEROFF_NOTE_LINES (2)
+#define TIMER_NOTE_LINES    note_rows(k_timer_note, COUNT(k_timer_note))
+#define POWEROFF_NOTE_LINES note_rows(k_poweroff_note, COUNT(k_poweroff_note))
 
 static void poweroff_box(int *x, int *y, int *w, int *h)
 {
@@ -281,15 +338,8 @@ void sleeppage_draw(void)
                       text, NAME_SCALE, pw - 8, s_screen_on ? C_BG : C_DIM);
     }
     {
-        static const char *const note[] = {
-            "Off fades the backlight out. Playback carries on.",
-            "Touch anywhere to wake it.",
-        };
-        int ny = y + bh + NOTE_GAP;
-        for (size_t i = 0; i < sizeof(note) / sizeof(note[0]); i++) {
-            gfx_draw_text(24, ny, note[i], LABEL_SCALE, w - 48, C_DIM);
-            ny += NOTE_STEP;
-        }
+        draw_note(y + bh + NOTE_GAP, k_screen_note, COUNT(k_screen_note),
+                  C_DIM, C_DIM);
     }
 
     /* --- Brightness ------------------------------------------------ */
@@ -341,11 +391,7 @@ void sleeppage_draw(void)
                       text, NAME_SCALE, pw - 8, rot ? C_BG : C_DIM);
     }
     {
-        static const char *const note[] = {
-            "Quarter turns. 90 and 270 are landscape; 180 is for when "
-            "the cable is at the wrong end.",
-        };
-        gfx_draw_text(24, y + bh + NOTE_GAP, note[0], LABEL_SCALE, w - 48, C_DIM);
+        draw_note(y + bh + NOTE_GAP, k_rot_note, COUNT(k_rot_note), C_DIM, C_DIM);
     }
 
     /* --- Dim screen -------------------------------------------------- */
@@ -371,14 +417,7 @@ void sleeppage_draw(void)
         /* Two lines, and the second is the one worth the room: somebody
          * will read "dim" as a screen-saving measure against burn-in,
          * which an LCD does not have. */
-        static const char *const note[] = {
-            "After this long without a touch the screen drops to half "
-            "brightness. Any touch puts it back.",
-            "For backlight life and battery. This panel cannot burn in.",
-        };
-        gfx_draw_text(24, y + bh + NOTE_GAP, note[0], LABEL_SCALE, w - 48, C_DIM);
-        gfx_draw_text(24, y + bh + NOTE_GAP + NOTE_STEP, note[1],
-                      LABEL_SCALE, w - 48, C_FAINT);
+        draw_note(y + bh + NOTE_GAP, k_dim_note, COUNT(k_dim_note), C_DIM, C_FAINT);
     }
 
     /* --- Screen off after -------------------------------------------- */
@@ -401,14 +440,7 @@ void sleeppage_draw(void)
         /* The second line is the one that matters: this is the switch
          * above it, on a timer, and a tap brings it back. Somebody who
          * reads "screen off" as "device off" will not try touching it. */
-        static const char *const note[] = {
-            "Longer than the dim, and the backlight goes out altogether. "
-            "Never while this page is open.",
-            "A tap anywhere brings it back, and does not press anything.",
-        };
-        gfx_draw_text(24, y + bh + NOTE_GAP, note[0], LABEL_SCALE, w - 48, C_DIM);
-        gfx_draw_text(24, y + bh + NOTE_GAP + NOTE_STEP, note[1],
-                      LABEL_SCALE, w - 48, C_FAINT);
+        draw_note(y + bh + NOTE_GAP, k_off_note, COUNT(k_off_note), C_DIM, C_FAINT);
     }
 
     /* --- Sleep timer ----------------------------------------------- */
@@ -446,10 +478,7 @@ void sleeppage_draw(void)
                       LABEL_SCALE, 80, C_FAINT);
     }
     {
-        static const char *const note[] = {
-            "Fades out, pauses, and turns the screen off.",
-        };
-        gfx_draw_text(24, y + bh + NOTE_GAP, note[0], LABEL_SCALE, w - 48, C_DIM);
+        draw_note(y + bh + NOTE_GAP, k_timer_note, COUNT(k_timer_note), C_DIM, C_DIM);
     }
 
     /* --- Power off after (6000) -------------------------------------- */
@@ -471,14 +500,8 @@ void sleeppage_draw(void)
     {
         /* Not the sleep timer, and the note says how: this one waits for
          * nothing to be happening, and the side button is the way back. */
-        static const char *const note[] = {
-            "After this long with nothing playing, recording or touched. "
-            "Not while music plays.",
-            "The device turns off. The side button turns it back on.",
-        };
-        gfx_draw_text(24, y + bh + NOTE_GAP, note[0], LABEL_SCALE, w - 48, C_DIM);
-        gfx_draw_text(24, y + bh + NOTE_GAP + NOTE_STEP, note[1],
-                      LABEL_SCALE, w - 48, C_FAINT);
+        draw_note(y + bh + NOTE_GAP, k_poweroff_note, COUNT(k_poweroff_note),
+                  C_DIM, C_FAINT);
     }
 
     /*

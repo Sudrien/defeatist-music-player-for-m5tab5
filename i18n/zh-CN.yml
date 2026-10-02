@@ -38,6 +38,8 @@ zh-CN:
     "A phone supplies the password.": "由手机输入密码。"
     # panel.c
     "A sign-in page opens with the form.": "会打开带表单的登录页。"
+    # sleeppage.c
+    "A tap anywhere brings it back, and does not press anything.": "轻点任意处就能恢复，不会误按。"
     # panel.c
     "About twenty seconds.": "约二十秒。"
     # panel.c
@@ -46,8 +48,14 @@ zh-CN:
     "Add a radio station to the card.": "向卡中添加电台。"
     # radiobrowser.h
     "Add a station by phone...": "用手机添加电台..."
+    # sleeppage.c
+    "After this long with nothing playing, recording or touched. Not while music plays.": "在无播放、无录音、无触摸达到该时长后。播放音乐时不会关机。"
+    # sleeppage.c
+    "After this long without a touch the screen drops to half brightness. Any touch puts it back.": "在无触摸达到该时长后，屏幕亮度降为一半。触摸就能恢复。"
     # recorder.c
     "Already recording.": "正在录音。"
+    # panel.c
+    "Auto: USB, jack, mono. Off: no record.": "自动：USB、插孔、单声道。关：不录音。"
     # player.c
     "Battery empty": "电池耗尽"
     # player.c
@@ -84,24 +92,46 @@ zh-CN:
     "Crossfade   off": "交叉淡化   关"
     # sleeppage.c
     "Dim screen": "屏幕变暗"
+    # panel.c
+    "Evens out loudness between tracks.": "平衡曲目之间的响度。"
+    # sleeppage.c
+    "Fades out, pauses, and turns the screen off.": "淡出、暂停并关闭屏幕。"
     # player.c
     "Favourites are full": "收藏已满"
+    # panel.c
+    "Focused: those two aimed out of it.": "定向：这两个麦克风朝屏幕外。"
+    # sleeppage.c
+    "For backlight life and battery. This panel cannot burn in.": "为延长背光寿命并省电。此屏幕不会烧屏。"
+    # panel.c
+    "Greyed while Wi-Fi is off; the setting is kept.": "Wi-Fi 关闭时变灰；设置会保留。"
+    # panel.c
+    "Headset, UAC: the jack, a USB mic.": "耳麦、UAC：插孔、USB 麦克风。"
     # player.c, recorder.c
     "Insert a card or a USB drive to record to.": "请插入存储卡或 U 盘\n再录音。"
+    # panel.c
+    "It comes back when setup closes.": "设置关闭后恢复。"
     # recorder.c
     "It reached 4 GB, the most one file can hold.": "已达 4 GB，\n单个文件的上限。"
     # panel.c
     "Join %s on a phone.": "用手机连接 %s。"
     # panel.c
+    "Levels are still measured while off.": "关闭时仍会测量电平。"
+    # panel.c
     "Libraries": "库"
+    # sleeppage.c
+    "Longer than the dim, and the backlight goes out altogether. Never while this page is open.": "比变暗更久，背光会完全熄灭。此页面打开时不会熄灭。"
     # panel.c
     "MPD server": "MPD 服务器"
     # player.c
     "Media removed": "媒体已移除"
+    # panel.c
+    "Mono/stereo: the two by the screen.": "单声道/立体声：屏幕旁的两个麦克风。"
     # radiobrowser.h
     "Most listened": "收听最多"
     # radiobrowser.h
     "Most voted": "得票最多"
+    # panel.c
+    "Needed for internet radio and the clock.": "网络电台和时钟需要它。"
     # panel.c
     "Needs a network: Wi-Fi or a cable.": "需要网络：Wi-Fi 或网线。"
     # panel.c
@@ -114,6 +144,8 @@ zh-CN:
     "No app connected.": "没有应用连接。"
     # recorder.c
     "No memory for the recording task.": "录音任务内存不足。"
+    # panel.c
+    "No password: anyone on it can use it.": "没有密码：同一网络中的任何人都能使用。"
     # streamplan.h
     "No signal": "无信号"
     # recorder.c
@@ -125,15 +157,35 @@ zh-CN:
     # panel.c
     "ON": "开"
     # panel.c
+    "Off by default. Nothing on the card needs it, and the radio draws power while on.": "默认关闭。播放卡上的内容不需要它，开启时无线模块会耗电。"
+    # sleeppage.c
+    "Off fades the backlight out. Playback carries on.": "关闭会熄灭背光，播放继续。"
+    # panel.c
+    "Off keeps deliberate segues intact: live sets, mixes, and movements that are meant to run into each other.": "关闭可保留刻意的衔接：现场演出、混音以及本应连续播放的乐章。"
+    # panel.c
+    "Off while network setup has the page.": "网络设置占用页面时关闭。"
+    # panel.c
     "On a phone, open http://%s/": "在手机上打开 http://%s/"
     # panel.c
+    "One folder counts as one album.": "一个文件夹算作一张专辑。"
+    # panel.c
     "Open %s": "打开 %s"
+    # panel.c
+    "Play, pause, skip, seek and volume from a browser on the same network.": "在同一网络的浏览器中播放、暂停、切歌、定位和调音量。"
+    # panel.c
+    "Play, pause, skip, seek and volume from an MPD app such as MALP or mpc.": "用 MALP 或 mpc 等 MPD 应用播放、暂停、切歌、定位和调音量。"
     # panel.c
     "Playback pauses while setup runs.": "设置期间暂停播放。"
     # sleeppage.c
     "Power off": "自动关机"
+    # sleeppage.c
+    "Quarter turns. 90 and 270 are landscape; 180 is for when the cable is at the wrong end.": "以 90 度为单位。90 和 270 为横屏；线缆在另一端时用 180。"
+    # panel.c
+    "RESET: back to the build time; this boot's recordings are renamed to match.": "RESET：回到构建时间；本次启动的录音会相应改名。"
     # player.c
     "Radio": "电台"
+    # panel.c
+    "Reads the selected station without decoding it, to tell a slow network from a slow decoder.": "只读取所选电台而不解码，用来区分是网络慢还是解码慢。"
     # streamplan.h
     "Reconnecting": "重新连接中"
     # panel.c
@@ -163,6 +215,8 @@ zh-CN:
     # sleeppage.c
     "Screen off": "关闭屏幕"
     # panel.c
+    "Sets the clock, in UTC. Streams need it: a certificate is invalid at an unset clock.": "以 UTC 设置时钟。网络流需要它：时钟未设置时证书无效。"
+    # panel.c
     "Setup closed after five minutes.": "设置已在五分钟后关闭。"
     # panel.c
     "Setup could not start.": "设置无法启动。"
@@ -184,6 +238,8 @@ zh-CN:
     "Station needs %d -- that is %d%%": "电台需要 %d，达到 %d%%"
     # player.c
     "Station not answering": "电台无响应"
+    # panel.c
+    "Stop playback first.": "请先停止播放。"
     # player.c
     "Stream too slow here": "网络太慢"
     # recorder.c
@@ -194,8 +250,16 @@ zh-CN:
     "The USB microphone was unplugged.\n%u:%02u on %s": "USB 麦克风已拔出。\n%u:%02u，保存在 %s"
     # recorder.c
     "The card would not take any more.": "卡已写不下。"
+    # sleeppage.c
+    "The device turns off. The side button turns it back on.": "设备会关机。按侧边按钮可重新开机。"
     # panel.c
     "The station does not say what it needs.": "电台未说明所需码率。"
+    # panel.c
+    "Then it shows the address to open.": "之后会显示要打开的地址。"
+    # panel.c
+    "Then it shows the address to use.": "之后会显示要使用的地址。"
+    # sleeppage.c
+    "Touch anywhere to wake it.": "触摸任意处就能唤醒。"
     # panel.c
     "Trying %.32s...": "正在尝试 %.32s..."
     # panel.c
@@ -208,6 +272,8 @@ zh-CN:
     "USB port coming up": "USB 端口启动中"
     # browser.c
     "USB port on - waiting for a drive": "USB 端口已开 - 等待驱动器"
+    # panel.c
+    "Waiting for a network address.": "正在等待网络地址。"
     # player.c
     "Waiting for network": "等待网络"
     # player.c
@@ -238,6 +304,8 @@ zh-CN:
     "headphones": "耳机"
     # panel.c
     "headset": "耳麦"
+    # panel.c
+    "in a browser on the same network.": "在同一网络的浏览器中打开。"
     # panel.c
     "index": "索引"
     # panel.c

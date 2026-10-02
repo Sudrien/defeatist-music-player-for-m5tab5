@@ -13,6 +13,12 @@
  * one draws as a notdef box -- nothing fails, the word is just wrong on
  * the board. Here it fails.
  *
+ * 6018: and that the NET tab's notes whose words change with state --
+ * remote, MPD, benchmark, clock -- fit the three rows panel.c gives
+ * them, at portrait width, in every language, with real-length
+ * arguments formatted in. The fixed notes need no such check: the
+ * layout measures them.
+ *
  * What it cannot see: whether a translation fits its button. That is
  * the board's to show.
  *
@@ -26,6 +32,7 @@
 #include "i18n.h"
 #ifndef I18NTEST_FIXTURE
 #include "ark12.h"
+#include "gfx.h"
 #endif
 
 #ifdef I18NTEST_FIXTURE
@@ -130,9 +137,70 @@ static int glyphs_ok(const char *s, const char *what)
     return 1;
 }
 
-static void real_table(void)
+/* 6018: panel.c's note width in portrait, and its budget for a note
+ * whose words depend on state. */
+#define NOTE_W      (720 - 48)
+#define NOTE_SCALE  (2)
+#define NOTE_BUDGET (3)
+
+static int rows_of(const char *const *paras, int n)
+{
+    int rows = 0;
+    for (int i = 0; i < n; i++)
+        if (paras[i]) rows += gfx_para_rows(_(paras[i]), NOTE_SCALE, NOTE_W);
+    return rows;
+}
+
+static int budget_ok(const char *what, const char *const *paras, int n)
+{
+    const int rows = rows_of(paras, n);
+    if (rows <= NOTE_BUDGET) return 1;
+    fprintf(stderr, "i18ntest: %s, %s: %d rows of %d\n",
+            i18n_lang_name(i18n_lang()), what, rows, NOTE_BUDGET);
+    return 0;
+}
+
+static int check_budgets(void)
 {
     int ok = 1;
+    for (int l = 0; l < I18N_LANG_COUNT; l++) {
+        i18n_set_lang((i18n_lang_t)l);
+        char open[64], cert[48], conn[64], who[48], when[48];
+        snprintf(open, sizeof(open), _("Open %s"), "https://192.168.100.100/");
+        snprintf(cert, sizeof(cert), _("Cert %.29s..."),
+                 "AB:CD:EF:01:23:45:67:89:AB:CD:EF:01");
+        snprintf(conn, sizeof(conn), _("Connect an MPD app to %s"), "192.168.100.100:6600");
+        snprintf(who, sizeof(who), _p("%d apps connected.", 12), 12);
+        snprintf(when, sizeof(when), "%s, %s", "2026-10-01 21:53Z", _("a guess"));
+        const char *nopass = "No password: anyone on it can use it.";
+        const char *v[][3] = {
+            { open, cert, nopass },
+            { open, "in a browser on the same network.", nopass },
+            { "Off while network setup has the page.", "It comes back when setup closes.", nopass },
+            { "Waiting for a network address.", "Then it shows the address to open.", nopass },
+            { "Needs a network: Wi-Fi or a cable.", "Then it shows the address to open.", nopass },
+            { "Play, pause, skip, seek and volume from a browser on the same network.", NULL, nopass },
+            { conn, who, nopass },
+            { "Waiting for a network address.", "Then it shows the address to use.", nopass },
+            { "Play, pause, skip, seek and volume from an MPD app such as MALP or mpc.", NULL, nopass },
+            { "Reads the selected station without decoding it, to tell a slow "
+              "network from a slow decoder.", "Stop playback first.", NULL },
+            { when, "RESET: back to the build time; this boot's recordings are "
+              "renamed to match.", NULL },
+        };
+        for (size_t i = 0; i < sizeof(v) / sizeof(v[0]); i++) {
+            char what[32];
+            snprintf(what, sizeof(what), "NET note variant %zu", i);
+            ok &= budget_ok(what, v[i], 3);
+        }
+    }
+    i18n_set_lang(I18N_EN);
+    return ok;
+}
+
+static void real_table(void)
+{
+    int ok = check_budgets();
     for (unsigned i = 0; i < I18N_LANG_COUNT * i18n_count; i++)
         if (i18n_vals[i]) ok &= glyphs_ok(i18n_vals[i], i18n_lang_name((i18n_lang_t)(i / i18n_count)));
     for (unsigned i = 0; i < I18N_LANG_COUNT * i18n_pcount * 2; i++)

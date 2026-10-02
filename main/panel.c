@@ -568,12 +568,67 @@ static void draw_usb_switch(void)
 #define AUDIO_NOTE_GAP  (14)            /* between a control and its note */
 #define AUDIO_NOTE_STEP (GFX_GLYPH_H(LABEL_SCALE) + 12)
 
+/*
+ * 6018: a note is paragraphs, not lines. Each element is one paragraph,
+ * translated here and wrapped at the note width, so a translation is of
+ * a whole sentence and a language that needs three lines where English
+ * needed two gets three. NULL is skipped, taking no row.
+ *
+ * The layout counts what the draw will draw: a fixed note's X_NOTE_LINES
+ * is note_rows() of its paragraphs, at this width, in this language. A
+ * note whose words depend on state keeps a fixed budget of rows and
+ * draws at most that many -- tools/i18n.py's keys for those are checked
+ * against the budget at portrait width by i18ntest.
+ */
+#define COUNT(a) ((int)(sizeof(a) / sizeof((a)[0])))
+
+static int note_w(void) { return gfx_w() - 48; }
+
+static int note_rows(const char *const *paras, int n)
+{
+    int rows = 0;
+    for (int i = 0; i < n; i++) {
+        if (paras[i]) rows += gfx_para_rows(_(paras[i]), LABEL_SCALE, note_w());
+    }
+    return rows;
+}
+
+/* Returns the y below the last row drawn. */
+static int draw_paras(int y, const char *const *paras, int n, int max_rows)
+{
+    for (int i = 0; i < n && max_rows > 0; i++) {
+        if (!paras[i]) continue;
+        const int r = gfx_draw_para(24, y, _(paras[i]), LABEL_SCALE, note_w(),
+                                    AUDIO_NOTE_STEP, max_rows, C_DIM);
+        y += r * AUDIO_NOTE_STEP;
+        max_rows -= r;
+    }
+    return y;
+}
+
 /* The notes are part of the layout, not decoration painted over
  * whatever space happens to be left, so the y of each control counts the
  * lines under the one above it. Changing a note's length moves what is
  * below it instead of colliding with it. */
-#define RG_NOTE_LINES       (2)
-#define ALBUM_NOTE_LINES    (4)
+/* 6018: the paragraphs those lines are, out here so the layout can
+ * measure them; why each says what it says is where it is drawn. */
+static const char *const k_rg_note[] = {
+    N_("Evens out loudness between tracks."),
+    N_("Levels are still measured while off."),
+};
+static const char *const k_album_note[] = {
+    N_("One folder counts as one album."),
+    N_("Off keeps deliberate segues intact: live sets, mixes, and "
+       "movements that are meant to run into each other."),
+};
+static const char *const k_input_note[] = {
+    N_("Mono/stereo: the two by the screen."),
+    N_("Focused: those two aimed out of it."),
+    N_("Headset, UAC: the jack, a USB mic."),
+    N_("Auto: USB, jack, mono. Off: no record."),
+};
+#define RG_NOTE_LINES       note_rows(k_rg_note, COUNT(k_rg_note))
+#define ALBUM_NOTE_LINES    note_rows(k_album_note, COUNT(k_album_note))
 
 static int rg_y(void)     { return list_top(); }
 static int slider_y(void) { return rg_y() + AUDIO_SWITCH_H
@@ -584,7 +639,6 @@ static int album_y(void)  { return slider_y() + AUDIO_SLIDER_H + AUDIO_GAP; }
 
 /* 5208: what the recorder records from. 5216: the only recording
  * switch -- 5109's Microphones row is gone -- under the album note. */
-#define INPUT_NOTE_LINES    (4)
 static int input_y(void)  { return album_y() + AUDIO_SWITCH_H
                                    + AUDIO_NOTE_GAP
                                    + ALBUM_NOTE_LINES * AUDIO_NOTE_STEP
@@ -688,8 +742,18 @@ static int draw_build_notes(int y)
  * the two tabs stay editable by the same hands. See the comment on
  * AUDIO_SWITCH_H for why the heights are per-control.
  */
-#define NET_WIFI_NOTE_LINES (3)
-#define NET_NTP_NOTE_LINES  (3)
+static const char *const k_wifi_note[] = {                     /* 6018 */
+    N_("Needed for internet radio and the clock."),
+    N_("Off by default. Nothing on the card needs it, and the radio "
+       "draws power while on."),
+};
+static const char *const k_ntp_note[] = {
+    N_("Sets the clock, in UTC. Streams need it: a certificate is "
+       "invalid at an unset clock."),
+    N_("Greyed while Wi-Fi is off; the setting is kept."),
+};
+#define NET_WIFI_NOTE_LINES note_rows(k_wifi_note, COUNT(k_wifi_note))
+#define NET_NTP_NOTE_LINES  note_rows(k_ntp_note, COUNT(k_ntp_note))
 
 /* 5117: the browser remote, under Wi-Fi because it is what Wi-Fi is on
  * for, and above everything that is about the network itself. */
@@ -797,10 +861,7 @@ static void bench_lines(const bench_result_t *b, bool wifi,
         return;
     }
     if (!b->have) {
-        snprintf(l[0], 64, "Reads the selected station without decoding it,");
-        snprintf(l[1], 64, "to tell a slow network from a slow decoder.");
-        snprintf(l[2], 64, "Stop playback first.");
-        return;
+        return;     /* 6018: draw_net() says it, as one paragraph */
     }
     if (b->note[0]) {
         snprintf(l[0], 64, "%.60s", b->note);
@@ -943,12 +1004,7 @@ static int draw_net(void)
      * that has never needed a network and still does not need one to
      * play a card.
      */
-    static const char *const wifi_note[NET_WIFI_NOTE_LINES] = {
-        "Needed for internet radio and the clock.",
-        "Off by default. Nothing on the card needs",
-        "it, and the radio draws power while on.",
-    };
-    draw_note(y + bh + AUDIO_NOTE_GAP, wifi_note, NET_WIFI_NOTE_LINES);
+    draw_paras(y + bh + AUDIO_NOTE_GAP, k_wifi_note, COUNT(k_wifi_note), 99);
 
     /* --- Remote control (5117) -------------------------------------- */
     remote_box(&x, &y, &bw, &bh);
@@ -982,22 +1038,25 @@ static int draw_net(void)
                 snprintf(fp_line, sizeof(fp_line), _("Cert %.29s..."), fp);
                 rn[1] = fp_line;
             } else {
-                rn[1] = "in a browser on the same network.";
+                rn[1] = N_("in a browser on the same network.");
             }
         } else if (settings_remote_enabled() && portal_running()) {
             /* 5120: the portal has port 80 while it runs. */
-            rn[0] = "Off while network setup has the page.";
-            rn[1] = "It comes back when setup closes.";
+            rn[0] = N_("Off while network setup has the page.");
+            rn[1] = N_("It comes back when setup closes.");
         } else if (settings_remote_enabled()) {
-            rn[0] = netok ? "Waiting for a network address."
-                          : "Needs a network: Wi-Fi or a cable.";
-            rn[1] = "Then it shows the address to open.";
+            rn[0] = netok ? N_("Waiting for a network address.")
+                          : N_("Needs a network: Wi-Fi or a cable.");
+            rn[1] = N_("Then it shows the address to open.");
         } else {
-            rn[0] = "Play, pause, skip, seek and volume";
-            rn[1] = "from a browser on the same network.";
+            /* 6018: one sentence, one paragraph -- it was two lines */
+            rn[0] = N_("Play, pause, skip, seek and volume from a browser "
+                       "on the same network.");
+            rn[1] = NULL;
         }
-        rn[2] = "No password: anyone on it can use it.";
-        (void)draw_note(y + bh + AUDIO_NOTE_GAP, rn, NET_REMOTE_NOTE_LINES);
+        rn[2] = N_("No password: anyone on it can use it.");
+        (void)draw_paras(y + bh + AUDIO_NOTE_GAP, rn, NET_REMOTE_NOTE_LINES,
+                         NET_REMOTE_NOTE_LINES);
     }
 
     /* --- MPD server (5158) ------------------------------------------ */
@@ -1025,15 +1084,17 @@ static int draw_net(void)
             else        snprintf(who_line, sizeof(who_line), _p("%d apps connected.", n), n);
             mn[1] = who_line;
         } else if (settings_mpd_enabled()) {
-            mn[0] = netok ? "Waiting for a network address."
-                          : "Needs a network: Wi-Fi or a cable.";
-            mn[1] = "Then it shows the address to use.";
+            mn[0] = netok ? N_("Waiting for a network address.")
+                          : N_("Needs a network: Wi-Fi or a cable.");
+            mn[1] = N_("Then it shows the address to use.");
         } else {
-            mn[0] = "Play, pause, skip, seek and volume";
-            mn[1] = "from an MPD app such as MALP or mpc.";
+            mn[0] = N_("Play, pause, skip, seek and volume from an MPD app "
+                       "such as MALP or mpc.");
+            mn[1] = NULL;
         }
-        mn[2] = "No password: anyone on it can use it.";
-        (void)draw_note(y + bh + AUDIO_NOTE_GAP, mn, NET_MPD_NOTE_LINES);
+        mn[2] = N_("No password: anyone on it can use it.");
+        (void)draw_paras(y + bh + AUDIO_NOTE_GAP, mn, NET_MPD_NOTE_LINES,
+                         NET_MPD_NOTE_LINES);
     }
 
     /* --- Network time ----------------------------------------------- */
@@ -1048,12 +1109,7 @@ static int draw_net(void)
                         pref ? "ON" : "OFF", pref, wifi, NAME_SCALE);
     }
 
-    static const char *const ntp_note[NET_NTP_NOTE_LINES] = {
-        "Sets the clock, in UTC. Streams need it:",
-        "a certificate is invalid at an unset clock.",
-        "Greyed while Wi-Fi is off; the setting is kept.",
-    };
-    (void)draw_note(y + bh + AUDIO_NOTE_GAP, ntp_note, NET_NTP_NOTE_LINES);
+    (void)draw_paras(y + bh + AUDIO_NOTE_GAP, k_ntp_note, COUNT(k_ntp_note), 99);
 
     /* --- Network setup ---------------------------------------------- */
     setup_box(&x, &y, &bw, &bh);
@@ -1093,7 +1149,14 @@ static int draw_net(void)
     bench_lines(&bs, netok, blines);
     const char *bench_note[NET_BENCH_NOTE_LINES] = { blines[0], blines[1],
                                                      blines[2] };
-    draw_note(y + bh + AUDIO_NOTE_GAP, bench_note, NET_BENCH_NOTE_LINES);
+    if (netok && !bs.running && !bs.have) {                     /* 6018 */
+        bench_note[0] = N_("Reads the selected station without decoding it, "
+                           "to tell a slow network from a slow decoder.");
+        bench_note[1] = N_("Stop playback first.");
+        bench_note[2] = NULL;
+    }
+    draw_paras(y + bh + AUDIO_NOTE_GAP, bench_note, NET_BENCH_NOTE_LINES,
+               NET_BENCH_NOTE_LINES);
 
     /* --- Clock (5114) ------------------------------------------------ */
     clock_box(&x, &y, &bw, &bh);
@@ -1117,13 +1180,13 @@ static int draw_net(void)
         strftime(when, sizeof(when), "%Y-%m-%d %H:%MZ", &tm);
         snprintf(c0, sizeof(c0), "%s, %s", when, verified ? _("from NTP") : _("a guess"));
     }
-    const char *clock_note[NET_CLOCK_NOTE_LINES] = {
+    const char *clock_note[] = {
         c0,
-        "RESET: back to the build time; this",
-        "boot's recordings are renamed to match.",
+        N_("RESET: back to the build time; this boot's recordings are "
+           "renamed to match."),
     };
-    const int ntp_used = draw_note(y + bh + AUDIO_NOTE_GAP, clock_note,
-                                   NET_CLOCK_NOTE_LINES);
+    const int ntp_used = draw_paras(y + bh + AUDIO_NOTE_GAP, clock_note,
+                                    COUNT(clock_note), NET_CLOCK_NOTE_LINES);
 
     /*
      * No zone row, and see settings.h: nothing on this device displays a
@@ -1167,11 +1230,7 @@ static int draw_audio(void)
      * comes back to a measured library, and one who comes back to a
      * week of tracks that have to be played twice.
      */
-    static const char *const rg_note[RG_NOTE_LINES] = {
-        "Evens out loudness between tracks.",
-        "Levels are still measured while off.",
-    };
-    draw_note(y + bh + AUDIO_NOTE_GAP, rg_note, RG_NOTE_LINES);
+    draw_paras(y + bh + AUDIO_NOTE_GAP, k_rg_note, COUNT(k_rg_note), 99);
 
     /* --- Crossfade length ------------------------------------------- */
     xfade_slider_box(&x, &y, &bw, &bh);
@@ -1244,13 +1303,7 @@ static int draw_audio(void)
      * for that reason and the screen says why, because "Same album:
      * OFF" on its own reads like a limitation rather than a choice.
      */
-    static const char *const album_note[ALBUM_NOTE_LINES] = {
-        "One folder counts as one album.",
-        "Off keeps deliberate segues intact:",
-        "live sets, mixes, and movements that",
-        "are meant to run into each other.",
-    };
-    draw_note(y + bh + AUDIO_NOTE_GAP, album_note, ALBUM_NOTE_LINES);
+    draw_paras(y + bh + AUDIO_NOTE_GAP, k_album_note, COUNT(k_album_note), 99);
 
     /* --- Record from (5208, 5216) ------------------------------------ */
     input_switch_box(&x, &y, &bw, &bh);
@@ -1282,13 +1335,8 @@ static int draw_audio(void)
         const int ph = 56;
         draw_pill(w - 24 - pw, y + (bh - ph) / 2, pw, ph, label, there, NAME_SCALE);
     }
-    static const char *const input_note[INPUT_NOTE_LINES] = {
-        "Mono/stereo: the two by the screen.",
-        "Focused: those two aimed out of it.",
-        "Headset, UAC: the jack, a USB mic.",
-        "Auto: USB, jack, mono. Off: no record.",
-    };
-    const int used = draw_note(y + bh + AUDIO_NOTE_GAP, input_note, INPUT_NOTE_LINES);
+    const int used = draw_paras(y + bh + AUDIO_NOTE_GAP, k_input_note,
+                                COUNT(k_input_note), 99);
 
     /* See draw_net(): the check is panel_draw()'s now. */
     return used;

@@ -155,7 +155,9 @@ converted** (`main/i18n.h`, 6013). New text on such a screen is
 the YAML and `main/i18n_tab.c` changes ride in the same patch --
 `texttest`'s `run-i18n` fails otherwise. Text kept in English on
 purpose -- a tab name, the language row, a unit, a product name -- is
-`same("...")`, so it reads as a decision. Never `_()` a log line,
+`same("...")`, so it reads as a decision. A note under a control is
+a paragraph, never a sentence split across array elements: the draw
+wraps it (6018), and a translator cannot rejoin a split. Never `_()` a log line,
 protocol word, NVS key or anything parsed back. A translation Claude
 writes is named in the commit message as not yet read by a native
 speaker.

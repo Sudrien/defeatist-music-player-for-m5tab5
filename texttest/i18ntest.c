@@ -188,10 +188,42 @@ static int check_budgets(void)
             { when, "RESET: back to the build time; this boot's recordings are "
               "renamed to match.", NULL },
         };
+        /* 6022: the benchmark running, and its result, at a 20- and a
+         * 16-character station name and three-digit rates. */
+        char brun[64], bres[64], bneed[64], bread[64];
+        snprintf(brun, sizeof(brun), _("Reading %s without decoding..."), "Radio Paradise Mellow");
+        snprintf(bres, sizeof(bres), _("%s: %d mean, %d peak kbit/s"), "Radio Paradise M", 320, 448);
+        snprintf(bneed, sizeof(bneed), _("Station needs %d -- that is %d%%"), 320, 100);
+        snprintf(bread, sizeof(bread), "8K %d / 2K %d kbit/s", 448, 320);
+        const char *bench[][3] = {
+            { brun, "About twenty seconds.", NULL },
+            { bres, bneed, bread },
+        };
+        for (size_t i = 0; i < 2; i++) {
+            char what[32];
+            snprintf(what, sizeof(what), "benchmark %s", i ? "result" : "running");
+            ok &= budget_ok(what, bench[i], 3);
+        }
         for (size_t i = 0; i < sizeof(v) / sizeof(v[0]); i++) {
             char what[32];
             snprintf(what, sizeof(what), "NET note variant %zu", i);
             ok &= budget_ok(what, v[i], 3);
+        }
+    }
+    /* 6022: the benchmark's two name lines, at their widest -- a
+     * 20- and a 16-byte name, both counts at INT_MIN -- into panel.c's
+     * 64-byte lines, untruncated. */
+    for (int l = 0; l < I18N_LANG_COUNT; l++) {
+        i18n_set_lang((i18n_lang_t)l);
+        char line[64];
+        const int a = snprintf(line, sizeof(line), _("Reading %s without decoding..."),
+                               "12345678901234567890");
+        const int b = snprintf(line, sizeof(line), _("%s: %d mean, %d peak kbit/s"),
+                               "1234567890123456", -2147483647 - 1, -2147483647 - 1);
+        if (a >= (int)sizeof(line) || b >= (int)sizeof(line)) {
+            fprintf(stderr, "i18ntest: %s: a benchmark line is %d/%d bytes of 63\n",
+                    i18n_lang_name((i18n_lang_t)l), a, b);
+            ok = 0;
         }
     }
     i18n_set_lang(I18N_EN);

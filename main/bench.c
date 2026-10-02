@@ -16,6 +16,7 @@
 #include "bench.h"
 #include "netstream.h"
 #include "stations.h"
+#include "i18n.h"          /* 6022: N_() on the notes */
 
 static const char *TAG = "tab5_bench";
 
@@ -115,7 +116,7 @@ bool bench_request(void)
         xSemaphoreTake(s_mu, portMAX_DELAY);
         memset(&s_st, 0, sizeof(s_st));
         s_st.have = true;
-        snprintf(s_st.note, sizeof(s_st.note), "No station selected.");
+        snprintf(s_st.note, sizeof(s_st.note), "%s", N_("No station selected."));
         xSemaphoreGive(s_mu);
         return false;
     }
@@ -138,14 +139,14 @@ void bench_service(void)
 
     station_t st;
     if (!stations_get(stations_index(), &st) || !st.url[0]) {
-        set_note("The station went away.");
+        set_note(N_("The station went away."));
         return;
     }
 
     uint8_t *sink = heap_caps_malloc(BENCH_READ, MALLOC_CAP_INTERNAL |
                                                  MALLOC_CAP_8BIT);
     if (!sink) {
-        set_note("No memory to measure with.");
+        set_note(N_("No memory to measure with."));
         return;
     }
 
@@ -154,7 +155,7 @@ void bench_service(void)
     const int64_t t_start = esp_timer_get_time();
     if (!netstream_play(st.url, st.name)) {
         free(sink);
-        set_note("Could not start the stream.");
+        set_note(N_("Could not start the stream."));
         return;
     }
 
@@ -198,9 +199,9 @@ void bench_service(void)
          * being said for all of them and sent the wrong thing to be
          * investigated. */
         const netstream_state_t s = netstream_state();
-        set_note(s == NETSTREAM_FAILED ? "The station did not answer."
-                 : s == NETSTREAM_IDLE ? "The stream stopped before it started."
-                 : "Timed out connecting.");
+        set_note(s == NETSTREAM_FAILED ? N_("The station did not answer.")
+                 : s == NETSTREAM_IDLE ? N_("The stream stopped before it started.")
+                 : N_("Timed out connecting."));
         return;
     }
 

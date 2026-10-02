@@ -11,6 +11,8 @@ en:
     # panel.c
     "%d s": ~
     # panel.c
+    "%s: %d mean, %d peak kbit/s": ~
+    # panel.c
     "%u KB free": ~
     # panel.c
     "%u bytes": ~
@@ -95,11 +97,15 @@ en:
     # streamplan.h
     "Connecting": ~
     # recorder.c
+    "Could not create the recording file.": "Could not create the\nrecording file."
+    # recorder.c
     "Could not make the Recordings folder.": "Could not make the\nRecordings folder."
     # player.c
     "Could not save": ~
     # recorder.c
     "Could not start the file.": "Could not start\nthe file."
+    # bench.c
+    "Could not start the stream.": ~
     # panel.c
     "Could not start.": ~
     # panel.c
@@ -186,10 +192,14 @@ en:
     "No app connected.": ~
     # recorder.c
     "No memory for the recording task.": "No memory for the\nrecording task."
+    # bench.c
+    "No memory to measure with.": ~
     # panel.c
     "No password: anyone on it can use it.": ~
     # streamplan.h
     "No signal": ~
+    # bench.c
+    "No station selected.": ~
     # recorder.c
     "Not enough memory to record.": "Not enough memory\nto record."
     # recorder.c
@@ -246,6 +256,8 @@ en:
     "RUN": ~
     # player.c
     "Radio": ~
+    # panel.c
+    "Reading %s without decoding...": ~
     # panel.c
     "Reads the selected station without decoding it, to tell a slow network from a slow decoder.": ~
     # streamplan.h
@@ -315,6 +327,8 @@ en:
     # player.c
     "Stream too slow here": ~
     # recorder.c
+    "The USB microphone did not start.": "The USB microphone\ndid not start."
+    # recorder.c
     "The USB microphone has no 16-bit format.": "The USB microphone has\nno 16-bit format."
     # recorder.c
     "The USB microphone is not there any more.": "The USB microphone is\nnot there any more."
@@ -324,12 +338,22 @@ en:
     "The card would not take any more.": "The card would not\ntake any more."
     # sleeppage.c
     "The device turns off. The side button turns it back on.": ~
+    # recorder.c
+    "The microphones did not start.": "The microphones did\nnot start."
+    # bench.c
+    "The station did not answer.": ~
     # panel.c
     "The station does not say what it needs.": ~
+    # bench.c
+    "The station went away.": ~
+    # bench.c
+    "The stream stopped before it started.": ~
     # panel.c
     "Then it shows the address to open.": ~
     # panel.c
     "Then it shows the address to use.": ~
+    # bench.c
+    "Timed out connecting.": ~
     # sleeppage.c
     "Touch anywhere to wake it.": ~
     # panel.c
@@ -466,6 +490,8 @@ en:
     "the directory has nothing there": ~
     # panel.c
     "the setup network": ~
+    # panel.c
+    "the station": ~
     # player.c
     "the stream did not start": ~
     # player.c

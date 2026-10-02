@@ -11,6 +11,8 @@ zh-CN:
     # panel.c
     "%d s": "%d 秒"
     # panel.c
+    "%s: %d mean, %d peak kbit/s": "%s: 平均 %d, 峰值 %d kbit/s"
+    # panel.c
     "%u KB free": "可用 %u KB"
     # panel.c
     "%u bytes": "%u 字节"
@@ -95,11 +97,15 @@ zh-CN:
     # streamplan.h
     "Connecting": "连接中"
     # recorder.c
+    "Could not create the recording file.": "无法创建录音文件。"
+    # recorder.c
     "Could not make the Recordings folder.": "无法创建\nRecordings 文件夹。"
     # player.c
     "Could not save": "无法保存"
     # recorder.c
     "Could not start the file.": "无法开始写文件。"
+    # bench.c
+    "Could not start the stream.": "无法启动音频流。"
     # panel.c
     "Could not start.": "无法启动。"
     # panel.c
@@ -186,10 +192,14 @@ zh-CN:
     "No app connected.": "没有应用连接。"
     # recorder.c
     "No memory for the recording task.": "录音任务内存不足。"
+    # bench.c
+    "No memory to measure with.": "内存不足，无法测量。"
     # panel.c
     "No password: anyone on it can use it.": "没有密码：同一网络中的任何人都能使用。"
     # streamplan.h
     "No signal": "无信号"
+    # bench.c
+    "No station selected.": "未选择电台。"
     # recorder.c
     "Not enough memory to record.": "内存不足，无法录音。"
     # recorder.c
@@ -246,6 +256,8 @@ zh-CN:
     "RUN": "运行"
     # player.c
     "Radio": "电台"
+    # panel.c
+    "Reading %s without decoding...": "正在读取 %s（不解码）..."
     # panel.c
     "Reads the selected station without decoding it, to tell a slow network from a slow decoder.": "只读取所选电台而不解码，用来区分是网络慢还是解码慢。"
     # streamplan.h
@@ -315,6 +327,8 @@ zh-CN:
     # player.c
     "Stream too slow here": "网络太慢"
     # recorder.c
+    "The USB microphone did not start.": "USB 麦克风未能启动。"
+    # recorder.c
     "The USB microphone has no 16-bit format.": "USB 麦克风\n不支持 16 位格式。"
     # recorder.c
     "The USB microphone is not there any more.": "USB 麦克风已不在。"
@@ -324,12 +338,22 @@ zh-CN:
     "The card would not take any more.": "卡已写不下。"
     # sleeppage.c
     "The device turns off. The side button turns it back on.": "设备会关机。按侧边按钮可重新开机。"
+    # recorder.c
+    "The microphones did not start.": "麦克风未能启动。"
+    # bench.c
+    "The station did not answer.": "电台无响应。"
     # panel.c
     "The station does not say what it needs.": "电台未说明所需码率。"
+    # bench.c
+    "The station went away.": "电台已不可用。"
+    # bench.c
+    "The stream stopped before it started.": "音频流未开始就停止了。"
     # panel.c
     "Then it shows the address to open.": "之后会显示要打开的地址。"
     # panel.c
     "Then it shows the address to use.": "之后会显示要使用的地址。"
+    # bench.c
+    "Timed out connecting.": "连接超时。"
     # sleeppage.c
     "Touch anywhere to wake it.": "触摸任意处就能唤醒。"
     # panel.c
@@ -466,6 +490,8 @@ zh-CN:
     "the directory has nothing there": "目录中没有内容"
     # panel.c
     "the setup network": "设置网络"
+    # panel.c
+    "the station": "电台"
     # player.c
     "the stream did not start": "音频流未能开始"
     # player.c

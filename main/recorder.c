@@ -542,7 +542,9 @@ bool recorder_start(char *why, size_t why_len)
         } else if (e == ESP_ERR_NOT_SUPPORTED) {
             REFUSE(N_("The USB microphone has no 16-bit format."));
         } else {
-            REFUSE("The USB microphone did not start (%s).", esp_err_to_name(e));
+            /* 6022: the reason to the log, the sentence to the card */
+            ESP_LOGW(TAG, "USB microphone did not start: %s", esp_err_to_name(e));
+            REFUSE(N_("The USB microphone did not start."));
         }
     }
     if (want == SETTINGS_REC_HEADSET) {
@@ -573,7 +575,8 @@ bool recorder_start(char *why, size_t why_len)
     s_file = storage_io_open(s_path, "wb");
     if (!s_file) {
         ABANDON();
-        REFUSE("Could not create %s.", s_name);
+        ESP_LOGW(TAG, "could not create %s", s_path);        /* 6022 */
+        REFUSE(N_("Could not create the recording file."));
     }
 
     s_frames = 0; s_bytes = 0; s_dropped_frames = 0;
@@ -604,7 +607,8 @@ bool recorder_start(char *why, size_t why_len)
             storage_io_close(s_file);
             s_file = NULL;
             remove(s_path);
-            REFUSE("The microphones did not start (%s).", esp_err_to_name(err));
+            ESP_LOGW(TAG, "microphones did not start: %s", esp_err_to_name(err));
+            REFUSE(N_("The microphones did not start."));
         }
     }
 

@@ -11,6 +11,8 @@ es:
     # panel.c
     "%d s": "%d s"
     # panel.c
+    "%s: %d mean, %d peak kbit/s": "%s: media %d, pico %d kbit/s"
+    # panel.c
     "%u KB free": "%u KB libres"
     # panel.c
     "%u bytes": "%u bytes"
@@ -95,11 +97,15 @@ es:
     # streamplan.h
     "Connecting": "Conectando"
     # recorder.c
+    "Could not create the recording file.": "No se pudo crear el\narchivo de grabación."
+    # recorder.c
     "Could not make the Recordings folder.": "No se pudo crear la\ncarpeta Recordings."
     # player.c
     "Could not save": "No se pudo guardar"
     # recorder.c
     "Could not start the file.": "No se pudo iniciar\nel archivo."
+    # bench.c
+    "Could not start the stream.": "No se pudo iniciar el flujo."
     # panel.c
     "Could not start.": "No se pudo iniciar."
     # panel.c
@@ -186,10 +192,14 @@ es:
     "No app connected.": "Ninguna app conectada."
     # recorder.c
     "No memory for the recording task.": "Sin memoria para la\ntarea de grabación."
+    # bench.c
+    "No memory to measure with.": "Sin memoria para medir."
     # panel.c
     "No password: anyone on it can use it.": "Sin contraseña: cualquiera en la red lo usa."
     # streamplan.h
     "No signal": "Sin señal"
+    # bench.c
+    "No station selected.": "No hay emisora elegida."
     # recorder.c
     "Not enough memory to record.": "No hay memoria\npara grabar."
     # recorder.c
@@ -246,6 +256,8 @@ es:
     "RUN": "MEDIR"
     # player.c
     "Radio": "Radio"
+    # panel.c
+    "Reading %s without decoding...": "Leyendo %s sin decodificar..."
     # panel.c
     "Reads the selected station without decoding it, to tell a slow network from a slow decoder.": "Lee la emisora sin decodificar, para separar una red lenta de un decodificador lento."
     # streamplan.h
@@ -315,6 +327,8 @@ es:
     # player.c
     "Stream too slow here": "Red muy lenta"
     # recorder.c
+    "The USB microphone did not start.": "El micrófono USB\nno arrancó."
+    # recorder.c
     "The USB microphone has no 16-bit format.": "El micrófono USB no\ntiene formato de 16 bits."
     # recorder.c
     "The USB microphone is not there any more.": "El micrófono USB\nya no está."
@@ -324,12 +338,22 @@ es:
     "The card would not take any more.": "La tarjeta no admite\nmás datos."
     # sleeppage.c
     "The device turns off. The side button turns it back on.": "El equipo se apaga. El botón lateral lo vuelve a encender."
+    # recorder.c
+    "The microphones did not start.": "Los micrófonos\nno arrancaron."
+    # bench.c
+    "The station did not answer.": "La emisora no respondió."
     # panel.c
     "The station does not say what it needs.": "La emisora no dice qué necesita."
+    # bench.c
+    "The station went away.": "La emisora desapareció."
+    # bench.c
+    "The stream stopped before it started.": "El flujo se detuvo antes de empezar."
     # panel.c
     "Then it shows the address to open.": "Luego muestra la dirección que abrir."
     # panel.c
     "Then it shows the address to use.": "Luego muestra la dirección que usar."
+    # bench.c
+    "Timed out connecting.": "Tiempo de conexión agotado."
     # sleeppage.c
     "Touch anywhere to wake it.": "Toca en cualquier sitio para despertarla."
     # panel.c
@@ -466,6 +490,8 @@ es:
     "the directory has nothing there": "el directorio no tiene nada ahí"
     # panel.c
     "the setup network": "la red de configuración"
+    # panel.c
+    "the station": "la emisora"
     # player.c
     "the stream did not start": "el flujo no empezó"
     # player.c

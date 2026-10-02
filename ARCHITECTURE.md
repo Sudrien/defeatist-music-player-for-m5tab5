@@ -20924,3 +20924,36 @@ refusal is a line `extract` prints instead, listing the overlap so a
 mistaken one is still seen; `check` no longer fails on it.
 
 The TAG strings are not marked: they are identifiers, not words.
+
+### 6022 -- the benchmark's names cut on a character, the recorder's details to the log
+
+The last of the device's screen text. Two lines that could not be
+translated as written, and three that could not be looked up.
+
+The benchmark row printed the station name through "%.20s" and
+"%.16s", which count bytes: a name in Chinese, Japanese or Arabic was
+cut inside a character and drew a notdef box. utf8_head() in panel.c
+takes the same 20 or 16 bytes and backs off to where a character
+starts, and the formats are plain %s now -- "Reading %s without
+decoding..." and "%s: %d mean, %d peak kbit/s" -- so they translate.
+i18ntest formats both at their widest, a 20- and a 16-byte name and
+both counts at INT_MIN, into the 64-byte line and fails on truncation;
+Chinese and Japanese were two bytes over with fullwidth "：" and "，",
+three bytes each, and use ": " and ", " -- a line of numbers and units
+reads the same. Both benchmark states are in the three-row budget
+check too.
+
+The benchmark's own notes ("No station selected.", "Timed out
+connecting." and five more) were English from bench.c into a buffer
+panel.c drew; they are N_() there and translated where drawn.
+
+The recorder's three refusals that formatted a detail in -- an
+esp_err name twice, a file name once -- now log the detail themselves
+and refuse with a fixed sentence: "The USB microphone did not start.",
+"The microphones did not start.", "Could not create the recording
+file." The player already logs "record refused: %s", so the console
+loses nothing and gains the reason on a line of its own; the card gets
+a sentence it can show in the reader's language. English gets '\n'
+breaks for the two that were over the card's 25 characters.
+
+Thirteen strings. Not compiled with ESP-IDF here. Not on the board.

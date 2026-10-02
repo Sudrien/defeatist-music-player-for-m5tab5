@@ -11,6 +11,8 @@ ja:
     # panel.c
     "%d s": "%d 秒"
     # panel.c
+    "%s: %d mean, %d peak kbit/s": "%s: 平均 %d, 最大 %d kbit/s"
+    # panel.c
     "%u KB free": "空き %u KB"
     # panel.c
     "%u bytes": "%u バイト"
@@ -95,11 +97,15 @@ ja:
     # streamplan.h
     "Connecting": "接続中"
     # recorder.c
+    "Could not create the recording file.": "録音ファイルを\n作れなかった。"
+    # recorder.c
     "Could not make the Recordings folder.": "Recordings フォルダを\n作れなかった。"
     # player.c
     "Could not save": "保存できない"
     # recorder.c
     "Could not start the file.": "ファイルを開始できない。"
+    # bench.c
+    "Could not start the stream.": "ストリームを開始できない。"
     # panel.c
     "Could not start.": "起動できなかった。"
     # panel.c
@@ -186,10 +192,14 @@ ja:
     "No app connected.": "接続中のアプリなし。"
     # recorder.c
     "No memory for the recording task.": "録音タスクのメモリ不足。"
+    # bench.c
+    "No memory to measure with.": "測定するメモリがない。"
     # panel.c
     "No password: anyone on it can use it.": "パスワードなし：同じネットワークの誰でも使える。"
     # streamplan.h
     "No signal": "信号なし"
+    # bench.c
+    "No station selected.": "局が選ばれていない。"
     # recorder.c
     "Not enough memory to record.": "録音するメモリが足りない。"
     # recorder.c
@@ -246,6 +256,8 @@ ja:
     "RUN": "実行"
     # player.c
     "Radio": "ラジオ"
+    # panel.c
+    "Reading %s without decoding...": "%s をデコードせずに読込中..."
     # panel.c
     "Reads the selected station without decoding it, to tell a slow network from a slow decoder.": "選んだ局をデコードせずに読み、遅いのがネットかデコーダかを見分ける。"
     # streamplan.h
@@ -315,6 +327,8 @@ ja:
     # player.c
     "Stream too slow here": "回線が遅すぎる"
     # recorder.c
+    "The USB microphone did not start.": "USBマイクが\n起動しなかった。"
+    # recorder.c
     "The USB microphone has no 16-bit format.": "USBマイクに\n16ビット形式がない。"
     # recorder.c
     "The USB microphone is not there any more.": "USBマイクが\nもう見つからない。"
@@ -324,12 +338,22 @@ ja:
     "The card would not take any more.": "カードがもう書き込めない。"
     # sleeppage.c
     "The device turns off. The side button turns it back on.": "本体の電源が切れる。側面のボタンで入る。"
+    # recorder.c
+    "The microphones did not start.": "マイクが起動しなかった。"
+    # bench.c
+    "The station did not answer.": "局が応答しない。"
     # panel.c
     "The station does not say what it needs.": "局は必要量を示していない。"
+    # bench.c
+    "The station went away.": "局が消えた。"
+    # bench.c
+    "The stream stopped before it started.": "開始前にストリームが止まった。"
     # panel.c
     "Then it shows the address to open.": "その後、開くアドレスが出る。"
     # panel.c
     "Then it shows the address to use.": "その後、使うアドレスが出る。"
+    # bench.c
+    "Timed out connecting.": "接続がタイムアウト。"
     # sleeppage.c
     "Touch anywhere to wake it.": "どこかに触れると戻る。"
     # panel.c
@@ -466,6 +490,8 @@ ja:
     "the directory has nothing there": "ディレクトリに何もない"
     # panel.c
     "the setup network": "設定用ネットワーク"
+    # panel.c
+    "the station": "局"
     # player.c
     "the stream did not start": "ストリームが始まらない"
     # player.c

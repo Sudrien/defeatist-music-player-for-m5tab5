@@ -841,6 +841,24 @@ static void clock_box(int *x, int *y, int *w, int *h)
  * what the link is capable of, and if this file knew those three things
  * the benchmark would not have been necessary.
  */
+/*
+ * 6022: the first `max` bytes of s, cut back to where a character starts
+ * -- what "%.20s" did, without ending inside a three-byte CJK or
+ * two-byte Arabic character, which drew as a notdef box.
+ */
+static const char *utf8_head(const char *s, size_t max, char *out, size_t out_size)
+{
+    size_t n = strlen(s);
+    if (n > max) {
+        n = max;
+        while (n > 0 && ((unsigned char)s[n] & 0xC0) == 0x80) n--;
+    }
+    if (n >= out_size) n = out_size - 1;
+    memcpy(out, s, n);
+    out[n] = '\0';
+    return out;
+}
+
 static void bench_lines(const bench_result_t *b, bool wifi,
                         char l[NET_BENCH_NOTE_LINES][64])
 {
@@ -850,13 +868,14 @@ static void bench_lines(const bench_result_t *b, bool wifi,
         snprintf(l[0], 64, "%s", _("Needs a network: Wi-Fi or a cable."));
         return;
     }
+    char name[24];
     if (b->running) {
-        /* Widths counted, not guessed: this file has met
-         * -Werror=format-truncation before. "Reading " is 8, the name
-         * is capped at 20, " without decoding..." is 19, and the NUL is
-         * one -- 48 of the 64 there are. */
-        snprintf(l[0], 64, "Reading %.20s without decoding...",
-                 b->name[0] ? b->name : "the station");
+        /* The name capped at 20 bytes, on a character boundary (6022);
+         * every translation of the line is 40 bytes or fewer without it,
+         * which tools/i18n.py's byte check in texttest holds them to. */
+        snprintf(l[0], 64, _("Reading %s without decoding..."),
+                 b->name[0] ? utf8_head(b->name, 20, name, sizeof(name))
+                            : _("the station"));
         snprintf(l[1], 64, "%s", _("About twenty seconds."));
         return;
     }
@@ -864,14 +883,14 @@ static void bench_lines(const bench_result_t *b, bool wifi,
         return;     /* 6018: draw_net() says it, as one paragraph */
     }
     if (b->note[0]) {
-        snprintf(l[0], 64, "%.60s", b->note);
+        snprintf(l[0], 64, "%s", _(b->note));      /* 6022: N_() in bench.c */
         return;
     }
 
-    /* 16 + ": " + 11 + " mean, " + 11 + " peak kbit/s" + NUL = 60. The
-     * two %d are counted at their widest rather than their likely
-     * width, which is the whole point of the check. */
-    snprintf(l[0], 64, "%.16s: %d mean, %d peak kbit/s", b->name,
+    /* The name at 16 bytes on a character boundary (6022), and both %d
+     * at their widest, 11: every translation fits 64 that way. */
+    snprintf(l[0], 64, _("%s: %d mean, %d peak kbit/s"),
+             utf8_head(b->name, 16, name, sizeof(name)),
              b->kbps_avg, b->kbps_peak);
     if (b->declared_kbps > 0) {
         snprintf(l[1], 64, _("Station needs %d -- that is %d%%"),

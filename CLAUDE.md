@@ -149,6 +149,15 @@ because of it -- see "Two series called 1000" in `ARCHITECTURE.md`.
 shows.** A patch that adds, renames or removes one changes that file in
 the same patch.
 
+**Screen text is marked for translation once its screen has been
+converted** (`main/i18n.h`, 6013). New text on such a screen is
+`_("...")`, the patch runs `./tools/i18n.py extract` and `compile`, and
+the YAML and `main/i18n_tab.c` changes ride in the same patch --
+`texttest`'s `run-i18n` fails otherwise. Never `_()` a log line,
+protocol word, NVS key or anything parsed back. A translation Claude
+writes is named in the commit message as not yet read by a native
+speaker.
+
 Within a patch, change the lines that must change and no others. No
 reflowing, no drive-by renames, no reorganising code being passed
 through. Restructuring an existing function is sometimes the smallest

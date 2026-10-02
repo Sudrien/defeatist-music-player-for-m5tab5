@@ -1,0 +1,23 @@
+# ja -- the screen's text. Edit the values; the keys are the
+# English in the source and are rewritten by ./tools/i18n.py extract.
+# ~ means not translated: the board shows the key. Then run
+# ./tools/i18n.py compile and commit main/i18n_tab.c with this file.
+# Format: tools/i18n.py's docstring.
+
+ja:
+  singular:
+    # panel.c
+    "%d s": "%d 秒"
+    # panel.c
+    "Crossfade   %d s": "クロスフェード   %d 秒"
+    # panel.c
+    "Crossfade   off": "クロスフェード   オフ"
+    # panel.c
+    "OFF": "オフ"
+    # panel.c
+    "ON": "オン"
+    # panel.c
+    "Same album": "同じアルバム"
+    # panel.c
+    "off": "オフ"
+  plural:

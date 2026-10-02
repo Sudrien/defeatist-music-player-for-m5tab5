@@ -1,0 +1,23 @@
+# zh-CN -- the screen's text. Edit the values; the keys are the
+# English in the source and are rewritten by ./tools/i18n.py extract.
+# ~ means not translated: the board shows the key. Then run
+# ./tools/i18n.py compile and commit main/i18n_tab.c with this file.
+# Format: tools/i18n.py's docstring.
+
+zh-CN:
+  singular:
+    # panel.c
+    "%d s": "%d 秒"
+    # panel.c
+    "Crossfade   %d s": "交叉淡化   %d 秒"
+    # panel.c
+    "Crossfade   off": "交叉淡化   关"
+    # panel.c
+    "OFF": "关"
+    # panel.c
+    "ON": "开"
+    # panel.c
+    "Same album": "同一专辑"
+    # panel.c
+    "off": "关"
+  plural:

@@ -22,6 +22,7 @@
 #include "bench.h"
 #include "ethernet.h"     /* 5096: net_online() */
 #include "gfx.h"
+#include "i18n.h"         /* 6013 */
 #include "medialib.h"
 #include "menuscroll.h"
 #include "panel.h"
@@ -1137,8 +1138,8 @@ static int draw_audio(void)
 
     const int sec = settings_crossfade_sec();
     char head[48];
-    if (sec == 0) snprintf(head, sizeof(head), "Crossfade   off");
-    else          snprintf(head, sizeof(head), "Crossfade   %d s", sec);
+    if (sec == 0) snprintf(head, sizeof(head), "%s", _("Crossfade   off"));
+    else          snprintf(head, sizeof(head), _("Crossfade   %d s"), sec);
     gfx_draw_text(24, y + 20, head, NAME_SCALE, w - 48,
                   sec ? C_TEXT : C_DIM);
 
@@ -1165,11 +1166,11 @@ static int draw_audio(void)
     gfx_fill_circle(kx, ty, SLIDER_KNOB / 2, sec ? C_TEXT : C_DIM);
 
     /* The ends, so the range is readable without dragging to find it. */
-    gfx_draw_text(SLIDER_INSET, ty + SLIDER_KNOB, "off",
+    gfx_draw_text(SLIDER_INSET, ty + SLIDER_KNOB, _("off"),
                   LABEL_SCALE, 80, C_FAINT);
     {
         char maxlbl[8];
-        snprintf(maxlbl, sizeof(maxlbl), "%d s", SETTINGS_CROSSFADE_MAX);
+        snprintf(maxlbl, sizeof(maxlbl), _("%d s"), SETTINGS_CROSSFADE_MAX);
         const int mw = gfx_text_w(maxlbl, LABEL_SCALE);
         gfx_draw_text(w - SLIDER_INSET - mw, ty + SLIDER_KNOB, maxlbl,
                       LABEL_SCALE, 80, C_FAINT);
@@ -1178,7 +1179,7 @@ static int draw_audio(void)
     /* --- Crossfade within an album ---------------------------------- */
     xfade_album_box(&x, &y, &bw, &bh);
     gfx_fill_rect(x, y, bw, bh, C_ROW);
-    gfx_draw_text(24, y + (bh - GFX_GLYPH_H(NAME_SCALE)) / 2, "Same album",
+    gfx_draw_text(24, y + (bh - GFX_GLYPH_H(NAME_SCALE)) / 2, _("Same album"),
                   NAME_SCALE, 400, sec ? C_TEXT : C_DISABLED);
     {
         const bool on = settings_crossfade_album();
@@ -1190,7 +1191,7 @@ static int draw_audio(void)
          * greyed is the claim that it is currently having an effect.
          */
         draw_pill(w - 24 - pw, y + (bh - ph) / 2, pw, ph,
-                  on ? "ON" : "OFF", on && sec, NAME_SCALE);
+                  on ? _("ON") : _("OFF"), on && sec, NAME_SCALE);
     }
 
     /*

@@ -20540,3 +20540,67 @@ half a gap short of it, at 577. Two pixels in the worst case.
 ABBREVIATIONS.md and the README carry the new word and the new battery
 forms. ui.c and player.c compiled clean at -O2 and -O3 against IDF
 v5.5.5's headers with IDF's flags. Not on the board.
+
+### 6013 -- translations, lv_i18n style: English, Mandarin, Japanese
+
+Asked for: a way to translate the screen, extracted the way lv_i18n
+does it, for English and Mandarin -- and Japanese, since the font
+already draws it. gettext was considered and passed over: ESP-IDF's
+newlib has no libintl, and its runtime model (`.mo` files found through
+a locale on a filesystem) is machinery this firmware has no other use
+for. ESP-IDF has no translation example of its own to follow.
+
+The shape: text a person reads is marked `_("Same album")` in the
+source, or `N_()` where it sits in a static initialiser and is passed
+through `_()` when drawn. `tools/i18n.py extract` scans main/ and keeps
+`i18n/en.yml`, `i18n/zh-CN.yml` and `i18n/ja.yml` in step with it --
+new strings arrive as `~`, existing translations are kept, strings the
+source no longer uses are reported and kept until `--prune`.
+`compile` writes `main/i18n_tab.c`, committed for the reason
+casefold_tab.c is: a build needs no step it did not need before.
+`check` fails when either is stale, and texttest's `run-i18n` runs it.
+
+The key is the English. That is the decision everything else rests
+on: `_()` of anything the table does not hold returns its argument --
+the same pointer -- so marking can go a section at a time, a filename
+passed through `_()` by accident is harmless, and an untranslated
+string draws as English rather than as an ID. The cost is that
+rewording an English string orphans its translations; extract reports
+it, and `en.yml` can carry a rewording against an unchanged key when
+that matters.
+
+Lookup is bsearch with strcmp over the sorted keys. The generated
+tables are flat ([lang * count + key]) because i18n.c cannot name a
+dimension only i18n_tab.c knows. Language is one volatile int, English
+by default, and an out-of-range value -- a bad NVS byte, when there is
+one -- selects English.
+
+Plurals are `_p(msgid, n)` with CLDR's forms cut to what three
+languages need: English one/other, Chinese and Japanese other only. A
+locale with an untranslated plural falls back to the English text
+chosen by the English rule for the same n, so "1 track" stays
+grammatical.
+
+What compile refuses: a translation whose printf conversions differ
+from the key's in number, order, length modifier or letter. "%d s" as
+"%s 秒" would hand an int to %s on the board; checked once at build
+time, a translated format is as safe to give snprintf as the literal
+was. It also refuses `N_()` of a non-literal, which marks nothing.
+
+The font needed nothing. Ark12's subset already holds the whole CJK
+Unified block at 12px (18299 glyphs), Hiragana, Katakana and the CJK
+punctuation, fullwidth -- one Hanzi or kana costs two Latin cells.
+
+Converted here, as the proof and not the job: the Audio tab's
+crossfade heading ("Crossfade   off", "Crossfade   %d s"), the slider's
+end labels, "Same album" and its ON/OFF pill -- seven strings, all
+three languages filled in. The notes under controls are not converted:
+they are a paragraph broken into fixed lines by hand, and translating
+line fragments asks a translator to split someone else's sentence. They
+want a wrapping draw_note() first, keyed by the whole paragraph.
+
+Nothing switches the language yet, so the screen is unchanged by this
+patch; the setting and its row are next. i18n.c and i18n_tab.c built
+clean at -O2 -Werror and ran under ASan in texttest, against fixtures
+and against the real table. panel.c's seven edits were not compiled:
+no ESP-IDF in the session. Not on the board.

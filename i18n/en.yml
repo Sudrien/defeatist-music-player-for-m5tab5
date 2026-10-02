@@ -1,0 +1,23 @@
+# en -- the screen's text. Edit the values; the keys are the
+# English in the source and are rewritten by ./tools/i18n.py extract.
+# ~ means not translated: the board shows the key. Then run
+# ./tools/i18n.py compile and commit main/i18n_tab.c with this file.
+# Format: tools/i18n.py's docstring.
+
+en:
+  singular:
+    # panel.c
+    "%d s": ~
+    # panel.c
+    "Crossfade   %d s": ~
+    # panel.c
+    "Crossfade   off": ~
+    # panel.c
+    "OFF": ~
+    # panel.c
+    "ON": ~
+    # panel.c
+    "Same album": ~
+    # panel.c
+    "off": ~
+  plural:

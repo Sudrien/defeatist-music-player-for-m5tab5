@@ -21054,3 +21054,31 @@ Checked: in jsdom, with the real dictionary, a Japanese request shows
 placeholder and aria-labels and sleep options, and lang=es switches
 the heading to "Cola" by CSS alone. Not in a real browser, not on the
 board, not compiled with ESP-IDF here.
+
+### 6026 -- a language override on both pages
+
+A select of the four languages, each in its own name, on the remote
+(under Settings, labelled "Language" in English in every language so it
+can be found from any of them) and at the top of the setup pages. The
+choice is kept in the browser's localStorage, not a cookie: nothing
+about it needs to reach the player.
+
+On the remote that is literally true. Every language is already in the
+page (6025), so the select sets html[lang] and the CSS does the rest;
+applyLang() redoes the options and attributes, and the script's own
+text -- the queue line, the sleep times, the Wi-Fi result, the file
+list -- is drawn again. The page applies a kept choice as it loads.
+h_page() still reads only Accept-Language.
+
+The setup pages are built on the player, so the choice has to be told
+to it, and it rides on the URL: ?lang= first, then Accept-Language. The
+page's two forms post to /join?lang=xx and /station?lang=xx and its link
+back carries it, so a choice outlives the posts without a cookie. A
+line of script stores the choice when the URL has one, and asks for a
+kept one (location.replace, once) when the URL has none.
+
+Checked in jsdom: the remote's select starts on the request's language,
+and changing it to Español switches the CSS-chosen text ("Cola"), an
+attribute ("opcional"), an option ("1 h"), the script-drawn queue
+message ("Vacía.") and stores "es". Not in a real browser, not on the
+board.

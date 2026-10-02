@@ -255,6 +255,9 @@ svg { display: block; width: 100%; height: 100%; }
 <!-- 5269: the settings that mean the same from across the room. -->
 <section class="below" id="settings">
   <h2 data-t>Settings</h2>
+  <!-- 6026: never translated, so it can be found from any language; the
+       options are each language in its own name. -->
+  <label>Language <select id="slang" aria-label="Language"></select></label>
   <label class="chk"><input type="checkbox" id="srg"> ReplayGain <span class="msg" data-t>(from the next track)</span></label>
   <label><span data-t>Crossfade</span> <span id="sxfv"></span>
     <input id="sxf" type="range" min="0" max="12" step="1" value="0" aria-label="Crossfade seconds" data-ta="aria-label"></label>
@@ -321,7 +324,10 @@ const $ = id => document.getElementById(id);
    strings are T()/P() at the moment they are drawn. */
 const I18N = window.I18N || { lang: "en", langs: [["en", "English"]], t: {}, p: {} };
 const LANGS = I18N.langs.map(l => l[0]);
+/* 6026: a choice made with the select below, kept in this browser --
+   the player is not told; every language is already in the page. */
 let LI = Math.max(0, LANGS.indexOf(I18N.lang));
+try { const kept = localStorage.getItem("lang"); if (kept && LANGS.includes(kept)) LI = LANGS.indexOf(kept); } catch {}
 const tr = (s, i) => (I18N.t[s] && I18N.t[s][i]) || s;
 const T = s => tr(s, LI);
 const P = (s, n) => {
@@ -398,6 +404,12 @@ $("ssleep").onchange = e => send(`sleep ${e.target.value}`);
 const xfLabel = v => { $("sxfv").textContent = +v ? F(T("%d s"), v) : T("off"); };
 $("sxf").oninput = e => { xfHeld = true; xfLabel(e.target.value); };
 $("sxf").onchange = e => { xfHeld = false; send(`xfade ${e.target.value}`); };
+function sleepNames() {          // 6026: redrawn on a language change
+  for (const o of $("ssleep").options) {
+    const s = +o.value;
+    if (s) o.textContent = s % 4 ? F(T("%d min"), s * 15) : F(T("%d h"), s / 4);
+  }
+}
 function sleepLeft() {
   if (!S || !S.sleep) { $("sleft").textContent = ""; return; }
   const left = Math.max(0, Math.ceil(S.sleepleft - (performance.now() - at) / 1000));
@@ -704,7 +716,9 @@ $("addf").addEventListener("submit", async e => {
 });
 /* ---- Wi-Fi, below the stations (5122) ---- */
 let wPoll = 0;
+let wLast = null;                // 6026: redrawn on a language change
 function wShow(j) {
+  wLast = j;
   $("wcur").textContent = j.current ? F(j.cable ? T("The player is on %s, and you are on its cable.") : T("The player is on %s."), j.current)
                                     : (j.cable ? T("The player is on its cable only.") : "");
   $("wwarn").hidden = j.cable;
@@ -744,6 +758,28 @@ $("wf").addEventListener("submit", e => {
 });
 wLoad();
 
+/* ---- 6026: the language override ----
+   Switches in place: applyLang() for what the markup holds, then the
+   script's own text is drawn again. Remembered in localStorage, in
+   this browser only: nothing is sent to the player. */
+{
+  const sl = $("slang");
+  for (const [code, name] of I18N.langs) sl.add(new Option(name, code));
+  sl.value = LANGS[LI];
+  sl.onchange = () => {
+    LI = Math.max(0, LANGS.indexOf(sl.value));
+    try { localStorage.setItem("lang", LANGS[LI]); } catch {}
+    applyLang();
+    sleepNames();
+    if ($("sxf")) xfLabel($("sxf").value);
+    sleepLeft();
+    if (S) onState(S);
+    if (fPath) renderFiles();
+    renderQueue();
+    if (wLast) wShow(wLast);
+    loadStations();
+  };
+}
 addEventListener("scroll", () => { $("fold").style.opacity = scrollY > 40 ? 0 : 1; }, { passive: true });
 loadStations();
 

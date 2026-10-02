@@ -239,6 +239,7 @@ static const char PAGE_STYLE[] =
     "body{font:18px sans-serif;margin:24px;max-width:28em}"
     "input,button{font:inherit;width:100%;padding:10px;margin:6px 0;box-sizing:border-box}"
     "p.m{padding:10px;background:#eee}"
+    "form.lang{float:right}form.lang select,form.lang button{width:auto;font:inherit}"
     "</style></head><body>";
 static const char PAGE_TAIL[] = "</body></html>";
 
@@ -256,9 +257,25 @@ static esp_err_t chunk_escaped(httpd_req_t *req, const char *s)
     return chunk(req, buf);
 }
 
-/* 6024: the request's language, set before anything is written. */
+/*
+ * 6024: the request's language, set before anything is written.
+ * 6026: ?lang= first -- the page's own select -- then the browser's
+ * Accept-Language. These pages are built here, so unlike the remote the
+ * choice has to reach the player; it rides on the URL, and the page's
+ * forms and links carry it on (s_lq), so it outlives a post. No cookie.
+ */
+static char s_lq[16];       /* "?lang=xx" while an override is in force, else "" */
+
 static void req_lang(httpd_req_t *req)
 {
+    char q[64], v[16];
+    s_lq[0] = '\0';
+    if (httpd_req_get_url_query_str(req, q, sizeof(q)) == ESP_OK &&
+        httpd_query_key_value(q, "lang", v, sizeof(v)) == ESP_OK) {
+        s_rl = i18n_from_accept_language(v);
+        snprintf(s_lq, sizeof(s_lq), "?lang=%s", i18n_lang_code(s_rl));
+        return;
+    }
     char al[96];
     s_rl = httpd_req_get_hdr_value_str(req, "Accept-Language", al, sizeof(al)) == ESP_OK
          ? i18n_from_accept_language(al) : I18N_EN;
@@ -288,6 +305,24 @@ static esp_err_t send_head(httpd_req_t *req, const char *extra)
     chunk(req, _in(s_rl, "Defeatist setup"));
     chunk(req, "</title>");
     chunk(req, PAGE_STYLE);
+    /* 6026: the override, each language in its own name. Submits on
+     * change; the button is for a browser without script. */
+    chunk(req, "<form class=lang method=get action=/>"
+               "<select name=lang aria-label=Language onchange='this.form.submit()'>");
+    for (int l = 0; l < I18N_LANG_COUNT; l++) {
+        chunk(req, "<option value=");
+        chunk(req, i18n_lang_code((i18n_lang_t)l));
+        chunk(req, l == (int)s_rl ? " selected>" : ">");
+        chunk(req, i18n_lang_name((i18n_lang_t)l));
+        chunk(req, "</option>");
+    }
+    chunk(req, "</select><noscript><button>OK</button></noscript></form>");
+    /* A choice made here before is kept in this browser (localStorage),
+     * and applied by asking for it -- once, when the URL has none. */
+    chunk(req, "<script>try{var k=localStorage.getItem('lang'),u=new URL(location);"
+               "if(u.searchParams.has('lang'))localStorage.setItem('lang',u.searchParams.get('lang'));"
+               "else if(k&&k!==document.documentElement.lang){u.searchParams.set('lang',k);"
+               "location.replace(u)}}catch(e){}</script>");
     chunk(req, "<h2>");
     chunk(req, _in(s_rl, "Defeatist setup"));
     return chunk(req, "</h2>");
@@ -326,7 +361,9 @@ static void send_stations(httpd_req_t *req)
                        "without one the station is listed by its address."),
              "<code>stations.m3u</code>");
     chunk_p(req, NULL, s_msg);
-    chunk(req, "<form method=post action=/station><label>");
+    chunk(req, "<form method=post action=/station");
+    chunk(req, s_lq);
+    chunk(req, "><label>");
     chunk(req, _in(s_rl, "Name"));
     chunk(req, "<input name=name maxlength=63 autocomplete=off placeholder='");
     chunk_escaped(req, _in(s_rl, "optional"));
@@ -385,7 +422,9 @@ static esp_err_t send_form(httpd_req_t *req, const char *message)
     chunk_p(req, NULL, _in(s_rl, "Choose the network this player should use, "
                                  "and enter its password. It is tried before "
                                  "it is saved."));
-    chunk(req, "<form method=post action=/join><label>");
+    chunk(req, "<form method=post action=/join");
+    chunk(req, s_lq);
+    chunk(req, "><label>");
     chunk(req, _in(s_rl, "Network"));
     chunk(req, "<select name=ssid>");
     /* Strongest first, as scanned. The value is the escaped SSID; the
@@ -478,7 +517,9 @@ static esp_err_t h_status(httpd_req_t *req)
     }
     chunk_p(req, "m", s_msg);
     if (st.status == PORTAL_FAILED || st.status == PORTAL_WAITING) {
-        chunk(req, "<p><a href=/>");
+        chunk(req, "<p><a href=/");
+        chunk(req, s_lq);
+        chunk(req, ">");
         chunk(req, _in(s_rl, "Back to the form"));
         chunk(req, "</a></p>");
     }

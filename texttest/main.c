@@ -37,6 +37,7 @@
 #include "shim.h"
 #include "gfx.h"
 #include "ark12.h"                  /* 5247 */
+#include "arabixel.h"               /* 6029 */
 
 #define W   720
 #define H   1280
@@ -110,6 +111,12 @@ static const char *CORPUS[] = {
     /* Cyrillic -- new at 12px */
     "\xd0\xa7\xd0\xb0\xd0\xb9\xd0\xba\xd0\xbe\xd0\xb2\xd1\x81\xd0\xba\xd0\xb8\xd0\xb9",
     "\xd0\xa1\xd0\xb5\xd1\x80\xd0\xb3\xd0\xb5\xd0\xb9 \xd0\xa0\xd0\xb0\xd1\x85\xd0\xbc\xd0\xb0\xd0\xbd\xd0\xb8\xd0\xbd\xd0\xbe\xd0\xb2",
+
+    /* 6029: Arabic -- shaped and reversed, joined with no gap column,
+     * mixed with Latin and digits, a lam-alef and marks to drop */
+    "\xd8\xa7\xd9\x84\xd9\x82\xd8\xb1\xd8\xa2\xd9\x86 \xd8\xa7\xd9\x84\xd9\x83\xd8\xb1\xd9\x8a\xd9\x85",
+    "Radio \xd8\xb1\xd8\xa7\xd8\xaf\xd9\x8a\xd9\x88 99.1 FM",
+    "\xd9\x85\xd9\x8f\xd8\xad\xd9\x8e\xd9\x85\xd9\x91\xd9\x8e\xd8\xaf \xd9\xa1\xd9\xa2\xd9\xa3",
 
     /* fullwidth */
     "\xe9\x9f\xb3\xe6\xa5\xbd",
@@ -610,6 +617,82 @@ static void test_wrap(void)
     CHECK(gfx_wrap_line("abc", 2, 0, &next) == 1, "zero width still takes one character");
 }
 
+/* ------------------------------------------------------------------ */
+/* 6029: Arabic shaping and order                                      */
+/* ------------------------------------------------------------------ */
+
+static void shape_check(const char *what, const uint32_t *in, int n,
+                        const uint32_t *want, int wn)
+{
+    uint32_t run[32];
+    memcpy(run, in, (size_t)n * sizeof(run[0]));
+    const int got = arabixel_shape(run, n);
+    int ok = got == wn;
+    for (int i = 0; ok && i < wn; i++) ok = run[i] == want[i];
+    CHECK(ok, "%s: got %d codepoints, first U+%04X", what, got, got ? (unsigned)run[0] : 0u);
+}
+
+static void test_arabic(void)
+{
+    printf("Arabic shaping\n");
+    /* mecca: meem initial, kaf medial, teh marbuta final; drawn reversed */
+    shape_check("mkh", (const uint32_t[]){ 0x645, 0x643, 0x629 }, 3,
+                (const uint32_t[]){ 0xFE94, 0xFEDC, 0xFEE3 }, 3);
+    /* radio: reh, alef, dal, yeh, waw -- reh and dal join nothing after */
+    shape_check("radio", (const uint32_t[]){ 0x631, 0x627, 0x62F, 0x64A, 0x648 }, 5,
+                (const uint32_t[]){ 0xFEEE, 0xFEF3, 0xFEA9, 0xFE8D, 0xFEAD }, 5);
+    /* al-: alef, lam+alef ligature isolated; lam-alef after beh is final */
+    shape_check("la", (const uint32_t[]){ 0x644, 0x627 }, 2,
+                (const uint32_t[]){ 0xFEFB }, 1);
+    shape_check("bla", (const uint32_t[]){ 0x628, 0x644, 0x627 }, 3,
+                (const uint32_t[]){ 0xFEFC, 0xFE91 }, 2);
+    /* marks dropped, so damma does not break meem's join to hah */
+    shape_check("marks", (const uint32_t[]){ 0x645, 0x64F, 0x62D }, 3,
+                (const uint32_t[]){ 0xFEA2, 0xFEE3 }, 2);
+    /* digits keep their order inside the reversed run */
+    shape_check("digits", (const uint32_t[]){ 0x645, ' ', 0x661, 0x662, 0x663 }, 5,
+                (const uint32_t[]){ 0x661, 0x662, 0x663, ' ', 0xFEE1 }, 5);
+
+    /* Every form arabixel_shape() can produce is in the table: the
+     * isolated form and its three others for a dual-joining letter. */
+    static const uint16_t iso[] = { 0xFE80, 0xFE81, 0xFE83, 0xFE85, 0xFE87, 0xFE89,
+        0xFE8D, 0xFE8F, 0xFE93, 0xFE95, 0xFE99, 0xFE9D, 0xFEA1, 0xFEA5, 0xFEA9,
+        0xFEAB, 0xFEAD, 0xFEAF, 0xFEB1, 0xFEB5, 0xFEB9, 0xFEBD, 0xFEC1, 0xFEC5,
+        0xFEC9, 0xFECD, 0xFED1, 0xFED5, 0xFED9, 0xFEDD, 0xFEE1, 0xFEE5, 0xFEE9,
+        0xFEED, 0xFEEF, 0xFEF1, 0xFEF5, 0xFEF7, 0xFEF9, 0xFEFB };
+    for (size_t i = 0; i < sizeof(iso) / sizeof(iso[0]); i++)
+        CHECK(arabixel_find(iso[i]) != NULL, "no glyph for U+%04X", iso[i]);
+
+    /* Joined: a word draws as one connected piece of ink -- no blank
+     * column between meem, kaf and teh marbuta. */
+    clear();
+    gfx_draw_text(10, 10, "\xd9\x85\xd9\x83\xd8\xa9", 1, W - 20, INK);
+    int x0, y0, x1, y1;
+    if (ink_bbox(&x0, &y0, &x1, &y1)) {
+        int gaps = 0;
+        for (int x = x0; x <= x1; x++) {
+            int any = 0;
+            for (int y = y0; y <= y1; y++) any |= fb[y * W + x] == INK;
+            gaps += !any;
+        }
+        CHECK(gaps == 0, "mkh drew %d blank columns inside the word", gaps);
+        CHECK(y1 - 10 < ARK12_H, "Arabic drew below the 12 rows");
+    } else {
+        CHECK(0, "mkh drew nothing");
+    }
+
+    /* Truncated, a right-to-left line loses its left end and keeps its
+     * start, which is on the right: the dots are at the left. */
+    clear();
+    const char *long_ar = "\xd8\xa7\xd9\x84\xd9\x82\xd8\xb1\xd8\xa2\xd9\x86 \xd8\xa7\xd9\x84\xd9\x83\xd8\xb1\xd9\x8a\xd9\x85 \xd8\xa7\xd9\x84\xd9\x83\xd8\xb1\xd9\x8a\xd9\x85";
+    const int full = gfx_text_w(long_ar, 1);
+    gfx_draw_text(10, 10, long_ar, 1, full / 2, INK);
+    int dot_row = -1;
+    for (int y = 10; y < 10 + ARK12_H; y++)
+        if (fb[y * W + 10] == INK || fb[y * W + 11] == INK || fb[y * W + 12] == INK) dot_row = y;
+    CHECK(dot_row >= 0, "RTL truncation: no ellipsis at the left edge");
+}
+
 int main(void)
 {
     if (gfx_init(NULL, W, H) != ESP_OK) {
@@ -642,6 +725,7 @@ int main(void)
     test_star_has_five_points();
     test_font_unchanged_by_tiling();                     /* 5247 */
     test_wrap();                                         /* 6018 */
+    test_arabic();                                       /* 6029 */
 
     printf("\n%d checks, %d failures\n", checks, failures);
     return failures ? 1 : 0;

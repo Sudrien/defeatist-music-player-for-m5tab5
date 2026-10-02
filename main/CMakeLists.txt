@@ -13,7 +13,7 @@ idf_component_register(
              usb usb_host_msc usb_host_uac esp_timer lwip json
              nvs_flash esp_netif esp_event esp_http_server esp_https_server esp_http_client mbedtls
              esp_usbh_asix iot_eth iot_usbh_ecm iot_usbh_cdc
-    PRIV_REQUIRES pngle minimp3 ark12 stbjpeg
+    PRIV_REQUIRES pngle minimp3 ark12 arabixel stbjpeg
 )
 
 # Heap integrity checkpoints, off by default. Build with

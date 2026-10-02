@@ -28,15 +28,15 @@ CC      ?= cc
 #
 # Warnings only: no binary is kept and nothing is run from it.
 WARNCFLAGS := -std=c11 -O2 -Wall -Wextra -Werror -Wno-unused-parameter \
-              -D_GNU_SOURCE -I. -Ifake -I../main -I../components/ark12
+              -D_GNU_SOURCE -I. -Ifake -I../main -I../components/ark12 -I../components/arabixel
 
 CFLAGS  := -std=c11 -g -O1 -Wall -Wextra -Wno-unused-parameter \
            -fsanitize=address,undefined -fno-sanitize-recover=all \
            -fno-omit-frame-pointer \
-           -I. -Ifake -I../main -I../components/ark12
+           -I. -Ifake -I../main -I../components/ark12 -I../components/arabixel
 LDFLAGS := -fsanitize=address,undefined -lm
 
-SRCS := main.c shim.c ../main/gfx.c ../components/ark12/ark12.c
+SRCS := main.c shim.c ../main/gfx.c ../components/ark12/ark12.c ../components/arabixel/arabixel_tab.c ../components/arabixel/arabixel_shape.c
 BIN  := texttest
 
 # The USB control-transfer ownership handoff, which needs threads and its
@@ -277,7 +277,7 @@ CUE_BIN := cuesheettest
 
 all: run-remote run run-ctrl run-wifi run-clock run-rotate run-cardtime run-mediaindex run-medialist run-mediasearch run-mpdqueue run-mpdproto run-mpduri run-mpdfilter run-mpdmode run-mpdidle run-uireq run-m3uline run-urlclean run-playlist run-screendim run-artplace run-mediawalk run-mediasync run-menuscroll run-fade run-tail run-portal run-old check-ui check-netbudget run-bright run-sleep run-sniff run-icy run-netplan run-stations run-pcmfold run-bufplan run-stbjpeg run-addrpin run-codec run-mp3 run-framewin run-streamplan run-stationnav run-radiobrowser run-levelhist run-favmatch run-netlink run-cue run-tagextra run-flacenc run-beam run-micpcm run-i18n
 
-$(BIN): $(SRCS) shim.h ../main/gfx.h ../components/ark12/ark12.h
+$(BIN): $(SRCS) shim.h ../main/gfx.h ../components/ark12/ark12.h ../components/arabixel/arabixel.h
 	$(CC) $(CFLAGS) -o $@ $(SRCS) $(LDFLAGS)
 
 run: $(BIN)
@@ -299,7 +299,7 @@ $(I18N_BIN): i18ntest.c ../main/i18n.c ../main/i18n.h ../main/i18n_tab.c ../comp
 	$(CC) $(WARNCFLAGS) -c ../main/i18n.c -o /dev/null
 	$(CC) $(WARNCFLAGS) -c ../main/i18n_tab.c -o /dev/null
 	$(CC) $(CFLAGS) -DI18NTEST_FIXTURE -o $@-fixture i18ntest.c ../main/i18n.c $(LDFLAGS)
-	$(CC) $(CFLAGS) -o $@ i18ntest.c ../main/i18n.c ../main/i18n_tab.c ../components/ark12/ark12.c shim.c ../main/gfx.c $(LDFLAGS)
+	$(CC) $(CFLAGS) -o $@ i18ntest.c ../main/i18n.c ../main/i18n_tab.c ../components/ark12/ark12.c ../components/arabixel/arabixel_tab.c ../components/arabixel/arabixel_shape.c shim.c ../main/gfx.c $(LDFLAGS)
 
 run-i18n: $(I18N_BIN)
 	python3 ../tools/i18n.py check

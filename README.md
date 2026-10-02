@@ -131,6 +131,13 @@ Note: the goal of this project is to max out the potential of this hardware with
   the tables must not be sold on their own. Ark declares no Reserved Font
   Name, so the derivative did not have to be renamed; it is called
   `ark12` anyway, because it is not the Original Version.
+- **Arabixel Basic is CC BY 4.0** (ArabianDev,
+  https://arabiandev.itch.io/arabixel-basic-font), and so are
+  `components/arabixel`'s font file and generated table; its shaping
+  code is MIT. CC BY asks for credit, a link to the licence and a note
+  of the changes -- the component's README and the table's header carry
+  them, and a redistribution, a firmware image included, keeps
+  `components/arabixel/LICENSE.txt` with it.
 - MurmurHash2 is public domain.
 
 ## One last insult

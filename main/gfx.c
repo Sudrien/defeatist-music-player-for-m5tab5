@@ -18,6 +18,7 @@
 #include "esp_log.h"
 
 #include "ark12.h"
+#include "arabixel.h"
 
 #include "gfx.h"
 #include "brightness.h"
@@ -772,6 +773,7 @@ void gfx_draw_pct_centred(int cx, int y, int pct, uint16_t c)
 typedef struct {
     bool bits;
     int w;
+    int adv;        /* 6029: w + 1, or w for an Arabic glyph, which joins */
     uint16_t rows[ARK12_H];
 } glyph_t;
 
@@ -880,11 +882,23 @@ static glyph_t glyph_for(uint32_t cp)
 
     if (ark12_glyph(cp, &g.w, g.rows)) {
         g.bits = true;
+        g.adv = g.w + 1;
+        return g;
+    }
+    /* 6029: Arabic, shaped by text_next() below. Same 12 rows and
+     * baseline as ark12; no column after it, or the joins would not
+     * meet. */
+    const arabixel_glyph_t *a = arabixel_find(cp);
+    if (a) {
+        memcpy(g.rows, a->rows, sizeof(g.rows));
+        g.w = g.adv = a->w;
+        g.bits = true;
         return g;
     }
     const bool wide = cp_is_wide(cp);
     memcpy(g.rows, wide ? NOTDEF_FULL : NOTDEF_HALF, sizeof(g.rows));
     g.w = wide ? ARK12_FULL_W : ARK12_HALF_W;
+    g.adv = g.w + 1;
     g.bits = true;
     return g;
 }
@@ -900,6 +914,90 @@ static void blit_glyph(const uint16_t *g, int w, int x, int y, int scale, uint16
     }
 }
 
+/*
+ * 6029: the codepoints of a string in the order they are drawn. Text
+ * that is not Arabic comes straight from utf8_next(). A run of Arabic --
+ * its letters, and the spaces between two of them -- is read whole,
+ * shaped (arabixel_shape(): joined forms, lam-alef, marks dropped) and
+ * handed back reversed, so a name reads right to left inside a line
+ * that is still laid out left to right. That is the whole of the bidi
+ * here: a line of mixed text keeps its runs in logical order.
+ *
+ * A run longer than TEXT_RUN_MAX is shaped in pieces, each reversed on
+ * its own -- a 48-letter Arabic word in a title is not a case this has
+ * to win. The iterator is on the caller's stack: about 200 bytes.
+ *
+ * gfx_wrap_line() measures with utf8_next() and unshaped glyphs: the
+ * paragraphs it wraps are this player's own translated notes, and no
+ * language on the BUILD tab is Arabic.
+ */
+#define TEXT_RUN_MAX  (48)
+
+typedef struct {
+    const char *p;
+    int n, i;
+    uint32_t run[TEXT_RUN_MAX];
+} text_iter_t;
+
+static void text_init(text_iter_t *it, const char *s)
+{
+    it->p = s;
+    it->n = it->i = 0;
+}
+
+static uint32_t text_next(text_iter_t *it)
+{
+    for (;;) {
+        if (it->i < it->n) return it->run[it->i++];
+
+        const char *q = it->p;
+        uint32_t cp = utf8_next(&q);
+        it->p = q;
+        if (!arabixel_is_arabic(cp)) return cp;
+
+        int n = 0;
+        it->run[n++] = cp;
+        while (n < TEXT_RUN_MAX) {
+            q = it->p;
+            cp = utf8_next(&q);
+            if (arabixel_is_arabic(cp)) {
+                it->run[n++] = cp;
+                it->p = q;
+                continue;
+            }
+            if (cp != ' ') break;
+            /* Spaces join the run only if Arabic follows them. */
+            int sp = 1;
+            const char *at;
+            for (;;) {
+                at = q;
+                cp = utf8_next(&q);
+                if (cp != ' ') break;
+                sp++;
+            }
+            if (!arabixel_is_arabic(cp) || n + sp >= TEXT_RUN_MAX) break;
+            while (sp--) it->run[n++] = ' ';
+            it->p = at;
+        }
+        it->n = arabixel_shape(it->run, n);
+        it->i = 0;
+    }
+}
+
+/* Whether a line reads right to left: its first letter is Arabic.
+ * gfx_draw_text() truncates such a line at its left, visual end -- the
+ * end of the name, not its beginning. */
+static bool text_is_rtl(const char *s)
+{
+    uint32_t cp;
+    while ((cp = utf8_next(&s)) != 0) {
+        if ((cp >= 0x0660 && cp <= 0x0669) || (cp >= 0x06F0 && cp <= 0x06F9)) continue;
+        if (arabixel_is_arabic(cp)) return true;
+        if ((cp >= 'A' && cp <= 'Z') || (cp >= 'a' && cp <= 'z') || cp >= 0x80) return false;
+    }
+    return false;
+}
+
 void gfx_draw_char(int x, int y, uint32_t cp, int scale, uint16_t c)
 {
     glyph_t g = glyph_for(cp);
@@ -913,12 +1011,14 @@ void gfx_draw_text_clipped(int x, int y, int win_x, int win_w,
     const int win_x1 = win_x + win_w;
 
     int cx = x;
+    text_iter_t it;
+    text_init(&it, s);
     uint32_t cp;
-    while ((cp = utf8_next(&s)) != 0) {
+    while ((cp = text_next(&it)) != 0) {
         glyph_t g = glyph_for(cp);
         if (!g.bits) continue;
 
-        const int adv = (g.w + 1) * scale;
+        const int adv = g.adv * scale;
         const int gx = cx;
         cx += adv;
 
@@ -951,11 +1051,13 @@ int gfx_text_w(const char *s, int scale)
 {
     if (!s) return 0;
     int w = 0;
+    text_iter_t it;
+    text_init(&it, s);
     uint32_t cp;
-    while ((cp = utf8_next(&s)) != 0) {
+    while ((cp = text_next(&it)) != 0) {
         glyph_t g = glyph_for(cp);
         if (!g.bits) continue;
-        w += (g.w + 1) * scale;
+        w += g.adv * scale;
     }
     return w;
 }
@@ -1013,7 +1115,7 @@ size_t gfx_wrap_line(const char *s, int scale, int max_w, const char **next)
         }
 
         const glyph_t g = glyph_for(cp);
-        const int adv = g.bits ? (g.w + 1) * scale : 0;
+        const int adv = g.bits ? g.adv * scale : 0;
         if (w + adv > max_w && at > s && cp != ' ') {
             const char *end = brk ? brk : at;
             const char *rest = brk ? brk_next : at;
@@ -1056,12 +1158,14 @@ void gfx_draw_text(int x, int y, const char *s, int scale, int max_w, uint16_t c
 
     if (gfx_text_w(s, scale) <= max_w) {
         int cx = x;
+        text_iter_t it;
+        text_init(&it, s);
         uint32_t cp;
-        while ((cp = utf8_next(&s)) != 0) {
+        while ((cp = text_next(&it)) != 0) {
             glyph_t g = glyph_for(cp);
             if (!g.bits) continue;
             blit_glyph(g.rows, g.w, cx, y, scale, c);
-            cx += (g.w + 1) * scale;
+            cx += g.adv * scale;
         }
         return;
     }
@@ -1081,17 +1185,27 @@ void gfx_draw_text(int x, int y, const char *s, int scale, int max_w, uint16_t c
      * narrow glyph but the string's last-fitting candidate is fullwidth
      * -- three dots and nothing else is still a more honest answer than
      * silently dropping the ellipsis or overrunning max_w. */
+    /* 6029: a line that reads right to left starts at its right edge,
+     * so what has to go is on the left -- which is what the tail
+     * version keeps the other side of. */
+    if (text_is_rtl(s)) {
+        gfx_draw_text_tail(x, y, s, scale, max_w, c);
+        return;
+    }
+
     const int dot_adv = GFX_GLYPH_W(scale);
     const int dots_w = 3 * dot_adv;
     if (max_w < dots_w + dot_adv) return;
 
     const int budget = max_w - dots_w;
     int cx = x, used = 0;
+    text_iter_t it;
+    text_init(&it, s);
     uint32_t cp;
-    while ((cp = utf8_next(&s)) != 0) {
+    while ((cp = text_next(&it)) != 0) {
         glyph_t g = glyph_for(cp);
         if (!g.bits) continue;
-        const int adv = (g.w + 1) * scale;
+        const int adv = g.adv * scale;
         if (used + adv > budget) break;
         blit_glyph(g.rows, g.w, cx, y, scale, c);
         cx += adv;
@@ -1145,12 +1259,14 @@ void gfx_draw_text_tail(int x, int y, const char *s, int scale, int max_w, uint1
      * The few that are drawn are looked up again. */
     struct { uint32_t cp; int adv; } ring[TAIL_MAX_GLYPHS];
     int n = 0, head = 0;
+    text_iter_t it;
+    text_init(&it, s);
     uint32_t cp;
-    while ((cp = utf8_next(&s)) != 0) {
+    while ((cp = text_next(&it)) != 0) {
         glyph_t g = glyph_for(cp);
         if (!g.bits) continue;
         ring[head].cp = cp;
-        ring[head].adv = (g.w + 1) * scale;
+        ring[head].adv = g.adv * scale;
         head = (head + 1) % TAIL_MAX_GLYPHS;
         if (n < TAIL_MAX_GLYPHS) n++;
     }

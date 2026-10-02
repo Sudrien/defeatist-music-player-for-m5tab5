@@ -42,6 +42,7 @@
 #include "wifi.h"
 #include "wifistore.h"
 #include "wifijoin.h"
+#include "i18n.h"            /* 6024 */
 
 static const char *TAG = "tab5_portal";
 
@@ -91,6 +92,21 @@ static bool station_mode(void) { return s_mode == PORTAL_MODE_STATION; }
 
 /* Portal task only. */
 static httpd_handle_t    s_httpd;
+
+/*
+ * 6024: the language of the request being answered, from its
+ * Accept-Language header -- the browser's, not the screen's: whoever
+ * holds the phone reads the page. One HTTP task serves this server, so
+ * one handler runs at a time and a static is the request's own; every
+ * handler sets it first (req_lang()).
+ *
+ * And one buffer for a message being built, for the same reason and
+ * because translations run to three times English's bytes: the join
+ * handler already holds a 512-byte body and the password fields on a
+ * 6144-byte stack.
+ */
+static i18n_lang_t       s_rl = I18N_EN;
+static char              s_msg[1024];
 static TickType_t        s_deadline;
 
 static SemaphoreHandle_t s_kick;                /* wakes the portal task */
@@ -218,14 +234,12 @@ static void dhcp_offer_dns(void)
 
 /* ---- HTTP -------------------------------------------------------------- */
 
-static const char PAGE_HEAD[] =
-    "<!doctype html><html><head><meta charset=utf-8>"
-    "<meta name=viewport content='width=device-width,initial-scale=1'>"
-    "%s<title>Defeatist setup</title><style>"
+static const char PAGE_STYLE[] =
+    "<style>"
     "body{font:18px sans-serif;margin:24px;max-width:28em}"
-    "input,button{font:inherit;width:100%%;padding:10px;margin:6px 0;box-sizing:border-box}"
+    "input,button{font:inherit;width:100%;padding:10px;margin:6px 0;box-sizing:border-box}"
     "p.m{padding:10px;background:#eee}"
-    "</style></head><body><h2>Defeatist setup</h2>";
+    "</style></head><body>";
 static const char PAGE_TAIL[] = "</body></html>";
 
 /* Send a string as one chunk. */
@@ -242,13 +256,41 @@ static esp_err_t chunk_escaped(httpd_req_t *req, const char *s)
     return chunk(req, buf);
 }
 
+/* 6024: the request's language, set before anything is written. */
+static void req_lang(httpd_req_t *req)
+{
+    char al[96];
+    s_rl = httpd_req_get_hdr_value_str(req, "Accept-Language", al, sizeof(al)) == ESP_OK
+         ? i18n_from_accept_language(al) : I18N_EN;
+}
+
+/* A translated sentence as a paragraph; `cls` is "m" for the shaded
+ * message box or NULL. */
+static void chunk_p(httpd_req_t *req, const char *cls, const char *text)
+{
+    chunk(req, cls ? "<p class=m>" : "<p>");
+    chunk(req, text);
+    chunk(req, "</p>");
+}
+
 static esp_err_t send_head(httpd_req_t *req, const char *extra)
 {
-    char head[sizeof(PAGE_HEAD) + 96];
-    snprintf(head, sizeof(head), PAGE_HEAD, extra ? extra : "");
     httpd_resp_set_type(req, "text/html");
     httpd_resp_set_hdr(req, "Cache-Control", "no-store");
-    return chunk(req, head);
+    httpd_resp_set_hdr(req, "Content-Language", i18n_lang_code(s_rl));
+    httpd_resp_set_hdr(req, "Vary", "Accept-Language");
+    chunk(req, "<!doctype html><html lang=");
+    chunk(req, i18n_lang_code(s_rl));
+    chunk(req, "><head><meta charset=utf-8>"
+               "<meta name=viewport content='width=device-width,initial-scale=1'>");
+    if (extra) chunk(req, extra);
+    chunk(req, "<title>");
+    chunk(req, _in(s_rl, "Defeatist setup"));
+    chunk(req, "</title>");
+    chunk(req, PAGE_STYLE);
+    chunk(req, "<h2>");
+    chunk(req, _in(s_rl, "Defeatist setup"));
+    return chunk(req, "</h2>");
 }
 
 /*
@@ -265,35 +307,41 @@ static esp_err_t send_head(httpd_req_t *req, const char *extra)
  */
 static void send_stations(httpd_req_t *req)
 {
-    chunk(req, "<h2>Radio stations</h2>");
+    chunk(req, "<h2>");
+    chunk(req, _in(s_rl, "Radio stations"));
+    chunk(req, "</h2>");
 
     const int have = stations_count();
     if (have >= STATIONLIST_MAX) {
-        char full[128];
-        snprintf(full, sizeof(full),
-                 "<p class=m>The list is full at %d stations. Remove one from "
-                 "stations.m3u on the card to add another.</p>",
-                 STATIONLIST_MAX);
-        chunk(req, full);
+        snprintf(s_msg, sizeof(s_msg),
+                 _in(s_rl, "The list is full at %d stations. Remove one from "
+                           "%s on the card to add another."),
+                 STATIONLIST_MAX, "stations.m3u");
+        chunk_p(req, "m", s_msg);
         return;
     }
 
-    chunk(req, "<p>Added to <code>stations.m3u</code> on the card. The name is "
-               "optional &mdash; without one the station is listed by its "
-               "address.</p>"
-               "<form method=post action=/station>"
-               "<label>Name<input name=name maxlength=63 autocomplete=off "
-               "placeholder='optional'></label>"
-               "<label>Stream address<input name=url type=url maxlength=511 "
+    snprintf(s_msg, sizeof(s_msg),
+             _in(s_rl, "Added to %s on the card. The name is optional — "
+                       "without one the station is listed by its address."),
+             "<code>stations.m3u</code>");
+    chunk_p(req, NULL, s_msg);
+    chunk(req, "<form method=post action=/station><label>");
+    chunk(req, _in(s_rl, "Name"));
+    chunk(req, "<input name=name maxlength=63 autocomplete=off placeholder='");
+    chunk_escaped(req, _in(s_rl, "optional"));
+    chunk(req, "'></label><label>");
+    chunk(req, _in(s_rl, "Stream address"));
+    chunk(req, "<input name=url type=url maxlength=511 "
                "autocomplete=off autocapitalize=none inputmode=url required "
-               "placeholder='http://&hellip;'></label>"
-               "<button>Add station</button></form>");
+               "placeholder='http://&hellip;'></label><button>");
+    chunk(req, _in(s_rl, "Add station"));
+    chunk(req, "</button></form>");
 
     if (have > 0) {
-        char head[64];
-        snprintf(head, sizeof(head), "<p>Already on the card (%d):</p><ul>",
-                 have);
-        chunk(req, head);
+        snprintf(s_msg, sizeof(s_msg), _in(s_rl, "Already on the card (%d):"), have);
+        chunk_p(req, NULL, s_msg);
+        chunk(req, "<ul>");
         for (int i = 0; i < have; i++) {
             station_t st;
             if (!stations_get(i, &st)) continue;
@@ -308,11 +356,7 @@ static void send_stations(httpd_req_t *req)
 static esp_err_t send_form(httpd_req_t *req, const char *message)
 {
     send_head(req, NULL);
-    if (message) {
-        chunk(req, "<p class=m>");
-        chunk(req, message);
-        chunk(req, "</p>");
-    }
+    if (message) chunk_p(req, "m", message);
 
     /*
      * NO NETWORKS SECTION IN STATION MODE, and this is a judgement
@@ -328,21 +372,22 @@ static esp_err_t send_form(httpd_req_t *req, const char *message)
      */
     if (station_mode()) {
         send_stations(req);
-        char note[160];
-        snprintf(note, sizeof(note),
-                 "<p>To change Wi-Fi networks instead, use Network setup on "
-                 "the player's screen. This page closes itself after %d "
-                 "minutes.</p>", PORTAL_TIMEOUT_S / 60);
-        chunk(req, note);
+        snprintf(s_msg, sizeof(s_msg),
+                 _in(s_rl, "To change Wi-Fi networks instead, use Network setup "
+                           "on the player's screen. This page closes itself "
+                           "after %d minutes."), PORTAL_TIMEOUT_S / 60);
+        chunk_p(req, NULL, s_msg);
         chunk(req, PAGE_TAIL);
         return httpd_resp_send_chunk(req, NULL, 0);
     }
 
     chunk(req, "<h2>Wi-Fi</h2>");
-    chunk(req, "<p>Choose the network this player should use, and enter "
-               "its password. It is tried before it is saved.</p>"
-               "<form method=post action=/join>"
-               "<label>Network<select name=ssid>");
+    chunk_p(req, NULL, _in(s_rl, "Choose the network this player should use, "
+                                 "and enter its password. It is tried before "
+                                 "it is saved."));
+    chunk(req, "<form method=post action=/join><label>");
+    chunk(req, _in(s_rl, "Network"));
+    chunk(req, "<select name=ssid>");
     /* Strongest first, as scanned. The value is the escaped SSID; the
      * text adds what tells two similar names apart. */
     for (int i = 0; i < s_seen_n; i++) {
@@ -351,7 +396,7 @@ static esp_err_t send_form(httpd_req_t *req, const char *message)
         chunk(req, "\">");
         chunk_escaped(req, s_seen[i].ssid);
         char meta[64];
-        snprintf(meta, sizeof(meta), " &mdash; %s, %d dBm, ch %u</option>",
+        snprintf(meta, sizeof(meta), same(" &mdash; %s, %d dBm, ch %u</option>"),
                  wifi_auth_name(s_seen[i].auth), s_seen[i].rssi,
                  (unsigned)s_seen[i].channel);
         chunk(req, meta);
@@ -359,22 +404,27 @@ static esp_err_t send_form(httpd_req_t *req, const char *message)
     /* Chunks, not snprintf: the longest form of this line is 97 bytes
      * and IDF's -Werror=format-truncation refused a 96-byte buffer. */
     chunk(req, s_seen_n ? "<option value=\"\">" : "<option value=\"\" selected>");
-    chunk(req, "Other or hidden network (type it below)");
-    if (s_hidden_n) chunk(req, " &mdash; hidden nearby");
-    chunk(req, "</option>");
-    chunk(req, "</select></label>"
-               "<label>Or type a network name"
-               "<input name=ssid_other maxlength=32 autocomplete=off "
-               "autocapitalize=none placeholder='only if not in the list'></label>"
-               "<label>Password<input name=pass type=password maxlength=64 "
-               "autocomplete=off required></label>"
-               "<button>Join</button></form>");
+    chunk(req, _in(s_rl, "Other or hidden network (type it below)"));
     if (s_hidden_n) {
-        char note[96];
-        snprintf(note, sizeof(note),
-                 "<p>%d hidden network%s nearby. A hidden network's name has "
-                 "to be typed.</p>", s_hidden_n, s_hidden_n == 1 ? "" : "s");
-        chunk(req, note);
+        chunk(req, " &mdash; ");
+        chunk(req, _in(s_rl, "hidden nearby"));
+    }
+    chunk(req, "</option></select></label><label>");
+    chunk(req, _in(s_rl, "Or type a network name"));
+    chunk(req, "<input name=ssid_other maxlength=32 autocomplete=off "
+               "autocapitalize=none placeholder='");
+    chunk_escaped(req, _in(s_rl, "only if not in the list"));
+    chunk(req, "'></label><label>");
+    chunk(req, _in(s_rl, "Password"));
+    chunk(req, "<input name=pass type=password maxlength=64 "
+               "autocomplete=off required></label><button>");
+    chunk(req, _in(s_rl, "Join"));
+    chunk(req, "</button></form>");
+    if (s_hidden_n) {
+        snprintf(s_msg, sizeof(s_msg),
+                 _pin(s_rl, "%d hidden networks nearby. A hidden network's name "
+                            "has to be typed.", s_hidden_n), s_hidden_n);
+        chunk_p(req, NULL, s_msg);
     }
     send_stations(req);
     chunk(req, PAGE_TAIL);
@@ -383,11 +433,13 @@ static esp_err_t send_form(httpd_req_t *req, const char *message)
 
 static esp_err_t h_root(httpd_req_t *req)
 {
+    req_lang(req);
     return send_form(req, NULL);
 }
 
 static esp_err_t h_status(httpd_req_t *req)
 {
+    req_lang(req);
     portal_state_t st;
     portal_state(&st);
     esp_err_t last;
@@ -398,34 +450,37 @@ static esp_err_t h_status(httpd_req_t *req)
     const bool trying = (st.status == PORTAL_TRYING);
     send_head(req, trying ? "<meta http-equiv=refresh content=2>" : NULL);
 
-    chunk(req, "<p class=m>");
+    char esc[WIFISTORE_SSID_MAX * 6 + 1];
+    if (!portalweb_escape(st.last_ssid, esc, sizeof(esc))) esc[0] = '\0';
     switch (st.status) {
     case PORTAL_TRYING:
-        chunk(req, "Trying ");
-        chunk_escaped(req, st.last_ssid);
-        chunk(req, "&hellip; This can take fifteen seconds, and this phone "
-                   "may lose the setup network for a moment. The player's "
-                   "screen shows the result either way.");
+        snprintf(s_msg, sizeof(s_msg),
+                 _in(s_rl, "Trying %s… This can take fifteen seconds, and "
+                           "this phone may lose the setup network for a moment. "
+                           "The player's screen shows the result either way."), esc);
         break;
     case PORTAL_SAVED:
-        chunk(req, "Joined and saved ");
-        chunk_escaped(req, st.last_ssid);
-        chunk(req, ". The setup network is closing; you can leave it.");
+        snprintf(s_msg, sizeof(s_msg),
+                 _in(s_rl, "Joined and saved %s. The setup network is closing; "
+                           "you can leave it."), esc);
         break;
     case PORTAL_FAILED:
-        chunk(req, last == ESP_ERR_NOT_FOUND
-                   ? "That network was not found. Check the name and try again."
-                   : last == ESP_ERR_TIMEOUT
-                   ? "No answer from that network. Try again."
-                   : "The password did not work. Try again.");
+        snprintf(s_msg, sizeof(s_msg), "%s",
+                 last == ESP_ERR_NOT_FOUND
+                 ? _in(s_rl, "That network was not found. Check the name and try again.")
+                 : last == ESP_ERR_TIMEOUT
+                 ? _in(s_rl, "No answer from that network. Try again.")
+                 : _in(s_rl, "The password did not work. Try again."));
         break;
     default:
-        chunk(req, "Waiting for a network.");
+        snprintf(s_msg, sizeof(s_msg), "%s", _in(s_rl, "Waiting for a network."));
         break;
     }
-    chunk(req, "</p>");
+    chunk_p(req, "m", s_msg);
     if (st.status == PORTAL_FAILED || st.status == PORTAL_WAITING) {
-        chunk(req, "<p><a href=/>Back to the form</a></p>");
+        chunk(req, "<p><a href=/>");
+        chunk(req, _in(s_rl, "Back to the form"));
+        chunk(req, "</a></p>");
     }
     chunk(req, PAGE_TAIL);
     return httpd_resp_send_chunk(req, NULL, 0);
@@ -448,9 +503,10 @@ static esp_err_t h_status(httpd_req_t *req)
  */
 static esp_err_t h_station(httpd_req_t *req)
 {
+    req_lang(req);
     if (req->content_len == 0 || req->content_len > BODY_MAX) {
-        return send_form(req, "That form was too large to be a name and a "
-                              "stream address.");
+        return send_form(req, _in(s_rl, "That form was too large to be a name "
+                                        "and a stream address."));
     }
     char body[BODY_MAX];
     size_t got = 0;
@@ -481,25 +537,26 @@ static esp_err_t h_station(httpd_req_t *req)
     if (have_url) station_trim(url);
 
     if (!have_url || !url[0]) {
-        return send_form(req, "That needs a stream address.");
+        return send_form(req, _in(s_rl, "That needs a stream address."));
     }
     if (!station_url_writable(url)) {
-        return send_form(req, "That is not a usable stream address. It has to "
-                              "start with http:// or https:// and be one "
-                              "unbroken address.");
+        return send_form(req, _in(s_rl, "That is not a usable stream address. "
+                                        "It has to start with http:// or "
+                                        "https:// and be one unbroken address."));
     }
     if (!station_name_ok(name)) {
-        return send_form(req, "That name cannot be used. Names are up to 63 "
-                              "characters and cannot start with a #.");
+        return send_form(req, _in(s_rl, "That name cannot be used. Names are up "
+                                        "to 63 characters and cannot start with a #."));
     }
 
     ESP_LOGI(TAG, "station submitted: %.63s <%.200s>",
              name[0] ? name : "(unnamed)", url);
 
     if (!stations_append(name, url)) {
-        return send_form(req, "The station could not be saved. The card may be "
-                              "full, absent, or write-protected, or the list "
-                              "may already be full.");
+        return send_form(req, _in(s_rl, "The station could not be saved. The "
+                                        "card may be full, absent, or "
+                                        "write-protected, or the list may "
+                                        "already be full."));
     }
 
     /*
@@ -508,14 +565,15 @@ static esp_err_t h_station(httpd_req_t *req)
      * already finished by the time the response is written, and the
      * form redrawn with the station now in its list is the confirmation.
      */
-    return send_form(req, "Station added.");
+    return send_form(req, _in(s_rl, "Station added."));
 }
 
 static esp_err_t h_join(httpd_req_t *req)
 {
+    req_lang(req);
     if (req->content_len == 0 || req->content_len > BODY_MAX) {
-        return send_form(req, "That form was too large to be a network name "
-                              "and a password.");
+        return send_form(req, _in(s_rl, "That form was too large to be a network "
+                                        "name and a password."));
     }
     char body[BODY_MAX];
     size_t got = 0;
@@ -558,19 +616,18 @@ static esp_err_t h_join(httpd_req_t *req)
         portalweb_non_ascii_hint(pass, hint, sizeof(hint));
         memset(pass, 0, sizeof(pass));
         if (!portalweb_escape(hint, esc_hint, sizeof(esc_hint))) esc_hint[0] = '\0';
-        char msg[sizeof(esc_hint) + 200];
-        snprintf(msg, sizeof(msg),
-                 "The password contains %s. A Wi-Fi password is plain "
-                 "keyboard characters only; phones substitute these when "
-                 "autocorrect or smart punctuation is on. Retype it with "
-                 "that turned off.", esc_hint);
-        return send_form(req, msg);
+        snprintf(s_msg, sizeof(s_msg),
+                 _in(s_rl, "The password contains %s. A Wi-Fi password is plain "
+                           "keyboard characters only; phones substitute these "
+                           "when autocorrect or smart punctuation is on. Retype "
+                           "it with that turned off."), esc_hint);
+        return send_form(req, s_msg);
     }
     const char *problem =
-        c == PORTALWEB_BAD_SSID  ? "A network name is 1 to 32 characters." :
-        c == PORTALWEB_NO_SECRET ? "Open networks are not supported yet." :
-        c == PORTALWEB_BAD_SECRET ? "A Wi-Fi password is 8 to 63 characters, "
-                                    "or 64 hex digits." : NULL;
+        c == PORTALWEB_BAD_SSID  ? _in(s_rl, "A network name is 1 to 32 characters.") :
+        c == PORTALWEB_NO_SECRET ? _in(s_rl, "Open networks are not supported yet.") :
+        c == PORTALWEB_BAD_SECRET ? _in(s_rl, "A Wi-Fi password is 8 to 63 "
+                                              "characters, or 64 hex digits.") : NULL;
     if (problem) {
         memset(pass, 0, sizeof(pass));
         return send_form(req, problem);

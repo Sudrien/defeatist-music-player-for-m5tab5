@@ -36,6 +36,10 @@ zh-CN:
     "30 s": "30秒"
     # screendim.h
     "5 min": "5分钟"
+    # portal.c
+    "A Wi-Fi password is 8 to 63 characters, or 64 hex digits.": "Wi-Fi 密码为 8 到 63 个字符，或 64 位十六进制数字。"
+    # portal.c
+    "A network name is 1 to 32 characters.": "网络名称为 1 到 32 个字符。"
     # panel.c
     "A phone supplies the password.": "由手机输入密码。"
     # panel.c
@@ -54,10 +58,16 @@ zh-CN:
     "Add a radio station to the card.": "向卡中添加电台。"
     # radiobrowser.h
     "Add a station by phone...": "用手机添加电台..."
+    # portal.c
+    "Add station": "添加电台"
+    # portal.c
+    "Added to %s on the card. The name is optional — without one the station is listed by its address.": "添加到卡上的 %s。名称可不填——不填时以地址列出该电台。"
     # sleeppage.c
     "After this long with nothing playing, recording or touched. Not while music plays.": "在无播放、无录音、无触摸达到该时长后。播放音乐时不会关机。"
     # sleeppage.c
     "After this long without a touch the screen drops to half brightness. Any touch puts it back.": "在无触摸达到该时长后，屏幕亮度降为一半。触摸就能恢复。"
+    # portal.c
+    "Already on the card (%d):": "卡上已有（%d）："
     # recorder.c
     "Already recording.": "正在录音。"
     # panel.c
@@ -68,6 +78,8 @@ zh-CN:
     "BATT %d%%": "电池 %d%%"
     # panel.c
     "BUSY": "进行中"
+    # portal.c
+    "Back to the form": "返回表单"
     # player.c
     "Battery empty": "电池耗尽"
     # player.c
@@ -88,6 +100,8 @@ zh-CN:
     "Cannot record": "无法录音"
     # panel.c
     "Cert %.29s...": "证书 %.29s..."
+    # portal.c
+    "Choose the network this player should use, and enter its password. It is tried before it is saved.": "选择本机要使用的网络并输入密码。保存前会先尝试连接。"
     # panel.c
     "Clock": "时钟"
     # panel.c
@@ -114,6 +128,8 @@ zh-CN:
     "Crossfade   off": "交叉淡化   关"
     # browser.c
     "DN": "下页"
+    # portal.c
+    "Defeatist setup": "Defeatist 设置"
     # sleeppage.c
     "Dim screen": "屏幕变暗"
     # browser.c
@@ -152,8 +168,12 @@ zh-CN:
     "It comes back when setup closes.": "设置关闭后恢复。"
     # recorder.c
     "It reached 4 GB, the most one file can hold.": "已达 4 GB，\n单个文件的上限。"
+    # portal.c
+    "Join": "连接"
     # panel.c
     "Join %s on a phone.": "用手机连接 %s。"
+    # portal.c
+    "Joined and saved %s. The setup network is closing; you can leave it.": "已连接并保存 %s。设置网络正在关闭，你可以离开它了。"
     # ui.c
     "LIVE": "直播"
     # panel.c
@@ -178,16 +198,22 @@ zh-CN:
     "Most voted": "得票最多"
     # ui.c
     "NO BATT": "无电池"
+    # portal.c
+    "Name": "名称"
     # panel.c
     "Needed for internet radio and the clock.": "网络电台和时钟需要它。"
     # panel.c
     "Needs a network: Wi-Fi or a cable.": "需要网络：Wi-Fi 或网线。"
+    # portal.c
+    "Network": "网络"
     # panel.c
     "Network time": "网络时间"
     # powerdown.h, screendim.h
     "Never": "从不"
     # recorder.c
     "No USB microphone is plugged in.": "未插入 USB 麦克风。"
+    # portal.c
+    "No answer from that network. Try again.": "该网络没有响应。请重试。"
     # panel.c
     "No app connected.": "没有应用连接。"
     # recorder.c
@@ -226,6 +252,14 @@ zh-CN:
     "One folder counts as one album.": "一个文件夹算作一张专辑。"
     # panel.c
     "Open %s": "打开 %s"
+    # portal.c
+    "Open networks are not supported yet.": "暂不支持开放网络。"
+    # portal.c
+    "Or type a network name": "或输入网络名称"
+    # portal.c
+    "Other or hidden network (type it below)": "其他或隐藏网络（在下方输入）"
+    # portal.c
+    "Password": "密码"
     # panel.c
     "Play, pause, skip, seek and volume from a browser on the same network.": "在同一网络的浏览器中播放、暂停、切歌、定位和调音量。"
     # panel.c
@@ -256,6 +290,8 @@ zh-CN:
     "RUN": "运行"
     # player.c
     "Radio": "电台"
+    # portal.c
+    "Radio stations": "电台"
     # panel.c
     "Reading %s without decoding...": "正在读取 %s（不解码）..."
     # panel.c
@@ -318,14 +354,30 @@ zh-CN:
     "Starred stations": "收藏的电台"
     # panel.c
     "Starting...": "正在启动..."
+    # portal.c
+    "Station added.": "电台已添加。"
     # panel.c
     "Station needs %d -- that is %d%%": "电台需要 %d，达到 %d%%"
     # player.c
     "Station not answering": "电台无响应"
     # panel.c
     "Stop playback first.": "请先停止播放。"
+    # portal.c
+    "Stream address": "流地址"
     # player.c
     "Stream too slow here": "网络太慢"
+    # portal.c
+    "That form was too large to be a name and a stream address.": "表单内容过大，不像是名称和流地址。"
+    # portal.c
+    "That form was too large to be a network name and a password.": "表单内容过大，不像是网络名称和密码。"
+    # portal.c
+    "That is not a usable stream address. It has to start with http:// or https:// and be one unbroken address.": "这不是可用的流地址。它必须以 http:// 或 https:// 开头，并且是一个连续的地址。"
+    # portal.c
+    "That name cannot be used. Names are up to 63 characters and cannot start with a #.": "该名称不可用。名称最多 63 个字符，且不能以 # 开头。"
+    # portal.c
+    "That needs a stream address.": "需要填写流地址。"
+    # portal.c
+    "That network was not found. Check the name and try again.": "找不到该网络。请检查名称后重试。"
     # recorder.c
     "The USB microphone did not start.": "USB 麦克风未能启动。"
     # recorder.c
@@ -338,8 +390,16 @@ zh-CN:
     "The card would not take any more.": "卡已写不下。"
     # sleeppage.c
     "The device turns off. The side button turns it back on.": "设备会关机。按侧边按钮可重新开机。"
+    # portal.c
+    "The list is full at %d stations. Remove one from %s on the card to add another.": "列表已满（%d 个电台）。从卡上的 %s 中删除一个才能再添加。"
     # recorder.c
     "The microphones did not start.": "麦克风未能启动。"
+    # portal.c
+    "The password contains %s. A Wi-Fi password is plain keyboard characters only; phones substitute these when autocorrect or smart punctuation is on. Retype it with that turned off.": "密码中含有 %s。Wi-Fi 密码只能使用普通键盘字符；开启自动更正或智能标点时，手机会替换这些字符。请关闭后重新输入。"
+    # portal.c
+    "The password did not work. Try again.": "密码无效。请重试。"
+    # portal.c
+    "The station could not be saved. The card may be full, absent, or write-protected, or the list may already be full.": "无法保存电台。卡可能已满、未插入或写保护，或者列表已满。"
     # bench.c
     "The station did not answer.": "电台无响应。"
     # panel.c
@@ -354,10 +414,14 @@ zh-CN:
     "Then it shows the address to use.": "之后会显示要使用的地址。"
     # bench.c
     "Timed out connecting.": "连接超时。"
+    # portal.c
+    "To change Wi-Fi networks instead, use Network setup on the player's screen. This page closes itself after %d minutes.": "如需改用其他 Wi-Fi 网络，请在本机屏幕上使用“添加网络”。此页面会在 %d 分钟后自动关闭。"
     # sleeppage.c
     "Touch anywhere to wake it.": "触摸任意处就能唤醒。"
     # panel.c
     "Trying %.32s...": "正在尝试 %.32s..."
+    # portal.c
+    "Trying %s… This can take fifteen seconds, and this phone may lose the setup network for a moment. The player's screen shows the result either way.": "正在尝试 %s… 这可能需要十五秒，手机可能会暂时断开设置网络。无论结果如何，本机屏幕都会显示。"
     # panel.c
     "Turn Wi-Fi on first.": "请先打开 Wi-Fi。"
     # player.c
@@ -374,6 +438,8 @@ zh-CN:
     "USB port on - waiting for a drive": "USB 端口已开 - 等待驱动器"
     # panel.c
     "Waiting for a network address.": "正在等待网络地址。"
+    # portal.c
+    "Waiting for a network.": "正在等待网络。"
     # player.c
     "Waiting for network": "等待网络"
     # player.c
@@ -404,6 +470,8 @@ zh-CN:
     "headphones": "耳机"
     # panel.c
     "headset": "耳麦"
+    # portal.c
+    "hidden nearby": "附近有隐藏网络"
     # panel.c
     "in a browser on the same network.": "在同一网络的浏览器中打开。"
     # panel.c
@@ -450,6 +518,10 @@ zh-CN:
     "on": "开"
     # recorder.c
     "on %s, %u:%02u\n%s": "保存在 %s，%u:%02u\n%s"
+    # portal.c
+    "only if not in the list": "仅当列表中没有时"
+    # portal.c
+    "optional": "可选"
     # player.c
     "playback stopped": "播放已停止"
     # player.c
@@ -517,6 +589,8 @@ zh-CN:
   plural:
     "%d apps connected.":
       other: "已有 %d 个应用连接。"
+    "%d hidden networks nearby. A hidden network's name has to be typed.":
+      other: "附近有 %d 个隐藏网络。隐藏网络的名称需要手动输入。"
     "%d stations from %s":
       other: "%d 个电台，来自 %s"
     "%d tracks (+%d ~%d -%d), %d s":

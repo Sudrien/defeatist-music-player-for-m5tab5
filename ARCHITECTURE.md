@@ -20972,3 +20972,44 @@ they are, and a better English wording is one line of YAML:
   "no network - check Wi-Fi or cable, tap again", 616.
 
 Not on the board.
+
+### 6024 -- the setup pages in the browser's language
+
+The Wi-Fi setup and add-station pages (portal.c) follow the
+Accept-Language header of the request -- the language of whoever is
+holding the phone, whatever the player's screen is set to. 36 strings
+and one plural; the browser remote is next.
+
+i18n_from_accept_language() (i18n.c) takes the highest-q language we
+have, the first listed winning a tie, q=0 meaning "not this", English
+when nothing matches. Chinese has to be Simplified: zh-TW, zh-HK, zh-MO
+and zh-Hant match nothing and the next preference gets its turn, while
+a bare "zh" is taken as Simplified. i18ntest has twenty cases.
+
+The lookups take a language now -- i18n_get_in(), i18n_get_plural_in(),
+marked `_in(lang, "...")` and `_pin(lang, "...", n)`, which
+tools/i18n.py extracts into the same YAML. The screen's _() is
+i18n_get_in() with the BUILD tab's choice.
+
+portal.c's server runs one handler at a time on one task, so each
+handler sets a static s_rl from its request first and the page
+builders read it. Markup stays in C; only sentences are keys, with
+%s where a tag or an escaped SSID goes inside one, so a language that
+puts the name first can. One static 1 KB buffer builds messages, for
+the same one-task reason and because the join handler's stack already
+carries the form body and the password: translations run to three
+times English's bytes. Placeholders go through chunk_escaped(). The
+page says lang= and Content-Language, and Vary: Accept-Language.
+
+A browser draws these strings, not gfx.c, so Ark12 does not hold
+them: the generator marks each key on- or off-screen (i18n_on_screen[]
+in i18n_tab.c, from WEB_FILES in the tool), i18ntest checks glyphs for
+the first and refuses <, > and & in the second -- they go into the
+page unescaped.
+
+The page's mention of "Network setup on the player's screen" is
+translated as the screen's own heading, "Add a network" in each
+language, so the words on the phone are the words on the device.
+
+Not compiled with ESP-IDF here; portal.c's page code passed a
+syntax-only host compile with stubs. Not on the board.

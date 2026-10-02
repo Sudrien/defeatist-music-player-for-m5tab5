@@ -15,6 +15,9 @@ THE MARKERS (main/i18n.h):
                                 which cannot call a function; pass the
                                 pointer through _() where it is drawn
     _p("%d tracks", n)          plural; the YAML holds one/other
+    _in(lang, "Join")           6024: the web pages -- a lookup in the
+    _pin(lang, "%d networks", n)    request's language; same YAML, but
+                                drawn by a browser, so not held to Ark12
     same("NET")                 deliberately English: a landmark, a name,
                                 a unit. Not extracted; marks a decision
 
@@ -86,6 +89,8 @@ _LEX = re.compile(r'//[^\n]*|/\*.*?\*/|"(?:\\.|[^"\\\n])*"|\'(?:\\.|[^\'\\\n])*\
 _STR = r'"(?:\\.|[^"\\\n])*"'
 _CALL = re.compile(r'(?<![A-Za-z0-9_])(_p|N_|_)\(\s*((?:' + _STR + r'\s*)+)([,)])')
 _ANY = re.compile(r'(?<![A-Za-z0-9_])(_p|N_|_)\(')
+# 6024: the web pages' markers, with the request's language first.
+_IN = re.compile(r'(?<![A-Za-z0-9_])(_in|_pin)\(\s*[^,()"]+,\s*((?:' + _STR + r'\s*)+)([,)])')
 _SAME = re.compile(r'(?<![A-Za-z0-9_])same\(\s*((?:' + _STR + r'\s*)+)\)')
 
 _C_ESC = {"n": "\n", "t": "\t", "r": "\r", "\\": "\\", '"': '"', "'": "'",
@@ -149,9 +154,9 @@ def scan_sources():
         for m in _SAME.finditer(text):
             msgid = "".join(_c_literal(s) for s in re.findall(_STR, m.group(1)))
             same.setdefault(msgid, name)
-        for m in _CALL.finditer(text):
+        for m in list(_CALL.finditer(text)) + list(_IN.finditer(text)):
             found.add(m.start())
-            kind = m.group(1)
+            kind = {"_in": "_", "_pin": "_p"}.get(m.group(1), m.group(1))
             lits = re.findall(_STR, m.group(2))
             msgid = "".join(_c_literal(s) for s in lits)
             line = text.count("\n", 0, m.start()) + 1
@@ -362,6 +367,18 @@ def _c_str(s):
     return '"' + "".join(out) + '"'
 
 
+# 6024: files whose strings a browser draws, not gfx.c. Their keys are
+# marked off-screen in i18n_tab.c, so i18ntest holds only the rest to
+# Ark12's glyphs -- and holds these to having no HTML in them instead.
+WEB_FILES = {"portal.c", "remote.html"}
+
+
+def _on_screen(where):
+    """A key is on screen unless every place it is used is a web page.
+    One no longer in the source counts as on screen: the strict side."""
+    return not where or any(w not in WEB_FILES for w in where)
+
+
 def build_c():
     tabs = {loc: read_yml(yml_path(loc), loc) for loc in LOCALES
             if os.path.exists(yml_path(loc))}
@@ -373,6 +390,7 @@ def build_c():
     pkeys = sorted(set().union(*(t[1] for t in tabs.values())),
                    key=lambda s: s.encode("utf-8"))
     errs, report = [], []
+    where_s, where_p = scan_sources()
 
     def checked(loc, key, val):
         if val is None:
@@ -389,6 +407,17 @@ def build_c():
     L.append(f"const unsigned i18n_count = {len(keys)};")
     L.append("const char *const i18n_keys[] = {")
     L += [f"    {_c_str(k)}," for k in keys] or ["    NULL,    /* C has no empty arrays */"]
+    L.append("};")
+    L.append("")
+    L.append("/* 6024: 1 when the key is drawn by the device, 0 when only a web page")
+    L.append(" * uses it -- i18ntest checks Ark12's glyphs for the first kind only. */")
+    L.append("const unsigned char i18n_on_screen[] = {")
+    def _cmt(k):        # a key as a C comment: never closing or opening one
+        return repr(k[:40]).replace("*/", "* /").replace("/*", "/ *")
+    L += [f"    {1 if _on_screen(where_s.get(k)) else 0},  /* {_cmt(k)} */" for k in keys] or ["    1,"]
+    L.append("};")
+    L.append("const unsigned char i18n_pon_screen[] = {")
+    L += [f"    {1 if _on_screen(where_p.get(k)) else 0}," for k in pkeys] or ["    1,"]
     L.append("};")
     L.append("")
     L.append("/* [lang * i18n_count + key] */")

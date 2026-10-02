@@ -36,6 +36,10 @@ ja:
     "30 s": "30秒"
     # screendim.h
     "5 min": "5分"
+    # portal.c
+    "A Wi-Fi password is 8 to 63 characters, or 64 hex digits.": "Wi-Fiのパスワードは8～63文字、または16進数64桁です。"
+    # portal.c
+    "A network name is 1 to 32 characters.": "ネットワーク名は1～32文字です。"
     # panel.c
     "A phone supplies the password.": "パスワードはスマホから。"
     # panel.c
@@ -54,10 +58,16 @@ ja:
     "Add a radio station to the card.": "カードに局を追加。"
     # radiobrowser.h
     "Add a station by phone...": "スマホで局を追加..."
+    # portal.c
+    "Add station": "局を追加"
+    # portal.c
+    "Added to %s on the card. The name is optional — without one the station is listed by its address.": "カードの %s に追加されます。名前は省略できます。省略すると局はアドレスで表示されます。"
     # sleeppage.c
     "After this long with nothing playing, recording or touched. Not while music plays.": "再生・録音・タッチがない状態がこの時間続いたとき。音楽の再生中は切れない。"
     # sleeppage.c
     "After this long without a touch the screen drops to half brightness. Any touch puts it back.": "この時間タッチがないと画面が半分の明るさになる。タッチで元に戻る。"
+    # portal.c
+    "Already on the card (%d):": "カードに登録済み（%d）："
     # recorder.c
     "Already recording.": "録音中です。"
     # panel.c
@@ -68,6 +78,8 @@ ja:
     "BATT %d%%": "電池 %d%%"
     # panel.c
     "BUSY": "作業中"
+    # portal.c
+    "Back to the form": "フォームに戻る"
     # player.c
     "Battery empty": "電池切れ"
     # player.c
@@ -88,6 +100,8 @@ ja:
     "Cannot record": "録音できない"
     # panel.c
     "Cert %.29s...": "証明書 %.29s..."
+    # portal.c
+    "Choose the network this player should use, and enter its password. It is tried before it is saved.": "この機器が使うネットワークを選び、パスワードを入力してください。保存する前に接続を試します。"
     # panel.c
     "Clock": "時計"
     # panel.c
@@ -114,6 +128,8 @@ ja:
     "Crossfade   off": "クロスフェード   オフ"
     # browser.c
     "DN": "次頁"
+    # portal.c
+    "Defeatist setup": "Defeatist の設定"
     # sleeppage.c
     "Dim screen": "画面を暗く"
     # browser.c
@@ -152,8 +168,12 @@ ja:
     "It comes back when setup closes.": "設定が閉じると戻る。"
     # recorder.c
     "It reached 4 GB, the most one file can hold.": "4 GB に達した。\n1ファイルの上限。"
+    # portal.c
+    "Join": "接続"
     # panel.c
     "Join %s on a phone.": "スマホで %s に接続。"
+    # portal.c
+    "Joined and saved %s. The setup network is closing; you can leave it.": "%s に接続して保存しました。設定用ネットワークは閉じます。離れてかまいません。"
     # ui.c
     "LIVE": "ライブ"
     # panel.c
@@ -178,16 +198,22 @@ ja:
     "Most voted": "投票の多い局"
     # ui.c
     "NO BATT": "電池なし"
+    # portal.c
+    "Name": "名前"
     # panel.c
     "Needed for internet radio and the clock.": "ネットラジオと時計に必要。"
     # panel.c
     "Needs a network: Wi-Fi or a cable.": "ネットワークが必要：Wi-Fiかケーブル。"
+    # portal.c
+    "Network": "ネットワーク"
     # panel.c
     "Network time": "ネット時刻"
     # powerdown.h, screendim.h
     "Never": "しない"
     # recorder.c
     "No USB microphone is plugged in.": "USBマイクが\nつながっていない。"
+    # portal.c
+    "No answer from that network. Try again.": "そのネットワークから応答がありません。もう一度お試しください。"
     # panel.c
     "No app connected.": "接続中のアプリなし。"
     # recorder.c
@@ -226,6 +252,14 @@ ja:
     "One folder counts as one album.": "1つのフォルダを1枚のアルバムとみなす。"
     # panel.c
     "Open %s": "%s を開く"
+    # portal.c
+    "Open networks are not supported yet.": "パスワードなしのネットワークにはまだ対応していません。"
+    # portal.c
+    "Or type a network name": "またはネットワーク名を入力"
+    # portal.c
+    "Other or hidden network (type it below)": "その他・非公開のネットワーク（下に入力）"
+    # portal.c
+    "Password": "パスワード"
     # panel.c
     "Play, pause, skip, seek and volume from a browser on the same network.": "同じネットワークのブラウザから再生、一時停止、スキップ、シーク、音量。"
     # panel.c
@@ -256,6 +290,8 @@ ja:
     "RUN": "実行"
     # player.c
     "Radio": "ラジオ"
+    # portal.c
+    "Radio stations": "ラジオ局"
     # panel.c
     "Reading %s without decoding...": "%s をデコードせずに読込中..."
     # panel.c
@@ -318,14 +354,30 @@ ja:
     "Starred stations": "お気に入りの局"
     # panel.c
     "Starting...": "起動中..."
+    # portal.c
+    "Station added.": "局を追加しました。"
     # panel.c
     "Station needs %d -- that is %d%%": "局の必要量 %d、その %d%%"
     # player.c
     "Station not answering": "局が応答しない"
     # panel.c
     "Stop playback first.": "先に再生を止める。"
+    # portal.c
+    "Stream address": "ストリームのアドレス"
     # player.c
     "Stream too slow here": "回線が遅すぎる"
+    # portal.c
+    "That form was too large to be a name and a stream address.": "名前とストリームのアドレスにしては大きすぎるフォームです。"
+    # portal.c
+    "That form was too large to be a network name and a password.": "ネットワーク名とパスワードにしては大きすぎるフォームです。"
+    # portal.c
+    "That is not a usable stream address. It has to start with http:// or https:// and be one unbroken address.": "使えるストリームのアドレスではありません。http:// か https:// で始まる、途切れのない1つのアドレスにしてください。"
+    # portal.c
+    "That name cannot be used. Names are up to 63 characters and cannot start with a #.": "その名前は使えません。名前は63文字までで、# で始めることはできません。"
+    # portal.c
+    "That needs a stream address.": "ストリームのアドレスが必要です。"
+    # portal.c
+    "That network was not found. Check the name and try again.": "そのネットワークが見つかりません。名前を確認してもう一度お試しください。"
     # recorder.c
     "The USB microphone did not start.": "USBマイクが\n起動しなかった。"
     # recorder.c
@@ -338,8 +390,16 @@ ja:
     "The card would not take any more.": "カードがもう書き込めない。"
     # sleeppage.c
     "The device turns off. The side button turns it back on.": "本体の電源が切れる。側面のボタンで入る。"
+    # portal.c
+    "The list is full at %d stations. Remove one from %s on the card to add another.": "リストは %d 局でいっぱいです。追加するには、カードの %s から1つ削除してください。"
     # recorder.c
     "The microphones did not start.": "マイクが起動しなかった。"
+    # portal.c
+    "The password contains %s. A Wi-Fi password is plain keyboard characters only; phones substitute these when autocorrect or smart punctuation is on. Retype it with that turned off.": "パスワードに %s が含まれています。Wi-Fiのパスワードは通常のキーボード文字だけです。自動修正やスマート句読点がオンだと、スマホがこれらの文字を置き換えます。オフにして入力し直してください。"
+    # portal.c
+    "The password did not work. Try again.": "パスワードが違います。もう一度お試しください。"
+    # portal.c
+    "The station could not be saved. The card may be full, absent, or write-protected, or the list may already be full.": "局を保存できませんでした。カードがいっぱい、未挿入、書き込み禁止か、リストがすでにいっぱいの可能性があります。"
     # bench.c
     "The station did not answer.": "局が応答しない。"
     # panel.c
@@ -354,10 +414,14 @@ ja:
     "Then it shows the address to use.": "その後、使うアドレスが出る。"
     # bench.c
     "Timed out connecting.": "接続がタイムアウト。"
+    # portal.c
+    "To change Wi-Fi networks instead, use Network setup on the player's screen. This page closes itself after %d minutes.": "Wi-Fiネットワークを変える場合は、機器の画面の「ネットワーク追加」を使ってください。このページは %d 分後に閉じます。"
     # sleeppage.c
     "Touch anywhere to wake it.": "どこかに触れると戻る。"
     # panel.c
     "Trying %.32s...": "%.32s を試行中..."
+    # portal.c
+    "Trying %s… This can take fifteen seconds, and this phone may lose the setup network for a moment. The player's screen shows the result either way.": "%s を試しています… 15秒ほどかかり、このスマホは一時的に設定用ネットワークから外れることがあります。結果はどちらにしても機器の画面に表示されます。"
     # panel.c
     "Turn Wi-Fi on first.": "先にWi-Fiをオン。"
     # player.c
@@ -374,6 +438,8 @@ ja:
     "USB port on - waiting for a drive": "USBポートオン - ドライブ待ち"
     # panel.c
     "Waiting for a network address.": "ネットのアドレス待ち。"
+    # portal.c
+    "Waiting for a network.": "ネットワークを待っています。"
     # player.c
     "Waiting for network": "ネット待ち"
     # player.c
@@ -404,6 +470,8 @@ ja:
     "headphones": "ヘッドホン"
     # panel.c
     "headset": "ヘッドセット"
+    # portal.c
+    "hidden nearby": "近くに非公開あり"
     # panel.c
     "in a browser on the same network.": "同じネットワークのブラウザで。"
     # panel.c
@@ -450,6 +518,10 @@ ja:
     "on": "オン"
     # recorder.c
     "on %s, %u:%02u\n%s": "%s に保存、%u:%02u\n%s"
+    # portal.c
+    "only if not in the list": "リストにない場合のみ"
+    # portal.c
+    "optional": "省略可"
     # player.c
     "playback stopped": "再生停止"
     # player.c
@@ -517,6 +589,8 @@ ja:
   plural:
     "%d apps connected.":
       other: "%d 個のアプリが接続中。"
+    "%d hidden networks nearby. A hidden network's name has to be typed.":
+      other: "近くに非公開のネットワークが %d 件あります。非公開のネットワーク名は入力が必要です。"
     "%d stations from %s":
       other: "%d 局、%s から"
     "%d tracks (+%d ~%d -%d), %d s":

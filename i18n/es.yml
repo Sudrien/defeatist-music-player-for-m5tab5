@@ -36,6 +36,10 @@ es:
     "30 s": "30 s"
     # screendim.h
     "5 min": "5 min"
+    # portal.c
+    "A Wi-Fi password is 8 to 63 characters, or 64 hex digits.": "Una contraseña Wi-Fi tiene de 8 a 63 caracteres, o 64 dígitos hexadecimales."
+    # portal.c
+    "A network name is 1 to 32 characters.": "Un nombre de red tiene de 1 a 32 caracteres."
     # panel.c
     "A phone supplies the password.": "Un teléfono da la contraseña."
     # panel.c
@@ -54,10 +58,16 @@ es:
     "Add a radio station to the card.": "Añade una emisora a la tarjeta."
     # radiobrowser.h
     "Add a station by phone...": "Añadir emisora por teléfono..."
+    # portal.c
+    "Add station": "Añadir emisora"
+    # portal.c
+    "Added to %s on the card. The name is optional — without one the station is listed by its address.": "Se añade a %s en la tarjeta. El nombre es opcional: sin él, la emisora aparece por su dirección."
     # sleeppage.c
     "After this long with nothing playing, recording or touched. Not while music plays.": "Tras este tiempo sin reproducir, grabar ni tocar nada. Nunca con música sonando."
     # sleeppage.c
     "After this long without a touch the screen drops to half brightness. Any touch puts it back.": "Tras este tiempo sin tocarla, la pantalla baja a la mitad de brillo. Cualquier toque la restaura."
+    # portal.c
+    "Already on the card (%d):": "Ya en la tarjeta (%d):"
     # recorder.c
     "Already recording.": "Ya se está grabando."
     # panel.c
@@ -68,6 +78,8 @@ es:
     "BATT %d%%": "BAT %d%%"
     # panel.c
     "BUSY": "OCUP."
+    # portal.c
+    "Back to the form": "Volver al formulario"
     # player.c
     "Battery empty": "Batería agotada"
     # player.c
@@ -88,6 +100,8 @@ es:
     "Cannot record": "No se puede grabar"
     # panel.c
     "Cert %.29s...": "Cert. %.29s..."
+    # portal.c
+    "Choose the network this player should use, and enter its password. It is tried before it is saved.": "Elige la red que usará el reproductor e introduce su contraseña. Se prueba antes de guardarla."
     # panel.c
     "Clock": "Reloj"
     # panel.c
@@ -114,6 +128,8 @@ es:
     "Crossfade   off": "Fundido cruzado   desactivado"
     # browser.c
     "DN": "AV PÁG"
+    # portal.c
+    "Defeatist setup": "Configuración de Defeatist"
     # sleeppage.c
     "Dim screen": "Atenuar pantalla"
     # browser.c
@@ -152,8 +168,12 @@ es:
     "It comes back when setup closes.": "Vuelve cuando se cierra la configuración."
     # recorder.c
     "It reached 4 GB, the most one file can hold.": "Llegó a 4 GB, el máximo\nde un archivo."
+    # portal.c
+    "Join": "Conectar"
     # panel.c
     "Join %s on a phone.": "Únete a %s con el móvil."
+    # portal.c
+    "Joined and saved %s. The setup network is closing; you can leave it.": "Conectado a %s y guardada. La red de configuración se cierra; ya puedes salir de ella."
     # ui.c
     "LIVE": "VIVO"
     # panel.c
@@ -178,16 +198,22 @@ es:
     "Most voted": "Más votadas"
     # ui.c
     "NO BATT": "SIN BAT"
+    # portal.c
+    "Name": "Nombre"
     # panel.c
     "Needed for internet radio and the clock.": "Necesaria para la radio por internet y el reloj."
     # panel.c
     "Needs a network: Wi-Fi or a cable.": "Necesita red: Wi-Fi o un cable."
+    # portal.c
+    "Network": "Red"
     # panel.c
     "Network time": "Hora de red"
     # powerdown.h, screendim.h
     "Never": "Nunca"
     # recorder.c
     "No USB microphone is plugged in.": "No hay micrófono USB\nconectado."
+    # portal.c
+    "No answer from that network. Try again.": "Esa red no responde. Inténtalo otra vez."
     # panel.c
     "No app connected.": "Ninguna app conectada."
     # recorder.c
@@ -226,6 +252,14 @@ es:
     "One folder counts as one album.": "Una carpeta cuenta como un álbum."
     # panel.c
     "Open %s": "Abre %s"
+    # portal.c
+    "Open networks are not supported yet.": "Las redes abiertas aún no son compatibles."
+    # portal.c
+    "Or type a network name": "O escribe el nombre de una red"
+    # portal.c
+    "Other or hidden network (type it below)": "Otra red u oculta (escríbela abajo)"
+    # portal.c
+    "Password": "Contraseña"
     # panel.c
     "Play, pause, skip, seek and volume from a browser on the same network.": "Reproducir, pausar, saltar, buscar y volumen desde un navegador en la misma red."
     # panel.c
@@ -256,6 +290,8 @@ es:
     "RUN": "MEDIR"
     # player.c
     "Radio": "Radio"
+    # portal.c
+    "Radio stations": "Emisoras de radio"
     # panel.c
     "Reading %s without decoding...": "Leyendo %s sin decodificar..."
     # panel.c
@@ -318,14 +354,30 @@ es:
     "Starred stations": "Emisoras favoritas"
     # panel.c
     "Starting...": "Iniciando..."
+    # portal.c
+    "Station added.": "Emisora añadida."
     # panel.c
     "Station needs %d -- that is %d%%": "La emisora pide %d: es el %d%%"
     # player.c
     "Station not answering": "Emisora sin señal"
     # panel.c
     "Stop playback first.": "Detén primero la reproducción."
+    # portal.c
+    "Stream address": "Dirección del flujo"
     # player.c
     "Stream too slow here": "Red muy lenta"
+    # portal.c
+    "That form was too large to be a name and a stream address.": "El formulario es demasiado grande para ser un nombre y una dirección."
+    # portal.c
+    "That form was too large to be a network name and a password.": "El formulario es demasiado grande para ser un nombre de red y una contraseña."
+    # portal.c
+    "That is not a usable stream address. It has to start with http:// or https:// and be one unbroken address.": "Esa no es una dirección utilizable. Tiene que empezar por http:// o https:// y ser una sola dirección sin cortes."
+    # portal.c
+    "That name cannot be used. Names are up to 63 characters and cannot start with a #.": "Ese nombre no se puede usar. Los nombres tienen hasta 63 caracteres y no pueden empezar por #."
+    # portal.c
+    "That needs a stream address.": "Falta la dirección del flujo."
+    # portal.c
+    "That network was not found. Check the name and try again.": "No se encontró esa red. Revisa el nombre e inténtalo otra vez."
     # recorder.c
     "The USB microphone did not start.": "El micrófono USB\nno arrancó."
     # recorder.c
@@ -338,8 +390,16 @@ es:
     "The card would not take any more.": "La tarjeta no admite\nmás datos."
     # sleeppage.c
     "The device turns off. The side button turns it back on.": "El equipo se apaga. El botón lateral lo vuelve a encender."
+    # portal.c
+    "The list is full at %d stations. Remove one from %s on the card to add another.": "La lista está llena con %d emisoras. Quita una de %s en la tarjeta para añadir otra."
     # recorder.c
     "The microphones did not start.": "Los micrófonos\nno arrancaron."
+    # portal.c
+    "The password contains %s. A Wi-Fi password is plain keyboard characters only; phones substitute these when autocorrect or smart punctuation is on. Retype it with that turned off.": "La contraseña contiene %s. Una contraseña Wi-Fi solo lleva caracteres normales del teclado; los teléfonos los cambian con la autocorrección o la puntuación inteligente. Vuelve a escribirla con eso desactivado."
+    # portal.c
+    "The password did not work. Try again.": "La contraseña no funcionó. Inténtalo otra vez."
+    # portal.c
+    "The station could not be saved. The card may be full, absent, or write-protected, or the list may already be full.": "No se pudo guardar la emisora. La tarjeta puede estar llena, ausente o protegida, o la lista ya llena."
     # bench.c
     "The station did not answer.": "La emisora no respondió."
     # panel.c
@@ -354,10 +414,14 @@ es:
     "Then it shows the address to use.": "Luego muestra la dirección que usar."
     # bench.c
     "Timed out connecting.": "Tiempo de conexión agotado."
+    # portal.c
+    "To change Wi-Fi networks instead, use Network setup on the player's screen. This page closes itself after %d minutes.": "Para cambiar de red Wi-Fi, usa «Añadir red» en la pantalla del reproductor. Esta página se cierra sola tras %d minutos."
     # sleeppage.c
     "Touch anywhere to wake it.": "Toca en cualquier sitio para despertarla."
     # panel.c
     "Trying %.32s...": "Probando %.32s..."
+    # portal.c
+    "Trying %s… This can take fifteen seconds, and this phone may lose the setup network for a moment. The player's screen shows the result either way.": "Probando %s… Puede tardar quince segundos, y este teléfono puede perder la red de configuración un momento. La pantalla del reproductor muestra el resultado en cualquier caso."
     # panel.c
     "Turn Wi-Fi on first.": "Activa primero la Wi-Fi."
     # player.c
@@ -374,6 +438,8 @@ es:
     "USB port on - waiting for a drive": "Puerto USB encendido - esperando una unidad"
     # panel.c
     "Waiting for a network address.": "Esperando una dirección de red."
+    # portal.c
+    "Waiting for a network.": "Esperando una red."
     # player.c
     "Waiting for network": "Esperando red"
     # player.c
@@ -404,6 +470,8 @@ es:
     "headphones": "auriculares"
     # panel.c
     "headset": "auricular"
+    # portal.c
+    "hidden nearby": "hay ocultas cerca"
     # panel.c
     "in a browser on the same network.": "en un navegador de la misma red."
     # panel.c
@@ -450,6 +518,10 @@ es:
     "on": "sí"
     # recorder.c
     "on %s, %u:%02u\n%s": "en %s, %u:%02u\n%s"
+    # portal.c
+    "only if not in the list": "solo si no está en la lista"
+    # portal.c
+    "optional": "opcional"
     # player.c
     "playback stopped": "reproducción detenida"
     # player.c
@@ -518,6 +590,9 @@ es:
     "%d apps connected.":
       one: "%d app conectada."
       other: "%d apps conectadas."
+    "%d hidden networks nearby. A hidden network's name has to be typed.":
+      one: "%d red oculta cerca. El nombre de una red oculta hay que escribirlo."
+      other: "%d redes ocultas cerca. El nombre de una red oculta hay que escribirlo."
     "%d stations from %s":
       one: "%d emisora de %s"
       other: "%d emisoras de %s"

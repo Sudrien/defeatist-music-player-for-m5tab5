@@ -102,6 +102,33 @@ static void fixture(void)
     assert(strcmp(i18n_lang_name((i18n_lang_t)9), "English") == 0);
     assert(strcmp(i18n_lang_name(I18N_JA), "日本語") == 0);
     assert(strcmp(i18n_lang_name(I18N_ES), "Español") == 0);
+    /* 6024: Accept-Language */
+    assert(i18n_from_accept_language(NULL) == I18N_EN);
+    assert(i18n_from_accept_language("") == I18N_EN);
+    assert(i18n_from_accept_language("ja") == I18N_JA);
+    assert(i18n_from_accept_language("es-MX,es;q=0.9,en;q=0.8") == I18N_ES);
+    assert(i18n_from_accept_language("zh-CN,zh;q=0.9,en;q=0.8") == I18N_ZH_CN);
+    assert(i18n_from_accept_language("zh-Hans-CN") == I18N_ZH_CN);
+    assert(i18n_from_accept_language("zh-TW,zh;q=0.9,en;q=0.8") == I18N_ZH_CN);  /* zh generic */
+    assert(i18n_from_accept_language("zh-TW,en;q=0.8") == I18N_EN);             /* no Hant */
+    assert(i18n_from_accept_language("zh-Hant-HK, ja;q=0.5") == I18N_JA);
+    assert(i18n_from_accept_language("fr-FR,fr;q=0.9,ja;q=0.7,es;q=0.6") == I18N_JA);
+    assert(i18n_from_accept_language("en;q=0.2, es;q=0.21") == I18N_ES);
+    assert(i18n_from_accept_language("es;q=0.5, ja;q=0.5") == I18N_ES);      /* tie: first */
+    assert(i18n_from_accept_language("ja;q=0, es") == I18N_ES);              /* q=0: not this */
+    assert(i18n_from_accept_language("ja;q=0") == I18N_EN);
+    assert(i18n_from_accept_language("fr, *;q=0.1") == I18N_EN);
+    assert(i18n_from_accept_language("JA-jp") == I18N_JA);
+    assert(i18n_from_accept_language("es_ES") == I18N_ES);
+    assert(i18n_from_accept_language("ja;q=1.0") == I18N_JA);
+    assert(i18n_from_accept_language("de;q=x, ;;, ,es;q=.8") == I18N_ES);    /* junk */
+    assert(i18n_from_accept_language("abcdefghijklmnopqrstuvwxyz0123456789, ja") == I18N_JA);
+    assert(strcmp(i18n_lang_code(I18N_ZH_CN), "zh-CN") == 0);
+    assert(strcmp(i18n_lang_code((i18n_lang_t)9), "en") == 0);
+    i18n_set_lang(I18N_JA);                             /* the screen's choice */
+    assert(strcmp(_in(I18N_ES, "ON"), "SÍ") == 0);      /* does not touch it */
+    assert(strcmp(_pin(I18N_ZH_CN, "%d tracks", 1), "%d 首") == 0);
+    i18n_set_lang(I18N_EN);
     puts("i18ntest (fixture): ok");
 }
 #else
@@ -135,6 +162,16 @@ static int glyphs_ok(const char *s, const char *what)
         p += n;
     }
     return 1;
+}
+
+extern const unsigned char i18n_on_screen[];
+extern const unsigned char i18n_pon_screen[];
+
+static int html_free(const char *s, const char *what)
+{
+    if (!strpbrk(s, "<>&")) return 1;
+    fprintf(stderr, "i18ntest: a web string in %s has HTML in it: \"%s\"\n", what, s);
+    return 0;
 }
 
 /* 6018: panel.c's note width in portrait, and its budget for a note
@@ -233,10 +270,25 @@ static int check_budgets(void)
 static void real_table(void)
 {
     int ok = check_budgets();
-    for (unsigned i = 0; i < I18N_LANG_COUNT * i18n_count; i++)
-        if (i18n_vals[i]) ok &= glyphs_ok(i18n_vals[i], i18n_lang_name((i18n_lang_t)(i / i18n_count)));
-    for (unsigned i = 0; i < I18N_LANG_COUNT * i18n_pcount * 2; i++)
-        if (i18n_pvals[i]) ok &= glyphs_ok(i18n_pvals[i], i18n_lang_name((i18n_lang_t)(i / (i18n_pcount * 2))));
+    /* 6024: Ark12 holds what the device draws; a browser draws the
+     * web pages' strings, and those must instead carry no HTML of their
+     * own -- portal.c puts them into a page unescaped. */
+    for (unsigned i = 0; i < I18N_LANG_COUNT * i18n_count; i++) {
+        const char *v = i18n_vals[i];
+        if (!v) continue;
+        const char *ln = i18n_lang_name((i18n_lang_t)(i / i18n_count));
+        if (i18n_on_screen[i % i18n_count]) ok &= glyphs_ok(v, ln);
+        else ok &= html_free(v, ln);
+    }
+    for (unsigned i = 0; i < I18N_LANG_COUNT * i18n_pcount * 2; i++) {
+        const char *v = i18n_pvals[i];
+        if (!v) continue;
+        const char *ln = i18n_lang_name((i18n_lang_t)(i / (i18n_pcount * 2)));
+        if (i18n_pon_screen[(i / 2) % i18n_pcount]) ok &= glyphs_ok(v, ln);
+        else ok &= html_free(v, ln);
+    }
+    for (unsigned i = 0; i < i18n_count; i++)
+        if (!i18n_on_screen[i]) ok &= html_free(i18n_keys[i], "English");
     for (int l = 0; l < I18N_LANG_COUNT; l++)
         ok &= glyphs_ok(i18n_lang_name((i18n_lang_t)l), "the picker");
     assert(ok);

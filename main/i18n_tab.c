@@ -9,7 +9,7 @@
 #include <stddef.h>
 #include "i18n.h"
 
-const unsigned i18n_count = 254;
+const unsigned i18n_count = 290;
 const char *const i18n_keys[] = {
     "%.32s did not work. Try again.",
     "%d s",
@@ -26,6 +26,8 @@ const char *const i18n_keys[] = {
     "30 min",
     "30 s",
     "5 min",
+    "A Wi-Fi password is 8 to 63 characters, or 64 hex digits.",
+    "A network name is 1 to 32 characters.",
     "A phone supplies the password.",
     "A sign-in page opens with the form.",
     "A tap anywhere brings it back, and does not press anything.",
@@ -35,13 +37,17 @@ const char *const i18n_keys[] = {
     "Add a network",
     "Add a radio station to the card.",
     "Add a station by phone...",
+    "Add station",
+    "Added to %s on the card. The name is optional — without one the station is listed by its address.",
     "After this long with nothing playing, recording or touched. Not while music plays.",
     "After this long without a touch the screen drops to half brightness. Any touch puts it back.",
+    "Already on the card (%d):",
     "Already recording.",
     "Auto: USB, jack, mono. Off: no record.",
     "BATT",
     "BATT %d%%",
     "BUSY",
+    "Back to the form",
     "Battery empty",
     "Battery low",
     "Benchmark",
@@ -52,6 +58,7 @@ const char *const i18n_keys[] = {
     "CLOSE",
     "Cannot record",
     "Cert %.29s...",
+    "Choose the network this player should use, and enter its password. It is tried before it is saved.",
     "Clock",
     "Connect an MPD app to %s",
     "Connected to %.32s.",
@@ -65,6 +72,7 @@ const char *const i18n_keys[] = {
     "Crossfade   %d s",
     "Crossfade   off",
     "DN",
+    "Defeatist setup",
     "Dim screen",
     "EAT",
     "EAT1",
@@ -84,7 +92,9 @@ const char *const i18n_keys[] = {
     "Insert a card or a USB drive to record to.",
     "It comes back when setup closes.",
     "It reached 4 GB, the most one file can hold.",
+    "Join",
     "Join %s on a phone.",
+    "Joined and saved %s. The setup network is closing; you can leave it.",
     "LIVE",
     "Levels are still measured while off.",
     "Libraries",
@@ -97,11 +107,14 @@ const char *const i18n_keys[] = {
     "Most listened",
     "Most voted",
     "NO BATT",
+    "Name",
     "Needed for internet radio and the clock.",
     "Needs a network: Wi-Fi or a cable.",
+    "Network",
     "Network time",
     "Never",
     "No USB microphone is plugged in.",
+    "No answer from that network. Try again.",
     "No app connected.",
     "No memory for the recording task.",
     "No memory to measure with.",
@@ -121,6 +134,10 @@ const char *const i18n_keys[] = {
     "On a phone, open http://%s/",
     "One folder counts as one album.",
     "Open %s",
+    "Open networks are not supported yet.",
+    "Or type a network name",
+    "Other or hidden network (type it below)",
+    "Password",
     "Play, pause, skip, seek and volume from a browser on the same network.",
     "Play, pause, skip, seek and volume from an MPD app such as MALP or mpc.",
     "Playback pauses while setup runs.",
@@ -136,6 +153,7 @@ const char *const i18n_keys[] = {
     "RPT1",
     "RUN",
     "Radio",
+    "Radio stations",
     "Reading %s without decoding...",
     "Reads the selected station without decoding it, to tell a slow network from a slow decoder.",
     "Reconnecting",
@@ -167,17 +185,29 @@ const char *const i18n_keys[] = {
     "Source",
     "Starred stations",
     "Starting...",
+    "Station added.",
     "Station needs %d -- that is %d%%",
     "Station not answering",
     "Stop playback first.",
+    "Stream address",
     "Stream too slow here",
+    "That form was too large to be a name and a stream address.",
+    "That form was too large to be a network name and a password.",
+    "That is not a usable stream address. It has to start with http:// or https:// and be one unbroken address.",
+    "That name cannot be used. Names are up to 63 characters and cannot start with a #.",
+    "That needs a stream address.",
+    "That network was not found. Check the name and try again.",
     "The USB microphone did not start.",
     "The USB microphone has no 16-bit format.",
     "The USB microphone is not there any more.",
     "The USB microphone was unplugged.\012%u:%02u on %s",
     "The card would not take any more.",
     "The device turns off. The side button turns it back on.",
+    "The list is full at %d stations. Remove one from %s on the card to add another.",
     "The microphones did not start.",
+    "The password contains %s. A Wi-Fi password is plain keyboard characters only; phones substitute these when autocorrect or smart punctuation is on. Retype it with that turned off.",
+    "The password did not work. Try again.",
+    "The station could not be saved. The card may be full, absent, or write-protected, or the list may already be full.",
     "The station did not answer.",
     "The station does not say what it needs.",
     "The station went away.",
@@ -185,8 +215,10 @@ const char *const i18n_keys[] = {
     "Then it shows the address to open.",
     "Then it shows the address to use.",
     "Timed out connecting.",
+    "To change Wi-Fi networks instead, use Network setup on the player's screen. This page closes itself after %d minutes.",
     "Touch anywhere to wake it.",
     "Trying %.32s...",
+    "Trying %s… This can take fifteen seconds, and this phone may lose the setup network for a moment. The player's screen shows the result either way.",
     "Turn Wi-Fi on first.",
     "Turning off to protect the battery. Charge it before use.",
     "UP",
@@ -195,6 +227,7 @@ const char *const i18n_keys[] = {
     "USB port coming up",
     "USB port on - waiting for a drive",
     "Waiting for a network address.",
+    "Waiting for a network.",
     "Waiting for network",
     "Web setup is open",
     "a guess",
@@ -210,6 +243,7 @@ const char *const i18n_keys[] = {
     "from NTP",
     "headphones",
     "headset",
+    "hidden nearby",
     "in a browser on the same network.",
     "index",
     "indexing, %d so far",
@@ -233,6 +267,8 @@ const char *const i18n_keys[] = {
     "off",
     "on",
     "on %s, %u:%02u\012%s",
+    "only if not in the list",
+    "optional",
     "playback stopped",
     "plug in to keep playing",
     "port",
@@ -267,9 +303,320 @@ const char *const i18n_keys[] = {
     "was damaged; reindex rebuilds it",
 };
 
+/* 6024: 1 when the key is drawn by the device, 0 when only a web page
+ * uses it -- i18ntest checks Ark12's glyphs for the first kind only. */
+const unsigned char i18n_on_screen[] = {
+    1,  /* '%.32s did not work. Try again.' */
+    1,  /* '%d s' */
+    1,  /* '%s: %d mean, %d peak kbit/s' */
+    1,  /* '%u KB free' */
+    1,  /* '%u bytes' */
+    1,  /* '%u s' */
+    1,  /* '1 h' */
+    1,  /* '1 min' */
+    1,  /* '15 min' */
+    1,  /* '15 s' */
+    1,  /* '2 h' */
+    1,  /* '2 min' */
+    1,  /* '30 min' */
+    1,  /* '30 s' */
+    1,  /* '5 min' */
+    0,  /* 'A Wi-Fi password is 8 to 63 characters, ' */
+    0,  /* 'A network name is 1 to 32 characters.' */
+    1,  /* 'A phone supplies the password.' */
+    1,  /* 'A sign-in page opens with the form.' */
+    1,  /* 'A tap anywhere brings it back, and does ' */
+    1,  /* 'ALL' */
+    1,  /* 'AUTO' */
+    1,  /* 'About twenty seconds.' */
+    1,  /* 'Add a network' */
+    1,  /* 'Add a radio station to the card.' */
+    1,  /* 'Add a station by phone...' */
+    0,  /* 'Add station' */
+    0,  /* 'Added to %s on the card. The name is opt' */
+    1,  /* 'After this long with nothing playing, re' */
+    1,  /* 'After this long without a touch the scre' */
+    0,  /* 'Already on the card (%d):' */
+    1,  /* 'Already recording.' */
+    1,  /* 'Auto: USB, jack, mono. Off: no record.' */
+    1,  /* 'BATT' */
+    1,  /* 'BATT %d%%' */
+    1,  /* 'BUSY' */
+    0,  /* 'Back to the form' */
+    1,  /* 'Battery empty' */
+    1,  /* 'Battery low' */
+    1,  /* 'Benchmark' */
+    1,  /* 'Brightness   %d%%' */
+    1,  /* 'Buffering' */
+    1,  /* 'CHARGED' */
+    1,  /* 'CHRG %d%%' */
+    1,  /* 'CLOSE' */
+    1,  /* 'Cannot record' */
+    1,  /* 'Cert %.29s...' */
+    0,  /* 'Choose the network this player should us' */
+    1,  /* 'Clock' */
+    1,  /* 'Connect an MPD app to %s' */
+    1,  /* 'Connected to %.32s.' */
+    1,  /* 'Connecting' */
+    1,  /* 'Could not create the recording file.' */
+    1,  /* 'Could not make the Recordings folder.' */
+    1,  /* 'Could not save' */
+    1,  /* 'Could not start the file.' */
+    1,  /* 'Could not start the stream.' */
+    1,  /* 'Could not start.' */
+    1,  /* 'Crossfade   %d s' */
+    1,  /* 'Crossfade   off' */
+    1,  /* 'DN' */
+    0,  /* 'Defeatist setup' */
+    1,  /* 'Dim screen' */
+    1,  /* 'EAT' */
+    1,  /* 'EAT1' */
+    1,  /* 'Evens out loudness between tracks.' */
+    1,  /* 'FLDR' */
+    1,  /* 'FOCUSED' */
+    1,  /* 'Fades out, pauses, and turns the screen ' */
+    1,  /* 'Favourites are full' */
+    1,  /* 'Focused: those two aimed out of it.' */
+    1,  /* 'For backlight life and battery. This pan' */
+    1,  /* 'Greyed while Wi-Fi is off; the setting i' */
+    1,  /* 'HEADSET' */
+    1,  /* 'Headset, UAC: the jack, a USB mic.' */
+    1,  /* 'IDLE' */
+    1,  /* 'IN USE' */
+    1,  /* 'INDEXING' */
+    1,  /* 'Insert a card or a USB drive to record t' */
+    1,  /* 'It comes back when setup closes.' */
+    1,  /* 'It reached 4 GB, the most one file can h' */
+    0,  /* 'Join' */
+    1,  /* 'Join %s on a phone.' */
+    0,  /* 'Joined and saved %s. The setup network i' */
+    1,  /* 'LIVE' */
+    1,  /* 'Levels are still measured while off.' */
+    1,  /* 'Libraries' */
+    1,  /* 'Longer than the dim, and the backlight g' */
+    1,  /* 'MONO' */
+    1,  /* 'MPD server' */
+    1,  /* 'MUTED' */
+    1,  /* 'Media removed' */
+    1,  /* 'Mono/stereo: the two by the screen.' */
+    1,  /* 'Most listened' */
+    1,  /* 'Most voted' */
+    1,  /* 'NO BATT' */
+    0,  /* 'Name' */
+    1,  /* 'Needed for internet radio and the clock.' */
+    1,  /* 'Needs a network: Wi-Fi or a cable.' */
+    0,  /* 'Network' */
+    1,  /* 'Network time' */
+    1,  /* 'Never' */
+    1,  /* 'No USB microphone is plugged in.' */
+    0,  /* 'No answer from that network. Try again.' */
+    1,  /* 'No app connected.' */
+    1,  /* 'No memory for the recording task.' */
+    1,  /* 'No memory to measure with.' */
+    1,  /* 'No password: anyone on it can use it.' */
+    1,  /* 'No signal' */
+    1,  /* 'No station selected.' */
+    1,  /* 'Not enough memory to record.' */
+    1,  /* 'Nothing is plugged into the headset jack' */
+    1,  /* 'OFF' */
+    1,  /* 'ON' */
+    1,  /* 'ONE' */
+    1,  /* 'ONE1' */
+    1,  /* 'Off by default. Nothing on the card need' */
+    1,  /* 'Off fades the backlight out. Playback ca' */
+    1,  /* 'Off keeps deliberate segues intact: live' */
+    1,  /* 'Off while network setup has the page.' */
+    1,  /* 'On a phone, open http://%s/' */
+    1,  /* 'One folder counts as one album.' */
+    1,  /* 'Open %s' */
+    0,  /* 'Open networks are not supported yet.' */
+    0,  /* 'Or type a network name' */
+    0,  /* 'Other or hidden network (type it below)' */
+    0,  /* 'Password' */
+    1,  /* 'Play, pause, skip, seek and volume from ' */
+    1,  /* 'Play, pause, skip, seek and volume from ' */
+    1,  /* 'Playback pauses while setup runs.' */
+    1,  /* 'Power off' */
+    1,  /* 'Quarter turns. 90 and 270 are landscape;' */
+    1,  /* 'REC' */
+    1,  /* 'REINDEX' */
+    1,  /* 'RESET' */
+    1,  /* 'RESET: back to the build time; this boot' */
+    1,  /* 'RLOD' */
+    1,  /* 'RND' */
+    1,  /* 'RPT' */
+    1,  /* 'RPT1' */
+    1,  /* 'RUN' */
+    1,  /* 'Radio' */
+    0,  /* 'Radio stations' */
+    1,  /* 'Reading %s without decoding...' */
+    1,  /* 'Reads the selected station without decod' */
+    1,  /* 'Reconnecting' */
+    1,  /* 'Record from' */
+    1,  /* 'Recording in %d' */
+    1,  /* 'Recording is off (AUDIO, Record from).' */
+    1,  /* 'Recording saved' */
+    1,  /* 'Recording stopped' */
+    1,  /* 'Remote control' */
+    1,  /* 'ReplayGain is listening...' */
+    1,  /* 'Rotation' */
+    1,  /* 'SLEEP' */
+    1,  /* 'SLEEP %dM' */
+    1,  /* 'START' */
+    1,  /* 'STEREO' */
+    1,  /* 'STOP' */
+    1,  /* 'Same Wi-Fi as the player. %u:%02u left' */
+    1,  /* 'Same album' */
+    1,  /* 'Saved %.32s.' */
+    1,  /* 'Screen' */
+    1,  /* 'Screen off' */
+    1,  /* 'Sets the clock, in UTC. Streams need it:' */
+    1,  /* 'Setup closed after five minutes.' */
+    1,  /* 'Setup could not start.' */
+    1,  /* 'Sleep' */
+    1,  /* 'Sleep timer   %d min' */
+    1,  /* 'Sleep timer   %ld:%02ld' */
+    1,  /* 'Sleep timer   off' */
+    1,  /* 'Source' */
+    1,  /* 'Starred stations' */
+    1,  /* 'Starting...' */
+    0,  /* 'Station added.' */
+    1,  /* 'Station needs %d -- that is %d%%' */
+    1,  /* 'Station not answering' */
+    1,  /* 'Stop playback first.' */
+    0,  /* 'Stream address' */
+    1,  /* 'Stream too slow here' */
+    0,  /* 'That form was too large to be a name and' */
+    0,  /* 'That form was too large to be a network ' */
+    0,  /* 'That is not a usable stream address. It ' */
+    0,  /* 'That name cannot be used. Names are up t' */
+    0,  /* 'That needs a stream address.' */
+    0,  /* 'That network was not found. Check the na' */
+    1,  /* 'The USB microphone did not start.' */
+    1,  /* 'The USB microphone has no 16-bit format.' */
+    1,  /* 'The USB microphone is not there any more' */
+    1,  /* 'The USB microphone was unplugged.\n%u:%02' */
+    1,  /* 'The card would not take any more.' */
+    1,  /* 'The device turns off. The side button tu' */
+    0,  /* 'The list is full at %d stations. Remove ' */
+    1,  /* 'The microphones did not start.' */
+    0,  /* 'The password contains %s. A Wi-Fi passwo' */
+    0,  /* 'The password did not work. Try again.' */
+    0,  /* 'The station could not be saved. The card' */
+    1,  /* 'The station did not answer.' */
+    1,  /* 'The station does not say what it needs.' */
+    1,  /* 'The station went away.' */
+    1,  /* 'The stream stopped before it started.' */
+    1,  /* 'Then it shows the address to open.' */
+    1,  /* 'Then it shows the address to use.' */
+    1,  /* 'Timed out connecting.' */
+    0,  /* 'To change Wi-Fi networks instead, use Ne' */
+    1,  /* 'Touch anywhere to wake it.' */
+    1,  /* 'Trying %.32s...' */
+    0,  /* 'Trying %s… This can take fifteen seconds' */
+    1,  /* 'Turn Wi-Fi on first.' */
+    1,  /* 'Turning off to protect the battery. Char' */
+    1,  /* 'UP' */
+    1,  /* 'UP^' */
+    1,  /* 'USB audio' */
+    1,  /* 'USB port coming up' */
+    1,  /* 'USB port on - waiting for a drive' */
+    1,  /* 'Waiting for a network address.' */
+    0,  /* 'Waiting for a network.' */
+    1,  /* 'Waiting for network' */
+    1,  /* 'Web setup is open' */
+    1,  /* 'a guess' */
+    1,  /* 'all start with  %s' */
+    1,  /* 'app' */
+    1,  /* 'built' */
+    1,  /* 'capacity' */
+    1,  /* 'coming up' */
+    1,  /* 'connected' */
+    1,  /* 'drive' */
+    1,  /* 'failed; the log says why' */
+    1,  /* 'fetching %s...' */
+    1,  /* 'from NTP' */
+    1,  /* 'headphones' */
+    1,  /* 'headset' */
+    0,  /* 'hidden nearby' */
+    1,  /* 'in a browser on the same network.' */
+    1,  /* 'index' */
+    1,  /* 'indexing, %d so far' */
+    1,  /* 'it played, then ran out of buffer' */
+    1,  /* 'join %s' */
+    1,  /* 'maker' */
+    1,  /* 'mono' */
+    1,  /* 'mount' */
+    1,  /* 'mounted' */
+    1,  /* 'multichannel' */
+    1,  /* 'name' */
+    1,  /* 'no %s on the card' */
+    1,  /* 'no card in the slot' */
+    1,  /* 'no cover art' */
+    1,  /* 'no network - check Wi-Fi or the cable, t' */
+    1,  /* 'no network - the directory needs Wi-Fi o' */
+    1,  /* 'none' */
+    1,  /* 'not enough memory for that list' */
+    1,  /* 'not run this session' */
+    1,  /* 'nothing starred yet - tap a star to keep' */
+    1,  /* 'off' */
+    1,  /* 'on' */
+    1,  /* 'on %s, %u:%02u\n%s' */
+    0,  /* 'only if not in the list' */
+    0,  /* 'optional' */
+    1,  /* 'playback stopped' */
+    1,  /* 'plug in to keep playing' */
+    1,  /* 'port' */
+    1,  /* 'product' */
+    1,  /* 'radio - the card, the charts, or a tag' */
+    1,  /* 'route' */
+    1,  /* 'sector' */
+    1,  /* 'slide or tap to cancel' */
+    1,  /* 'speaker' */
+    1,  /* 'speed' */
+    1,  /* 'starts in a few seconds' */
+    1,  /* 'state' */
+    1,  /* 'stations.m3u on the card' */
+    1,  /* 'stereo' */
+    1,  /* 'stopped: the volume went away' */
+    1,  /* 'that' */
+    1,  /* 'the card would not take the write' */
+    1,  /* 'the directory did not answer' */
+    1,  /* 'the directory has nothing there' */
+    1,  /* 'the setup network' */
+    1,  /* 'the station' */
+    1,  /* 'the stream did not start' */
+    1,  /* 'then http://%s/' */
+    1,  /* 'this player' */
+    1,  /* 'type' */
+    1,  /* 'unstar one to make room' */
+    1,  /* 'uptime' */
+    1,  /* 'version' */
+    1,  /* 'waiting for a drive' */
+    1,  /* 'waiting for the network to play %s' */
+    1,  /* 'waiting for the network...' */
+    1,  /* 'was damaged; reindex rebuilds it' */
+};
+const unsigned char i18n_pon_screen[] = {
+    1,
+    0,
+    1,
+    1,
+    1,
+    1,
+    1,
+};
+
 /* [lang * i18n_count + key] */
 const char *const i18n_vals[] = {
     /* en */
+    NULL,
+    NULL,
+    NULL,
+    NULL,
+    NULL,
+    NULL,
+    NULL,
     NULL,
     NULL,
     NULL,
@@ -340,6 +687,7 @@ const char *const i18n_vals[] = {
     NULL,
     NULL,
     NULL,
+    NULL,
     "Insert a card or a USB\012drive to record to.",
     NULL,
     "It reached 4 GB, the\012most one file can hold.",
@@ -360,7 +708,12 @@ const char *const i18n_vals[] = {
     NULL,
     NULL,
     NULL,
+    NULL,
+    NULL,
+    NULL,
+    NULL,
     "No USB microphone is\012plugged in.",
+    NULL,
     NULL,
     "No memory for the\012recording task.",
     NULL,
@@ -369,6 +722,11 @@ const char *const i18n_vals[] = {
     NULL,
     "Not enough memory\012to record.",
     "Nothing is plugged into\012the headset jack.",
+    NULL,
+    NULL,
+    NULL,
+    NULL,
+    NULL,
     NULL,
     NULL,
     NULL,
@@ -427,14 +785,23 @@ const char *const i18n_vals[] = {
     NULL,
     NULL,
     NULL,
+    NULL,
     "Station silent",
     NULL,
+    NULL,
     "Stream too slow",
+    NULL,
+    NULL,
+    NULL,
+    NULL,
+    NULL,
+    NULL,
     "The USB microphone\012did not start.",
     "The USB microphone has\012no 16-bit format.",
     "The USB microphone is\012not there any more.",
     "The USB microphone was\012unplugged.\012%u:%02u on %s",
     "The card would not\012take any more.",
+    NULL,
     NULL,
     "The microphones did\012not start.",
     NULL,
@@ -447,7 +814,14 @@ const char *const i18n_vals[] = {
     NULL,
     NULL,
     NULL,
+    NULL,
+    NULL,
+    NULL,
+    NULL,
+    NULL,
     "Turning off to protect\012the battery. Charge it\012before use.",
+    NULL,
+    NULL,
     NULL,
     NULL,
     NULL,
@@ -508,6 +882,8 @@ const char *const i18n_vals[] = {
     NULL,
     NULL,
     NULL,
+    NULL,
+    NULL,
     "the card would not take\012the write",
     NULL,
     NULL,
@@ -540,6 +916,8 @@ const char *const i18n_vals[] = {
     "30分钟",
     "30秒",
     "5分钟",
+    "Wi-Fi 密码为 8 到 63 个字符，或 64 位十六进制数字。",
+    "网络名称为 1 到 32 个字符。",
     "由手机输入密码。",
     "会打开带表单的登录页。",
     "轻点任意处就能恢复，不会误按。",
@@ -549,13 +927,17 @@ const char *const i18n_vals[] = {
     "添加网络",
     "向卡中添加电台。",
     "用手机添加电台...",
+    "添加电台",
+    "添加到卡上的 %s。名称可不填——不填时以地址列出该电台。",
     "在无播放、无录音、无触摸达到该时长后。播放音乐时不会关机。",
     "在无触摸达到该时长后，屏幕亮度降为一半。触摸就能恢复。",
+    "卡上已有（%d）：",
     "正在录音。",
     "自动：USB、插孔、单声道。关：不录音。",
     "电池",
     "电池 %d%%",
     "进行中",
+    "返回表单",
     "电池耗尽",
     "电量低",
     "测速",
@@ -566,6 +948,7 @@ const char *const i18n_vals[] = {
     "关闭",
     "无法录音",
     "证书 %.29s...",
+    "选择本机要使用的网络并输入密码。保存前会先尝试连接。",
     "时钟",
     "用 MPD 应用连接 %s",
     "已连接 %.32s。",
@@ -579,6 +962,7 @@ const char *const i18n_vals[] = {
     "交叉淡化   %d 秒",
     "交叉淡化   关",
     "下页",
+    "Defeatist 设置",
     "屏幕变暗",
     "播完删除",
     "删除1",
@@ -598,7 +982,9 @@ const char *const i18n_vals[] = {
     "请插入存储卡或 U 盘\012再录音。",
     "设置关闭后恢复。",
     "已达 4 GB，\012单个文件的上限。",
+    "连接",
     "用手机连接 %s。",
+    "已连接并保存 %s。设置网络正在关闭，你可以离开它了。",
     "直播",
     "关闭时仍会测量电平。",
     "库",
@@ -611,11 +997,14 @@ const char *const i18n_vals[] = {
     "收听最多",
     "得票最多",
     "无电池",
+    "名称",
     "网络电台和时钟需要它。",
     "需要网络：Wi-Fi 或网线。",
+    "网络",
     "网络时间",
     "从不",
     "未插入 USB 麦克风。",
+    "该网络没有响应。请重试。",
     "没有应用连接。",
     "录音任务内存不足。",
     "内存不足，无法测量。",
@@ -635,6 +1024,10 @@ const char *const i18n_vals[] = {
     "在手机上打开 http://%s/",
     "一个文件夹算作一张专辑。",
     "打开 %s",
+    "暂不支持开放网络。",
+    "或输入网络名称",
+    "其他或隐藏网络（在下方输入）",
+    "密码",
     "在同一网络的浏览器中播放、暂停、切歌、定位和调音量。",
     "用 MALP 或 mpc 等 MPD 应用播放、暂停、切歌、定位和调音量。",
     "设置期间暂停播放。",
@@ -649,6 +1042,7 @@ const char *const i18n_vals[] = {
     "重复",
     "单曲重复",
     "运行",
+    "电台",
     "电台",
     "正在读取 %s（不解码）...",
     "只读取所选电台而不解码，用来区分是网络慢还是解码慢。",
@@ -681,17 +1075,29 @@ const char *const i18n_vals[] = {
     "源代码",
     "收藏的电台",
     "正在启动...",
+    "电台已添加。",
     "电台需要 %d，达到 %d%%",
     "电台无响应",
     "请先停止播放。",
+    "流地址",
     "网络太慢",
+    "表单内容过大，不像是名称和流地址。",
+    "表单内容过大，不像是网络名称和密码。",
+    "这不是可用的流地址。它必须以 http:// 或 https:// 开头，并且是一个连续的地址。",
+    "该名称不可用。名称最多 63 个字符，且不能以 # 开头。",
+    "需要填写流地址。",
+    "找不到该网络。请检查名称后重试。",
     "USB 麦克风未能启动。",
     "USB 麦克风\012不支持 16 位格式。",
     "USB 麦克风已不在。",
     "USB 麦克风已拔出。\012%u:%02u，保存在 %s",
     "卡已写不下。",
     "设备会关机。按侧边按钮可重新开机。",
+    "列表已满（%d 个电台）。从卡上的 %s 中删除一个才能再添加。",
     "麦克风未能启动。",
+    "密码中含有 %s。Wi-Fi 密码只能使用普通键盘字符；开启自动更正或智能标点时，手机会替换这些字符。请关闭后重新输入。",
+    "密码无效。请重试。",
+    "无法保存电台。卡可能已满、未插入或写保护，或者列表已满。",
     "电台无响应。",
     "电台未说明所需码率。",
     "电台已不可用。",
@@ -699,8 +1105,10 @@ const char *const i18n_vals[] = {
     "之后会显示要打开的地址。",
     "之后会显示要使用的地址。",
     "连接超时。",
+    "如需改用其他 Wi-Fi 网络，请在本机屏幕上使用“添加网络”。此页面会在 %d 分钟后自动关闭。",
     "触摸任意处就能唤醒。",
     "正在尝试 %.32s...",
+    "正在尝试 %s… 这可能需要十五秒，手机可能会暂时断开设置网络。无论结果如何，本机屏幕都会显示。",
     "请先打开 Wi-Fi。",
     "正在关机以保护电池。\012使用前请充电。",
     "上级",
@@ -709,6 +1117,7 @@ const char *const i18n_vals[] = {
     "USB 端口启动中",
     "USB 端口已开 - 等待驱动器",
     "正在等待网络地址。",
+    "正在等待网络。",
     "等待网络",
     "网页设置已开启",
     "估计值",
@@ -724,6 +1133,7 @@ const char *const i18n_vals[] = {
     "来自 NTP",
     "耳机",
     "耳麦",
+    "附近有隐藏网络",
     "在同一网络的浏览器中打开。",
     "索引",
     "索引中，已 %d 首",
@@ -747,6 +1157,8 @@ const char *const i18n_vals[] = {
     "关",
     "开",
     "保存在 %s，%u:%02u\012%s",
+    "仅当列表中没有时",
+    "可选",
     "播放已停止",
     "请接上电源继续播放",
     "端口",
@@ -795,6 +1207,8 @@ const char *const i18n_vals[] = {
     "30分",
     "30秒",
     "5分",
+    "Wi-Fiのパスワードは8～63文字、または16進数64桁です。",
+    "ネットワーク名は1～32文字です。",
     "パスワードはスマホから。",
     "フォーム付きの画面が開く。",
     "どこかをタップすると戻る。ボタンは押されない。",
@@ -804,13 +1218,17 @@ const char *const i18n_vals[] = {
     "ネットワーク追加",
     "カードに局を追加。",
     "スマホで局を追加...",
+    "局を追加",
+    "カードの %s に追加されます。名前は省略できます。省略すると局はアドレスで表示されます。",
     "再生・録音・タッチがない状態がこの時間続いたとき。音楽の再生中は切れない。",
     "この時間タッチがないと画面が半分の明るさになる。タッチで元に戻る。",
+    "カードに登録済み（%d）：",
     "録音中です。",
     "自動：USB、端子、モノラル。オフ：録音しない。",
     "電池",
     "電池 %d%%",
     "作業中",
+    "フォームに戻る",
     "電池切れ",
     "電池残量低下",
     "速度測定",
@@ -821,6 +1239,7 @@ const char *const i18n_vals[] = {
     "閉じる",
     "録音できない",
     "証明書 %.29s...",
+    "この機器が使うネットワークを選び、パスワードを入力してください。保存する前に接続を試します。",
     "時計",
     "MPDアプリで %s に接続",
     "%.32s に接続済み。",
@@ -834,6 +1253,7 @@ const char *const i18n_vals[] = {
     "クロスフェード   %d 秒",
     "クロスフェード   オフ",
     "次頁",
+    "Defeatist の設定",
     "画面を暗く",
     "消費",
     "消費1",
@@ -853,7 +1273,9 @@ const char *const i18n_vals[] = {
     "カードかUSBドライブを\012入れて録音を。",
     "設定が閉じると戻る。",
     "4 GB に達した。\0121ファイルの上限。",
+    "接続",
     "スマホで %s に接続。",
+    "%s に接続して保存しました。設定用ネットワークは閉じます。離れてかまいません。",
     "ライブ",
     "オフでも音量は測定される。",
     "ライブラリ",
@@ -866,11 +1288,14 @@ const char *const i18n_vals[] = {
     "よく聴かれる局",
     "投票の多い局",
     "電池なし",
+    "名前",
     "ネットラジオと時計に必要。",
     "ネットワークが必要：Wi-Fiかケーブル。",
+    "ネットワーク",
     "ネット時刻",
     "しない",
     "USBマイクが\012つながっていない。",
+    "そのネットワークから応答がありません。もう一度お試しください。",
     "接続中のアプリなし。",
     "録音タスクのメモリ不足。",
     "測定するメモリがない。",
@@ -890,6 +1315,10 @@ const char *const i18n_vals[] = {
     "スマホで http://%s/ を開く",
     "1つのフォルダを1枚のアルバムとみなす。",
     "%s を開く",
+    "パスワードなしのネットワークにはまだ対応していません。",
+    "またはネットワーク名を入力",
+    "その他・非公開のネットワーク（下に入力）",
+    "パスワード",
     "同じネットワークのブラウザから再生、一時停止、スキップ、シーク、音量。",
     "MALPやmpcなどのMPDアプリから再生、一時停止、スキップ、シーク、音量。",
     "設定中は再生を一時停止。",
@@ -905,6 +1334,7 @@ const char *const i18n_vals[] = {
     "1曲反復",
     "実行",
     "ラジオ",
+    "ラジオ局",
     "%s をデコードせずに読込中...",
     "選んだ局をデコードせずに読み、遅いのがネットかデコーダかを見分ける。",
     "再接続中",
@@ -936,17 +1366,29 @@ const char *const i18n_vals[] = {
     "ソース",
     "お気に入りの局",
     "起動中...",
+    "局を追加しました。",
     "局の必要量 %d、その %d%%",
     "局が応答しない",
     "先に再生を止める。",
+    "ストリームのアドレス",
     "回線が遅すぎる",
+    "名前とストリームのアドレスにしては大きすぎるフォームです。",
+    "ネットワーク名とパスワードにしては大きすぎるフォームです。",
+    "使えるストリームのアドレスではありません。http:// か https:// で始まる、途切れのない1つのアドレスにしてください。",
+    "その名前は使えません。名前は63文字までで、# で始めることはできません。",
+    "ストリームのアドレスが必要です。",
+    "そのネットワークが見つかりません。名前を確認してもう一度お試しください。",
     "USBマイクが\012起動しなかった。",
     "USBマイクに\01216ビット形式がない。",
     "USBマイクが\012もう見つからない。",
     "USBマイクが抜かれた。\012%u:%02u、%s に保存",
     "カードがもう書き込めない。",
     "本体の電源が切れる。側面のボタンで入る。",
+    "リストは %d 局でいっぱいです。追加するには、カードの %s から1つ削除してください。",
     "マイクが起動しなかった。",
+    "パスワードに %s が含まれています。Wi-Fiのパスワードは通常のキーボード文字だけです。自動修正やスマート句読点がオンだと、スマホがこれらの文字を置き換えます。オフにして入力し直してください。",
+    "パスワードが違います。もう一度お試しください。",
+    "局を保存できませんでした。カードがいっぱい、未挿入、書き込み禁止か、リストがすでにいっぱいの可能性があります。",
     "局が応答しない。",
     "局は必要量を示していない。",
     "局が消えた。",
@@ -954,8 +1396,10 @@ const char *const i18n_vals[] = {
     "その後、開くアドレスが出る。",
     "その後、使うアドレスが出る。",
     "接続がタイムアウト。",
+    "Wi-Fiネットワークを変える場合は、機器の画面の「ネットワーク追加」を使ってください。このページは %d 分後に閉じます。",
     "どこかに触れると戻る。",
     "%.32s を試行中...",
+    "%s を試しています… 15秒ほどかかり、このスマホは一時的に設定用ネットワークから外れることがあります。結果はどちらにしても機器の画面に表示されます。",
     "先にWi-Fiをオン。",
     "電池を守るため電源を切る。\012使う前に充電を。",
     "上へ",
@@ -964,6 +1408,7 @@ const char *const i18n_vals[] = {
     "USBポート起動中",
     "USBポートオン - ドライブ待ち",
     "ネットのアドレス待ち。",
+    "ネットワークを待っています。",
     "ネット待ち",
     "Web設定が開いている",
     "推定",
@@ -979,6 +1424,7 @@ const char *const i18n_vals[] = {
     "NTPより",
     "ヘッドホン",
     "ヘッドセット",
+    "近くに非公開あり",
     "同じネットワークのブラウザで。",
     "索引",
     "索引作成中、%d 曲まで",
@@ -1002,6 +1448,8 @@ const char *const i18n_vals[] = {
     "オフ",
     "オン",
     "%s に保存、%u:%02u\012%s",
+    "リストにない場合のみ",
+    "省略可",
     "再生停止",
     "給電して再生を続ける",
     "ポート",
@@ -1050,6 +1498,8 @@ const char *const i18n_vals[] = {
     "30 min",
     "30 s",
     "5 min",
+    "Una contraseña Wi-Fi tiene de 8 a 63 caracteres, o 64 dígitos hexadecimales.",
+    "Un nombre de red tiene de 1 a 32 caracteres.",
     "Un teléfono da la contraseña.",
     "Se abre una página con el formulario.",
     "Un toque en cualquier sitio la recupera, sin pulsar nada.",
@@ -1059,13 +1509,17 @@ const char *const i18n_vals[] = {
     "Añadir red",
     "Añade una emisora a la tarjeta.",
     "Añadir emisora por teléfono...",
+    "Añadir emisora",
+    "Se añade a %s en la tarjeta. El nombre es opcional: sin él, la emisora aparece por su dirección.",
     "Tras este tiempo sin reproducir, grabar ni tocar nada. Nunca con música sonando.",
     "Tras este tiempo sin tocarla, la pantalla baja a la mitad de brillo. Cualquier toque la restaura.",
+    "Ya en la tarjeta (%d):",
     "Ya se está grabando.",
     "Auto: USB, toma, mono. No: sin grabar.",
     "BAT",
     "BAT %d%%",
     "OCUP.",
+    "Volver al formulario",
     "Batería agotada",
     "Batería baja",
     "Medir velocidad",
@@ -1076,6 +1530,7 @@ const char *const i18n_vals[] = {
     "CERRAR",
     "No se puede grabar",
     "Cert. %.29s...",
+    "Elige la red que usará el reproductor e introduce su contraseña. Se prueba antes de guardarla.",
     "Reloj",
     "Conecta una app MPD a %s",
     "Conectado a %.32s.",
@@ -1089,6 +1544,7 @@ const char *const i18n_vals[] = {
     "Fundido cruzado   %d s",
     "Fundido cruzado   desactivado",
     "AV PÁG",
+    "Configuración de Defeatist",
     "Atenuar pantalla",
     "BORRAR",
     "BORRAR1",
@@ -1108,7 +1564,9 @@ const char *const i18n_vals[] = {
     "Inserta una tarjeta o\012unidad USB para grabar.",
     "Vuelve cuando se cierra la configuración.",
     "Llegó a 4 GB, el máximo\012de un archivo.",
+    "Conectar",
     "Únete a %s con el móvil.",
+    "Conectado a %s y guardada. La red de configuración se cierra; ya puedes salir de ella.",
     "VIVO",
     "Los niveles se miden aunque esté apagado.",
     "Bibliotecas",
@@ -1121,11 +1579,14 @@ const char *const i18n_vals[] = {
     "Más escuchadas",
     "Más votadas",
     "SIN BAT",
+    "Nombre",
     "Necesaria para la radio por internet y el reloj.",
     "Necesita red: Wi-Fi o un cable.",
+    "Red",
     "Hora de red",
     "Nunca",
     "No hay micrófono USB\012conectado.",
+    "Esa red no responde. Inténtalo otra vez.",
     "Ninguna app conectada.",
     "Sin memoria para la\012tarea de grabación.",
     "Sin memoria para medir.",
@@ -1145,6 +1606,10 @@ const char *const i18n_vals[] = {
     "En un teléfono, abre http://%s/",
     "Una carpeta cuenta como un álbum.",
     "Abre %s",
+    "Las redes abiertas aún no son compatibles.",
+    "O escribe el nombre de una red",
+    "Otra red u oculta (escríbela abajo)",
+    "Contraseña",
     "Reproducir, pausar, saltar, buscar y volumen desde un navegador en la misma red.",
     "Reproducir, pausar, saltar, buscar y volumen desde una app MPD como MALP o mpc.",
     "Se pausa la reproducción al configurar.",
@@ -1160,6 +1625,7 @@ const char *const i18n_vals[] = {
     "REPITE 1",
     "MEDIR",
     "Radio",
+    "Emisoras de radio",
     "Leyendo %s sin decodificar...",
     "Lee la emisora sin decodificar, para separar una red lenta de un decodificador lento.",
     "Reconectando",
@@ -1191,17 +1657,29 @@ const char *const i18n_vals[] = {
     "Código fuente",
     "Emisoras favoritas",
     "Iniciando...",
+    "Emisora añadida.",
     "La emisora pide %d: es el %d%%",
     "Emisora sin señal",
     "Detén primero la reproducción.",
+    "Dirección del flujo",
     "Red muy lenta",
+    "El formulario es demasiado grande para ser un nombre y una dirección.",
+    "El formulario es demasiado grande para ser un nombre de red y una contraseña.",
+    "Esa no es una dirección utilizable. Tiene que empezar por http:// o https:// y ser una sola dirección sin cortes.",
+    "Ese nombre no se puede usar. Los nombres tienen hasta 63 caracteres y no pueden empezar por #.",
+    "Falta la dirección del flujo.",
+    "No se encontró esa red. Revisa el nombre e inténtalo otra vez.",
     "El micrófono USB\012no arrancó.",
     "El micrófono USB no\012tiene formato de 16 bits.",
     "El micrófono USB\012ya no está.",
     "Se desconectó el\012micrófono USB.\012%u:%02u en %s",
     "La tarjeta no admite\012más datos.",
     "El equipo se apaga. El botón lateral lo vuelve a encender.",
+    "La lista está llena con %d emisoras. Quita una de %s en la tarjeta para añadir otra.",
     "Los micrófonos\012no arrancaron.",
+    "La contraseña contiene %s. Una contraseña Wi-Fi solo lleva caracteres normales del teclado; los teléfonos los cambian con la autocorrección o la puntuación inteligente. Vuelve a escribirla con eso desactivado.",
+    "La contraseña no funcionó. Inténtalo otra vez.",
+    "No se pudo guardar la emisora. La tarjeta puede estar llena, ausente o protegida, o la lista ya llena.",
     "La emisora no respondió.",
     "La emisora no dice qué necesita.",
     "La emisora desapareció.",
@@ -1209,8 +1687,10 @@ const char *const i18n_vals[] = {
     "Luego muestra la dirección que abrir.",
     "Luego muestra la dirección que usar.",
     "Tiempo de conexión agotado.",
+    "Para cambiar de red Wi-Fi, usa «Añadir red» en la pantalla del reproductor. Esta página se cierra sola tras %d minutos.",
     "Toca en cualquier sitio para despertarla.",
     "Probando %.32s...",
+    "Probando %s… Puede tardar quince segundos, y este teléfono puede perder la red de configuración un momento. La pantalla del reproductor muestra el resultado en cualquier caso.",
     "Activa primero la Wi-Fi.",
     "Apagando para proteger\012la batería. Cárgala\012antes de usarla.",
     "SUBIR",
@@ -1219,6 +1699,7 @@ const char *const i18n_vals[] = {
     "Puerto USB arrancando",
     "Puerto USB encendido - esperando una unidad",
     "Esperando una dirección de red.",
+    "Esperando una red.",
     "Esperando red",
     "Ajuste web abierto",
     "estimada",
@@ -1234,6 +1715,7 @@ const char *const i18n_vals[] = {
     "de NTP",
     "auriculares",
     "auricular",
+    "hay ocultas cerca",
     "en un navegador de la misma red.",
     "índice",
     "indexando, %d hasta ahora",
@@ -1257,6 +1739,8 @@ const char *const i18n_vals[] = {
     "no",
     "sí",
     "en %s, %u:%02u\012%s",
+    "solo si no está en la lista",
+    "opcional",
     "reproducción detenida",
     "conéctalo para seguir",
     "puerto",
@@ -1291,9 +1775,10 @@ const char *const i18n_vals[] = {
     "dañado; reindexar lo rehace",
 };
 
-const unsigned i18n_pcount = 6;
+const unsigned i18n_pcount = 7;
 const char *const i18n_pkeys[] = {
     "%d apps connected.",
+    "%d hidden networks nearby. A hidden network's name has to be typed.",
     "%d stations from %s",
     "%d tracks (+%d ~%d -%d), %d s",
     "%d tracks, unchanged, %d s",
@@ -1306,6 +1791,7 @@ const char *const i18n_pkeys[] = {
 const char *const i18n_pvals[] = {
     /* en */
     "%d app connected.", NULL,
+    "%d hidden network nearby. A hidden network's name has to be typed.", NULL,
     "%d station from %s", NULL,
     "%d track (+%d ~%d -%d), %d s", NULL,
     "%d track, unchanged, %d s", NULL,
@@ -1313,6 +1799,7 @@ const char *const i18n_pvals[] = {
     "Not connected. %d network saved.", NULL,
     /* zh-CN */
     NULL, "已有 %d 个应用连接。",
+    NULL, "附近有 %d 个隐藏网络。隐藏网络的名称需要手动输入。",
     NULL, "%d 个电台，来自 %s",
     NULL, "%d 首 (+%d ~%d -%d)，%d 秒",
     NULL, "%d 首，无变化，%d 秒",
@@ -1320,6 +1807,7 @@ const char *const i18n_pvals[] = {
     NULL, "未连接。已保存 %d 个网络。",
     /* ja */
     NULL, "%d 個のアプリが接続中。",
+    NULL, "近くに非公開のネットワークが %d 件あります。非公開のネットワーク名は入力が必要です。",
     NULL, "%d 局、%s から",
     NULL, "%d 曲 (+%d ~%d -%d)、%d 秒",
     NULL, "%d 曲、更新なし、%d 秒",
@@ -1327,6 +1815,7 @@ const char *const i18n_pvals[] = {
     NULL, "未接続。保存済み %d 件。",
     /* es */
     "%d app conectada.", "%d apps conectadas.",
+    "%d red oculta cerca. El nombre de una red oculta hay que escribirlo.", "%d redes ocultas cerca. El nombre de una red oculta hay que escribirlo.",
     "%d emisora de %s", "%d emisoras de %s",
     "%d pista (+%d ~%d -%d), %d s", "%d pistas (+%d ~%d -%d), %d s",
     "%d pista, sin cambios, %d s", "%d pistas, sin cambios, %d s",

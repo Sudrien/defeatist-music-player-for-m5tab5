@@ -52,6 +52,17 @@ const char *i18n_lang_name(i18n_lang_t lang);
 const char *i18n_get(const char *msgid);
 const char *i18n_get_plural(const char *msgid, long n);
 
+/* 6024: the web pages' side. Each request picks its own language from
+ * the browser's Accept-Language header -- whatever the screen is set
+ * to -- and looks its strings up in that one. English when the header
+ * names nothing we have. */
+const char *i18n_get_in(i18n_lang_t lang, const char *msgid);
+const char *i18n_get_plural_in(i18n_lang_t lang, const char *msgid, long n);
+i18n_lang_t i18n_from_accept_language(const char *header);
+const char *i18n_lang_code(i18n_lang_t lang);      /* "en", "zh-CN", ... */
+#define _in(l, s)      i18n_get_in((l), (s))
+#define _pin(l, s, n)  i18n_get_plural_in((l), (s), (long)(n))
+
 #define _(s)      i18n_get(s)
 #define N_(s)     (s)
 

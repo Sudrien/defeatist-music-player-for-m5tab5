@@ -36,6 +36,10 @@ en:
     "30 s": ~
     # screendim.h
     "5 min": ~
+    # portal.c
+    "A Wi-Fi password is 8 to 63 characters, or 64 hex digits.": ~
+    # portal.c
+    "A network name is 1 to 32 characters.": ~
     # panel.c
     "A phone supplies the password.": ~
     # panel.c
@@ -54,10 +58,16 @@ en:
     "Add a radio station to the card.": ~
     # radiobrowser.h
     "Add a station by phone...": ~
+    # portal.c
+    "Add station": ~
+    # portal.c
+    "Added to %s on the card. The name is optional — without one the station is listed by its address.": ~
     # sleeppage.c
     "After this long with nothing playing, recording or touched. Not while music plays.": ~
     # sleeppage.c
     "After this long without a touch the screen drops to half brightness. Any touch puts it back.": ~
+    # portal.c
+    "Already on the card (%d):": ~
     # recorder.c
     "Already recording.": ~
     # panel.c
@@ -68,6 +78,8 @@ en:
     "BATT %d%%": ~
     # panel.c
     "BUSY": ~
+    # portal.c
+    "Back to the form": ~
     # player.c
     "Battery empty": ~
     # player.c
@@ -88,6 +100,8 @@ en:
     "Cannot record": ~
     # panel.c
     "Cert %.29s...": ~
+    # portal.c
+    "Choose the network this player should use, and enter its password. It is tried before it is saved.": ~
     # panel.c
     "Clock": ~
     # panel.c
@@ -114,6 +128,8 @@ en:
     "Crossfade   off": ~
     # browser.c
     "DN": ~
+    # portal.c
+    "Defeatist setup": ~
     # sleeppage.c
     "Dim screen": ~
     # browser.c
@@ -152,8 +168,12 @@ en:
     "It comes back when setup closes.": ~
     # recorder.c
     "It reached 4 GB, the most one file can hold.": "It reached 4 GB, the\nmost one file can hold."
+    # portal.c
+    "Join": ~
     # panel.c
     "Join %s on a phone.": ~
+    # portal.c
+    "Joined and saved %s. The setup network is closing; you can leave it.": ~
     # ui.c
     "LIVE": ~
     # panel.c
@@ -178,16 +198,22 @@ en:
     "Most voted": ~
     # ui.c
     "NO BATT": ~
+    # portal.c
+    "Name": ~
     # panel.c
     "Needed for internet radio and the clock.": ~
     # panel.c
     "Needs a network: Wi-Fi or a cable.": ~
+    # portal.c
+    "Network": ~
     # panel.c
     "Network time": ~
     # powerdown.h, screendim.h
     "Never": ~
     # recorder.c
     "No USB microphone is plugged in.": "No USB microphone is\nplugged in."
+    # portal.c
+    "No answer from that network. Try again.": ~
     # panel.c
     "No app connected.": ~
     # recorder.c
@@ -226,6 +252,14 @@ en:
     "One folder counts as one album.": ~
     # panel.c
     "Open %s": ~
+    # portal.c
+    "Open networks are not supported yet.": ~
+    # portal.c
+    "Or type a network name": ~
+    # portal.c
+    "Other or hidden network (type it below)": ~
+    # portal.c
+    "Password": ~
     # panel.c
     "Play, pause, skip, seek and volume from a browser on the same network.": ~
     # panel.c
@@ -256,6 +290,8 @@ en:
     "RUN": ~
     # player.c
     "Radio": ~
+    # portal.c
+    "Radio stations": ~
     # panel.c
     "Reading %s without decoding...": ~
     # panel.c
@@ -318,14 +354,30 @@ en:
     "Starred stations": ~
     # panel.c
     "Starting...": ~
+    # portal.c
+    "Station added.": ~
     # panel.c
     "Station needs %d -- that is %d%%": ~
     # player.c
     "Station not answering": "Station silent"
     # panel.c
     "Stop playback first.": ~
+    # portal.c
+    "Stream address": ~
     # player.c
     "Stream too slow here": "Stream too slow"
+    # portal.c
+    "That form was too large to be a name and a stream address.": ~
+    # portal.c
+    "That form was too large to be a network name and a password.": ~
+    # portal.c
+    "That is not a usable stream address. It has to start with http:// or https:// and be one unbroken address.": ~
+    # portal.c
+    "That name cannot be used. Names are up to 63 characters and cannot start with a #.": ~
+    # portal.c
+    "That needs a stream address.": ~
+    # portal.c
+    "That network was not found. Check the name and try again.": ~
     # recorder.c
     "The USB microphone did not start.": "The USB microphone\ndid not start."
     # recorder.c
@@ -338,8 +390,16 @@ en:
     "The card would not take any more.": "The card would not\ntake any more."
     # sleeppage.c
     "The device turns off. The side button turns it back on.": ~
+    # portal.c
+    "The list is full at %d stations. Remove one from %s on the card to add another.": ~
     # recorder.c
     "The microphones did not start.": "The microphones did\nnot start."
+    # portal.c
+    "The password contains %s. A Wi-Fi password is plain keyboard characters only; phones substitute these when autocorrect or smart punctuation is on. Retype it with that turned off.": ~
+    # portal.c
+    "The password did not work. Try again.": ~
+    # portal.c
+    "The station could not be saved. The card may be full, absent, or write-protected, or the list may already be full.": ~
     # bench.c
     "The station did not answer.": ~
     # panel.c
@@ -354,10 +414,14 @@ en:
     "Then it shows the address to use.": ~
     # bench.c
     "Timed out connecting.": ~
+    # portal.c
+    "To change Wi-Fi networks instead, use Network setup on the player's screen. This page closes itself after %d minutes.": ~
     # sleeppage.c
     "Touch anywhere to wake it.": ~
     # panel.c
     "Trying %.32s...": ~
+    # portal.c
+    "Trying %s… This can take fifteen seconds, and this phone may lose the setup network for a moment. The player's screen shows the result either way.": ~
     # panel.c
     "Turn Wi-Fi on first.": ~
     # player.c
@@ -374,6 +438,8 @@ en:
     "USB port on - waiting for a drive": ~
     # panel.c
     "Waiting for a network address.": ~
+    # portal.c
+    "Waiting for a network.": ~
     # player.c
     "Waiting for network": ~
     # player.c
@@ -404,6 +470,8 @@ en:
     "headphones": ~
     # panel.c
     "headset": ~
+    # portal.c
+    "hidden nearby": ~
     # panel.c
     "in a browser on the same network.": ~
     # panel.c
@@ -450,6 +518,10 @@ en:
     "on": ~
     # recorder.c
     "on %s, %u:%02u\n%s": ~
+    # portal.c
+    "only if not in the list": ~
+    # portal.c
+    "optional": ~
     # player.c
     "playback stopped": ~
     # player.c
@@ -517,6 +589,9 @@ en:
   plural:
     "%d apps connected.":
       one: "%d app connected."
+      other: ~
+    "%d hidden networks nearby. A hidden network's name has to be typed.":
+      one: "%d hidden network nearby. A hidden network's name has to be typed."
       other: ~
     "%d stations from %s":
       one: "%d station from %s"

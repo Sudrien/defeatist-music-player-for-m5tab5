@@ -20905,3 +20905,22 @@ The status line is narrower for it -- "IDLE 120M" was its widest word
 
 ABBREVIATIONS.md and the README say what the colours mean. Not compiled
 with ESP-IDF here. Not on the board.
+
+### 6021 -- the console stays English, and says so
+
+The name tables that only the log reads are marked same(): the touch
+log's action names (ui_action_name()), the chooser footer's and tab
+strip's log names, Record from's log names, and
+streamplan_action_name(). Nothing about them changes; they were what
+the survey kept reporting as unconverted, and they are not.
+
+That collided with a rule 6016 made: tools/i18n.py refused a string
+marked same() in one place and _() in another, as a guard against a
+screen word kept English by mistake. "off", "none", "mono", "stereo"
+and "headset" are console names here and translated screen words
+elsewhere, and both are right -- lookup is by content, so a same()
+use and a _() use of the same English never affect each other. The
+refusal is a line `extract` prints instead, listing the overlap so a
+mistaken one is still seen; `check` no longer fails on it.
+
+The TAG strings are not marked: they are identifiers, not words.

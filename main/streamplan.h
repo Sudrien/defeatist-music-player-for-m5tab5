@@ -258,11 +258,12 @@ typedef enum {
 
 static inline const char *streamplan_action_name(streamplan_action_t a)
 {
+    /* 6021: same() -- for the log only. */
     switch (a) {
-    case STREAMPLAN_NOTHING:    return "nothing";
-    case STREAMPLAN_DISCONNECT: return "disconnect";
-    case STREAMPLAN_CONNECT:    return "connect";
-    case STREAMPLAN_LEAVE:      return "leave";
+    case STREAMPLAN_NOTHING:    return same("nothing");
+    case STREAMPLAN_DISCONNECT: return same("disconnect");
+    case STREAMPLAN_CONNECT:    return same("connect");
+    case STREAMPLAN_LEAVE:      return same("leave");
     default:                    return "?";
     }
 }

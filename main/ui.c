@@ -374,31 +374,32 @@ static bool s_was_down;
  */
 const char *ui_action_name(ui_action_kind_t k)
 {
+    /* 6021: same() -- the console names actions; it stays English. */
     switch (k) {
-    case UI_ACTION_NONE:        return "none";
-    case UI_ACTION_PLAY_PAUSE:  return "play/pause";
-    case UI_ACTION_CHOOSE_FILE: return "folder";
-    case UI_ACTION_SETTINGS:    return "gear (settings)";
-    case UI_ACTION_SCREEN_OFF:  return "moon (sleep page)";
-    case UI_ACTION_FAVORITE:    return "star (favourite)";
-    case UI_ACTION_DISMISS_NOTICE: return "notice dismissed";
-    case UI_ACTION_RECORD:      return "record";
-    case UI_ACTION_PLAY:        return "play";
-    case UI_ACTION_PAUSE:       return "pause";
-    case UI_ACTION_SCREEN_ON:   return "wake";
-    case UI_ACTION_PREV:        return "prev";
-    case UI_ACTION_PREV_AGAIN:  return "prev x2";
-    case UI_ACTION_NEXT:        return "next";
-    case UI_ACTION_SEEK:        return "seek";
-    case UI_ACTION_VOLUME:      return "volume";
-    case UI_ACTION_MUTE:        return "mute";
-    case UI_ACTION_REPLAYGAIN:  return "replaygain";
-    case UI_ACTION_PLAY_ID:     return "play entry";
-    case UI_ACTION_ORDER:       return "play order";
-    case UI_ACTION_SEEK_SEC:    return "seek to";
-    case UI_ACTION_CROSSFADE:   return "crossfade";             /* 5269 */
-    case UI_ACTION_XFADE_ALBUM: return "crossfade in album";
-    case UI_ACTION_SLEEP:       return "sleep timer";
+    case UI_ACTION_NONE:        return same("none");
+    case UI_ACTION_PLAY_PAUSE:  return same("play/pause");
+    case UI_ACTION_CHOOSE_FILE: return same("folder");
+    case UI_ACTION_SETTINGS:    return same("gear (settings)");
+    case UI_ACTION_SCREEN_OFF:  return same("moon (sleep page)");
+    case UI_ACTION_FAVORITE:    return same("star (favourite)");
+    case UI_ACTION_DISMISS_NOTICE: return same("notice dismissed");
+    case UI_ACTION_RECORD:      return same("record");
+    case UI_ACTION_PLAY:        return same("play");
+    case UI_ACTION_PAUSE:       return same("pause");
+    case UI_ACTION_SCREEN_ON:   return same("wake");
+    case UI_ACTION_PREV:        return same("prev");
+    case UI_ACTION_PREV_AGAIN:  return same("prev x2");
+    case UI_ACTION_NEXT:        return same("next");
+    case UI_ACTION_SEEK:        return same("seek");
+    case UI_ACTION_VOLUME:      return same("volume");
+    case UI_ACTION_MUTE:        return same("mute");
+    case UI_ACTION_REPLAYGAIN:  return same("replaygain");
+    case UI_ACTION_PLAY_ID:     return same("play entry");
+    case UI_ACTION_ORDER:       return same("play order");
+    case UI_ACTION_SEEK_SEC:    return same("seek to");
+    case UI_ACTION_CROSSFADE:   return same("crossfade");             /* 5269 */
+    case UI_ACTION_XFADE_ALBUM: return same("crossfade in album");
+    case UI_ACTION_SLEEP:       return same("sleep timer");
     }
     return "?";
 }

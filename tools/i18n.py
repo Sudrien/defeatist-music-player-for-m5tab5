@@ -186,10 +186,12 @@ def scan_sources():
                            "string literal")
     if bad:
         sys.exit("i18n: the extractor cannot read these:\n  " + "\n  ".join(bad))
-    both = sorted(k for k in same if k in singular or k in plural)
-    if both:
-        sys.exit("i18n: marked same() in one place and translated in another: "
-                 + ", ".join(repr(k) for k in both))
+    # 6021: allowed, and only said. The same English can be a console
+    # name in one place (same()) and a screen word in another (_()):
+    # "off" is both. Lookup is by content, so neither use affects the
+    # other; extract names them so a screen word marked same() by
+    # mistake is still seen.
+    scan_sources.both = sorted(k for k in same if k in singular or k in plural)
     for k in plural:
         if k in singular:
             sys.exit(f"i18n: {k!r} is used both as _() and _p()")
@@ -320,6 +322,9 @@ def cmd_extract(args, write=True):
                 os.makedirs(YML_DIR, exist_ok=True)
                 with open(path, "w", encoding="utf-8") as f:
                     f.write(text)
+    if write and scan_sources.both:
+        print("i18n: same() in one place, translated in another: "
+              + ", ".join(repr(k) for k in scan_sources.both))
     if write:
         print(f"i18n: {len(where_s)} strings, {len(where_p)} plurals; "
               f"{len(changed)} file(s) updated")

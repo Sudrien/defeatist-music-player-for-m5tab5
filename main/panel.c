@@ -1755,7 +1755,9 @@ bool panel_touch(bool down, int x, int y)
                 (settings_rec_from_t)((settings_rec_from() + 1) % SETTINGS_REC_COUNT);
             settings_set_rec_from(in);
             static const char *const k_name[SETTINGS_REC_COUNT] = {
-                "mono", "stereo", "focused", "headset", "UAC", "auto", "off",
+                /* 6021: same() -- the log's names, English */
+                same("mono"), same("stereo"), same("focused"), same("headset"),
+                same("UAC"), same("auto"), same("off"),
             };
             ESP_LOGI(TAG, "record from: %s (next recording)", k_name[in]);
             s_dirty = true;

@@ -59,7 +59,9 @@ const char *i18n_get_plural(const char *msgid, long n);
  * unit, a product or protocol name. Expands to its argument and does
  * nothing else; what it adds is the decision, written where the string
  * is, so English that was chosen is not mistaken for English nobody has
- * converted yet. tools/i18n.py refuses a string marked both ways. */
+ * converted yet. Kept English here even where the same words are
+ * translated elsewhere -- a console name that is also a screen label --
+ * which tools/i18n.py extract lists (6021). */
 #define same(s)   (s)
 #define _p(s, n)  i18n_get_plural((s), (long)(n))
 

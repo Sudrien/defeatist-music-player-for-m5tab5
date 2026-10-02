@@ -1407,8 +1407,8 @@ browser_result_t browser_touch(bool down, int x, int y)
         const browser_tab_t want = (x < t1) ? BROWSER_TAB_SD
                                  : (x < t2) ? BROWSER_TAB_USB
                                             : BROWSER_TAB_RADIO;
-        static const char *const tab_name[BROWSER_TAB_COUNT] = {
-            "SD", "USB", "RADIO"
+        static const char *const tab_name[BROWSER_TAB_COUNT] = {   /* 6021: log */
+            same("SD"), same("USB"), same("RADIO")
         };
         ESP_LOGI(TAG, "button: tab %s", tab_name[want]);
         select_tab(want);
@@ -1425,16 +1425,18 @@ browser_result_t browser_touch(bool down, int x, int y)
          * top of the list, play-folder on an empty folder) still shows
          * up as having been received. A button that is working and a
          * button that is not both look like silence otherwise. */
+        /* 6021: same() -- console only, English. */
         static const char *const foot_name[FOOT_BUTTONS] = {
-            "up", "play folder", "page up", "page down", "order", "cancel"
+            same("up"), same("play folder"), same("page up"), same("page down"),
+            same("order"), same("cancel")
         };
         static const char *const foot_name_radio[FOOT_BUTTONS] = {
-            "reload stations", "play folder", "page up", "page down",
-            "order", "cancel"
+            same("reload stations"), same("play folder"), same("page up"),
+            same("page down"), same("order"), same("cancel")
         };
         static const char *const foot_name_menu[FOOT_BUTTONS] = {
-            "back to the menu", "play folder", "page up", "page down",
-            "order", "cancel"
+            same("back to the menu"), same("play folder"), same("page up"),
+            same("page down"), same("order"), same("cancel")
         };
         ESP_LOGI(TAG, "button: %s",
                  !s_radio ? foot_name[which]

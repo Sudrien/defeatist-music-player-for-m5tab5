@@ -21013,3 +21013,44 @@ language, so the words on the phone are the words on the device.
 
 Not compiled with ESP-IDF here; portal.c's page code passed a
 syntax-only host compile with stubs. Not on the board.
+
+### 6025 -- the browser remote, every language in the page
+
+The remote (remote.html, served by remote.c) carries all four
+languages and shows one by CSS: html[lang] against a span per language
+inside every marked string. Changing language is changing that
+attribute -- nothing is fetched again, and 6026's override is a select
+that sets it. The request's Accept-Language decides only which one
+shows first. 62 strings and one plural, on top of 6024's shared ones.
+
+h_page() writes the dictionary into the page at <!--i18n-->: the keys
+the remote uses (i18n_remote[], which tools/i18n.py derives from
+remote.html and remote.c) with a string per language, null where it
+is the key. In the page rather than fetched beside it because on this
+device a new HTTPS request is a TLS handshake measured at 0.8 s. It is
+12.6 KB on a 36 KB page; served Vary: Accept-Language.
+
+The page marks its text three ways, which the extractor reads:
+`data-t` (the element's text is the key), `data-k` (an explicit key,
+for the paragraph with <code>stations.m3u</code> in it, `data-arg`
+filling its %s) and `data-ta` (attributes: placeholders, aria-labels).
+Text sharing an element with a control is wrapped in a span so the
+control survives. An <option> cannot hold spans and an attribute
+cannot be styled, so applyLang() sets those, and the script's own
+strings are T(), P() and F() at the moment they are drawn. Without the
+dictionary the page is the English it is written in.
+
+What remote.c sends -- Wi-Fi states, station replies, a folder that
+would not open -- stays English, N_() at the source, and the page
+translates it with T(): a websocket frame has no request to read a
+language from, and the server should not need one. The Wi-Fi results
+that name a network ("Joined and saved %s.", "%s refused the
+password.") go as a key and an `arg` beside it, so a translation can
+put the name where its grammar wants it; the one that also named an
+esp_err logs that instead.
+
+Checked: in jsdom, with the real dictionary, a Japanese request shows
+キュー, the station paragraph with its <code> intact, the translated
+placeholder and aria-labels and sleep options, and lang=es switches
+the heading to "Cola" by CSS alone. Not in a real browser, not on the
+board, not compiled with ESP-IDF here.

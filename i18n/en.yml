@@ -8,8 +8,20 @@ en:
   singular:
     # panel.c
     "%.32s did not work. Try again.": ~
-    # panel.c
+    # remote.html
+    "%d h": ~
+    # remote.html
+    "%d min": ~
+    # panel.c, remote.html
     "%d s": ~
+    # remote.c
+    "%s did not answer.": ~
+    # remote.html
+    "%s left": ~
+    # remote.c
+    "%s refused the password.": ~
+    # remote.c
+    "%s was not found. Is it in range?": ~
     # panel.c
     "%s: %d mean, %d peak kbit/s": ~
     # panel.c
@@ -18,6 +30,8 @@ en:
     "%u bytes": ~
     # panel.c
     "%u s": ~
+    # remote.html
+    "(from the next track)": ~
     # powerdown.h
     "1 h": ~
     # screendim.h
@@ -36,9 +50,9 @@ en:
     "30 s": ~
     # screendim.h
     "5 min": ~
-    # portal.c
+    # portal.c, remote.c
     "A Wi-Fi password is 8 to 63 characters, or 64 hex digits.": ~
-    # portal.c
+    # portal.c, remote.c
     "A network name is 1 to 32 characters.": ~
     # panel.c
     "A phone supplies the password.": ~
@@ -58,14 +72,20 @@ en:
     "Add a radio station to the card.": ~
     # radiobrowser.h
     "Add a station by phone...": ~
-    # portal.c
+    # portal.c, remote.html
     "Add station": ~
-    # portal.c
+    # remote.html
+    "Add to the queue": ~
+    # portal.c, remote.html
     "Added to %s on the card. The name is optional — without one the station is listed by its address.": ~
+    # remote.html
+    "Adding…": ~
     # sleeppage.c
     "After this long with nothing playing, recording or touched. Not while music plays.": ~
     # sleeppage.c
     "After this long without a touch the screen drops to half brightness. Any touch puts it back.": ~
+    # remote.html
+    "Already on the card (%d of %d):": ~
     # portal.c
     "Already on the card (%d):": ~
     # recorder.c
@@ -90,6 +110,8 @@ en:
     "Brightness   %d%%": ~
     # streamplan.h
     "Buffering": ~
+    # remote.c
+    "Busy; try again in a moment.": ~
     # ui.c
     "CHARGED": ~
     # ui.c
@@ -102,6 +124,8 @@ en:
     "Cert %.29s...": ~
     # portal.c
     "Choose the network this player should use, and enter its password. It is tried before it is saved.": ~
+    # remote.html
+    "Clear": ~
     # panel.c
     "Clock": ~
     # panel.c
@@ -110,22 +134,36 @@ en:
     "Connected to %.32s.": ~
     # streamplan.h
     "Connecting": ~
+    # remote.html
+    "Connecting to the player…": ~
     # recorder.c
     "Could not create the recording file.": "Could not create the\nrecording file."
+    # remote.c
+    "Could not join %s.": ~
     # recorder.c
     "Could not make the Recordings folder.": "Could not make the\nRecordings folder."
+    # remote.html
+    "Could not read the list.": ~
     # player.c
     "Could not save": ~
+    # remote.c
+    "Could not scan. Is Wi-Fi on, on the player?": ~
     # recorder.c
     "Could not start the file.": "Could not start\nthe file."
     # bench.c
     "Could not start the stream.": ~
     # panel.c
     "Could not start.": ~
+    # remote.html
+    "Crossfade": ~
     # panel.c
     "Crossfade   %d s": ~
     # panel.c
     "Crossfade   off": ~
+    # remote.html
+    "Crossfade seconds": ~
+    # remote.html
+    "Crossfade within an album": ~
     # browser.c
     "DN": ~
     # portal.c
@@ -136,6 +174,10 @@ en:
     "EAT": ~
     # browser.c
     "EAT1": ~
+    # remote.html
+    "Empty the queue? What is playing carries on.": ~
+    # remote.html
+    "Empty.": ~
     # panel.c
     "Evens out loudness between tracks.": ~
     # browser.c
@@ -146,6 +188,8 @@ en:
     "Fades out, pauses, and turns the screen off.": ~
     # player.c
     "Favourites are full": ~
+    # remote.html
+    "Files": ~
     # panel.c
     "Focused: those two aimed out of it.": ~
     # sleeppage.c
@@ -168,10 +212,12 @@ en:
     "It comes back when setup closes.": ~
     # recorder.c
     "It reached 4 GB, the most one file can hold.": "It reached 4 GB, the\nmost one file can hold."
-    # portal.c
+    # portal.c, remote.html
     "Join": ~
     # panel.c
     "Join %s on a phone.": ~
+    # remote.c
+    "Joined and saved %s.": ~
     # portal.c
     "Joined and saved %s. The setup network is closing; you can leave it.": ~
     # ui.c
@@ -182,6 +228,8 @@ en:
     "Libraries": ~
     # sleeppage.c
     "Longer than the dim, and the backlight goes out altogether. Never while this page is open.": ~
+    # remote.html
+    "Lost the player. Reconnecting…": ~
     # panel.c
     "MONO": ~
     # panel.c
@@ -196,20 +244,28 @@ en:
     "Most listened": ~
     # radiobrowser.h
     "Most voted": ~
+    # remote.html
+    "Move down": ~
+    # remote.html
+    "Move up": ~
     # ui.c
     "NO BATT": ~
-    # portal.c
+    # portal.c, remote.html
     "Name": ~
     # panel.c
     "Needed for internet radio and the clock.": ~
     # panel.c
     "Needs a network: Wi-Fi or a cable.": ~
-    # portal.c
+    # portal.c, remote.html
     "Network": ~
+    # remote.c
+    "Network setup is running on the player; use that page.": ~
     # panel.c
     "Network time": ~
     # powerdown.h, screendim.h
     "Never": ~
+    # remote.html
+    "Next": ~
     # recorder.c
     "No USB microphone is plugged in.": "No USB microphone is\nplugged in."
     # portal.c
@@ -226,10 +282,14 @@ en:
     "No signal": ~
     # bench.c
     "No station selected.": ~
+    # remote.html
+    "None on the card yet.": ~
     # recorder.c
     "Not enough memory to record.": "Not enough memory\nto record."
     # recorder.c
     "Nothing is plugged into the headset jack.": "Nothing is plugged into\nthe headset jack."
+    # remote.html
+    "Nothing playable here.": ~
     # panel.c, sleeppage.c
     "OFF": ~
     # panel.c, sleeppage.c
@@ -238,6 +298,8 @@ en:
     "ONE": ~
     # browser.c
     "ONE1": ~
+    # remote.html
+    "Off": ~
     # panel.c
     "Off by default. Nothing on the card needs it, and the radio draws power while on.": ~
     # sleeppage.c
@@ -252,14 +314,20 @@ en:
     "One folder counts as one album.": ~
     # panel.c
     "Open %s": ~
-    # portal.c
+    # portal.c, remote.c
     "Open networks are not supported yet.": ~
-    # portal.c
+    # portal.c, remote.html
     "Or type a network name": ~
-    # portal.c
+    # portal.c, remote.html
     "Other or hidden network (type it below)": ~
-    # portal.c
+    # portal.c, remote.html
     "Password": ~
+    # remote.html
+    "Play": ~
+    # remote.html
+    "Play next": ~
+    # remote.html
+    "Play or pause": ~
     # panel.c
     "Play, pause, skip, seek and volume from a browser on the same network.": ~
     # panel.c
@@ -268,8 +336,12 @@ en:
     "Playback pauses while setup runs.": ~
     # sleeppage.c
     "Power off": ~
+    # remote.html
+    "Previous": ~
     # sleeppage.c
     "Quarter turns. 90 and 270 are landscape; 180 is for when the cable is at the wrong end.": ~
+    # remote.html
+    "Queue": ~
     # ui.c
     "REC": ~
     # panel.c
@@ -290,17 +362,21 @@ en:
     "RUN": ~
     # player.c
     "Radio": ~
-    # portal.c
+    # portal.c, remote.html
     "Radio stations": ~
     # panel.c
     "Reading %s without decoding...": ~
+    # remote.html
+    "Reading…": ~
     # panel.c
     "Reads the selected station without decoding it, to tell a slow network from a slow decoder.": ~
     # streamplan.h
     "Reconnecting": ~
     # panel.c
     "Record from": ~
-    # player.c
+    # remote.html
+    "Recording": ~
+    # player.c, remote.html
     "Recording in %d": ~
     # recorder.c
     "Recording is off (AUDIO, Record from).": "Recording is off\n(AUDIO, Record from)."
@@ -310,6 +386,8 @@ en:
     "Recording stopped": ~
     # panel.c
     "Remote control": ~
+    # remote.html
+    "Remove": ~
     # ui.c
     "ReplayGain is listening...": ~
     # sleeppage.c
@@ -330,18 +408,26 @@ en:
     "Same album": ~
     # panel.c
     "Saved %.32s.": ~
+    # remote.html
+    "Scan": ~
+    # remote.c
+    "Scanning…": ~
     # sleeppage.c
     "Screen": ~
     # sleeppage.c
     "Screen off": ~
     # panel.c
     "Sets the clock, in UTC. Streams need it: a certificate is invalid at an unset clock.": ~
+    # remote.html
+    "Settings": ~
     # panel.c
     "Setup closed after five minutes.": ~
     # panel.c
     "Setup could not start.": ~
     # sleeppage.c
     "Sleep": ~
+    # remote.html
+    "Sleep timer": ~
     # sleeppage.c
     "Sleep timer   %d min": ~
     # sleeppage.c
@@ -350,11 +436,13 @@ en:
     "Sleep timer   off": ~
     # panel.c
     "Source": ~
+    # remote.html
+    "Star": ~
     # radiobrowser.h
     "Starred stations": ~
     # panel.c
     "Starting...": ~
-    # portal.c
+    # portal.c, remote.c
     "Station added.": ~
     # panel.c
     "Station needs %d -- that is %d%%": ~
@@ -362,19 +450,21 @@ en:
     "Station not answering": "Station silent"
     # panel.c
     "Stop playback first.": ~
-    # portal.c
+    # portal.c, remote.html
     "Stream address": ~
     # player.c
     "Stream too slow here": "Stream too slow"
-    # portal.c
+    # remote.c
+    "That folder could not be opened.": ~
+    # portal.c, remote.c
     "That form was too large to be a name and a stream address.": ~
-    # portal.c
+    # portal.c, remote.c
     "That form was too large to be a network name and a password.": ~
-    # portal.c
+    # portal.c, remote.c
     "That is not a usable stream address. It has to start with http:// or https:// and be one unbroken address.": ~
-    # portal.c
+    # portal.c, remote.c
     "That name cannot be used. Names are up to 63 characters and cannot start with a #.": ~
-    # portal.c
+    # portal.c, remote.c
     "That needs a stream address.": ~
     # portal.c
     "That network was not found. Check the name and try again.": ~
@@ -398,7 +488,21 @@ en:
     "The password contains %s. A Wi-Fi password is plain keyboard characters only; phones substitute these when autocorrect or smart punctuation is on. Retype it with that turned off.": ~
     # portal.c
     "The password did not work. Try again.": ~
-    # portal.c
+    # remote.c
+    "The password has a character a Wi-Fi password cannot have -- often a phone's smart punctuation. Retype it with that turned off.": ~
+    # remote.c
+    "The player could not start that. Try again.": ~
+    # remote.html
+    "The player did not answer.": ~
+    # remote.html
+    "The player is on %s, and you are on its cable.": ~
+    # remote.html
+    "The player is on %s.": ~
+    # remote.html
+    "The player is on its cable only.": ~
+    # remote.c
+    "The player is out of memory for that.": ~
+    # portal.c, remote.c
     "The station could not be saved. The card may be full, absent, or write-protected, or the list may already be full.": ~
     # bench.c
     "The station did not answer.": ~
@@ -418,6 +522,8 @@ en:
     "To change Wi-Fi networks instead, use Network setup on the player's screen. This page closes itself after %d minutes.": ~
     # sleeppage.c
     "Touch anywhere to wake it.": ~
+    # remote.html
+    "Tried before it is saved. Only over this encrypted page — never in the clear.": ~
     # panel.c
     "Trying %.32s...": ~
     # portal.c
@@ -436,6 +542,10 @@ en:
     "USB port coming up": ~
     # browser.c
     "USB port on - waiting for a drive": ~
+    # remote.html
+    "Volume": ~
+    # remote.html
+    "Volumes": ~
     # panel.c
     "Waiting for a network address.": ~
     # portal.c
@@ -444,6 +554,10 @@ en:
     "Waiting for network": ~
     # player.c
     "Web setup is open": ~
+    # remote.c
+    "Wi-Fi is off on the player.": ~
+    # remote.html
+    "You are reaching the player over Wi-Fi. Joining a different network drops this page; the player's NET tab shows which network it ended up on, and if the join fails it goes back to its saved networks within a minute.": ~
     # panel.c
     "a guess": ~
     # browser.c
@@ -512,15 +626,17 @@ en:
     "not run this session": ~
     # player.c
     "nothing starred yet - tap a star to keep one": ~
-    # panel.c, sleeppage.c
+    # panel.c, sleeppage.c, remote.html
     "off": ~
     # panel.c
     "on": ~
     # recorder.c
     "on %s, %u:%02u\n%s": ~
-    # portal.c
+    # remote.html
+    "on the player": ~
+    # portal.c, remote.html
     "only if not in the list": ~
-    # portal.c
+    # portal.c, remote.html
     "optional": ~
     # player.c
     "playback stopped": ~
@@ -530,6 +646,8 @@ en:
     "port": ~
     # panel.c
     "product": ~
+    # remote.html
+    "queue, files, settings, stations": ~
     # browser.c
     "radio - the card, the charts, or a tag": ~
     # panel.c
@@ -550,6 +668,8 @@ en:
     "stations.m3u on the card": ~
     # player.c
     "stereo": ~
+    # remote.html
+    "stop it on the player, or tap here": ~
     # panel.c
     "stopped: the volume went away": ~
     # player.c
@@ -595,6 +715,9 @@ en:
       other: ~
     "%d stations from %s":
       one: "%d station from %s"
+      other: ~
+    "%d tracks":
+      one: "%d track"
       other: ~
     "%d tracks (+%d ~%d -%d), %d s":
       one: "%d track (+%d ~%d -%d), %d s"

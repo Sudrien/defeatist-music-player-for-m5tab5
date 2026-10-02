@@ -201,26 +201,26 @@ svg { display: block; width: 100%; height: 100%; }
     <div class="artist" id="artist"></div>
 
     <div class="transport">
-      <button class="skip prev" id="prev" aria-label="Previous">
+      <button class="skip prev" id="prev" aria-label="Previous" data-ta="aria-label">
         <svg viewBox="0 0 70 92"><rect x="10" y="24" width="8" height="44" fill="var(--icon)"/>
           <path d="M60 24 L22 46 L60 68Z" fill="var(--icon)"/></svg></button>
-      <button class="switch" id="sw" data-s="pause" aria-label="Play or pause">
+      <button class="switch" id="sw" data-s="pause" aria-label="Play or pause" data-ta="aria-label">
         <span class="trk"></span>
         <svg class="hint rec" id="hrec" viewBox="0 0 20 20"><circle cx="10" cy="10" r="10" fill="var(--fill)"/></svg>
         <svg class="hint pause" viewBox="0 0 20 20"><rect x="2" y="0" width="5" height="20" fill="var(--icon-off)"/><rect x="13" y="0" width="5" height="20" fill="var(--icon-off)"/></svg>
         <svg class="hint play" viewBox="0 0 20 20"><path d="M3 0 L20 10 L3 20Z" fill="var(--play)"/></svg>
         <span class="knob"><svg id="kg" viewBox="0 0 40 40"></svg></span>
       </button>
-      <button class="skip next" id="next" aria-label="Next">
+      <button class="skip next" id="next" aria-label="Next" data-ta="aria-label">
         <svg viewBox="0 0 70 92"><path d="M10 24 L48 46 L10 68Z" fill="var(--icon)"/>
           <rect x="52" y="24" width="8" height="44" fill="var(--icon)"/></svg></button>
     </div>
 
     <div class="aux">
       <!-- 5123: the folder is a link to the chooser below the fold. -->
-      <a href="#files" id="folder" aria-label="Files">
+      <a href="#files" id="folder" aria-label="Files" data-ta="aria-label">
         <svg viewBox="0 0 52 52"><path d="M4 12h16l5 6h23v26H4z" fill="var(--icon)"/></svg></a>
-      <button id="star" aria-label="Star" hidden>
+      <button id="star" aria-label="Star" data-ta="aria-label" hidden>
         <svg viewBox="0 0 52 52"><path id="starp" d="M26 3l6.9 14 15.4 2.2-11.1 10.9 2.6 15.3L26 38.2l-13.8 7.2 2.6-15.3L3.7 19.2 19.1 17z"
           fill="none" stroke="var(--thumb)" stroke-width="3"/></svg></button>
     </div>
@@ -228,25 +228,25 @@ svg { display: block; width: 100%; height: 100%; }
     <div class="volume">
       <svg viewBox="0 0 52 52" aria-hidden="true"><path d="M6 19h10l12-10v34L16 33H6z" fill="var(--icon)"/>
         <path d="M34 17q8 9 0 18M39 11q14 15 0 30" fill="none" stroke="var(--icon)" stroke-width="3"/></svg>
-      <input id="vol" type="range" min="0" max="100" value="50" aria-label="Volume">
+      <input id="vol" type="range" min="0" max="100" value="50" aria-label="Volume" data-ta="aria-label">
       <div class="batt" id="batt"></div>
     </div>
   </div>
 
   <div class="card" id="card"><b id="cardh"></b><span id="cardb"></span></div>
-  <div class="gone on" id="gone">Connecting to the player…</div>
+  <div class="gone on" id="gone" data-t>Connecting to the player…</div>
 </main>
 </div>
-<div class="fold" id="fold">&#9662; queue, files, settings, stations</div>
+<div class="fold" id="fold">&#9662; <span data-t>queue, files, settings, stations</span></div>
 
 <section class="files" id="queue">
-  <div class="qhead"><h2>Queue</h2><span class="msg" id="qmsg"></span>
-    <button id="qclear" hidden>Clear</button></div>
+  <div class="qhead"><h2 data-t>Queue</h2><span class="msg" id="qmsg"></span>
+    <button id="qclear" hidden data-t>Clear</button></div>
   <ul class="flist qlist" id="qlist"></ul>
 </section>
 
 <section class="files" id="files">
-  <h2>Files</h2>
+  <h2 data-t>Files</h2>
   <div class="crumbs" id="crumbs"></div>
   <div class="msg" id="fmsg"></div>
   <ul class="flist" id="flist"></ul>
@@ -254,24 +254,25 @@ svg { display: block; width: 100%; height: 100%; }
 
 <!-- 5269: the settings that mean the same from across the room. -->
 <section class="below" id="settings">
-  <h2>Settings</h2>
-  <label class="chk"><input type="checkbox" id="srg"> ReplayGain <span class="msg">(from the next track)</span></label>
-  <label>Crossfade <span id="sxfv"></span>
-    <input id="sxf" type="range" min="0" max="12" step="1" value="0" aria-label="Crossfade seconds"></label>
-  <label class="chk"><input type="checkbox" id="sxfa"> Crossfade within an album</label>
-  <label>Sleep timer <span class="msg" id="sleft"></span>
-    <select id="ssleep"><option value="0">Off</option></select></label>
+  <h2 data-t>Settings</h2>
+  <label class="chk"><input type="checkbox" id="srg"> ReplayGain <span class="msg" data-t>(from the next track)</span></label>
+  <label><span data-t>Crossfade</span> <span id="sxfv"></span>
+    <input id="sxf" type="range" min="0" max="12" step="1" value="0" aria-label="Crossfade seconds" data-ta="aria-label"></label>
+  <label class="chk"><input type="checkbox" id="sxfa"> <span data-t>Crossfade within an album</span></label>
+  <label><span data-t>Sleep timer</span> <span class="msg" id="sleft"></span>
+    <select id="ssleep"><option value="0" data-t>Off</option></select></label>
 </section>
 
 <section class="below" id="stations">
-  <h2>Radio stations</h2>
-  <p>Added to <code>stations.m3u</code> on the card. The name is optional &mdash;
+  <h2 data-t>Radio stations</h2>
+  <p data-k="Added to %s on the card. The name is optional &mdash; without one the station is listed by its address."
+     data-arg="&lt;code&gt;stations.m3u&lt;/code&gt;">Added to <code>stations.m3u</code> on the card. The name is optional &mdash;
     without one the station is listed by its address.</p>
   <form id="addf">
-    <label>Name<input name="name" maxlength="63" autocomplete="off" placeholder="optional"></label>
-    <label>Stream address<input name="url" type="url" maxlength="511" autocomplete="off"
+    <label><span data-t>Name</span><input name="name" maxlength="63" autocomplete="off" data-ta="placeholder" placeholder="optional"></label>
+    <label><span data-t>Stream address</span><input name="url" type="url" maxlength="511" autocomplete="off"
       autocapitalize="none" inputmode="url" required placeholder="http://&hellip;"></label>
-    <button>Add station</button>
+    <button data-t>Add station</button>
     <div class="msg" id="addmsg"></div>
   </form>
   <p id="have"></p>
@@ -280,28 +281,84 @@ svg { display: block; width: 100%; height: 100%; }
   <section id="wifi">
     <h2>Wi-Fi</h2>
     <p id="wcur"></p>
-    <p class="warn" id="wwarn" hidden>You are reaching the player over Wi-Fi. Joining a
+    <p class="warn" id="wwarn" hidden data-t>You are reaching the player over Wi-Fi. Joining a
       different network drops this page; the player's NET tab shows which network it
       ended up on, and if the join fails it goes back to its saved networks within a minute.</p>
     <form id="wf">
       <div class="row">
-        <button type="button" class="ghost" id="wscan">Scan</button>
+        <button type="button" class="ghost" id="wscan" data-t>Scan</button>
         <span class="msg" id="wmsg"></span>
       </div>
-      <label>Network<select name="ssid" id="wsel">
-        <option value="">Other or hidden network (type it below)</option></select></label>
-      <label>Or type a network name<input name="ssid_other" maxlength="32" autocomplete="off"
-        autocapitalize="none" placeholder="only if not in the list"></label>
-      <label>Password<input name="pass" type="password" maxlength="64" autocomplete="off" required></label>
-      <button id="wjoin">Join</button>
+      <label><span data-t>Network</span><select name="ssid" id="wsel">
+        <option value="" data-t>Other or hidden network (type it below)</option></select></label>
+      <label><span data-t>Or type a network name</span><input name="ssid_other" maxlength="32" autocomplete="off"
+        autocapitalize="none" data-ta="placeholder" placeholder="only if not in the list"></label>
+      <label><span data-t>Password</span><input name="pass" type="password" maxlength="64" autocomplete="off" required></label>
+      <button id="wjoin" data-t>Join</button>
     </form>
-    <p>Tried before it is saved. Only over this encrypted page &mdash; never in the clear.</p>
+    <p data-t>Tried before it is saved. Only over this encrypted page &mdash; never in the clear.</p>
   </section>
 </section>
 
+<!--i18n-->
 <script>
 "use strict";
 const $ = id => document.getElementById(id);
+
+/* ---- 6025: the page's languages ----
+   remote.c writes I18N into the page at <!--i18n--> above: every
+   language's strings, and as lang the one this request's
+   Accept-Language asked for. langs is [code, name] in table order; t
+   maps a key to its string per language (null: the key itself); p a
+   plural key to [one, other] per language. Without it the page is
+   English, as written.
+
+   Marked text in the markup -- data-t (its own text is the key), data-k
+   (a key, data-arg for its %s) -- becomes one span per language, and
+   CSS shows the span whose data-l is html[lang]: changing language is
+   changing that attribute. What cannot hold spans -- an <option>, an
+   attribute named in data-ta -- applyLang() sets, and the script's own
+   strings are T()/P() at the moment they are drawn. */
+const I18N = window.I18N || { lang: "en", langs: [["en", "English"]], t: {}, p: {} };
+const LANGS = I18N.langs.map(l => l[0]);
+let LI = Math.max(0, LANGS.indexOf(I18N.lang));
+const tr = (s, i) => (I18N.t[s] && I18N.t[s][i]) || s;
+const T = s => tr(s, LI);
+const P = (s, n) => {
+  const v = I18N.p[s], f = (/^(en|es)/.test(LANGS[LI]) && n === 1) ? 0 : 1;
+  return (v && ((v[LI] && v[LI][f]) || (v[0] && v[0][f]))) || s;
+};
+const F = (s, ...a) => { let i = 0; return s.replace(/%(\.\d+)?[sd]/g, () => a[i++]); };
+const norm = s => s.trim().replace(/\s+/g, " ");
+{
+  const css = document.createElement("style");
+  css.textContent = "[data-l]{display:none}" +
+    LANGS.map(l => `html[lang="${l}"] [data-l="${l}"]{display:inline}`).join("");
+  document.head.append(css);
+  const spans = (texts, html) => texts.map((t, i) => {
+    const sp = document.createElement("span"); sp.dataset.l = LANGS[i];
+    if (html) sp.innerHTML = t; else sp.textContent = t;
+    return sp;
+  });
+  for (const el of document.querySelectorAll("[data-t]")) {
+    const k = norm(el.textContent);
+    if (el.tagName === "OPTION") { el.dataset.key = k; continue; }
+    el.textContent = ""; el.append(...spans(LANGS.map((_, i) => tr(k, i))));
+  }
+  for (const el of document.querySelectorAll("[data-k]")) {
+    el.textContent = "";
+    el.append(...spans(LANGS.map((_, i) => F(tr(el.dataset.k, i), el.dataset.arg || "")), true));
+  }
+  for (const el of document.querySelectorAll("[data-ta]"))
+    for (const a of el.dataset.ta.split(" ")) el.dataset["en" + a.replace("-", "")] = el.getAttribute(a);
+}
+function applyLang() {
+  document.documentElement.lang = LANGS[LI];
+  for (const el of document.querySelectorAll("option[data-key]")) el.textContent = T(el.dataset.key);
+  for (const el of document.querySelectorAll("[data-ta]"))
+    for (const a of el.dataset.ta.split(" ")) el.setAttribute(a, T(el.dataset["en" + a.replace("-", "")]));
+}
+applyLang();
 let S = null;               // the last state
 let at = 0;                 // performance.now() when S.pos was true
 let wave = new Uint8Array(0), waveGen = -1;
@@ -319,7 +376,7 @@ function connect() {
     else if (m.t === "q") onQueue(m);
   };
   ws.onclose = () => {
-    $("gone").textContent = "Lost the player. Reconnecting…";
+    $("gone").textContent = T("Lost the player. Reconnecting…");
     $("gone").classList.add("on");
     setTimeout(connect, backoff); backoff = Math.min(backoff * 2, 8000);
   };
@@ -331,20 +388,20 @@ function send(s) { if (ws && ws.readyState === 1) ws.send(s); }
    the one being held: a slider mid-drag is the hand's, not the player's. */
 for (let s = 1; s <= 8; s++) {
   const o = document.createElement("option");
-  o.value = s; o.textContent = s % 4 ? `${s * 15} min` : `${s / 4} h`;
+  o.value = s; o.textContent = s % 4 ? F(T("%d min"), s * 15) : F(T("%d h"), s / 4);
   $("ssleep").append(o);
 }
 let xfHeld = false;
 $("srg").onchange = e => send(`rg ${e.target.checked ? 1 : 0}`);
 $("sxfa").onchange = e => send(`xfalbum ${e.target.checked ? 1 : 0}`);
 $("ssleep").onchange = e => send(`sleep ${e.target.value}`);
-const xfLabel = v => { $("sxfv").textContent = +v ? `${v} s` : "off"; };
+const xfLabel = v => { $("sxfv").textContent = +v ? F(T("%d s"), v) : T("off"); };
 $("sxf").oninput = e => { xfHeld = true; xfLabel(e.target.value); };
 $("sxf").onchange = e => { xfHeld = false; send(`xfade ${e.target.value}`); };
 function sleepLeft() {
   if (!S || !S.sleep) { $("sleft").textContent = ""; return; }
   const left = Math.max(0, Math.ceil(S.sleepleft - (performance.now() - at) / 1000));
-  $("sleft").textContent = `${Math.floor(left / 60)}:${String(left % 60).padStart(2, "0")} left`;
+  $("sleft").textContent = F(T("%s left"), `${Math.floor(left / 60)}:${String(left % 60).padStart(2, "0")}`);
 }
 setInterval(sleepLeft, 1000);
 function onSettings(m) {
@@ -394,8 +451,8 @@ function onState(m) {
   else if (fPath && fRows.length) renderFiles();
 
   const card = $("card");
-  if (m.count > 0) { $("cardh").textContent = "Recording in " + m.count; $("cardb").textContent = "on the player"; card.classList.add("on"); }
-  else if (m.rec) { $("cardh").textContent = "Recording"; $("cardb").textContent = "stop it on the player, or tap here"; card.classList.add("on"); }
+  if (m.count > 0) { $("cardh").textContent = F(T("Recording in %d"), m.count); $("cardb").textContent = T("on the player"); card.classList.add("on"); }
+  else if (m.rec) { $("cardh").textContent = T("Recording"); $("cardb").textContent = T("stop it on the player, or tap here"); card.classList.add("on"); }
   else card.classList.remove("on");
 
   draw();
@@ -515,7 +572,7 @@ function joinPath(d, n) { return d === "/" ? "/" + n : d + "/" + n; }
 function listDir(p) {
   if (!ws || ws.readyState !== 1) return;
   fWant = p; fRows = [];
-  $("fmsg").textContent = "Reading…";
+  $("fmsg").textContent = T("Reading…");
   ws.send("ls " + p);
 }
 // The chooser's shared-prefix elision (browser.c find_common_prefix()),
@@ -531,18 +588,18 @@ function sharedPrefix(rows) {
 }
 function onList(m) {
   if (m.path !== fWant) return;
-  if (m.error) { $("fmsg").textContent = m.error; return; }
+  if (m.error) { $("fmsg").textContent = T(m.error); return; }
   if (m.from === 0) fRows = [];
   fRows.push(...m.rows);
   if (!m.done) return;
   fPath = m.path;
-  $("fmsg").textContent = fRows.length ? "" : "Nothing playable here.";
+  $("fmsg").textContent = fRows.length ? "" : T("Nothing playable here.");
   renderFiles();
 }
 function renderFiles() {
   const cr = $("crumbs"); cr.textContent = "";
   const parts = fPath === "/" ? [] : fPath.slice(1).split("/");
-  const top = document.createElement("button"); top.textContent = "Volumes"; top.onclick = () => listDir("/");
+  const top = document.createElement("button"); top.textContent = T("Volumes"); top.onclick = () => listDir("/");
   cr.appendChild(top);
   parts.forEach((p, i) => {
     cr.appendChild(document.createTextNode("/"));
@@ -560,12 +617,12 @@ function renderFiles() {
     b.onclick = () => r.d ? listDir(full) : ws.send("open " + full);
     li.appendChild(b);
     if (r.d && fPath !== "/") {
-      const pd = document.createElement("button"); pd.className = "pd"; pd.textContent = "▶ Play";
+      const pd = document.createElement("button"); pd.className = "pd"; pd.textContent = "▶ " + T("Play");
       pd.onclick = () => ws.send("playdir " + full); li.appendChild(pd);
     }
     // 5174: a file can go into the queue, at the end or next.
     if (!r.d) {
-      for (const [label, verb, tip] of [["Next", "addnext", "Play next"], ["+", "add", "Add to the queue"]]) {
+      for (const [label, verb, tip] of [[T("Next"), "addnext", T("Play next")], ["+", "add", T("Add to the queue")]]) {
         const q = document.createElement("button"); q.className = "qa"; q.textContent = label;
         q.title = tip; q.setAttribute("aria-label", tip);
         q.onclick = () => send(verb + " " + full); li.appendChild(q);
@@ -601,7 +658,7 @@ function qButton(txt, tip, fn, off) {
 }
 function renderQueue() {
   const ul = $("qlist"); ul.textContent = "";
-  $("qmsg").textContent = qRows.length ? qRows.length + (qRows.length === 1 ? " track" : " tracks") : "Empty.";
+  $("qmsg").textContent = qRows.length ? F(P("%d tracks", qRows.length), qRows.length) : T("Empty.");
   $("qclear").hidden = !qRows.length;
   const cut = sharedPrefix(qRows.map(r => ({ n: r[1] })));
   qRows.forEach(([id, name], i) => {
@@ -611,13 +668,13 @@ function renderQueue() {
     s.textContent = cut ? name.slice(cut) : name; s.title = name;
     s.onclick = () => send("qplay " + id);
     li.append(s,
-      qButton("↑", "Move up", () => send(`qmove ${id} ${i - 1}`), i === 0),
-      qButton("↓", "Move down", () => send(`qmove ${id} ${i + 1}`), i === qRows.length - 1),
-      qButton("✕", "Remove", () => send("qdel " + id)));
+      qButton("↑", T("Move up"), () => send(`qmove ${id} ${i - 1}`), i === 0),
+      qButton("↓", T("Move down"), () => send(`qmove ${id} ${i + 1}`), i === qRows.length - 1),
+      qButton("✕", T("Remove"), () => send("qdel " + id)));
     ul.appendChild(li);
   });
 }
-$("qclear").onclick = () => { if (confirm("Empty the queue? What is playing carries on.")) send("qclear"); };
+$("qclear").onclick = () => { if (confirm(T("Empty the queue? What is playing carries on."))) send("qclear"); };
 
 /* ---- stations, below the fold (5120) ---- */
 async function loadStations() {
@@ -625,33 +682,33 @@ async function loadStations() {
     const r = await fetch("/stations", { cache: "no-store" });
     const j = await r.json();
     $("have").textContent = j.list.length
-      ? `Already on the card (${j.list.length} of ${j.max}):` : "None on the card yet.";
+      ? F(T("Already on the card (%d of %d):"), j.list.length, j.max) : T("None on the card yet.");
     const ul = $("list"); ul.textContent = "";
     for (const n of j.list) { const li = document.createElement("li"); li.textContent = n; ul.appendChild(li); }
     $("addf").querySelector("button").disabled = j.list.length >= j.max;
-  } catch { $("have").textContent = "Could not read the list."; }
+  } catch { $("have").textContent = T("Could not read the list."); }
 }
 $("addf").addEventListener("submit", async e => {
   e.preventDefault();
   const f = e.target, b = f.querySelector("button"), m = $("addmsg");
-  b.disabled = true; m.className = "msg"; m.textContent = "Adding\u2026";
+  b.disabled = true; m.className = "msg"; m.textContent = T("Adding\u2026");
   try {
     const r = await fetch("/station", { method: "POST",
       headers: { "Content-Type": "application/x-www-form-urlencoded" },
       body: new URLSearchParams(new FormData(f)).toString() });
     const j = await r.json();
-    m.textContent = j.msg; m.className = j.ok ? "msg" : "msg bad";
+    m.textContent = T(j.msg); m.className = j.ok ? "msg" : "msg bad";
     if (j.ok) f.reset();
-  } catch { m.textContent = "The player did not answer."; m.className = "msg bad"; }
+  } catch { m.textContent = T("The player did not answer."); m.className = "msg bad"; }
   b.disabled = false; loadStations();
 });
 /* ---- Wi-Fi, below the stations (5122) ---- */
 let wPoll = 0;
 function wShow(j) {
-  $("wcur").textContent = j.current ? "The player is on " + j.current + (j.cable ? ", and you are on its cable." : ".")
-                                    : (j.cable ? "The player is on its cable only." : "");
+  $("wcur").textContent = j.current ? F(j.cable ? T("The player is on %s, and you are on its cable.") : T("The player is on %s."), j.current)
+                                    : (j.cable ? T("The player is on its cable only.") : "");
   $("wwarn").hidden = j.cable;
-  const m = $("wmsg"); m.textContent = j.msg;
+  const m = $("wmsg"); m.textContent = F(T(j.msg), j.arg || "");   // 6025: arg is an SSID
   m.className = j.state === "failed" ? "msg bad" : "msg";
   const busy = j.state === "scanning" || j.state === "trying" || j.setup;
   $("wscan").disabled = busy; $("wjoin").disabled = busy;
@@ -662,7 +719,7 @@ function wShow(j) {
       const o = new Option(`${n.s} \u2014 ${n.a}, ${n.r} dBm`, n.s);
       sel.add(o);
     }
-    sel.add(new Option("Other or hidden network (type it below)", ""));
+    sel.add(new Option(T("Other or hidden network (type it below)"), ""));
     sel.value = keep && [...sel.options].some(o => o.value === keep) ? keep : sel.options[0].value;
   }
   clearTimeout(wPoll);
@@ -676,7 +733,7 @@ async function wPost(path, body) {
   try {
     wShow(await (await fetch(path, { method: "POST", body,
       headers: { "Content-Type": "application/x-www-form-urlencoded" } })).json());
-  } catch { $("wmsg").textContent = "The player did not answer."; }
+  } catch { $("wmsg").textContent = T("The player did not answer."); }
 }
 $("wscan").onclick = () => wPost("/wifi/scan", "");
 $("wf").addEventListener("submit", e => {

@@ -139,6 +139,46 @@ def _c_literal(lit):
     return out.decode("utf-8")
 
 
+# 6025: remote.html, the browser remote. Its markup marks translatable
+# text three ways, and its script one:
+#   <span data-t>Queue</span>          the element's text is the key
+#   <p data-k="Added to %s ...">       an explicit key, for text with
+#                                      markup inside; data-arg fills %s
+#   <input data-ta="placeholder" ...>  these attributes' values are keys
+#   T("..."), P("...", n) in script    as _() and _p()
+# Whitespace runs collapse to one space, as the browser renders them.
+_HTML_T = re.compile(r'<(\w+)\b[^>]*\sdata-t(?=[\s>])[^>]*>([^<]*)</\1>')
+_HTML_K = re.compile(r'\sdata-k="([^"]*)"')
+_HTML_TA = re.compile(r'<[^>]*\sdata-ta="([^"]*)"[^>]*>')
+_JS_T = re.compile(r'(?<![\w.$])([TP])\(\s*"((?:\\.|[^"\\\n])*)"')
+
+
+def _ws(t):
+    return " ".join(t.split())
+
+
+def scan_html(path, name, singular, plural):
+    import html as _html
+    text = open(path, encoding="utf-8").read()
+    def add(d, k):
+        lst = d.setdefault(k, [])
+        if name not in lst:
+            lst.append(name)
+    for m in _HTML_T.finditer(text):
+        add(singular, _ws(_html.unescape(m.group(2))))
+    for m in _HTML_K.finditer(text):
+        add(singular, _ws(_html.unescape(m.group(1))))
+    for m in _HTML_TA.finditer(text):
+        tag = m.group(0)
+        for attr in m.group(1).split():
+            a = re.search(r'\s' + re.escape(attr) + r'="([^"]*)"', tag)
+            if not a:
+                sys.exit(f"i18n: {name}: data-ta names {attr} but the tag has none: {tag[:80]}")
+            add(singular, _ws(_html.unescape(a.group(1))))
+    for m in _JS_T.finditer(text):
+        add(plural if m.group(1) == "P" else singular, json.loads('"' + m.group(2) + '"'))
+
+
 def scan_sources():
     """-> ({msgid: [where]}, {plural msgid: [where]}). Exits on a marker
     whose argument is not a literal: the extractor cannot see it, so it
@@ -189,6 +229,7 @@ def scan_sources():
                     continue
                 bad.append(f"{name}:{line}: N_() of something that is not a "
                            "string literal")
+    scan_html(os.path.join(SRC_DIR, "remote.html"), "remote.html", singular, plural)  # 6025
     if bad:
         sys.exit("i18n: the extractor cannot read these:\n  " + "\n  ".join(bad))
     # 6021: allowed, and only said. The same English can be a console
@@ -370,7 +411,9 @@ def _c_str(s):
 # 6024: files whose strings a browser draws, not gfx.c. Their keys are
 # marked off-screen in i18n_tab.c, so i18ntest holds only the rest to
 # Ark12's glyphs -- and holds these to having no HTML in them instead.
-WEB_FILES = {"portal.c", "remote.html"}
+WEB_FILES = {"portal.c", "remote.html", "remote.c"}
+# 6025: the keys the browser remote needs, sent to it inside the page.
+REMOTE_FILES = {"remote.html", "remote.c"}
 
 
 def _on_screen(where):
@@ -415,6 +458,13 @@ def build_c():
     def _cmt(k):        # a key as a C comment: never closing or opening one
         return repr(k[:40]).replace("*/", "* /").replace("/*", "/ *")
     L += [f"    {1 if _on_screen(where_s.get(k)) else 0},  /* {_cmt(k)} */" for k in keys] or ["    1,"]
+    L.append("};")
+    L.append("/* 6025: 1 when the browser remote uses the key -- remote.c sends these */")
+    L.append("const unsigned char i18n_remote[] = {")
+    L += [f"    {1 if set(where_s.get(k, [])) & REMOTE_FILES else 0}," for k in keys] or ["    0,"]
+    L.append("};")
+    L.append("const unsigned char i18n_premote[] = {")
+    L += [f"    {1 if set(where_p.get(k, [])) & REMOTE_FILES else 0}," for k in pkeys] or ["    0,"]
     L.append("};")
     L.append("const unsigned char i18n_pon_screen[] = {")
     L += [f"    {1 if _on_screen(where_p.get(k)) else 0}," for k in pkeys] or ["    1,"]

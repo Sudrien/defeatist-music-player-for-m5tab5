@@ -46,6 +46,7 @@
 #include "wifijoin.h"
 #include "wifistore.h"
 #include "wifi.h"
+#include "i18n.h"          /* 6025 */
 
 static const char *TAG = "tab5_remote";
 
@@ -163,12 +164,92 @@ static void keep_and_send(char *keep, size_t *keep_len, size_t cap,
 
 /* ---- handlers ---------------------------------------------------------- */
 
+/*
+ * 6025: the page, with every language's strings written into it at
+ * <!--i18n--> -- one request, where a separate fetch would be another
+ * TLS round trip -- and the one this request's Accept-Language asks for
+ * named as the page's language. The page shows one language at a time by
+ * CSS, html[lang] against each string's per-language spans, so changing
+ * language is changing an attribute: nothing is fetched again. Only the
+ * keys the remote uses (i18n_remote[], from tools/i18n.py). A string the
+ * same as its key goes as null; English is in the page already.
+ *
+ * The escape buffers are static: one HTTP task serves this server.
+ */
+extern const unsigned char i18n_remote[], i18n_premote[];
+
+static void send_str_or_null(httpd_req_t *req, const char *v, const char *key)
+{
+    static char vb[600 * 6 + 3];
+    if (key && strcmp(v, key) == 0) { httpd_resp_send_chunk(req, "null", 4); return; }
+    if (!remoteproto_json_str(v, vb, sizeof(vb))) { httpd_resp_send_chunk(req, "null", 4); return; }
+    httpd_resp_send_chunk(req, vb, HTTPD_RESP_USE_STRLEN);
+}
+
 static esp_err_t h_page(httpd_req_t *req)
 {
+    char al[96];
+    const i18n_lang_t lang =
+        httpd_req_get_hdr_value_str(req, "Accept-Language", al, sizeof(al)) == ESP_OK
+        ? i18n_from_accept_language(al) : I18N_EN;
+
     httpd_resp_set_type(req, "text/html; charset=utf-8");
     httpd_resp_set_hdr(req, "Cache-Control", "no-cache");
-    return httpd_resp_send(req, remote_html_start,
-                           (ssize_t)(remote_html_end - remote_html_start - 1));
+    httpd_resp_set_hdr(req, "Vary", "Accept-Language");
+
+    const char *page = remote_html_start;
+    const size_t len = (size_t)(remote_html_end - remote_html_start - 1);
+    const char *mark = strstr(page, "<!--i18n-->");
+    if (!mark) return httpd_resp_send(req, page, (ssize_t)len);
+
+    static char kb[400 * 6 + 3];
+    httpd_resp_send_chunk(req, page, (ssize_t)(mark - page));
+    httpd_resp_send_chunk(req, "<script>window.I18N={\"lang\":\"", HTTPD_RESP_USE_STRLEN);
+    httpd_resp_send_chunk(req, i18n_lang_code(lang), HTTPD_RESP_USE_STRLEN);
+    httpd_resp_send_chunk(req, "\",\"langs\":[", HTTPD_RESP_USE_STRLEN);
+    for (int l = 0; l < I18N_LANG_COUNT; l++) {
+        if (l) httpd_resp_send_chunk(req, ",", 1);
+        httpd_resp_send_chunk(req, "[\"", 2);
+        httpd_resp_send_chunk(req, i18n_lang_code((i18n_lang_t)l), HTTPD_RESP_USE_STRLEN);
+        httpd_resp_send_chunk(req, "\",", 2);
+        send_str_or_null(req, i18n_lang_name((i18n_lang_t)l), NULL);
+        httpd_resp_send_chunk(req, "]", 1);
+    }
+    httpd_resp_send_chunk(req, "],\"t\":{", HTTPD_RESP_USE_STRLEN);
+    bool first = true;
+    for (unsigned i = 0; i < i18n_count; i++) {
+        if (!i18n_remote[i] || !remoteproto_json_str(i18n_keys[i], kb, sizeof(kb))) continue;
+        httpd_resp_send_chunk(req, first ? "" : ",", HTTPD_RESP_USE_STRLEN);
+        httpd_resp_send_chunk(req, kb, HTTPD_RESP_USE_STRLEN);
+        httpd_resp_send_chunk(req, ":[", 2);
+        for (int l = 0; l < I18N_LANG_COUNT; l++) {
+            if (l) httpd_resp_send_chunk(req, ",", 1);
+            send_str_or_null(req, i18n_get_in((i18n_lang_t)l, i18n_keys[i]), i18n_keys[i]);
+        }
+        httpd_resp_send_chunk(req, "]", 1);
+        first = false;
+    }
+    /* Plurals as [one, other] per language: English needs its one too. */
+    httpd_resp_send_chunk(req, "},\"p\":{", HTTPD_RESP_USE_STRLEN);
+    first = true;
+    for (unsigned i = 0; i < i18n_pcount; i++) {
+        if (!i18n_premote[i] || !remoteproto_json_str(i18n_pkeys[i], kb, sizeof(kb))) continue;
+        httpd_resp_send_chunk(req, first ? "" : ",", HTTPD_RESP_USE_STRLEN);
+        httpd_resp_send_chunk(req, kb, HTTPD_RESP_USE_STRLEN);
+        httpd_resp_send_chunk(req, ":[", 2);
+        for (int l = 0; l < I18N_LANG_COUNT; l++) {
+            httpd_resp_send_chunk(req, l ? ",[" : "[", HTTPD_RESP_USE_STRLEN);
+            send_str_or_null(req, i18n_get_plural_in((i18n_lang_t)l, i18n_pkeys[i], 1), NULL);
+            httpd_resp_send_chunk(req, ",", 1);
+            send_str_or_null(req, i18n_get_plural_in((i18n_lang_t)l, i18n_pkeys[i], 2), NULL);
+            httpd_resp_send_chunk(req, "]", 1);
+        }
+        httpd_resp_send_chunk(req, "]", 1);
+        first = false;
+    }
+    httpd_resp_send_chunk(req, "}};</script>", HTTPD_RESP_USE_STRLEN);
+    httpd_resp_send_chunk(req, mark, (ssize_t)(page + len - mark));
+    return httpd_resp_send_chunk(req, NULL, 0);
 }
 
 static esp_err_t h_icon(httpd_req_t *req)
@@ -236,6 +317,7 @@ static volatile wstate_t s_w_state;
 static volatile bool     s_w_busy;          /* a worker exists */
 static char              s_w_ssid[WIFISTORE_SSID_MAX + 1];
 static char              s_w_msg[160];
+static char              s_w_arg[33];     /* 6025: the %s in s_w_msg, kept apart */
 static wifi_seen_t      *s_w_seen;          /* PSRAM, W_SEEN_MAX */
 static int               s_w_seen_n;
 static char              s_w_pass[WIFISTORE_SECRET_MAX + 1];
@@ -245,6 +327,17 @@ static void w_set(wstate_t st, const char *msg)
     xSemaphoreTake(s_mu, portMAX_DELAY);
     s_w_state = st;
     snprintf(s_w_msg, sizeof(s_w_msg), "%s", msg ? msg : "");
+    s_w_arg[0] = '\0';
+    xSemaphoreGive(s_mu);
+}
+
+/* 6025: a message whose %s is an SSID. The page gets both and fills it
+ * in after translating -- a translation may put the name anywhere. */
+static void w_set_ssid(wstate_t st, const char *msg, const char *ssid)
+{
+    w_set(st, msg);
+    xSemaphoreTake(s_mu, portMAX_DELAY);
+    snprintf(s_w_arg, sizeof(s_w_arg), "%.32s", ssid ? ssid : "");
     xSemaphoreGive(s_mu);
 }
 
@@ -263,7 +356,7 @@ static void w_scan(void)
         if (!dup) s_w_seen[s_w_seen_n++] = raw[i];
     }
     xSemaphoreGive(s_mu);
-    if (n < 0) w_set(W_IDLE, "Could not scan. Is Wi-Fi on, on the player?");
+    if (n < 0) w_set(W_IDLE, N_("Could not scan. Is Wi-Fi on, on the player?"));
     else       w_set(W_IDLE, "");
 }
 
@@ -283,22 +376,20 @@ static void w_join(void)
     const esp_err_t err = wifijoin_try(TAG, ssid, pass, net);
     memset(pass, 0, sizeof(pass));
 
-    char msg[160];
+    /* 6025: a key and the SSID apart, for the page to put together in
+     * its own language; the error's name goes to the log. */
+    const char *msg;
     switch (err) {
-    case ESP_OK:
-        snprintf(msg, sizeof(msg), "Joined and saved %.32s.", ssid); break;
-    case ESP_ERR_NOT_FOUND:
-        snprintf(msg, sizeof(msg), "%.32s was not found. Is it in range?", ssid); break;
-    case ESP_ERR_WIFI_PASSWORD:
-        snprintf(msg, sizeof(msg), "%.32s refused the password.", ssid); break;
-    case ESP_ERR_TIMEOUT:
-        snprintf(msg, sizeof(msg), "%.32s did not answer.", ssid); break;
-    case ESP_ERR_INVALID_STATE:
-        snprintf(msg, sizeof(msg), "Wi-Fi is off on the player."); break;
+    case ESP_OK:                msg = N_("Joined and saved %s."); break;
+    case ESP_ERR_NOT_FOUND:     msg = N_("%s was not found. Is it in range?"); break;
+    case ESP_ERR_WIFI_PASSWORD: msg = N_("%s refused the password."); break;
+    case ESP_ERR_TIMEOUT:       msg = N_("%s did not answer."); break;
+    case ESP_ERR_INVALID_STATE: msg = N_("Wi-Fi is off on the player."); break;
     default:
-        snprintf(msg, sizeof(msg), "Could not join %.32s (%s).", ssid, esp_err_to_name(err)); break;
+        ESP_LOGW(TAG, "join %.32s: %s", ssid, esp_err_to_name(err));
+        msg = N_("Could not join %s."); break;
     }
-    w_set(err == ESP_OK ? W_JOINED : W_FAILED, msg);
+    w_set_ssid(err == ESP_OK ? W_JOINED : W_FAILED, msg, ssid);
 }
 
 static void w_task(void *arg)
@@ -318,7 +409,7 @@ static bool w_start(wstate_t job, const char *msg)
      * buffer is static above. Internal RAM for as long as the job runs. */
     if (xTaskCreate(w_task, "remote_wifi", 6144, (void *)(intptr_t)job, 3, NULL) != pdPASS) {
         s_w_busy = false;
-        w_set(W_FAILED, "The player could not start that. Try again.");
+        w_set(W_FAILED, N_("The player could not start that. Try again."));
         return false;
     }
     return true;
@@ -364,6 +455,9 @@ static esp_err_t h_wifi(httpd_req_t *req)
 
     xSemaphoreTake(s_mu, portMAX_DELAY);
     remoteproto_json_str(s_w_msg, line, sizeof(line));
+    httpd_resp_send_chunk(req, line, HTTPD_RESP_USE_STRLEN);
+    httpd_resp_send_chunk(req, ",\"arg\":", HTTPD_RESP_USE_STRLEN);       /* 6025 */
+    remoteproto_json_str(s_w_arg, line, sizeof(line));
     xSemaphoreGive(s_mu);
     httpd_resp_send_chunk(req, line, HTTPD_RESP_USE_STRLEN);
     httpd_resp_send_chunk(req, ",\"nets\":[", HTTPD_RESP_USE_STRLEN);
@@ -386,8 +480,8 @@ static esp_err_t h_wifi(httpd_req_t *req)
 
 static esp_err_t h_wifi_scan(httpd_req_t *req)
 {
-    if (portal_running()) w_set(W_IDLE, "Network setup is running on the player; use that page.");
-    else if (!w_start(W_SCANNING, "Scanning…")) w_set(s_w_state, "Busy; try again in a moment.");
+    if (portal_running()) w_set(W_IDLE, N_("Network setup is running on the player; use that page."));
+    else if (!w_start(W_SCANNING, N_("Scanning…"))) w_set(s_w_state, N_("Busy; try again in a moment."));
     return h_wifi(req);
 }
 
@@ -398,15 +492,15 @@ static esp_err_t h_wifi_join(httpd_req_t *req)
     static char pass[WIFISTORE_SECRET_MAX + 1];
 
     if (portal_running()) {
-        w_set(W_IDLE, "Network setup is running on the player; use that page.");
+        w_set(W_IDLE, N_("Network setup is running on the player; use that page."));
         return h_wifi(req);
     }
     if (s_w_busy) {
-        w_set(s_w_state, "Busy; try again in a moment.");
+        w_set(s_w_state, N_("Busy; try again in a moment."));
         return h_wifi(req);
     }
     if (req->content_len == 0 || req->content_len > sizeof(body)) {
-        w_set(W_FAILED, "That form was too large to be a network name and a password.");
+        w_set(W_FAILED, N_("That form was too large to be a network name and a password."));
         return h_wifi(req);
     }
     size_t got = 0;
@@ -427,12 +521,12 @@ static esp_err_t h_wifi_join(httpd_req_t *req)
     const portalweb_check_t c = (ssid[0] && have_pass) ? portalweb_check(ssid, pass)
                               : (ssid[0] ? PORTALWEB_BAD_SECRET : PORTALWEB_BAD_SSID);
     const char *problem =
-        c == PORTALWEB_BAD_SSID   ? "A network name is 1 to 32 characters." :
-        c == PORTALWEB_NO_SECRET  ? "Open networks are not supported yet." :
-        c == PORTALWEB_BAD_SECRET ? "A Wi-Fi password is 8 to 63 characters, or 64 hex digits." :
-        c == PORTALWEB_NON_ASCII  ? "The password has a character a Wi-Fi password cannot "
-                                    "have -- often a phone's smart punctuation. Retype it "
-                                    "with that turned off." : NULL;
+        c == PORTALWEB_BAD_SSID   ? N_("A network name is 1 to 32 characters.") :
+        c == PORTALWEB_NO_SECRET  ? N_("Open networks are not supported yet.") :
+        c == PORTALWEB_BAD_SECRET ? N_("A Wi-Fi password is 8 to 63 characters, or 64 hex digits.") :
+        c == PORTALWEB_NON_ASCII  ? N_("The password has a character a Wi-Fi password cannot "
+                                       "have -- often a phone's smart punctuation. Retype it "
+                                       "with that turned off.") : NULL;
     if (problem) {
         memset(pass, 0, sizeof(pass));
         w_set(W_FAILED, problem);
@@ -514,8 +608,8 @@ static esp_err_t h_station_add(httpd_req_t *req)
     static char name[STATION_NAME_MAX + 16], url[STATION_URL_MAX + 16];
 
     if (req->content_len == 0 || req->content_len > STATION_BODY_MAX) {
-        return station_reply(req, false, "That form was too large to be a name "
-                                         "and a stream address.");
+        return station_reply(req, false, N_("That form was too large to be a name "
+                                            "and a stream address."));
     }
     size_t got = 0;
     while (got < req->content_len) {
@@ -529,23 +623,23 @@ static esp_err_t h_station_add(httpd_req_t *req)
     station_trim(name);
     if (have_url) station_trim(url);
 
-    if (!have_url || !url[0]) return station_reply(req, false, "That needs a stream address.");
+    if (!have_url || !url[0]) return station_reply(req, false, N_("That needs a stream address."));
     if (!station_url_writable(url)) {
-        return station_reply(req, false, "That is not a usable stream address. It has "
-                             "to start with http:// or https:// and be one "
-                             "unbroken address.");
+        return station_reply(req, false, N_("That is not a usable stream address. It has "
+                                "to start with http:// or https:// and be one "
+                                "unbroken address."));
     }
     if (!station_name_ok(name)) {
-        return station_reply(req, false, "That name cannot be used. Names are up to "
-                             "63 characters and cannot start with a #.");
+        return station_reply(req, false, N_("That name cannot be used. Names are up to "
+                                "63 characters and cannot start with a #."));
     }
     ESP_LOGI(TAG, "station submitted: %.63s <%.200s>", name[0] ? name : "(unnamed)", url);
     if (!stations_append(name, url)) {
-        return station_reply(req, false, "The station could not be saved. The card "
-                             "may be full, absent, or write-protected, or the "
-                             "list may already be full.");
+        return station_reply(req, false, N_("The station could not be saved. The card "
+                                "may be full, absent, or write-protected, or the "
+                                "list may already be full."));
     }
-    return station_reply(req, true, "Station added.");
+    return station_reply(req, true, N_("Station added."));
 }
 
 /* ---- the file chooser (5123) ------------------------------------------ */
@@ -618,7 +712,7 @@ static void send_listing(httpd_req_t *req, const char *p, size_t plen)
     const char *error = NULL;
 
     if (!rows || !out) {
-        error = "The player is out of memory for that.";
+        error = N_("The player is out of memory for that.");
     } else if (strcmp(path, "/") == 0) {
         /* The volumes, as folders. */
         if (storage_present(STORAGE_SD))  { rows[n].name = ps_strdup("sd");  rows[n++].dir = true; }
@@ -626,7 +720,7 @@ static void send_listing(httpd_req_t *req, const char *p, size_t plen)
     } else {
         DIR *d = opendir(path);
         if (!d) {
-            error = "That folder could not be opened.";
+            error = N_("That folder could not be opened.");
         } else {
             cuedir_t *cues = cuedir_load(path, STORAGE_IO_BACKGROUND);
             struct dirent *e;
@@ -652,7 +746,7 @@ static void send_listing(httpd_req_t *req, const char *p, size_t plen)
     if (error || !out) {
         char msg[REMOTEPROTO_PATH_MAX * 6 + 160];
         const int m = snprintf(msg, sizeof(msg), "{\"t\":\"ls\",\"path\":%s,\"error\":\"%s\"}",
-                               esc, error ? error : "The player is out of memory for that.");
+                               esc, error ? error : N_("The player is out of memory for that."));
         ws_send_text(req, msg, (size_t)m);
     } else {
         int i = 0;

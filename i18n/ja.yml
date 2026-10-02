@@ -8,8 +8,20 @@ ja:
   singular:
     # panel.c
     "%.32s did not work. Try again.": "%.32s は失敗。再試行を。"
-    # panel.c
+    # remote.html
+    "%d h": "%d 時間"
+    # remote.html
+    "%d min": "%d 分"
+    # panel.c, remote.html
     "%d s": "%d 秒"
+    # remote.c
+    "%s did not answer.": "%s から応答がありません。"
+    # remote.html
+    "%s left": "残り %s"
+    # remote.c
+    "%s refused the password.": "%s がパスワードを拒否しました。"
+    # remote.c
+    "%s was not found. Is it in range?": "%s が見つかりません。範囲内ですか？"
     # panel.c
     "%s: %d mean, %d peak kbit/s": "%s: 平均 %d, 最大 %d kbit/s"
     # panel.c
@@ -18,6 +30,8 @@ ja:
     "%u bytes": "%u バイト"
     # panel.c
     "%u s": "%u 秒"
+    # remote.html
+    "(from the next track)": "（次の曲から）"
     # powerdown.h
     "1 h": "1時間"
     # screendim.h
@@ -36,9 +50,9 @@ ja:
     "30 s": "30秒"
     # screendim.h
     "5 min": "5分"
-    # portal.c
+    # portal.c, remote.c
     "A Wi-Fi password is 8 to 63 characters, or 64 hex digits.": "Wi-Fiのパスワードは8～63文字、または16進数64桁です。"
-    # portal.c
+    # portal.c, remote.c
     "A network name is 1 to 32 characters.": "ネットワーク名は1～32文字です。"
     # panel.c
     "A phone supplies the password.": "パスワードはスマホから。"
@@ -58,14 +72,20 @@ ja:
     "Add a radio station to the card.": "カードに局を追加。"
     # radiobrowser.h
     "Add a station by phone...": "スマホで局を追加..."
-    # portal.c
+    # portal.c, remote.html
     "Add station": "局を追加"
-    # portal.c
+    # remote.html
+    "Add to the queue": "キューに追加"
+    # portal.c, remote.html
     "Added to %s on the card. The name is optional — without one the station is listed by its address.": "カードの %s に追加されます。名前は省略できます。省略すると局はアドレスで表示されます。"
+    # remote.html
+    "Adding…": "追加中…"
     # sleeppage.c
     "After this long with nothing playing, recording or touched. Not while music plays.": "再生・録音・タッチがない状態がこの時間続いたとき。音楽の再生中は切れない。"
     # sleeppage.c
     "After this long without a touch the screen drops to half brightness. Any touch puts it back.": "この時間タッチがないと画面が半分の明るさになる。タッチで元に戻る。"
+    # remote.html
+    "Already on the card (%d of %d):": "カードに登録済み（%d / %d）："
     # portal.c
     "Already on the card (%d):": "カードに登録済み（%d）："
     # recorder.c
@@ -90,6 +110,8 @@ ja:
     "Brightness   %d%%": "明るさ   %d%%"
     # streamplan.h
     "Buffering": "バッファ中"
+    # remote.c
+    "Busy; try again in a moment.": "処理中です。少し待ってからもう一度お試しください。"
     # ui.c
     "CHARGED": "満充電"
     # ui.c
@@ -102,6 +124,8 @@ ja:
     "Cert %.29s...": "証明書 %.29s..."
     # portal.c
     "Choose the network this player should use, and enter its password. It is tried before it is saved.": "この機器が使うネットワークを選び、パスワードを入力してください。保存する前に接続を試します。"
+    # remote.html
+    "Clear": "クリア"
     # panel.c
     "Clock": "時計"
     # panel.c
@@ -110,22 +134,36 @@ ja:
     "Connected to %.32s.": "%.32s に接続済み。"
     # streamplan.h
     "Connecting": "接続中"
+    # remote.html
+    "Connecting to the player…": "プレーヤーに接続中…"
     # recorder.c
     "Could not create the recording file.": "録音ファイルを\n作れなかった。"
+    # remote.c
+    "Could not join %s.": "%s に接続できませんでした。"
     # recorder.c
     "Could not make the Recordings folder.": "Recordings フォルダを\n作れなかった。"
+    # remote.html
+    "Could not read the list.": "リストを読み込めませんでした。"
     # player.c
     "Could not save": "保存できない"
+    # remote.c
+    "Could not scan. Is Wi-Fi on, on the player?": "スキャンできません。プレーヤーのWi-Fiはオンですか？"
     # recorder.c
     "Could not start the file.": "ファイルを開始できない。"
     # bench.c
     "Could not start the stream.": "ストリームを開始できない。"
     # panel.c
     "Could not start.": "起動できなかった。"
+    # remote.html
+    "Crossfade": "クロスフェード"
     # panel.c
     "Crossfade   %d s": "クロスフェード   %d 秒"
     # panel.c
     "Crossfade   off": "クロスフェード   オフ"
+    # remote.html
+    "Crossfade seconds": "クロスフェードの秒数"
+    # remote.html
+    "Crossfade within an album": "同じアルバム内でもクロスフェード"
     # browser.c
     "DN": "次頁"
     # portal.c
@@ -136,6 +174,10 @@ ja:
     "EAT": "消費"
     # browser.c
     "EAT1": "消費1"
+    # remote.html
+    "Empty the queue? What is playing carries on.": "キューを空にしますか？再生中の曲は続きます。"
+    # remote.html
+    "Empty.": "空です。"
     # panel.c
     "Evens out loudness between tracks.": "曲ごとの音量差をならす。"
     # browser.c
@@ -146,6 +188,8 @@ ja:
     "Fades out, pauses, and turns the screen off.": "フェードアウトして一時停止し、画面を消す。"
     # player.c
     "Favourites are full": "お気に入りが満杯"
+    # remote.html
+    "Files": "ファイル"
     # panel.c
     "Focused: those two aimed out of it.": "フォーカス：その2つを画面の外へ向ける。"
     # sleeppage.c
@@ -168,10 +212,12 @@ ja:
     "It comes back when setup closes.": "設定が閉じると戻る。"
     # recorder.c
     "It reached 4 GB, the most one file can hold.": "4 GB に達した。\n1ファイルの上限。"
-    # portal.c
+    # portal.c, remote.html
     "Join": "接続"
     # panel.c
     "Join %s on a phone.": "スマホで %s に接続。"
+    # remote.c
+    "Joined and saved %s.": "%s に接続して保存しました。"
     # portal.c
     "Joined and saved %s. The setup network is closing; you can leave it.": "%s に接続して保存しました。設定用ネットワークは閉じます。離れてかまいません。"
     # ui.c
@@ -182,6 +228,8 @@ ja:
     "Libraries": "ライブラリ"
     # sleeppage.c
     "Longer than the dim, and the backlight goes out altogether. Never while this page is open.": "暗くなるより長く、バックライトが完全に消える。このページを開いている間は消えない。"
+    # remote.html
+    "Lost the player. Reconnecting…": "プレーヤーとの接続が切れました。再接続中…"
     # panel.c
     "MONO": "モノラル"
     # panel.c
@@ -196,20 +244,28 @@ ja:
     "Most listened": "よく聴かれる局"
     # radiobrowser.h
     "Most voted": "投票の多い局"
+    # remote.html
+    "Move down": "下へ移動"
+    # remote.html
+    "Move up": "上へ移動"
     # ui.c
     "NO BATT": "電池なし"
-    # portal.c
+    # portal.c, remote.html
     "Name": "名前"
     # panel.c
     "Needed for internet radio and the clock.": "ネットラジオと時計に必要。"
     # panel.c
     "Needs a network: Wi-Fi or a cable.": "ネットワークが必要：Wi-Fiかケーブル。"
-    # portal.c
+    # portal.c, remote.html
     "Network": "ネットワーク"
+    # remote.c
+    "Network setup is running on the player; use that page.": "プレーヤーでネットワーク設定中です。そちらのページを使ってください。"
     # panel.c
     "Network time": "ネット時刻"
     # powerdown.h, screendim.h
     "Never": "しない"
+    # remote.html
+    "Next": "次へ"
     # recorder.c
     "No USB microphone is plugged in.": "USBマイクが\nつながっていない。"
     # portal.c
@@ -226,10 +282,14 @@ ja:
     "No signal": "信号なし"
     # bench.c
     "No station selected.": "局が選ばれていない。"
+    # remote.html
+    "None on the card yet.": "カードにはまだありません。"
     # recorder.c
     "Not enough memory to record.": "録音するメモリが足りない。"
     # recorder.c
     "Nothing is plugged into the headset jack.": "ヘッドセット端子に\n何もつながっていない。"
+    # remote.html
+    "Nothing playable here.": "ここには再生できるものがありません。"
     # panel.c, sleeppage.c
     "OFF": "オフ"
     # panel.c, sleeppage.c
@@ -238,6 +298,8 @@ ja:
     "ONE": "単曲"
     # browser.c
     "ONE1": "単曲1"
+    # remote.html
+    "Off": "オフ"
     # panel.c
     "Off by default. Nothing on the card needs it, and the radio draws power while on.": "初期設定はオフ。カードの再生には不要で、オン中は無線が電力を使う。"
     # sleeppage.c
@@ -252,14 +314,20 @@ ja:
     "One folder counts as one album.": "1つのフォルダを1枚のアルバムとみなす。"
     # panel.c
     "Open %s": "%s を開く"
-    # portal.c
+    # portal.c, remote.c
     "Open networks are not supported yet.": "パスワードなしのネットワークにはまだ対応していません。"
-    # portal.c
+    # portal.c, remote.html
     "Or type a network name": "またはネットワーク名を入力"
-    # portal.c
+    # portal.c, remote.html
     "Other or hidden network (type it below)": "その他・非公開のネットワーク（下に入力）"
-    # portal.c
+    # portal.c, remote.html
     "Password": "パスワード"
+    # remote.html
+    "Play": "再生"
+    # remote.html
+    "Play next": "次に再生"
+    # remote.html
+    "Play or pause": "再生・一時停止"
     # panel.c
     "Play, pause, skip, seek and volume from a browser on the same network.": "同じネットワークのブラウザから再生、一時停止、スキップ、シーク、音量。"
     # panel.c
@@ -268,8 +336,12 @@ ja:
     "Playback pauses while setup runs.": "設定中は再生を一時停止。"
     # sleeppage.c
     "Power off": "電源オフ"
+    # remote.html
+    "Previous": "前へ"
     # sleeppage.c
     "Quarter turns. 90 and 270 are landscape; 180 is for when the cable is at the wrong end.": "90度単位。90と270は横向き。ケーブルが逆側にあるときは180。"
+    # remote.html
+    "Queue": "キュー"
     # ui.c
     "REC": "録音"
     # panel.c
@@ -290,17 +362,21 @@ ja:
     "RUN": "実行"
     # player.c
     "Radio": "ラジオ"
-    # portal.c
+    # portal.c, remote.html
     "Radio stations": "ラジオ局"
     # panel.c
     "Reading %s without decoding...": "%s をデコードせずに読込中..."
+    # remote.html
+    "Reading…": "読み込み中…"
     # panel.c
     "Reads the selected station without decoding it, to tell a slow network from a slow decoder.": "選んだ局をデコードせずに読み、遅いのがネットかデコーダかを見分ける。"
     # streamplan.h
     "Reconnecting": "再接続中"
     # panel.c
     "Record from": "録音元"
-    # player.c
+    # remote.html
+    "Recording": "録音中"
+    # player.c, remote.html
     "Recording in %d": "録音まで %d"
     # recorder.c
     "Recording is off (AUDIO, Record from).": "録音はオフ\n（AUDIO、録音元）。"
@@ -310,6 +386,8 @@ ja:
     "Recording stopped": "録音停止"
     # panel.c
     "Remote control": "リモコン"
+    # remote.html
+    "Remove": "削除"
     # ui.c
     "ReplayGain is listening...": "ReplayGain 測定中..."
     # sleeppage.c
@@ -330,18 +408,26 @@ ja:
     "Same album": "同じアルバム"
     # panel.c
     "Saved %.32s.": "%.32s を保存。"
+    # remote.html
+    "Scan": "スキャン"
+    # remote.c
+    "Scanning…": "スキャン中…"
     # sleeppage.c
     "Screen": "画面"
     # sleeppage.c
     "Screen off": "画面オフ"
     # panel.c
     "Sets the clock, in UTC. Streams need it: a certificate is invalid at an unset clock.": "時計をUTCで合わせる。配信に必要：時計が未設定だと証明書が無効になる。"
+    # remote.html
+    "Settings": "設定"
     # panel.c
     "Setup closed after five minutes.": "設定は5分で閉じた。"
     # panel.c
     "Setup could not start.": "設定を開始できなかった。"
     # sleeppage.c
     "Sleep": "スリープ"
+    # remote.html
+    "Sleep timer": "スリープタイマー"
     # sleeppage.c
     "Sleep timer   %d min": "スリープタイマー   %d 分"
     # sleeppage.c
@@ -350,11 +436,13 @@ ja:
     "Sleep timer   off": "スリープタイマー   オフ"
     # panel.c
     "Source": "ソース"
+    # remote.html
+    "Star": "お気に入り"
     # radiobrowser.h
     "Starred stations": "お気に入りの局"
     # panel.c
     "Starting...": "起動中..."
-    # portal.c
+    # portal.c, remote.c
     "Station added.": "局を追加しました。"
     # panel.c
     "Station needs %d -- that is %d%%": "局の必要量 %d、その %d%%"
@@ -362,19 +450,21 @@ ja:
     "Station not answering": "局が応答しない"
     # panel.c
     "Stop playback first.": "先に再生を止める。"
-    # portal.c
+    # portal.c, remote.html
     "Stream address": "ストリームのアドレス"
     # player.c
     "Stream too slow here": "回線が遅すぎる"
-    # portal.c
+    # remote.c
+    "That folder could not be opened.": "そのフォルダを開けませんでした。"
+    # portal.c, remote.c
     "That form was too large to be a name and a stream address.": "名前とストリームのアドレスにしては大きすぎるフォームです。"
-    # portal.c
+    # portal.c, remote.c
     "That form was too large to be a network name and a password.": "ネットワーク名とパスワードにしては大きすぎるフォームです。"
-    # portal.c
+    # portal.c, remote.c
     "That is not a usable stream address. It has to start with http:// or https:// and be one unbroken address.": "使えるストリームのアドレスではありません。http:// か https:// で始まる、途切れのない1つのアドレスにしてください。"
-    # portal.c
+    # portal.c, remote.c
     "That name cannot be used. Names are up to 63 characters and cannot start with a #.": "その名前は使えません。名前は63文字までで、# で始めることはできません。"
-    # portal.c
+    # portal.c, remote.c
     "That needs a stream address.": "ストリームのアドレスが必要です。"
     # portal.c
     "That network was not found. Check the name and try again.": "そのネットワークが見つかりません。名前を確認してもう一度お試しください。"
@@ -398,7 +488,21 @@ ja:
     "The password contains %s. A Wi-Fi password is plain keyboard characters only; phones substitute these when autocorrect or smart punctuation is on. Retype it with that turned off.": "パスワードに %s が含まれています。Wi-Fiのパスワードは通常のキーボード文字だけです。自動修正やスマート句読点がオンだと、スマホがこれらの文字を置き換えます。オフにして入力し直してください。"
     # portal.c
     "The password did not work. Try again.": "パスワードが違います。もう一度お試しください。"
-    # portal.c
+    # remote.c
+    "The password has a character a Wi-Fi password cannot have -- often a phone's smart punctuation. Retype it with that turned off.": "パスワードにWi-Fiのパスワードに使えない文字があります。多くはスマホのスマート句読点です。オフにして入力し直してください。"
+    # remote.c
+    "The player could not start that. Try again.": "プレーヤーで開始できませんでした。もう一度お試しください。"
+    # remote.html
+    "The player did not answer.": "プレーヤーから応答がありません。"
+    # remote.html
+    "The player is on %s, and you are on its cable.": "プレーヤーは %s に接続中で、あなたはそのケーブル経由です。"
+    # remote.html
+    "The player is on %s.": "プレーヤーは %s に接続中です。"
+    # remote.html
+    "The player is on its cable only.": "プレーヤーはケーブルだけで接続しています。"
+    # remote.c
+    "The player is out of memory for that.": "プレーヤーのメモリが足りません。"
+    # portal.c, remote.c
     "The station could not be saved. The card may be full, absent, or write-protected, or the list may already be full.": "局を保存できませんでした。カードがいっぱい、未挿入、書き込み禁止か、リストがすでにいっぱいの可能性があります。"
     # bench.c
     "The station did not answer.": "局が応答しない。"
@@ -418,6 +522,8 @@ ja:
     "To change Wi-Fi networks instead, use Network setup on the player's screen. This page closes itself after %d minutes.": "Wi-Fiネットワークを変える場合は、機器の画面の「ネットワーク追加」を使ってください。このページは %d 分後に閉じます。"
     # sleeppage.c
     "Touch anywhere to wake it.": "どこかに触れると戻る。"
+    # remote.html
+    "Tried before it is saved. Only over this encrypted page — never in the clear.": "保存する前に試します。この暗号化されたページだけを通り、平文では送られません。"
     # panel.c
     "Trying %.32s...": "%.32s を試行中..."
     # portal.c
@@ -436,6 +542,10 @@ ja:
     "USB port coming up": "USBポート起動中"
     # browser.c
     "USB port on - waiting for a drive": "USBポートオン - ドライブ待ち"
+    # remote.html
+    "Volume": "音量"
+    # remote.html
+    "Volumes": "ボリューム"
     # panel.c
     "Waiting for a network address.": "ネットのアドレス待ち。"
     # portal.c
@@ -444,6 +554,10 @@ ja:
     "Waiting for network": "ネット待ち"
     # player.c
     "Web setup is open": "Web設定が開いている"
+    # remote.c
+    "Wi-Fi is off on the player.": "プレーヤーのWi-Fiがオフです。"
+    # remote.html
+    "You are reaching the player over Wi-Fi. Joining a different network drops this page; the player's NET tab shows which network it ended up on, and if the join fails it goes back to its saved networks within a minute.": "あなたはWi-Fi経由でプレーヤーに接続しています。別のネットワークに接続するとこのページは切れます。プレーヤーのNETタブに接続先が表示され、接続に失敗した場合は1分以内に保存済みのネットワークに戻ります。"
     # panel.c
     "a guess": "推定"
     # browser.c
@@ -512,15 +626,17 @@ ja:
     "not run this session": "この起動では未実行"
     # player.c
     "nothing starred yet - tap a star to keep one": "まだお気に入りなし - 星をタップで保存"
-    # panel.c, sleeppage.c
+    # panel.c, sleeppage.c, remote.html
     "off": "オフ"
     # panel.c
     "on": "オン"
     # recorder.c
     "on %s, %u:%02u\n%s": "%s に保存、%u:%02u\n%s"
-    # portal.c
+    # remote.html
+    "on the player": "プレーヤーで"
+    # portal.c, remote.html
     "only if not in the list": "リストにない場合のみ"
-    # portal.c
+    # portal.c, remote.html
     "optional": "省略可"
     # player.c
     "playback stopped": "再生停止"
@@ -530,6 +646,8 @@ ja:
     "port": "ポート"
     # panel.c
     "product": "製品"
+    # remote.html
+    "queue, files, settings, stations": "キュー、ファイル、設定、ラジオ局"
     # browser.c
     "radio - the card, the charts, or a tag": "ラジオ - カード、ランキング、タグ"
     # panel.c
@@ -550,6 +668,8 @@ ja:
     "stations.m3u on the card": "カードの stations.m3u"
     # player.c
     "stereo": "ステレオ"
+    # remote.html
+    "stop it on the player, or tap here": "プレーヤーで止めるか、ここをタップ"
     # panel.c
     "stopped: the volume went away": "停止：ボリュームが外れた"
     # player.c
@@ -593,6 +713,8 @@ ja:
       other: "近くに非公開のネットワークが %d 件あります。非公開のネットワーク名は入力が必要です。"
     "%d stations from %s":
       other: "%d 局、%s から"
+    "%d tracks":
+      other: "%d 曲"
     "%d tracks (+%d ~%d -%d), %d s":
       other: "%d 曲 (+%d ~%d -%d)、%d 秒"
     "%d tracks, unchanged, %d s":

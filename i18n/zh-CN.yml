@@ -8,8 +8,20 @@ zh-CN:
   singular:
     # panel.c
     "%.32s did not work. Try again.": "%.32s 未成功，请重试。"
-    # panel.c
+    # remote.html
+    "%d h": "%d 小时"
+    # remote.html
+    "%d min": "%d 分钟"
+    # panel.c, remote.html
     "%d s": "%d 秒"
+    # remote.c
+    "%s did not answer.": "%s 没有响应。"
+    # remote.html
+    "%s left": "剩余 %s"
+    # remote.c
+    "%s refused the password.": "%s 拒绝了密码。"
+    # remote.c
+    "%s was not found. Is it in range?": "找不到 %s。是否在范围内？"
     # panel.c
     "%s: %d mean, %d peak kbit/s": "%s: 平均 %d, 峰值 %d kbit/s"
     # panel.c
@@ -18,6 +30,8 @@ zh-CN:
     "%u bytes": "%u 字节"
     # panel.c
     "%u s": "%u 秒"
+    # remote.html
+    "(from the next track)": "（从下一首起）"
     # powerdown.h
     "1 h": "1小时"
     # screendim.h
@@ -36,9 +50,9 @@ zh-CN:
     "30 s": "30秒"
     # screendim.h
     "5 min": "5分钟"
-    # portal.c
+    # portal.c, remote.c
     "A Wi-Fi password is 8 to 63 characters, or 64 hex digits.": "Wi-Fi 密码为 8 到 63 个字符，或 64 位十六进制数字。"
-    # portal.c
+    # portal.c, remote.c
     "A network name is 1 to 32 characters.": "网络名称为 1 到 32 个字符。"
     # panel.c
     "A phone supplies the password.": "由手机输入密码。"
@@ -58,14 +72,20 @@ zh-CN:
     "Add a radio station to the card.": "向卡中添加电台。"
     # radiobrowser.h
     "Add a station by phone...": "用手机添加电台..."
-    # portal.c
+    # portal.c, remote.html
     "Add station": "添加电台"
-    # portal.c
+    # remote.html
+    "Add to the queue": "加入队列"
+    # portal.c, remote.html
     "Added to %s on the card. The name is optional — without one the station is listed by its address.": "添加到卡上的 %s。名称可不填——不填时以地址列出该电台。"
+    # remote.html
+    "Adding…": "正在添加…"
     # sleeppage.c
     "After this long with nothing playing, recording or touched. Not while music plays.": "在无播放、无录音、无触摸达到该时长后。播放音乐时不会关机。"
     # sleeppage.c
     "After this long without a touch the screen drops to half brightness. Any touch puts it back.": "在无触摸达到该时长后，屏幕亮度降为一半。触摸就能恢复。"
+    # remote.html
+    "Already on the card (%d of %d):": "卡上已有（%d / %d）："
     # portal.c
     "Already on the card (%d):": "卡上已有（%d）："
     # recorder.c
@@ -90,6 +110,8 @@ zh-CN:
     "Brightness   %d%%": "亮度   %d%%"
     # streamplan.h
     "Buffering": "缓冲中"
+    # remote.c
+    "Busy; try again in a moment.": "忙碌中，请稍后再试。"
     # ui.c
     "CHARGED": "已充满"
     # ui.c
@@ -102,6 +124,8 @@ zh-CN:
     "Cert %.29s...": "证书 %.29s..."
     # portal.c
     "Choose the network this player should use, and enter its password. It is tried before it is saved.": "选择本机要使用的网络并输入密码。保存前会先尝试连接。"
+    # remote.html
+    "Clear": "清空"
     # panel.c
     "Clock": "时钟"
     # panel.c
@@ -110,22 +134,36 @@ zh-CN:
     "Connected to %.32s.": "已连接 %.32s。"
     # streamplan.h
     "Connecting": "连接中"
+    # remote.html
+    "Connecting to the player…": "正在连接播放器…"
     # recorder.c
     "Could not create the recording file.": "无法创建录音文件。"
+    # remote.c
+    "Could not join %s.": "无法连接 %s。"
     # recorder.c
     "Could not make the Recordings folder.": "无法创建\nRecordings 文件夹。"
+    # remote.html
+    "Could not read the list.": "无法读取列表。"
     # player.c
     "Could not save": "无法保存"
+    # remote.c
+    "Could not scan. Is Wi-Fi on, on the player?": "无法扫描。播放器的 Wi-Fi 是否已打开？"
     # recorder.c
     "Could not start the file.": "无法开始写文件。"
     # bench.c
     "Could not start the stream.": "无法启动音频流。"
     # panel.c
     "Could not start.": "无法启动。"
+    # remote.html
+    "Crossfade": "交叉淡化"
     # panel.c
     "Crossfade   %d s": "交叉淡化   %d 秒"
     # panel.c
     "Crossfade   off": "交叉淡化   关"
+    # remote.html
+    "Crossfade seconds": "交叉淡化秒数"
+    # remote.html
+    "Crossfade within an album": "同一专辑内也交叉淡化"
     # browser.c
     "DN": "下页"
     # portal.c
@@ -136,6 +174,10 @@ zh-CN:
     "EAT": "播完删除"
     # browser.c
     "EAT1": "删除1"
+    # remote.html
+    "Empty the queue? What is playing carries on.": "清空队列？正在播放的会继续。"
+    # remote.html
+    "Empty.": "空。"
     # panel.c
     "Evens out loudness between tracks.": "平衡曲目之间的响度。"
     # browser.c
@@ -146,6 +188,8 @@ zh-CN:
     "Fades out, pauses, and turns the screen off.": "淡出、暂停并关闭屏幕。"
     # player.c
     "Favourites are full": "收藏已满"
+    # remote.html
+    "Files": "文件"
     # panel.c
     "Focused: those two aimed out of it.": "定向：这两个麦克风朝屏幕外。"
     # sleeppage.c
@@ -168,10 +212,12 @@ zh-CN:
     "It comes back when setup closes.": "设置关闭后恢复。"
     # recorder.c
     "It reached 4 GB, the most one file can hold.": "已达 4 GB，\n单个文件的上限。"
-    # portal.c
+    # portal.c, remote.html
     "Join": "连接"
     # panel.c
     "Join %s on a phone.": "用手机连接 %s。"
+    # remote.c
+    "Joined and saved %s.": "已连接并保存 %s。"
     # portal.c
     "Joined and saved %s. The setup network is closing; you can leave it.": "已连接并保存 %s。设置网络正在关闭，你可以离开它了。"
     # ui.c
@@ -182,6 +228,8 @@ zh-CN:
     "Libraries": "库"
     # sleeppage.c
     "Longer than the dim, and the backlight goes out altogether. Never while this page is open.": "比变暗更久，背光会完全熄灭。此页面打开时不会熄灭。"
+    # remote.html
+    "Lost the player. Reconnecting…": "与播放器断开。正在重新连接…"
     # panel.c
     "MONO": "单声道"
     # panel.c
@@ -196,20 +244,28 @@ zh-CN:
     "Most listened": "收听最多"
     # radiobrowser.h
     "Most voted": "得票最多"
+    # remote.html
+    "Move down": "下移"
+    # remote.html
+    "Move up": "上移"
     # ui.c
     "NO BATT": "无电池"
-    # portal.c
+    # portal.c, remote.html
     "Name": "名称"
     # panel.c
     "Needed for internet radio and the clock.": "网络电台和时钟需要它。"
     # panel.c
     "Needs a network: Wi-Fi or a cable.": "需要网络：Wi-Fi 或网线。"
-    # portal.c
+    # portal.c, remote.html
     "Network": "网络"
+    # remote.c
+    "Network setup is running on the player; use that page.": "播放器正在进行网络设置，请使用那个页面。"
     # panel.c
     "Network time": "网络时间"
     # powerdown.h, screendim.h
     "Never": "从不"
+    # remote.html
+    "Next": "下一首"
     # recorder.c
     "No USB microphone is plugged in.": "未插入 USB 麦克风。"
     # portal.c
@@ -226,10 +282,14 @@ zh-CN:
     "No signal": "无信号"
     # bench.c
     "No station selected.": "未选择电台。"
+    # remote.html
+    "None on the card yet.": "卡上还没有。"
     # recorder.c
     "Not enough memory to record.": "内存不足，无法录音。"
     # recorder.c
     "Nothing is plugged into the headset jack.": "耳麦插孔未插入设备。"
+    # remote.html
+    "Nothing playable here.": "这里没有可播放的内容。"
     # panel.c, sleeppage.c
     "OFF": "关"
     # panel.c, sleeppage.c
@@ -238,6 +298,8 @@ zh-CN:
     "ONE": "单曲"
     # browser.c
     "ONE1": "单曲1"
+    # remote.html
+    "Off": "关"
     # panel.c
     "Off by default. Nothing on the card needs it, and the radio draws power while on.": "默认关闭。播放卡上的内容不需要它，开启时无线模块会耗电。"
     # sleeppage.c
@@ -252,14 +314,20 @@ zh-CN:
     "One folder counts as one album.": "一个文件夹算作一张专辑。"
     # panel.c
     "Open %s": "打开 %s"
-    # portal.c
+    # portal.c, remote.c
     "Open networks are not supported yet.": "暂不支持开放网络。"
-    # portal.c
+    # portal.c, remote.html
     "Or type a network name": "或输入网络名称"
-    # portal.c
+    # portal.c, remote.html
     "Other or hidden network (type it below)": "其他或隐藏网络（在下方输入）"
-    # portal.c
+    # portal.c, remote.html
     "Password": "密码"
+    # remote.html
+    "Play": "播放"
+    # remote.html
+    "Play next": "下一首播放"
+    # remote.html
+    "Play or pause": "播放或暂停"
     # panel.c
     "Play, pause, skip, seek and volume from a browser on the same network.": "在同一网络的浏览器中播放、暂停、切歌、定位和调音量。"
     # panel.c
@@ -268,8 +336,12 @@ zh-CN:
     "Playback pauses while setup runs.": "设置期间暂停播放。"
     # sleeppage.c
     "Power off": "自动关机"
+    # remote.html
+    "Previous": "上一首"
     # sleeppage.c
     "Quarter turns. 90 and 270 are landscape; 180 is for when the cable is at the wrong end.": "以 90 度为单位。90 和 270 为横屏；线缆在另一端时用 180。"
+    # remote.html
+    "Queue": "队列"
     # ui.c
     "REC": "录音"
     # panel.c
@@ -290,17 +362,21 @@ zh-CN:
     "RUN": "运行"
     # player.c
     "Radio": "电台"
-    # portal.c
+    # portal.c, remote.html
     "Radio stations": "电台"
     # panel.c
     "Reading %s without decoding...": "正在读取 %s（不解码）..."
+    # remote.html
+    "Reading…": "正在读取…"
     # panel.c
     "Reads the selected station without decoding it, to tell a slow network from a slow decoder.": "只读取所选电台而不解码，用来区分是网络慢还是解码慢。"
     # streamplan.h
     "Reconnecting": "重新连接中"
     # panel.c
     "Record from": "录音来源"
-    # player.c
+    # remote.html
+    "Recording": "录音中"
+    # player.c, remote.html
     "Recording in %d": "%d 秒后录音"
     # recorder.c
     "Recording is off (AUDIO, Record from).": "录音已关闭\n（AUDIO，录音来源）。"
@@ -310,6 +386,8 @@ zh-CN:
     "Recording stopped": "录音已停止"
     # panel.c
     "Remote control": "远程控制"
+    # remote.html
+    "Remove": "移除"
     # ui.c
     "ReplayGain is listening...": "ReplayGain 测量中..."
     # sleeppage.c
@@ -330,18 +408,26 @@ zh-CN:
     "Same album": "同一专辑"
     # panel.c
     "Saved %.32s.": "已保存 %.32s。"
+    # remote.html
+    "Scan": "扫描"
+    # remote.c
+    "Scanning…": "正在扫描…"
     # sleeppage.c
     "Screen": "屏幕"
     # sleeppage.c
     "Screen off": "关闭屏幕"
     # panel.c
     "Sets the clock, in UTC. Streams need it: a certificate is invalid at an unset clock.": "以 UTC 设置时钟。网络流需要它：时钟未设置时证书无效。"
+    # remote.html
+    "Settings": "设置"
     # panel.c
     "Setup closed after five minutes.": "设置已在五分钟后关闭。"
     # panel.c
     "Setup could not start.": "设置无法启动。"
     # sleeppage.c
     "Sleep": "睡眠"
+    # remote.html
+    "Sleep timer": "睡眠定时"
     # sleeppage.c
     "Sleep timer   %d min": "睡眠定时   %d 分钟"
     # sleeppage.c
@@ -350,11 +436,13 @@ zh-CN:
     "Sleep timer   off": "睡眠定时   关"
     # panel.c
     "Source": "源代码"
+    # remote.html
+    "Star": "收藏"
     # radiobrowser.h
     "Starred stations": "收藏的电台"
     # panel.c
     "Starting...": "正在启动..."
-    # portal.c
+    # portal.c, remote.c
     "Station added.": "电台已添加。"
     # panel.c
     "Station needs %d -- that is %d%%": "电台需要 %d，达到 %d%%"
@@ -362,19 +450,21 @@ zh-CN:
     "Station not answering": "电台无响应"
     # panel.c
     "Stop playback first.": "请先停止播放。"
-    # portal.c
+    # portal.c, remote.html
     "Stream address": "流地址"
     # player.c
     "Stream too slow here": "网络太慢"
-    # portal.c
+    # remote.c
+    "That folder could not be opened.": "无法打开该文件夹。"
+    # portal.c, remote.c
     "That form was too large to be a name and a stream address.": "表单内容过大，不像是名称和流地址。"
-    # portal.c
+    # portal.c, remote.c
     "That form was too large to be a network name and a password.": "表单内容过大，不像是网络名称和密码。"
-    # portal.c
+    # portal.c, remote.c
     "That is not a usable stream address. It has to start with http:// or https:// and be one unbroken address.": "这不是可用的流地址。它必须以 http:// 或 https:// 开头，并且是一个连续的地址。"
-    # portal.c
+    # portal.c, remote.c
     "That name cannot be used. Names are up to 63 characters and cannot start with a #.": "该名称不可用。名称最多 63 个字符，且不能以 # 开头。"
-    # portal.c
+    # portal.c, remote.c
     "That needs a stream address.": "需要填写流地址。"
     # portal.c
     "That network was not found. Check the name and try again.": "找不到该网络。请检查名称后重试。"
@@ -398,7 +488,21 @@ zh-CN:
     "The password contains %s. A Wi-Fi password is plain keyboard characters only; phones substitute these when autocorrect or smart punctuation is on. Retype it with that turned off.": "密码中含有 %s。Wi-Fi 密码只能使用普通键盘字符；开启自动更正或智能标点时，手机会替换这些字符。请关闭后重新输入。"
     # portal.c
     "The password did not work. Try again.": "密码无效。请重试。"
-    # portal.c
+    # remote.c
+    "The password has a character a Wi-Fi password cannot have -- often a phone's smart punctuation. Retype it with that turned off.": "密码中有 Wi-Fi 密码不能使用的字符——通常是手机的智能标点。请关闭后重新输入。"
+    # remote.c
+    "The player could not start that. Try again.": "播放器无法开始。请重试。"
+    # remote.html
+    "The player did not answer.": "播放器没有响应。"
+    # remote.html
+    "The player is on %s, and you are on its cable.": "播放器连接在 %s，你通过它的网线连接。"
+    # remote.html
+    "The player is on %s.": "播放器连接在 %s。"
+    # remote.html
+    "The player is on its cable only.": "播放器仅通过网线连接。"
+    # remote.c
+    "The player is out of memory for that.": "播放器内存不足，无法完成。"
+    # portal.c, remote.c
     "The station could not be saved. The card may be full, absent, or write-protected, or the list may already be full.": "无法保存电台。卡可能已满、未插入或写保护，或者列表已满。"
     # bench.c
     "The station did not answer.": "电台无响应。"
@@ -418,6 +522,8 @@ zh-CN:
     "To change Wi-Fi networks instead, use Network setup on the player's screen. This page closes itself after %d minutes.": "如需改用其他 Wi-Fi 网络，请在本机屏幕上使用“添加网络”。此页面会在 %d 分钟后自动关闭。"
     # sleeppage.c
     "Touch anywhere to wake it.": "触摸任意处就能唤醒。"
+    # remote.html
+    "Tried before it is saved. Only over this encrypted page — never in the clear.": "保存前会先尝试。仅通过这个加密页面传送——绝不以明文发送。"
     # panel.c
     "Trying %.32s...": "正在尝试 %.32s..."
     # portal.c
@@ -436,6 +542,10 @@ zh-CN:
     "USB port coming up": "USB 端口启动中"
     # browser.c
     "USB port on - waiting for a drive": "USB 端口已开 - 等待驱动器"
+    # remote.html
+    "Volume": "音量"
+    # remote.html
+    "Volumes": "存储卷"
     # panel.c
     "Waiting for a network address.": "正在等待网络地址。"
     # portal.c
@@ -444,6 +554,10 @@ zh-CN:
     "Waiting for network": "等待网络"
     # player.c
     "Web setup is open": "网页设置已开启"
+    # remote.c
+    "Wi-Fi is off on the player.": "播放器的 Wi-Fi 已关闭。"
+    # remote.html
+    "You are reaching the player over Wi-Fi. Joining a different network drops this page; the player's NET tab shows which network it ended up on, and if the join fails it goes back to its saved networks within a minute.": "你正通过 Wi-Fi 连接播放器。连接其他网络会使此页面断开；播放器的 NET 标签页会显示它最终连接的网络，如果连接失败，它会在一分钟内回到已保存的网络。"
     # panel.c
     "a guess": "估计值"
     # browser.c
@@ -512,15 +626,17 @@ zh-CN:
     "not run this session": "本次启动未运行"
     # player.c
     "nothing starred yet - tap a star to keep one": "还没有收藏 - 点星标就能保存"
-    # panel.c, sleeppage.c
+    # panel.c, sleeppage.c, remote.html
     "off": "关"
     # panel.c
     "on": "开"
     # recorder.c
     "on %s, %u:%02u\n%s": "保存在 %s，%u:%02u\n%s"
-    # portal.c
+    # remote.html
+    "on the player": "在播放器上"
+    # portal.c, remote.html
     "only if not in the list": "仅当列表中没有时"
-    # portal.c
+    # portal.c, remote.html
     "optional": "可选"
     # player.c
     "playback stopped": "播放已停止"
@@ -530,6 +646,8 @@ zh-CN:
     "port": "端口"
     # panel.c
     "product": "产品"
+    # remote.html
+    "queue, files, settings, stations": "队列、文件、设置、电台"
     # browser.c
     "radio - the card, the charts, or a tag": "电台 - 卡、排行或标签"
     # panel.c
@@ -550,6 +668,8 @@ zh-CN:
     "stations.m3u on the card": "卡上的 stations.m3u"
     # player.c
     "stereo": "立体声"
+    # remote.html
+    "stop it on the player, or tap here": "在播放器上停止，或点这里"
     # panel.c
     "stopped: the volume went away": "已停止：卷已移除"
     # player.c
@@ -593,6 +713,8 @@ zh-CN:
       other: "附近有 %d 个隐藏网络。隐藏网络的名称需要手动输入。"
     "%d stations from %s":
       other: "%d 个电台，来自 %s"
+    "%d tracks":
+      other: "%d 首"
     "%d tracks (+%d ~%d -%d), %d s":
       other: "%d 首 (+%d ~%d -%d)，%d 秒"
     "%d tracks, unchanged, %d s":

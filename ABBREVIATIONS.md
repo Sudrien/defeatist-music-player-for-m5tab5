@@ -99,7 +99,11 @@ Five tabs: `SD`, `USB`, `BUILD`, `AUDIO`, `NET`. NET is short for network.
 
 ### BUILD
 
-What is running. Nothing to set.
+What is running, and the screen's language.
+
+| Setting | Values | Notes |
+|---|---|---|
+| Language | `English` / `简体中文` / `日本語` / `Español` | Tap to cycle. Each language is named in itself, and the row's label and the tab names are never translated, so the way back is findable from any of them. Kept in the device, not on the card. Only some screens are translated so far; the rest stay English. |
 
 - `app`, `version`, `built`, `idf`, and free `heap`, `psram` and `uptime`.
 - **Source**: the repository, github.com/Sudrien/m5tab5_defeatist_music_player.

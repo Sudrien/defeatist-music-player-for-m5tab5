@@ -377,6 +377,20 @@ bool settings_wifi_enabled(void);
 void settings_set_wifi_enabled(bool on);
 
 /*
+ * 6015: the screen's language, an i18n_lang_t (i18n.h) as a byte.
+ *
+ * NVS only, not the card's record: it belongs to the device and the
+ * person holding it, not to whichever card is in it, and it has to be
+ * right on the first frame, before any card is mounted. settings_init()
+ * reads it and hands it to i18n_set_lang(). Set takes effect on the next
+ * draw and is written through at once -- a tap, not a slide, so there is
+ * nothing for the settle delay to save. An unknown value reads as
+ * English.
+ */
+uint8_t settings_language(void);
+void settings_set_language(uint8_t lang);
+
+/*
  * Whether to set the clock from the network.
  *
  * TWO GETTERS, DELIBERATELY.

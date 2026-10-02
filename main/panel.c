@@ -306,6 +306,9 @@ static int build_build(row_t *rows)
     const esp_app_desc_t *d = esp_app_get_description();
 
     int n = 0;
+    /* 6015: row 0 is the language switch, drawn over it as the USB
+     * tab's power switch is. See draw_lang_switch(). */
+    n = row_add(rows, n, "language", false, "%s", "");
     n = row_add(rows, n, "app", false, "%s", PANEL_APP_NAME);     /* 5283 */
     n = row_add(rows, n, "version", false, "%s", d ? d->version : "?");
     n = row_add(rows, n, "built", false, "%s %s",
@@ -476,6 +479,43 @@ static int draw_reindex(int nrows)
     gfx_draw_text(bx + (bw - tw) / 2, by + (bh - GFX_GLYPH_H(LABEL_SCALE)) / 2,
                   label, LABEL_SCALE, bw - 8, live ? C_TEXT : C_DISABLED);
     return by + bh + REINDEX_PAD;
+}
+
+/*
+ * 6015: the language, row 0 of the BUILD tab. Tapped round, like Record
+ * from: English, 简体中文, 日本語, Español, English.
+ *
+ * Nothing on this row is ever translated, and that is the point of it.
+ * Someone who lands in a language they cannot read has to be able to
+ * get back, so the label stays the English word every other row label
+ * is, and the pill names the current language in itself -- its
+ * endonym -- which is the one word a reader of it is sure to know. The
+ * tab names stay untranslated for the same reason: BUILD is the
+ * landmark that gets them here.
+ */
+static void lang_switch_box(int *x, int *y, int *w, int *h)
+{
+    *x = 0;
+    *y = list_top();
+    *w = gfx_w();
+    *h = ROW_H;
+}
+
+static void draw_lang_switch(void)
+{
+    int x, y, bw, bh;
+    lang_switch_box(&x, &y, &bw, &bh);
+
+    const char *name = i18n_lang_name(i18n_lang());
+    const int tw = gfx_text_w(name, LABEL_SCALE);
+    int pw = tw + 48;
+    if (pw < 132) pw = 132;
+    const int ph = 44;
+    const int px = gfx_w() - 24 - pw, py = y + (bh - ph) / 2;
+
+    gfx_fill_rect(px, py, pw, ph, C_BTN);
+    gfx_draw_text(px + (pw - tw) / 2, py + (ph - GFX_GLYPH_H(LABEL_SCALE)) / 2,
+                  name, LABEL_SCALE, pw - 8, C_TEXT);
 }
 
 static void draw_usb_switch(void)
@@ -1286,6 +1326,7 @@ void panel_draw(void)
                                          : build_build(rows);
         used = draw_rows(rows, n);
         if (s_tab == TAB_BUILD) used = draw_build_notes(used);   /* 5283 */
+        if (s_tab == TAB_BUILD) draw_lang_switch();              /* 6015 */
         if (s_tab == TAB_USB) draw_usb_switch();
         if (s_tab == TAB_SD || s_tab == TAB_USB) {
             used = draw_reindex(n);
@@ -1598,6 +1639,18 @@ bool panel_touch(bool down, int x, int y)
             s_dirty = true;
             return false;
         }
+    }
+
+    if (s_tab == TAB_BUILD) {                                   /* 6015 */
+        int bx, by, bw, bh;
+        lang_switch_box(&bx, &by, &bw, &bh);
+        if (y >= by && y < by + bh) {
+            const uint8_t next = (uint8_t)((settings_language() + 1) % I18N_LANG_COUNT);
+            settings_set_language(next);
+            ESP_LOGI(TAG, "language: %s", i18n_lang_name(i18n_lang()));
+            s_dirty = true;
+        }
+        return false;
     }
 
     if (s_tab == TAB_USB) {

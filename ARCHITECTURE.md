@@ -20622,3 +20622,35 @@ an 80 px clip. The pill is SÍ / NO; Í is Latin-1, already in Ark12.
 
 texttest's fixture gained an es column and the es plural cases. Not on
 the board.
+
+### 6015 -- the language, on the BUILD tab
+
+Where it was asked for. Row 0 of the BUILD tab, drawn and tapped the
+way the USB tab's power switch is -- a row from build_build() with a
+pill over its right end -- and cycled like Record from: English,
+简体中文, 日本語, Español, round.
+
+The design constraint is getting back. Someone who taps into a
+language they cannot read has to find the switch again, so nothing
+that leads to it is translated: the tab names, the row's label
+("language", lowercase like the other row labels) and the pill, which
+shows the current language's own name. A reader of Japanese knows 日本語
+on sight; a reader of English who landed there knows where BUILD is.
+6013's CLAUDE.md rule about marking text does not reach these and must
+not.
+
+Kept in NVS as its own byte (`lang`, beside `wifi_on`), not in the
+card's record and not in the prefs blob. Not the card because it
+belongs to the device and has to be right on the first frame, before a
+card is mounted. Not the blob because a new field is a version bump and
+a bump discards the blob -- volume, brightness and rotation back to the
+defaults for a boot on a card-less device, which 5064's comment already
+records paying twice. Written through on the tap, only when it
+differs; read in settings_init() after the prefs. A byte this build
+does not know reads as English.
+
+The pill is sized to its word (132 px minimum, the USB pill's). 简体中文
+is four fullwidth glyphs, 104 px at LABEL_SCALE, the widest of the
+four.
+
+Not compiled here -- no ESP-IDF in the session. Not on the board.

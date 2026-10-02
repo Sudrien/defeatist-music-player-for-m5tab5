@@ -31,6 +31,7 @@
 #include "powerdown.h"           /* 6000 */
 #include "rtc8130.h"             /* 6003 */
 #include "rtctask.h"          /* 5183 */
+#include "i18n.h"             /* 6015 */
 
 /*
  * 5049: the Wi-Fi switch, mirrored into NVS.
@@ -46,6 +47,12 @@
  */
 #define WIFI_NVS_NS     DEFEATIST_NVS_NS     /* 6006: was "radiokeep" */
 #define WIFI_NVS_KEY    "wifi_on"
+
+/* 6015: the language, a byte of its own beside wifi_on rather than a
+ * field in the prefs blob below -- a new field there is a version bump,
+ * and a bump discards the blob, which on a card-less device is volume,
+ * brightness and rotation back to the defaults for a boot. */
+#define LANG_NVS_KEY    "lang"
 
 static bool wifi_nvs_read(bool *on)
 {
@@ -369,6 +376,35 @@ static void prefs_nvs_sync(void)
         nvs_commit(h) == ESP_OK) {
         s_prefs_nvs = p;
         s_prefs_nvs_known = true;
+    }
+    nvs_close(h);
+}
+
+/* 6015: see LANG_NVS_KEY. Absent -- first boot, or before this patch --
+ * leaves i18n at English. */
+static void lang_nvs_load(void)
+{
+    nvs_handle_t h;
+    if (nvs_open(WIFI_NVS_NS, NVS_READONLY, &h) != ESP_OK) return;
+    uint8_t v = I18N_EN;
+    const esp_err_t err = nvs_get_u8(h, LANG_NVS_KEY, &v);
+    nvs_close(h);
+    if (err != ESP_OK) return;
+    i18n_set_lang((i18n_lang_t)v);      /* out of range -> English */
+    ESP_LOGI(TAG, "from flash: language=%s", i18n_lang_name(i18n_lang()));
+}
+
+uint8_t settings_language(void) { return (uint8_t)i18n_lang(); }
+
+void settings_set_language(uint8_t lang)
+{
+    i18n_set_lang((i18n_lang_t)lang);
+    const uint8_t v = (uint8_t)i18n_lang();     /* as clamped */
+    nvs_handle_t h;
+    if (nvs_open(WIFI_NVS_NS, NVS_READWRITE, &h) != ESP_OK) return;
+    uint8_t cur;
+    if (nvs_get_u8(h, LANG_NVS_KEY, &cur) != ESP_OK || cur != v) {
+        if (nvs_set_u8(h, LANG_NVS_KEY, v) == ESP_OK) (void)nvs_commit(h);
     }
     nvs_close(h);
 }
@@ -1801,6 +1837,7 @@ void settings_init(void)
     }
     prefs_nvs_load();                   /* 5064 */
     clkfix_load();                      /* 5115 */
+    lang_nvs_load();                    /* 6015 */
 
     /*
      * Seeded from the build timestamp, through the same checked entry

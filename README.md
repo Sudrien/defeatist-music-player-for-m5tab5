@@ -79,6 +79,10 @@ Note: the goal of this project is to max out the potential of this hardware with
   - with a level meter while it records
 - a status line under volume: USB power, MPD, HTTPS, and the sleep timer's minutes left. Green is on.
 
+## v0.6.0 Goals
+- languages (English, simplified Chinese, Japanese, Spanish)
+- cover font gaps (seeing some boxes that show up as Arabic and ... Ethiopian? )
+
 ## What could happen
 - I think there is nothing in dependencies stopping from using esp-idf 6.1
 - more crash and burn handling, hey, you can always hook it up to `idf.py monitor` and see what you get.

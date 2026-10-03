@@ -1,4 +1,4 @@
-# Defeatist Music Player *for* M5Tab5
+# Defeatist Music Player *for M5Tab5*
 
 Most M5Tab5 Media players tell you to *convert* your files first. Not this one.
 

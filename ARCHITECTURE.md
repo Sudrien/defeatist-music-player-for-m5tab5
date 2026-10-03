@@ -21388,3 +21388,44 @@ RAM disk from f_mkfs, a file's checksum flipped (named, root, offset
 exact) and a stream entry's type broken in a folder (no name, folder).
 Compiled clean at -O2 and -O3 against both IDFs, ff.c included. Not on
 the board.
+
+### 6036 -- HLS playlists, read: hlsplay.h
+
+The first of the HLS series. Al Jazeera's audio link is an `.m3u8`
+served as `application/vnd.apple.mpegurl`, and the player stopped at
+382 bytes with "That link is a playlist, not a stream", which was true
+and was the end of it. HLS was listed under "Not in scope yet" since
+phase 4.
+
+This patch is the text half and nothing else: `main/hlsplay.h`,
+header-only, no HTTP, no FreeRTOS, no allocation. Nothing includes it
+yet; 6037 makes the codec decision name HLS and 6038 is the fetch loop.
+
+- **Master playlists** pick one variant: the lowest-bandwidth one whose
+  CODECS names no video; else an EXT-X-MEDIA audio rendition (DEFAULT
+  first); else the cheapest with no RESOLUTION; else the cheapest. Lowest
+  because a client that cannot keep up with HLS does not stutter, it
+  falls off the window and loses whole segments, and the link measured
+  0.97x beside card playback.
+- **Media playlists** become an `hls_media_t` of offsets into the
+  caller's text, not copies, so it is valid only until the next reload
+  overwrites that text. 2328 bytes on the host: module scope in
+  netstream, never a stack. A list longer than HLS_SEG_MAX (96) keeps
+  its last 96, which is the end a live client wants.
+- **The cursor** holds a media sequence number, because an index moves
+  every reload. It starts three segments from the live edge (RFC 8216
+  6.3.3), waits when caught up, jumps to the oldest listed and reports
+  how many were lost when we fell behind, and treats a number far past
+  the window as an encoder restart. `hls_advance()` is called after a
+  segment is delivered, so a failed fetch is retried rather than
+  skipped.
+- **Refused by name**: EXT-X-KEY other than NONE, and EXT-X-MAP (fMP4).
+  Both are possible later.
+- `hls_resolve()` handles absolute, `//`, `/`, `./` and `../`
+  references, drops the base's query and keeps the reference's (CDN
+  tokens), and refuses rather than cutting a URL that will not fit.
+
+Host-tested: `make run-hlsplay`, 80 checks under ASan and UBSan, plus
+every prefix of a CRLF playlist parsed with nothing read past it. The
+-O2 -Werror pass is clean. Not compiled for the target; nothing there
+includes it yet.

@@ -1372,7 +1372,12 @@ void gfx_draw_text_tail(int x, int y, const char *s, int scale, int max_w, uint1
         keep++;
     }
 
-    int cx = x;
+    /* 6045: a right-to-left line's start is its right end, so what was
+     * left over -- the part of budget too narrow for the next glyph --
+     * goes on the left, beyond the dots. Otherwise a cut Arabic title
+     * stops a letter short of the margin the uncut line above it
+     * reaches. A left-to-right tail (a path) keeps its dots at x. */
+    int cx = text_is_rtl(s) ? x + (budget - acc) : x;
     for (int i = 0; i < 3; i++) { gfx_draw_char(cx, y, '.', scale, c); cx += dot_adv; }
 
     /* keep-1 is the oldest of the retained glyphs (leftmost once drawn)

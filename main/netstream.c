@@ -30,6 +30,7 @@
 #include "hlsseg.h"             /* 6038 */
 #include "tsdemux.h"            /* 6039 */
 #include "icydemux.h"
+#include "logcut.h"             /* 6045 */
 #include "streamsniff.h"
 #include "ethernet.h"
 #include "wifi.h"
@@ -546,7 +547,9 @@ static esp_err_t on_event(esp_http_client_event_t *e)
     }
 
     if (strcasecmp(k, "content-type") == 0 || strncasecmp(k, "icy-", 4) == 0) {
-        ESP_LOGI(TAG, "  %s: %.120s", k, v);
+        /* 6045: cut on a character, not a byte (logcut.h). */
+        const int vn = logcut_len(v, 120);
+        ESP_LOGI(TAG, "  %s: %.*s%s", k, vn, v, logcut_more(v, vn));
     }
     return ESP_OK;
 }
@@ -984,7 +987,8 @@ static uint64_t pump(esp_http_client_handle_t c, uint32_t gen, icydemux_t *d)
              * line logged every 0.4 s through the burst. */
             if (strcmp(d->title, s_title_logged) != 0) {
                 snprintf(s_title_logged, sizeof(s_title_logged), "%s", d->title);
-                ESP_LOGI(TAG, "title: \"%.80s\"", d->title);
+                const int tn = logcut_len(d->title, 80);        /* 6045 */
+                ESP_LOGI(TAG, "title: \"%.*s%s\"", tn, d->title, logcut_more(d->title, tn));
                 publish_title(d->title);
             }
         }
@@ -1725,7 +1729,9 @@ static uint64_t hls_run(esp_http_client_handle_t c, uint32_t gen)
                          s_hls_text + sg->title_off);
                 if (strcmp(s_hls_title, s_title_logged) != 0) {
                     snprintf(s_title_logged, sizeof(s_title_logged), "%s", s_hls_title);
-                    ESP_LOGI(TAG, "title: \"%.80s\"", s_hls_title);
+                    const int tn = logcut_len(s_hls_title, 80);   /* 6045 */
+                    ESP_LOGI(TAG, "title: \"%.*s%s\"", tn, s_hls_title,
+                             logcut_more(s_hls_title, tn));
                     publish_title(s_hls_title);
                 }
             }
@@ -1820,7 +1826,9 @@ static void netstream_task(void *arg)
             continue;
         }
 
-        ESP_LOGI(TAG, "stream requested: %.60s <%.160s>", s_name_req, s_url);
+        const int rn = logcut_len(s_name_req, 60);              /* 6045 */
+        ESP_LOGI(TAG, "stream requested: %.*s%s <%.160s>", rn, s_name_req,
+                 logcut_more(s_name_req, rn), s_url);
         publish_name(s_name_req);
         publish_title("");
         s_title_logged[0] = '\0';              /* 5066 */
@@ -2023,8 +2031,11 @@ static void netstream_task(void *arg)
                 if (netplan_name_usable(s_hdr_name)) {
                     publish_name(s_hdr_name);
                 } else if (s_hdr_name[0]) {
-                    ESP_LOGW(TAG, "icy-name is damaged (\"%.40s\"); keeping \"%.60s\"",
-                             s_hdr_name, s_name_req);
+                    const int dn = logcut_len(s_hdr_name, 40);    /* 6045 */
+                    const int kn = logcut_len(s_name_req, 60);
+                    ESP_LOGW(TAG, "icy-name is damaged (\"%.*s%s\"); keeping \"%.*s%s\"",
+                             dn, s_hdr_name, logcut_more(s_hdr_name, dn),
+                             kn, s_name_req, logcut_more(s_name_req, kn));
                 }
                 /* A reconnect keeps the title on screen and restarts the
                  * byte phase on the new body's own metaint. */

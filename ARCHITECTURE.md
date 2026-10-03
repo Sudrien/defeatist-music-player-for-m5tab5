@@ -21788,3 +21788,42 @@ centred.
 Tested: texttest's checks of `gfx_text_rtl()` and `gfx_start_x()`;
 ui.c compiles clean against stubbed IDF headers (its one warning there,
 TAG unused, predates this); `make all` passes. Not on the board.
+
+### 6045 -- a cut that keeps whole letters, and its slack on the left
+
+Two things from the same station, both about where a cut lands.
+
+**The log.** With صوت المقاومة playing:
+
+    tab5_netstream: title: "عيسى الدغمري - رياح النصر - كلمات الشيخ خالد �"
+    tab5_mp3:       title: "عيسى الدغمري - رياح النصر - كلمات الشيخ خالد الطلوع"
+
+`%.80s` is 80 bytes, and byte 80 fell between the two bytes of a ط. The
+screen and tab5_mp3 had the whole title; the log line handed the
+terminal half a letter. `logcut.h`: `logcut_len()` steps back from the
+limit over UTF-8 continuation bytes (at most three), and `logcut_more()`
+is "..." when anything was left out, used as
+`"%.*s%s", n, s, logcut_more(s, n)`. netstream's lines that print a
+station's own text use it: the header values (icy-name and the rest),
+both title lines (ICY and HLS EXTINF), the damaged-name warning, and
+the "stream requested" name. URLs are left as they were: they are ASCII
+in practice and a long one is cut for length, not readability.
+
+**The screen.** 6044's photo: a truncated Arabic title ended a letter
+short of the right margin that the station name above it reached.
+`gfx_draw_text_tail()` keeps whole glyphs that fit in the budget and
+drew the dots at x, so what was left over -- narrower than the next
+glyph -- ended up on the right, which for a right-to-left line is its
+start. For such a line the dots now start at `x + (budget - kept)`, so
+the slack is on the left beyond them and the line ends flush. A
+left-to-right tail (a path in the browser) is unchanged.
+
+Tested: `logcuttest` 8 checks -- the board's title at every limit
+(always whole, at most a byte short, dots exactly when something was
+left out), 3- and 4-byte sequences, Latin-1 bytes; with the step-back
+removed it failed 3. texttest: a truncated title at 38 widths now ends
+at the column its first word ends drawn flush right alone (failed at
+all 38 on the old gfx.c); 6029's ellipsis check moved from "at the left
+edge" to "within one glyph of it", which is what this changes.
+netstream.c clean at -O2 -Werror on stubs; `make all` passes. Not on
+the board.

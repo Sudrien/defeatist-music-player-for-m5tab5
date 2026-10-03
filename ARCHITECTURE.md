@@ -21216,3 +21216,55 @@ made the change and are a record, as 5283's entry above is; the
 `.defeatist.*` files, the `defeatist` NVS namespace and the
 `Defeatist-XXXX` AP, which are "Defeatist" already and would cost every
 listener their settings and saved networks to rename.
+
+### 6031 -- ESP-IDF 6.1, behind version checks; 5.5.5 unchanged
+
+Built against v6.1 and v5.5.5 here: every source in main/ and the
+vendored components compiled clean at -O2 and -O3 on both, with each
+IDF's own toolchain (GCC 15.2 / 14.2), sdkconfig from this project's
+defaults, and the registry components taken from their GitHub sources
+(the registry is not reachable from the session). Not linked, not on the
+board, and the component manager has not resolved a 6.1 lock -- the CI
+run with idf_version v6.1 is the first that will.
+
+What IDF 6 changed under this tree, and what each answer is:
+
+- **`usb` and `json` left IDF** for the registry (espressif/usb,
+  espressif/cjson). The vendored usb_host_msc and usb_host_uac manifests
+  get back upstream's `espressif/usb` dependency, rule
+  `idf_version >=6.0`, without its override_path (5025 and 5034 dropped
+  the whole line). main's manifest adds espressif/cjson behind the same
+  rule, and main/CMakeLists.txt requires `cjson` on 6, `json` on 5.
+- **`driver` no longer brings ledc or usb_serial_jtag along**: main
+  requires esp_driver_ledc and esp_driver_usb_serial_jtag by name. Both
+  exist on 5.5.5 too.
+- **Mbed TLS 4** (6.1 ships 4.1): no public ecp.h, sha256.h or
+  pkcs5.h, and the X.509 writer takes no RNG. certgen.c makes its P-256
+  key through PSA and copies it into the pk context, and fingerprints
+  with psa_hash_compute(); wifijoin.c derives the WPA2 PSK with PSA's
+  PBKDF2-HMAC-SHA1, as IDF 6's own supplicant does. Selected on
+  MBEDTLS_VERSION_MAJOR, not the IDF version, because the API is the
+  library's. On 6 the key's randomness is PSA's (the hardware RNG), not
+  certgen's rng callback, which still makes the serial.
+- **The X.509 writer is off by default in IDF 6**:
+  CONFIG_MBEDTLS_X509_CREATE_C=y, in a new sdkconfig.defaults.idf6 that
+  CMakeLists.txt adds only on 6, so 5.x configures do not warn about a
+  symbol they lack. defaults_check.cmake reads it too. rm sdkconfig
+  before the first 6.1 build; the line that proves it took is the
+  remote's HTTPS answering at all.
+- **pxTaskGetStackStart() is deprecated** for xTaskGetStackStart();
+  netdec.c calls the new name on 6.
+- **From IDF 6.0.4 FatFs reaches a USB stick through msc_bdl.c**, not
+  diskio_usb.c, and that path sent a whole multi-sector read as one SCSI
+  command -- 5035's 16 KB DMA allocation failure again. msc_bdl.c gets
+  5035's 4 KB cap.
+- **One lock per IDF major.** CMakeLists.txt points IDF 6 at
+  dependencies.lock.idf6, so a 6.1 build never rewrites the reviewed
+  5.5.5 lock; libversions.cmake reads whichever lock the build used.
+- **CI** takes an idf_version input (default v5.5.5, which a tag push
+  always uses) and uploads dependencies.lock.idf6 from a 6.1 run.
+
+Not checked and worth watching on a first 6.1 build: IDF 6 defaults to
+picolibc (with newlib compatibility on) and esp_audio_codec 2.5 is
+precompiled; esp_hosted and esp_wifi_remote are unpinned or floored and
+will resolve to whatever supports 6.1.

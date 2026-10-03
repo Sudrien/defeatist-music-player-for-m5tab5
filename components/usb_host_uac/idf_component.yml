@@ -9,11 +9,17 @@ repository_info:
 dependencies:
   idf: ">=5.0"
   cmake_utilities: "0.5.*"
-  # The `usb` dependency upstream declares here applies only from IDF 6.0
-  # and points at a path inside the esp-usb repository; on IDF 5.5 the
-  # built-in `usb` component is used (see CMakeLists.txt), so it is
-  # dropped from this vendored copy. See the note at the top of
-  # uac_host.c.
+  # IDF 6.0 took the USB host stack out of the tree and into the
+  # registry as espressif/usb. Upstream's manifest says so with the rule
+  # below and an override_path into the esp-usb repository; the path is
+  # dropped here (it points at nothing in this tree), the rule is kept.
+  # On IDF 5.x the rule is false and CMakeLists.txt requires IDF's own
+  # `usb`, as before. 6031.
+  espressif/usb:
+    version: "^1.0.0"
+    public: true
+    rules:
+      - if: "idf_version >=6.0"
 targets:
   - esp32s2
   - esp32s3

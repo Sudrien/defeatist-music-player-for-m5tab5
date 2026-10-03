@@ -21,7 +21,12 @@
 
 set(_root "${CMAKE_CURRENT_LIST_DIR}/..")
 get_filename_component(_root "${_root}" ABSOLUTE)
-set(_lock "${_root}/dependencies.lock")
+# 6031: the lock this build used, which is dependencies.lock.idf6 on IDF 6
+# (see the top-level CMakeLists.txt). IDF sets the property's default.
+idf_build_get_property(_lock DEPENDENCIES_LOCK)
+if(NOT _lock)
+    set(_lock "${_root}/dependencies.lock")
+endif()
 set(_libs "")
 
 # A 40-hex git commit as its first seven; anything else as written.

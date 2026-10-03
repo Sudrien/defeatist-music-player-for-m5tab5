@@ -2,6 +2,15 @@ dependencies:
   idf:
     version: ">=5.4.2"
 
+  # cJSON, which IDF 6.0 moved out of the tree (the `json` component) and
+  # into the registry as espressif/cjson. Only from 6.0: on 5.x the rule
+  # is false and CMakeLists.txt requires IDF's own `json`. Same headers,
+  # same cJSON. 6031.
+  espressif/cjson:
+    version: "^1.7.19"
+    rules:
+      - if: "idf_version >=6.0"
+
   # Everything that is not MP3. Ships as precompiled archives under the
   # ESPRESSIF MIT licence -- free, but licensed for use on Espressif
   # silicon only, which is the same caveat the exFAT note carries. P4 has

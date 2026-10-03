@@ -1,0 +1,16 @@
+# sdkconfig.defaults.idf6 -- read after sdkconfig.defaults, on ESP-IDF 6
+# only (6031; the top-level CMakeLists.txt adds it). For options IDF 5.x
+# does not have, which in sdkconfig.defaults would warn on every 5.x
+# configure that they do nothing. Everything else stays in
+# sdkconfig.defaults, which IDF 6 reads first.
+#
+# Like sdkconfig.defaults, this only seeds a NEW sdkconfig: rm sdkconfig
+# after changing it. cmake/defaults_check.cmake reads this file too.
+
+# ---------------------------------------------------------------------------
+# X.509 CERTIFICATE WRITING, FOR THE REMOTE'S OWN CERTIFICATE.
+#
+# certgen.c writes the self-signed certificate the remote serves HTTPS
+# with. IDF 5.x always built mbedTLS's X.509 writer; IDF 6 puts it behind
+# this, default off, and certgen.c does not compile without it.
+CONFIG_MBEDTLS_X509_CREATE_C=y

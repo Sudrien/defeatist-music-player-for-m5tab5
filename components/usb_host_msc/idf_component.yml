@@ -8,9 +8,17 @@ repository_info:
   path: "host/class/msc/usb_host_msc"
 dependencies:
   idf: ">=5.0"
-  # Upstream's `usb` dependency applies only from IDF 6.0 and points into
-  # the esp-usb tree; on IDF 5.5 CMakeLists.txt requires IDF's own `usb`.
-  # Dropped from this vendored copy, as in components/usb_host_uac (5025).
+  # IDF 6.0 took the USB host stack out of the tree and into the
+  # registry as espressif/usb. Upstream's manifest says so with the rule
+  # below and an override_path into the esp-usb repository; the path is
+  # dropped here (it points at nothing in this tree), the rule is kept.
+  # On IDF 5.x the rule is false and CMakeLists.txt requires IDF's own
+  # `usb`, as before. 6031.
+  espressif/usb:
+    version: "^1.0.0"
+    public: true
+    rules:
+      - if: "idf_version >=6.0"
 targets:
   - esp32s2
   - esp32s3

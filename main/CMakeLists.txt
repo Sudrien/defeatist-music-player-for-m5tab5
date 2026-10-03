@@ -1,3 +1,16 @@
+# 6031: IDF 6.0 moved cJSON out of the tree. On 6.x it is the registry's
+# espressif/cjson (idf_component.yml, behind an idf_version rule), whose
+# component is `cjson`; on 5.x it is IDF's own `json`. `usb` keeps one
+# name on both: IDF's component on 5.x, espressif/usb on 6.x, pulled in
+# by usb_host_msc and usb_host_uac's manifests. esp_driver_ledc and
+# esp_driver_usb_serial_jtag are named because IDF 6's `driver` no longer
+# brings them along; 5.x has both too.
+if(IDF_VERSION_MAJOR GREATER_EQUAL 6)
+    set(DMP_JSON cjson)
+else()
+    set(DMP_JSON json)
+endif()
+
 idf_component_register(
     SRCS "player.c" "decoder.c" "albumart.c" "covertag.c" "tagextra.c" "mediacache.c" "ui.c" "gfx.c" "touch.c" "audio_out.c"
          "battery.c" "storage.c" "storage_io.c" "usbhost.c" "uac.c" "hid.c" "playlist.c" "settings.c"
@@ -9,8 +22,8 @@ idf_component_register(
     EMBED_TXTFILES "remote_i18n.html"    # 6028: generated from remote.html
     EMBED_FILES "favicon.ico"
     REQUIRES driver esp_app_format esp_driver_i2c esp_driver_i2s esp_driver_sdmmc
-             esp_driver_jpeg esp_lcd esp_lcd_touch fatfs sdmmc
-             usb usb_host_msc usb_host_uac esp_timer lwip json
+             esp_driver_jpeg esp_driver_ledc esp_driver_usb_serial_jtag esp_lcd esp_lcd_touch fatfs sdmmc
+             usb usb_host_msc usb_host_uac esp_timer lwip ${DMP_JSON}
              nvs_flash esp_netif esp_event esp_http_server esp_https_server esp_http_client mbedtls
              esp_usbh_asix iot_eth iot_usbh_ecm iot_usbh_cdc
     PRIV_REQUIRES pngle minimp3 ark12 arabixel stbjpeg

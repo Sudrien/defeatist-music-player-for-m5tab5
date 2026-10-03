@@ -24,6 +24,22 @@
 #include "usb/msc_host.h"
 #include "msc_scsi_bot.h"
 
+/*
+ * Vendored change (defeatist_music_player_for_m5tab5 6031): 5035's 4 KB
+ * cap, on the IDF 6 path. diskio_usb.c splits FatFs's multi-sector reads
+ * and writes into commands of at most 4 KB, because a 16 KB command needs
+ * a 16 KB contiguous DMA buffer from internal RAM and with Wi-Fi up the
+ * Tab5 does not have one. From IDF 6.0.4 FatFs reaches the stick through
+ * here instead, and these handed it the whole request in one command.
+ */
+#define MSC_BDL_MAX_XFER_BYTES  (4096)
+
+static uint32_t msc_bdl_chunk(uint32_t block_size)
+{
+    const uint32_t n = MSC_BDL_MAX_XFER_BYTES / block_size;
+    return n ? n : 1;
+}
+
 static esp_err_t msc_bdl_read(esp_blockdev_handle_t h, uint8_t *dst, size_t dst_size,
                               uint64_t src_addr, size_t len)
 {
@@ -49,7 +65,20 @@ static esp_err_t msc_bdl_read(esp_blockdev_handle_t h, uint8_t *dst, size_t dst_
     }
 
     msc_device_t *dev = (msc_device_t *)h->ctx;
-    return scsi_cmd_read10(dev, dst, (uint32_t)lba, (uint32_t)num_blocks, block_size);
+    // Vendored change (6031): at most MSC_BDL_MAX_XFER_BYTES per command.
+    const uint32_t per = msc_bdl_chunk(block_size);
+    uint32_t at = (uint32_t)lba, left = (uint32_t)num_blocks;
+    while (left) {
+        const uint32_t n = left < per ? left : per;
+        const esp_err_t err = scsi_cmd_read10(dev, dst, at, n, block_size);
+        if (err != ESP_OK) {
+            return err;
+        }
+        dst += (size_t)n * block_size;
+        at += n;
+        left -= n;
+    }
+    return ESP_OK;
 }
 
 /* No src_size parameter: unlike msc_bdl_read(), there is no caller-owned
@@ -77,7 +106,20 @@ static esp_err_t msc_bdl_write(esp_blockdev_handle_t h, const uint8_t *src,
     }
 
     msc_device_t *dev = (msc_device_t *)h->ctx;
-    return scsi_cmd_write10(dev, src, (uint32_t)lba, (uint32_t)num_blocks, block_size);
+    // Vendored change (6031): at most MSC_BDL_MAX_XFER_BYTES per command.
+    const uint32_t per = msc_bdl_chunk(block_size);
+    uint32_t at = (uint32_t)lba, left = (uint32_t)num_blocks;
+    while (left) {
+        const uint32_t n = left < per ? left : per;
+        const esp_err_t err = scsi_cmd_write10(dev, src, at, n, block_size);
+        if (err != ESP_OK) {
+            return err;
+        }
+        src += (size_t)n * block_size;
+        at += n;
+        left -= n;
+    }
+    return ESP_OK;
 }
 
 static esp_err_t msc_bdl_sync(esp_blockdev_handle_t h)

@@ -12,6 +12,17 @@ on:
         required: true
         default: 'main'
         type: string
+      # 6031: which ESP-IDF. A tag push always builds with the default;
+      # 6.1 is for trying the IDF 6 path, and its run uploads the
+      # dependencies.lock.idf6 it resolved, to be read and committed.
+      idf_version:
+        description: 'ESP-IDF to build with'
+        required: false
+        default: 'v5.5.5'
+        type: choice
+        options:
+          - v5.5.5
+          - v6.1
       release:
         description: 'Also publish a GitHub release with these binaries'
         required: false
@@ -52,7 +63,7 @@ jobs:
       - name: Install ESP-IDF
         uses: espressif/install-esp-idf-action@v1
         with:
-          version: "v5.5.5"
+          version: ${{ github.event.inputs.idf_version || 'v5.5.5' }}
           target: 'esp32p4'
 
       - name: Run exFAT and Vendored Setup Scripts
@@ -78,6 +89,16 @@ jobs:
           path: |
             build/defeatist_music_player_for_m5tab5_${{ steps.ver.outputs.name }}_standalone.bin
             build/defeatist_music_player_for_m5tab5_${{ steps.ver.outputs.name }}.bin
+
+      # 6031: an IDF 6 build writes its own lock (see CMakeLists.txt) and
+      # this is the only place one gets made from the registry. Upload it
+      # so it can be read and committed; absent on a 5.x build.
+      - name: Archive the IDF 6 dependency lock
+        if: startsWith(github.event.inputs.idf_version, 'v6')
+        uses: actions/upload-artifact@v4
+        with:
+          name: dependencies.lock.idf6-${{ steps.ver.outputs.name }}
+          path: dependencies.lock.idf6
 
       # Two ways in, one step. Pushing a tag releases; a manual run
       # releases only when the box is ticked, so the dispatch stays

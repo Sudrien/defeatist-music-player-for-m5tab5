@@ -11,6 +11,7 @@
 #include <string.h>
 
 #include "esp_heap_caps.h"
+#include "esp_idf_version.h"
 #include "esp_log.h"
 #include "esp_timer.h"
 #include "freertos/FreeRTOS.h"
@@ -222,7 +223,12 @@ bool netdec_open(void)
      * already returned.
      */
     char probe;
+#if ESP_IDF_VERSION >= ESP_IDF_VERSION_VAL(6, 0, 0)
+    /* 6031: renamed, and the old name deprecated, in IDF 6. */
+    const uint8_t *floor = (const uint8_t *)xTaskGetStackStart(NULL);
+#else
     const uint8_t *floor = (const uint8_t *)pxTaskGetStackStart(NULL);
+#endif
     const uint8_t *here  = (const uint8_t *)&probe;
     const unsigned headroom = (here > floor) ? (unsigned)(here - floor) : 0;
     if (headroom < NETDEC_STACK_FLOOR) {

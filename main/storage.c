@@ -10,6 +10,10 @@
 #include "driver/sdmmc_host.h"
 #include "esp_check.h"
 #include "esp_heap_caps.h"          /* 5181: the SD bounce buffer */
+#include "esp_idf_version.h"
+#if ESP_IDF_VERSION >= ESP_IDF_VERSION_VAL(6, 0, 0)
+#include "esp_private/esp_gpio_reserve.h"   /* 6034 */
+#endif
 #include "esp_log.h"
 #include "esp_vfs_fat.h"
 #include "ff.h"
@@ -405,6 +409,19 @@ static esp_err_t sd_mount(bool verbose)
     return sd_mount_at(verbose, s_sd_freq_khz);
 }
 
+/* 6034: IDF 6's SD host drives D3 high with gpio_config() at every slot
+ * init, which reserves the pin, and nothing at slot deinit releases it --
+ * so the next init, a second later while the card is out, found its own
+ * reservation and logged "conflict found for GPIO[42]". Release it once
+ * the slot is gone. The reservation only, not the pin: gpio_reset_pin()
+ * would also reconfigure it. IDF 5.x keeps no reservations for this. */
+static void sd_release_d3(void)
+{
+#if ESP_IDF_VERSION >= ESP_IDF_VERSION_VAL(6, 0, 0)
+    esp_gpio_revoke(BIT64(SD_D3_GPIO));
+#endif
+}
+
 static esp_err_t sd_mount_at(bool verbose, int freq_khz)
 {
     sdmmc_host_t host = SDMMC_HOST_DEFAULT();
@@ -461,6 +478,7 @@ static esp_err_t sd_mount_at(bool verbose, int freq_khz)
          * inside esp_vfs_fat_sdmmc_mount() is the release, and it is the
          * only one. */
         s_card = NULL;
+        sd_release_d3();    /* 6034 */
         if (verbose) {
             if (ret == ESP_FAIL) {
                 ESP_LOGE(TAG, "card present but no mountable filesystem");
@@ -491,6 +509,7 @@ static void sd_unmount(void)
     if (!s_card) return;
     esp_vfs_fat_sdcard_unmount(STORAGE_SD_MOUNT, s_card);
     s_card = NULL;
+    sd_release_d3();        /* 6034 */
     ESP_LOGI(TAG, "microSD removed");
 }
 

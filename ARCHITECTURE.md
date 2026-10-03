@@ -21308,3 +21308,30 @@ recorded as before; a different one, and the configure stops the way a
 mismatched record does. Tried here with 5.5.5 copies under 6.1 (stops,
 on fatfs first) and 6.1 copies under 6.1 (recorded, main compiles).
 exfat's message now names `./tools/enable_exfat.sh --revert`.
+
+### 6034 -- IDF 6's "conflict found for GPIO[42]" and GPIO[15]
+
+Two warnings on the first 6.1 board runs, neither on 5.5.5:
+
+    W gpio: conflict found for GPIO[42]     once a second, card out
+    W gpio: conflict found for GPIO[15]     at Wi-Fi on, after an off
+
+IDF 6's gpio_config() reserves a pin it makes an output, and warns when
+the pin is reserved already. Two drivers configure a pin that way at
+every start and never release it at stop: the SD host forces D3 (42)
+high at each slot init, which the card-out poll repeats every second,
+and esp_hosted pulses the C6's reset (15) at each start. Each run found
+its own earlier reservation. Nothing else used either pin; the warning
+was the drivers meeting themselves.
+
+storage.c releases D3's reservation after a failed mount and after an
+unmount; wifi.c releases the reset pin's after esp_hosted_deinit(). With
+esp_gpio_revoke() -- the reservation only -- because gpio_reset_pin(),
+the public way to release one, also reconfigures the pin, and the reset
+line is parked where esp_hosted left it. IDF 6 only: 5.x's gpio_config()
+keeps no reservations. storage.c's 5049/5050 note about "conflict found
+for GPIO[42]" was about the slot leaking on 5.x; this one is not that.
+
+Compiled clean at -O2 and -O3 against 5.5.5 and 6.1. Not on the board:
+the check is the same two actions -- card out for a few seconds, Wi-Fi
+off and on -- with no gpio line.

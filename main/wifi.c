@@ -22,6 +22,10 @@
 #include "freertos/task.h"
 
 #include "esp_hosted.h"
+#include "esp_idf_version.h"
+#if ESP_IDF_VERSION >= ESP_IDF_VERSION_VAL(6, 0, 0)
+#include "esp_private/esp_gpio_reserve.h"   /* 6034 */
+#endif
 #include "esp_hosted_transport_config.h"
 
 #include "settings.h"
@@ -1076,6 +1080,13 @@ esp_err_t wifi_stop(void)
         ESP_LOGW(TAG, "esp_hosted_deinit: %d", hosted);
         if (first == ESP_OK) first = ESP_FAIL;
     }
+#if ESP_IDF_VERSION >= ESP_IDF_VERSION_VAL(6, 0, 0)
+    /* 6034: esp_hosted pulses the C6's reset with gpio_config() at every
+     * start, which on IDF 6 reserves the pin, and its deinit does not
+     * release it -- so Wi-Fi off and on logged "conflict found for
+     * GPIO[15]". The reservation only; the pin stays as it was parked. */
+    esp_gpio_revoke(BIT64(CONFIG_ESP_HOSTED_HOST_RESET_GPIO));
+#endif
 
     /* Only now, with nothing left holding the bus. */
     err = wlan_power(s_exp2, false);

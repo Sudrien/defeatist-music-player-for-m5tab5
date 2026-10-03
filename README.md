@@ -79,6 +79,7 @@ Note: the goal of this project is to max out the potential of this hardware with
 - Audio recording, since the hardware is right there
   - with a level meter while it records
 - a status line under volume: USB power, MPD, HTTPS, and the sleep timer's minutes left. Green is on.
+- Oh Lord I looked at the M5Launcher app list let's fix that title order right now
 
 ## v0.6.0 Goals
 - languages (English, simplified Chinese, Japanese, Spanish)

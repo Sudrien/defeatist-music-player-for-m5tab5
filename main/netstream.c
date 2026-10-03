@@ -25,7 +25,9 @@
 #include "lwip/sockets.h"
 
 #include "addrpin.h"
-#include "hlsplay.h"            /* 6037: log_playlist() */
+#include "codecplan.h"          /* 6038: codecplan_type_is_playlist() */
+#include "hlsplay.h"            /* 6037: log_playlist(); 6038: hls_run() */
+#include "hlsseg.h"             /* 6038 */
 #include "icydemux.h"
 #include "streamsniff.h"
 #include "ethernet.h"
@@ -836,11 +838,6 @@ static netplan_action_t connect_hops(esp_http_client_handle_t c, uint32_t gen)
 }
 
 /*
- * Read the body until it ends, fails, or a newer request arrives.
- * Returns the number of audio bytes that reached the ring, which is what
- * netplan_made_progress() is asked about.
- */
-/*
  * 6037: an HLS playlist, a line at a time, so the log shows what the
  * station actually serves. At most PLAYLIST_LOG_LINES lines of at most
  * 160 characters: a segment URI with a CDN token runs long, and the
@@ -866,6 +863,11 @@ static void log_playlist(const uint8_t *b, size_t n)
     }
 }
 
+/*
+ * Read the body until it ends, fails, or a newer request arrives.
+ * Returns the number of audio bytes that reached the ring, which is what
+ * netplan_made_progress() is asked about.
+ */
 static uint64_t pump(esp_http_client_handle_t c, uint32_t gen, icydemux_t *d)
 {
     /* In PSRAM, not on the stack and not in internal RAM -- see the note
@@ -1220,6 +1222,506 @@ static uint64_t pump(esp_http_client_handle_t c, uint32_t gen, icydemux_t *d)
 }
 
 /* ------------------------------------------------------------------ */
+/* HLS (6038)                                                          */
+/* ------------------------------------------------------------------ */
+
+/*
+ * HLS is a second body source beside pump(): instead of one endless
+ * body, a playlist that names short files, fetched one after another on
+ * the same client and into the same ring. netdec never knows -- a
+ * packed-audio segment with its ID3 tag removed is the MP3 or ADTS
+ * stream it already decodes. hlsplay.h decides what to fetch,
+ * hlsseg.h unwraps each segment, and this is the HTTP between them.
+ *
+ * ONE SESSION, STILL. Every request goes through the one client the
+ * task already holds. esp_http_client keeps the connection when the
+ * next URL is on the same host and the last body was read to its end,
+ * so a segment after the first costs a request and not a handshake; a
+ * different host closes the old connection inside set_url() before the
+ * new one opens. Never two at once, which is the rule in netstream.h.
+ * A server that closed a kept connection shows up as a failed open, and
+ * that request is tried once more on a fresh connection.
+ *
+ * WHAT IS IN PSRAM. The playlist text (HLS_TEXT_MAX), the parsed
+ * playlist (2.3 KB), the segment unwrapper and three URL buffers: about
+ * 36 KB, allocated once in netstream_init() and never freed. None of it
+ * is on this task's 6 KB stack, which also carries TLS.
+ */
+#define HLS_TEXT_MAX        (32 * 1024)
+/* A live playlist that has not changed for this many target durations
+ * has stopped, whatever its server still answers. RFC 8216 6.3.4 says
+ * to treat it as an error; netplan's reconnect is that error path. */
+#define HLS_STALE_TARGETS   (3)
+#define HLS_REDIRECTS_MAX   (4)
+
+static char        *s_hls_text;     /* HLS_TEXT_MAX + 1 */
+static hls_media_t *s_hls_media;
+static hlsseg_t    *s_hls_seg;
+static char        *s_hls_base;     /* NETSTREAM_URL_MAX: the playlist's own URL */
+static char        *s_hls_play;     /* NETSTREAM_URL_MAX: the media playlist */
+static char        *s_hls_next;     /* NETSTREAM_URL_MAX: the request being made */
+static char        *s_hls_title;    /* NETSTREAM_TITLE_MAX: an EXTINF title */
+/* The cursor outlives a reconnect to the same station: a drop restarted
+ * three segments back would play up to half a minute twice. Cleared
+ * when a station is requested. */
+static hls_cursor_t s_hls_cur;
+static bool         s_hls_fatal;    /* this station will not play as HLS here */
+static const char  *s_hls_why;      /* what to say about it */
+static size_t       s_hls_len;      /* bytes of s_hls_text */
+
+static bool hls_alloc(void)
+{
+    const size_t n = HLS_TEXT_MAX + 1 + sizeof(hls_media_t) + sizeof(hlsseg_t) +
+                     3 * NETSTREAM_URL_MAX + NETSTREAM_TITLE_MAX + 16;
+    uint8_t *w = heap_caps_malloc(n, MALLOC_CAP_SPIRAM);
+    if (!w) return false;
+    /* hls_media_t first: it has 64-bit members and the block is aligned. */
+    s_hls_media = (hls_media_t *)w;             w += sizeof(hls_media_t);
+    s_hls_seg   = (hlsseg_t *)(void *)w;        w += (sizeof(hlsseg_t) + 7) & ~(size_t)7;
+    s_hls_base  = (char *)w;                    w += NETSTREAM_URL_MAX;
+    s_hls_play  = (char *)w;                    w += NETSTREAM_URL_MAX;
+    s_hls_next  = (char *)w;                    w += NETSTREAM_URL_MAX;
+    s_hls_title = (char *)w;                    w += NETSTREAM_TITLE_MAX;
+    s_hls_text  = (char *)w;
+    s_hls_base[0] = s_hls_play[0] = s_hls_next[0] = s_hls_text[0] = '\0';
+    ESP_LOGI(TAG, "HLS: %u bytes in PSRAM", (unsigned)n);
+    return true;
+}
+
+/* Whether a body that has just answered 200 should go through hls_run()
+ * rather than pump(). A playlist Content-Type of any kind, or a URL whose
+ * path ends .m3u8 -- some CDNs serve HLS as text/plain or
+ * application/octet-stream. hls_run() itself checks the text and hands a
+ * playlist that is not HLS on unchanged, so a guess here costs nothing. */
+static bool hls_wanted(esp_http_client_handle_t c)
+{
+    if (!s_hls_text) return false;
+    if (codecplan_type_is_playlist(s_hdr_ctype)) return true;
+    if (esp_http_client_get_url(c, s_hls_next, NETSTREAM_URL_MAX) != ESP_OK) return false;
+    size_t end = 0;
+    while (s_hls_next[end] && s_hls_next[end] != '?' && s_hls_next[end] != '#') end++;
+    return end >= 5 && strncasecmp(s_hls_next + end - 5, ".m3u8", 5) == 0;
+}
+
+/* Bytes into the ring, waiting rather than dropping, exactly as pump()
+ * does and for its reason. False if the stream was stopped meanwhile. */
+static bool hls_ring_put(const uint8_t *p, size_t n, uint32_t gen, int *stalled_ms)
+{
+    const int64_t t0 = esp_timer_get_time();
+    for (size_t off = 0; off < n; ) {
+        const size_t sent = xStreamBufferSend(s_ring, p + off, n - off,
+                                              pdMS_TO_TICKS(SEND_SLICE_MS));
+        off += sent;
+        if (sent == 0 && superseded(gen)) return false;
+    }
+    if (stalled_ms) *stalled_ms += (int)((esp_timer_get_time() - t0) / 1000);
+    s_buffered = (uint32_t)xStreamBufferBytesAvailable(s_ring);
+    return true;
+}
+
+/*
+ * GET s_hls_next on the client, following redirects, and leave it with
+ * the headers read and the body unread. Returns the HTTP status, or 0
+ * when nothing answered. `*connect_ms` is the open, which is near zero
+ * on a kept connection and a handshake on a new one -- the log prints
+ * it so the reuse is seen rather than assumed.
+ */
+static int hls_get(esp_http_client_handle_t c, uint32_t gen, int *connect_ms)
+{
+    *connect_ms = 0;
+    if (esp_http_client_set_url(c, s_hls_next) != ESP_OK) return 0;
+    for (int hop = 0; hop <= HLS_REDIRECTS_MAX; hop++) {
+        if (superseded(gen)) return 0;
+        s_hdr_location[0] = '\0';
+        s_hdr_ctype[0] = '\0';
+        int64_t t0 = esp_timer_get_time();
+        esp_err_t err = esp_http_client_open(c, 0);
+        /* fetch_headers() returns -1 for a chunked body as well as for a
+         * failure, so it is the status, not that, which says whether the
+         * request was answered. */
+        if (err == ESP_OK) esp_http_client_fetch_headers(c);
+        if (err != ESP_OK || esp_http_client_get_status_code(c) <= 0) {
+            /* A kept connection the server had closed. Once, fresh, and
+             * with the connect timeout: the task tightened the socket to
+             * SOCKET_TIMEOUT_MS once the first headers were in, and a
+             * handshake measured 623 ms against that 1000. */
+            ESP_LOGI(TAG, "HLS: the kept connection was closed; opening a new one");
+            esp_http_client_close(c);
+            esp_http_client_set_timeout_ms(c, CONNECT_TIMEOUT_MS);
+            t0 = esp_timer_get_time();
+            err = esp_http_client_open(c, 0);
+            if (err != ESP_OK) {
+                ESP_LOGW(TAG, "HLS: open failed: %s", esp_err_to_name(err));
+                return 0;
+            }
+            esp_http_client_fetch_headers(c);
+            esp_http_client_set_timeout_ms(c, SOCKET_TIMEOUT_MS);
+        }
+        *connect_ms += (int)((esp_timer_get_time() - t0) / 1000);
+        const int status = esp_http_client_get_status_code(c);
+        s_last_status = status;
+        if (status < 300 || status >= 400) return status;
+        if (!s_hdr_location[0]) return status;
+        /* Drain the redirect's body so the connection can be reused,
+         * then follow it -- by hand, for the same https->http reason
+         * connect_hops() gives. */
+        while (esp_http_client_read(c, (char *)s_rx, READ_CHUNK) > 0) { }
+        if (esp_http_client_set_redirection(c) != ESP_OK &&
+            esp_http_client_set_url(c, s_hdr_location) != ESP_OK) return status;
+    }
+    ESP_LOGE(TAG, "HLS: more than %d redirects", HLS_REDIRECTS_MAX);
+    return 0;
+}
+
+/*
+ * Read a body to its end into s_hls_text. False on a read failure, a
+ * silence of DROP_SILENCE_MS, a stop, or a body larger than HLS_TEXT_MAX
+ * -- the last refused rather than cut, because a cut playlist has a
+ * last segment line that names the wrong file.
+ */
+static bool hls_read_text(esp_http_client_handle_t c, uint32_t gen)
+{
+    s_hls_len = 0;
+    int64_t last = esp_timer_get_time();
+    for (;;) {
+        if (superseded(gen)) return false;
+        const size_t room = HLS_TEXT_MAX - s_hls_len;
+        if (room == 0) {
+            ESP_LOGE(TAG, "HLS: playlist is larger than %d KB", HLS_TEXT_MAX / 1024);
+            return false;
+        }
+        const int n = esp_http_client_read(c, s_hls_text + s_hls_len,
+                                           room < READ_CHUNK ? (int)room : READ_CHUNK);
+        if (n > 0) {
+            s_hls_len += (size_t)n;
+            last = esp_timer_get_time();
+            continue;
+        }
+        /* 0 is the end: complete, or a body with no length that the
+         * server closed (5058). EAGAIN is a quiet second. */
+        if (n == 0) break;
+        if (n != -ESP_ERR_HTTP_EAGAIN) {
+            ESP_LOGW(TAG, "HLS: playlist read failed (%d)", n);
+            return false;
+        }
+        if (esp_timer_get_time() - last > (int64_t)DROP_SILENCE_MS * 1000) {
+            ESP_LOGW(TAG, "HLS: playlist stalled for %d ms", DROP_SILENCE_MS);
+            return false;
+        }
+        vTaskDelay(pdMS_TO_TICKS(20));
+    }
+    s_hls_text[s_hls_len] = '\0';
+    return true;
+}
+
+/* Fetch s_hls_next as a playlist. 0 on success, else the status (or -1
+ * for no answer at all). */
+static int hls_fetch_playlist(esp_http_client_handle_t c, uint32_t gen)
+{
+    int connect_ms;
+    const int status = hls_get(c, gen, &connect_ms);
+    if (status != 200) return status ? status : -1;
+    if (!hls_read_text(c, gen)) return -1;
+    return 0;
+}
+
+typedef enum { SEG_OK, SEG_GONE, SEG_FAILED, SEG_REFUSED, SEG_STOPPED } seg_result_t;
+
+/* Fetch one segment into the ring. */
+static seg_result_t hls_segment(esp_http_client_handle_t c, uint32_t gen,
+                                uint64_t seq, uint32_t dur_ms,
+                                uint64_t *produced, int *stalled_ms)
+{
+    int connect_ms;
+    const int64_t t0 = esp_timer_get_time();
+    const int status = hls_get(c, gen, &connect_ms);
+    if (superseded(gen)) return SEG_STOPPED;
+    if (status == 404 || status == 410) {
+        ESP_LOGW(TAG, "HLS: segment %llu is gone (%d); reloading the playlist",
+                 (unsigned long long)seq, status);
+        return SEG_GONE;
+    }
+    if (status != 200) {
+        ESP_LOGW(TAG, "HLS: segment %llu: status %d", (unsigned long long)seq, status);
+        return SEG_FAILED;
+    }
+
+    hlsseg_begin(s_hls_seg);
+    uint64_t got = 0, body = 0;
+    int64_t last = esp_timer_get_time();
+    for (;;) {
+        if (superseded(gen)) return SEG_STOPPED;
+        const int n = esp_http_client_read(c, (char *)s_rx, READ_CHUNK);
+        if (n > 0) {
+            last = esp_timer_get_time();
+            body += (uint64_t)n;
+            const uint8_t *seg[2];
+            size_t segn[2];
+            hlsseg_feed(s_hls_seg, s_rx, (size_t)n, seg, segn);
+            if (s_hls_seg->kind == HLSSEG_TS || s_hls_seg->kind == HLSSEG_FMP4) break;
+            for (int k = 0; k < 2; k++) {
+                if (!segn[k]) continue;
+                if (!hls_ring_put(seg[k], segn[k], gen, stalled_ms)) return SEG_STOPPED;
+                got += segn[k];
+            }
+            if (got && s_state == NETSTREAM_BUFFERING) set_state(NETSTREAM_PLAYING);
+            continue;
+        }
+        if (n == 0) break;                      /* the end; see hls_read_text() */
+        if (n != -ESP_ERR_HTTP_EAGAIN) {
+            ESP_LOGW(TAG, "HLS: segment %llu: read failed (%d) after %llu bytes",
+                     (unsigned long long)seq, n, (unsigned long long)body);
+            *produced += got;
+            return SEG_FAILED;
+        }
+        if (esp_timer_get_time() - last > (int64_t)DROP_SILENCE_MS * 1000) {
+            ESP_LOGW(TAG, "HLS: segment %llu: nothing for %d ms",
+                     (unsigned long long)seq, DROP_SILENCE_MS);
+            *produced += got;
+            return SEG_FAILED;
+        }
+        vTaskDelay(pdMS_TO_TICKS(20));
+    }
+    if (s_hls_seg->kind == HLSSEG_UNKNOWN) {
+        const uint8_t *tail;
+        const size_t tn = hlsseg_end(s_hls_seg, &tail);
+        if (tn) {
+            if (!hls_ring_put(tail, tn, gen, stalled_ms)) return SEG_STOPPED;
+            got += tn;
+        }
+    }
+    *produced += got;
+    if (s_hls_seg->kind == HLSSEG_TS || s_hls_seg->kind == HLSSEG_FMP4) {
+        ESP_LOGE(TAG, "HLS: segment %llu is %s, which is not played yet",
+                 (unsigned long long)seq, hlsseg_kind_name(s_hls_seg->kind));
+        s_hls_why = s_hls_seg->kind == HLSSEG_TS
+                  ? "HLS in MPEG-TS segments is not supported yet"
+                  : hls_err_name(HLS_ERR_FMP4);
+        /* The body is abandoned half read; the connection cannot be
+         * reused, and the task closes it. */
+        return SEG_REFUSED;
+    }
+
+    const int ms = (int)((esp_timer_get_time() - t0) / 1000);
+    const int kbps = ms ? (int)(body * 8 / (uint64_t)ms) : 0;
+    s_kbps = kbps;
+    /* Per segment, the line that says whether this keeps up: a segment
+     * of dur_ms fetched in ms is (dur_ms / ms)x real time. */
+    ESP_LOGI(TAG, "HLS: segment %llu, %u.%02u s of %s: %llu KB in %d ms "
+                  "(open %d ms), %d.%02dx, %u tag%s off, ring %d%%, audio %d.%02ds",
+             (unsigned long long)seq, (unsigned)(dur_ms / 1000),
+             (unsigned)(dur_ms % 1000 / 10), hlsseg_kind_name(s_hls_seg->kind),
+             (unsigned long long)(body / 1024), ms, connect_ms,
+             ms ? (int)(dur_ms / (uint32_t)ms) : 0,
+             ms ? (int)((dur_ms * 100u / (uint32_t)ms) % 100) : 0,
+             (unsigned)s_hls_seg->tags, s_hls_seg->tags == 1 ? "" : "s",
+             netstream_ring_pct(), s_audio_cs / 100, s_audio_cs % 100);
+    if (s_hls_seg->skip) {
+        ESP_LOGW(TAG, "HLS: segment %llu ended inside its own ID3 tag",
+                 (unsigned long long)seq);
+    }
+    return SEG_OK;
+}
+
+/*
+ * The HLS body source. `c` has just answered 200 to a URL that may be a
+ * playlist, with the body unread. Returns the audio bytes that reached
+ * the ring, which netplan reads exactly as it reads pump()'s.
+ *
+ * s_hls_fatal is set for a station that will not play this way at all
+ * -- encrypted, fMP4, MPEG-TS -- so the task gives up instead of
+ * reconnecting to the same refusal through the whole backoff schedule.
+ */
+static uint64_t hls_run(esp_http_client_handle_t c, uint32_t gen)
+{
+    uint64_t produced = 0;
+    int stalled_ms = 0;
+    s_hls_fatal = false;
+    s_hls_why = NULL;
+
+    if (esp_http_client_get_url(c, s_hls_base, NETSTREAM_URL_MAX) != ESP_OK) {
+        s_hls_base[0] = '\0';
+    }
+    if (!hls_read_text(c, gen)) return 0;
+
+    if (!hls_looks_like(s_hls_text, s_hls_len)) {
+        /* A playlist of station URLs, or a .pls: not this series' to
+         * resolve. Handed on as it was before 6038, and netdec says what
+         * it is. */
+        ESP_LOGI(TAG, "%u-byte playlist with no HLS tags; passing it on",
+                 (unsigned)s_hls_len);
+        if (!hls_ring_put((const uint8_t *)s_hls_text, s_hls_len, gen, NULL)) return 0;
+        return s_hls_len;
+    }
+    log_playlist((const uint8_t *)s_hls_text, s_hls_len);
+
+    /* A master playlist: one variant, then its media playlist. */
+    snprintf(s_hls_play, NETSTREAM_URL_MAX, "%s", s_hls_base);
+    if (hls_kind(s_hls_text, s_hls_len) == HLS_MASTER) {
+        hls_choice_t ch;
+        const hls_err_t e = hls_pick_variant(s_hls_text, s_hls_len, &ch);
+        if (e != HLS_OK ||
+            !hls_resolve(s_hls_base, s_hls_text + ch.uri_off, ch.uri_len,
+                         s_hls_play, NETSTREAM_URL_MAX)) {
+            ESP_LOGE(TAG, "HLS: no variant to play (%s)",
+                     e != HLS_OK ? hls_err_name(e) : hls_err_name(HLS_ERR_URL));
+            s_hls_fatal = true;
+            s_hls_why = hls_err_name(e != HLS_OK ? e : HLS_ERR_URL);
+            return 0;
+        }
+        ESP_LOGI(TAG, "HLS: %d variant%s; playing %s%s at %u kbit/s: %.160s",
+                 ch.variants, ch.variants == 1 ? "" : "s",
+                 ch.rendition ? "the audio rendition" : "a variant",
+                 ch.audio_only ? " (audio only)" : "",
+                 (unsigned)(ch.bandwidth / 1000), s_hls_play);
+        snprintf(s_hls_next, NETSTREAM_URL_MAX, "%s", s_hls_play);
+        const int r = hls_fetch_playlist(c, gen);
+        if (r) {
+            ESP_LOGW(TAG, "HLS: variant playlist: %s %d",
+                     r > 0 ? "status" : "no answer", r);
+            return 0;
+        }
+        if (hls_kind(s_hls_text, s_hls_len) == HLS_MASTER) {
+            ESP_LOGE(TAG, "HLS: the variant is another master playlist");
+            s_hls_fatal = true;
+            s_hls_why = hls_err_name(HLS_ERR_EMPTY);
+            return 0;
+        }
+        log_playlist((const uint8_t *)s_hls_text, s_hls_len);
+    }
+
+    hls_cursor_t *const cur_p = &s_hls_cur;
+    if (cur_p->started) {
+        ESP_LOGI(TAG, "HLS: resuming at segment %llu",
+                 (unsigned long long)cur_p->next_seq);
+    }
+    uint64_t last_end = 0;
+    int64_t changed_at = esp_timer_get_time();
+    bool first = true;
+
+    while (!superseded(gen)) {
+        const int64_t fetched_at = esp_timer_get_time();
+        const hls_err_t pe = hls_parse_media(s_hls_text, s_hls_len, s_hls_media);
+        if (pe != HLS_OK) {
+            ESP_LOGE(TAG, "HLS: %s", hls_err_name(pe));
+            if (pe == HLS_ERR_KEY || pe == HLS_ERR_FMP4 || pe == HLS_ERR_NOT_HLS) {
+                s_hls_fatal = true;
+                s_hls_why = hls_err_name(pe);
+            }
+            return produced;
+        }
+        const hls_media_t *m = s_hls_media;
+        const uint64_t end = m->first_seq + (uint64_t)m->n;
+        const bool changed = first || end != last_end;
+        if (changed) {
+            last_end = end;
+            changed_at = fetched_at;
+        } else if (!m->endlist &&
+                   fetched_at - changed_at >
+                   (int64_t)m->target_ms * HLS_STALE_TARGETS * 1000) {
+            ESP_LOGW(TAG, "HLS: playlist unchanged for %d target durations; "
+                          "treating as a drop", HLS_STALE_TARGETS);
+            return produced;
+        }
+        if (first) {
+            ESP_LOGI(TAG, "HLS: %d segments from %llu, target %u ms%s",
+                     m->n, (unsigned long long)m->first_seq, (unsigned)m->target_ms,
+                     m->endlist ? ", ends" : ", live");
+            first = false;
+        }
+
+        /* Everything the playlist has that we have not played. */
+        for (;;) {
+            int idx;
+            uint64_t lost;
+            bool restarted;
+            const hls_next_t nx = hls_next(cur_p, m, &idx, &lost, &restarted);
+            if (lost) {
+                ESP_LOGW(TAG, "HLS: fell behind the window; %llu segment%s lost",
+                         (unsigned long long)lost, lost == 1 ? "" : "s");
+            }
+            if (restarted) {
+                ESP_LOGW(TAG, "HLS: the media sequence restarted; "
+                              "rejoining at the live edge");
+            }
+            if (nx == HLS_NEXT_ENDED) {
+                ESP_LOGI(TAG, "HLS: end of the playlist");
+                return produced;
+            }
+            if (nx == HLS_NEXT_WAIT) break;
+
+            const hls_seg_t *sg = &m->seg[idx];
+            if (!hls_resolve(s_hls_play, s_hls_text + sg->off, sg->len,
+                             s_hls_next, NETSTREAM_URL_MAX)) {
+                ESP_LOGW(TAG, "HLS: segment %llu: %s; skipped",
+                         (unsigned long long)cur_p->next_seq, hls_err_name(HLS_ERR_URL));
+                hls_advance(cur_p);
+                continue;
+            }
+            if (sg->disc) {
+                ESP_LOGI(TAG, "HLS: discontinuity before segment %llu",
+                         (unsigned long long)cur_p->next_seq);
+            }
+            if (sg->title_len) {
+                /* Not a local: 256 bytes on a 6 KB stack that is about
+                 * to carry a TLS handshake. */
+                snprintf(s_hls_title, NETSTREAM_TITLE_MAX, "%.*s",
+                         (int)(sg->title_len < NETSTREAM_TITLE_MAX - 1
+                               ? sg->title_len : NETSTREAM_TITLE_MAX - 1),
+                         s_hls_text + sg->title_off);
+                if (strcmp(s_hls_title, s_title_logged) != 0) {
+                    snprintf(s_title_logged, sizeof(s_title_logged), "%s", s_hls_title);
+                    ESP_LOGI(TAG, "title: \"%.80s\"", s_hls_title);
+                    publish_title(s_hls_title);
+                }
+            }
+            const uint64_t before = produced;
+            const seg_result_t r = hls_segment(c, gen, cur_p->next_seq, sg->dur_ms,
+                                               &produced, &stalled_ms);
+            if (r == SEG_STOPPED) return produced;
+            if (r == SEG_REFUSED) {
+                s_hls_fatal = true;
+                return produced;
+            }
+            if (r == SEG_FAILED) {
+                /* netplan reconnects, and the cursor survives it. A
+                 * segment already partly in the ring is passed over
+                 * rather than fetched again: its start would play
+                 * twice, which is worse than its end not at all. */
+                if (produced > before) {
+                    ESP_LOGW(TAG, "HLS: segment %llu cut short; the next "
+                                  "attempt starts after it",
+                             (unsigned long long)cur_p->next_seq);
+                    hls_advance(cur_p);
+                }
+                return produced;
+            }
+            if (r == SEG_GONE) break;                /* reload, keep the cursor */
+            hls_advance(cur_p);
+            /* The playlist text is still this reload's: the segment
+             * fetch read into s_rx, not s_hls_text. */
+        }
+
+        /* Wait out the reload interval, counted from when this playlist
+         * was fetched, so the segment fetches are part of it. */
+        const int64_t due = fetched_at + (int64_t)hls_reload_ms(m, changed) * 1000;
+        while (esp_timer_get_time() < due) {
+            if (superseded(gen)) return produced;
+            vTaskDelay(pdMS_TO_TICKS(50));
+        }
+        snprintf(s_hls_next, NETSTREAM_URL_MAX, "%s", s_hls_play);
+        const int r = hls_fetch_playlist(c, gen);
+        if (r) {
+            ESP_LOGW(TAG, "HLS: playlist reload: %s %d",
+                     r > 0 ? "status" : "no answer", r);
+            return produced;
+        }
+    }
+    (void)stalled_ms;
+    return produced;
+}
+
+/* ------------------------------------------------------------------ */
 /* The task                                                            */
 /* ------------------------------------------------------------------ */
 
@@ -1273,6 +1775,7 @@ static void netstream_task(void *arg)
         s_failures = 0;
         s_last_status = 0;
         s_kbps = 0;
+        memset(&s_hls_cur, 0, sizeof(s_hls_cur));   /* 6038 */
 
         icydemux_init(s_demux, 0);
 
@@ -1473,7 +1976,16 @@ static void netstream_task(void *arg)
                  * arrived is what 0122 got wrong. */
                 esp_http_client_set_timeout_ms(c, SOCKET_TIMEOUT_MS);
 
-                const uint64_t produced = pump(c, gen, s_demux);
+                /* 6038: a playlist goes to the HLS loop, which hands a
+                 * playlist that is not HLS straight on. */
+                const bool hls = hls_wanted(c);
+                const uint64_t produced = hls ? hls_run(c, gen)
+                                              : pump(c, gen, s_demux);
+                if (hls && s_hls_fatal) {
+                    ESP_LOGE(TAG, "giving up: %s",
+                             s_hls_why ? s_hls_why : "this HLS stream cannot be played");
+                    give_up = true;
+                }
 
                 if (netplan_made_progress(produced)) {
                     /* Audio flowed, so this is a fresh failure sequence
@@ -1644,6 +2156,9 @@ bool netstream_init(void)
     s_name_req = (char *)w;
     s_url[0] = '\0';
     s_name_req[0] = '\0';
+    /* 6038: without it every .m3u8 goes through pump() as before and
+     * netdec says "HLS stream: not played yet". */
+    if (!hls_alloc()) ESP_LOGW(TAG, "no PSRAM for HLS; HLS stations will not play");
     s_lock = xSemaphoreCreateMutex();
     s_idle = xSemaphoreCreateBinary();
     if (!s_ring || !s_lock || !s_idle) {

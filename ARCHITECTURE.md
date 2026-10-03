@@ -21469,3 +21469,75 @@ Host-tested: codecplantest 8192 checks (14 new), hlsplaytest 80, and
 the whole of `make all` passes. `log_playlist()` was compiled on the
 host with ESP_LOGI as printf and run on a CRLF playlist with a blank
 line. netstream.c itself has not been through the target compiler.
+
+### 6038 -- HLS plays: the segment loop, and hlsseg.h
+
+The fetch half. A body that answers 200 with a playlist Content-Type, or
+from a URL ending `.m3u8`, now goes to `hls_run()` instead of `pump()`.
+`hls_run()` reads the text, and when it has no `#EXT-X-` tag -- a station
+.m3u, a .pls -- hands it to the ring unchanged, which is what happened
+before. Otherwise it plays the playlist:
+
+- master: `hls_pick_variant()` (6036), logged with its bandwidth, then
+  the variant's media playlist;
+- media: everything after the cursor, a segment at a time, then a reload
+  `TARGETDURATION` after the last one -- half of it after a reload that
+  brought nothing (RFC 8216 6.3.4) -- counted from when the playlist was
+  fetched, so the segment fetches are inside the interval and not added
+  to it;
+- unchanged for three target durations: a drop, into netplan's
+  reconnect;
+- a segment 404 or 410: reload, keep the cursor;
+- EXTINF titles: published as the title, the way an ICY title is.
+
+**One session, still.** Every request goes through the task's one
+client. esp_http_client keeps the connection for a URL on the same host,
+and closes it inside `set_url()` for a different one before the next
+opens, so there are never two. A kept connection the server has closed
+is a failed open; that request is retried once on a fresh connection,
+under CONNECT_TIMEOUT_MS -- the task tightens the socket to 1 s once the
+first headers are in, and a handshake was measured at 623 ms. The
+per-segment log line has the open time in it, so reuse is visible
+rather than assumed: near zero on a kept connection, a handshake on a
+new one.
+
+**The cursor survives a reconnect** to the same station (`s_hls_cur`,
+cleared when a station is requested). Restarted three back from the
+edge, a drop would have played up to half a minute twice. A segment
+that failed after some of it reached the ring is passed over, not
+refetched: its start played twice is worse than its end not at all.
+
+**`hlsseg.h`** is the per-segment unwrapper, header-only. A packed-audio
+segment opens with an ID3 PRIV timestamp, every segment, and netdec
+skips a tag at the start of a stream and never again. This drops each
+one at its own segment's start and names the segment's kind from the
+bytes after it: 0x47 and again 188 bytes on is MPEG-TS, ftyp/styp/moof
+/sidx at offset 4 is fMP4, anything else is audio. Two spans out, the
+same shape as `splice_feed()`, and no copy of the audio.
+
+**Refused by name, and given up on**: MPEG-TS segments ("not supported
+yet" -- 6040 if a station needs it), fMP4, EXT-X-KEY. `s_hls_fatal` makes
+the task give up at once rather than reconnecting through the whole
+backoff schedule to the same refusal.
+
+**Memory.** Playlist text (32 KB), the parsed playlist (2.3 KB), the
+unwrapper, three URLs and a title: about 36 KB of PSRAM, allocated once
+in `netstream_init()` and never freed, and nothing new on the 6 KB task
+stack -- the EXTINF title went to PSRAM for exactly that reason. If the
+allocation fails, `.m3u8` falls back to `pump()` and 6037's message.
+
+**Tested.** `hlssegtest`: 7334 checks under ASan and UBSan, every case
+whole, split at every byte and one byte at a time; an off-by-one in the
+tag skip was planted and failed 4 of its cases. netstream.c compiles
+clean at -O2 -Werror on the host against stubbed IDF headers, with
+ESP_LOG formats checked. And `hls_run()` itself ran on the host against
+a scripted server -- not committed, because it needs stubs of
+esp_http_client and the stream buffer that texttest does not have --
+through six cases: master to live edge, nine segments in order on one
+connection; a 404 then a reload with no hole; a stop and a reconnect
+that resumes with no repeat; a closed keep-alive retried once; TS
+segments refused, fatal, nothing in the ring; a station .m3u passed on
+byte for byte. **Not flashed.** The first thing the board log should
+show on Al Jazeera is the playlist (6037's lines), then one
+`HLS: segment N, ...` line every few seconds whose `x` figure is above
+1.00 and whose `open` figure is near zero after the first.

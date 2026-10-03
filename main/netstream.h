@@ -77,8 +77,10 @@
  *
  * WHAT IS NOT HERE YET, ON PURPOSE
  *
- * No HLS, no .pls or .m3u resolution, no Ogg/Opus assumptions, no
- * recording, no timeshift. Sniffing the first bytes to choose a codec is
+ * No .pls or .m3u resolution, no Ogg/Opus assumptions, no recording, no
+ * timeshift. HLS arrived in 6038 as a second body source inside
+ * netstream.c (hls_run(), beside pump()): packed-audio segments only,
+ * with MPEG-TS, fMP4 and encrypted playlists refused by name. Sniffing the first bytes to choose a codec is
  * phase 2's, and `streamsniff.h` already does it -- this file records
  * what the first bytes looked like and the Content-Type, and leaves the
  * choice alone.

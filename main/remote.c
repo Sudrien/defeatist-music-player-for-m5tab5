@@ -381,11 +381,15 @@ static esp_err_t h_wifi(httpd_req_t *req)
              names[s_w_state]);
     httpd_resp_send_chunk(req, line, HTTPD_RESP_USE_STRLEN);
 
+    /* 6047: remoteproto_json_str() empties `line` when the escaped text
+     * does not fit -- s_w_msg is 160 bytes and escapes to as much as six
+     * times that -- and an empty chunk ends a chunked response, which
+     * would leave the browser half a JSON object. "" instead. */
     xSemaphoreTake(s_mu, portMAX_DELAY);
-    remoteproto_json_str(s_w_msg, line, sizeof(line));
+    if (!remoteproto_json_str(s_w_msg, line, sizeof(line))) snprintf(line, sizeof(line), "\"\"");
     httpd_resp_send_chunk(req, line, HTTPD_RESP_USE_STRLEN);
     httpd_resp_send_chunk(req, ",\"arg\":", HTTPD_RESP_USE_STRLEN);       /* 6025 */
-    remoteproto_json_str(s_w_arg, line, sizeof(line));
+    if (!remoteproto_json_str(s_w_arg, line, sizeof(line))) snprintf(line, sizeof(line), "\"\"");
     xSemaphoreGive(s_mu);
     httpd_resp_send_chunk(req, line, HTTPD_RESP_USE_STRLEN);
     httpd_resp_send_chunk(req, ",\"nets\":[", HTTPD_RESP_USE_STRLEN);

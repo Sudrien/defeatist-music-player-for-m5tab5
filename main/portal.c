@@ -250,8 +250,18 @@ static const char PAGE_STYLE[] =
 static const char PAGE_TAIL[] = "</body></html>";
 
 /* Send a string as one chunk. */
+/*
+ * 6047: never an empty chunk. In chunked HTTP a zero-length chunk IS the
+ * end of the response, and httpd_resp_send_chunk() sends one for "" just
+ * as it does for (NULL, 0). s_lq is "" until a language is picked, so
+ * the first load of the setup page ended at `<form method=post
+ * action=/join` -- right after the Wi-Fi paragraph, with no network list
+ * and no form -- and picking a language, which made s_lq non-empty,
+ * "fixed" it. An escaped empty string (an unnamed station) did the same.
+ */
 static esp_err_t chunk(httpd_req_t *req, const char *s)
 {
+    if (!s || !*s) return ESP_OK;
     return httpd_resp_send_chunk(req, s, HTTPD_RESP_USE_STRLEN);
 }
 

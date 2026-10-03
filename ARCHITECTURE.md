@@ -21854,3 +21854,33 @@ on the board against Al Jazeera's TS segments (6040's entry). Art:
 folderart.c, host-tested, not yet on the board. Text: bidiline.h and the
 gfx.c iterator, host-tested and photographed on the board through 6044;
 6045's flush right edge is not yet photographed.
+
+### 6047 -- an empty string ended the setup page
+
+A phone joining the setup network saw "Defeatist setup", the language
+menu, the Wi-Fi heading and its paragraph -- and nothing else: no
+network list, no password, no Join. Picking a language brought the rest
+back.
+
+In chunked HTTP a zero-length chunk is the end of the response, and
+`httpd_resp_send_chunk(req, "", HTTPD_RESP_USE_STRLEN)` sends one just
+as `(NULL, 0)` does. portal.c's `chunk()` passed every string through,
+and the very next one after that paragraph is `s_lq`, the language
+query, which is "" until a language has been picked. The page ended at
+`<form method=post action=/join`; everything after went into a response
+the phone had already closed. A language picked made s_lq "?lang=xx",
+never empty, which is why that looked like a cure.
+
+`chunk()` now sends nothing for an empty string. That also covers
+`chunk_escaped()` of an empty name, which would have ended the station
+list the same way.
+
+remote.c's Wi-Fi status sent `remoteproto_json_str()` output without
+looking at it, and that function empties its buffer when the escaped
+text does not fit: s_w_msg is 160 bytes against a 256-byte line, and
+escaping can be up to six times. Rare, but the same fault -- half a
+JSON object. Those two now send `""` instead.
+
+Not compiled here (esp_http_server is not among texttest's fakes); the
+change is a guard on one helper and two return values. On the board: the
+first load of the setup page should show the whole form in English.

@@ -33,13 +33,26 @@ endfunction()
 function(idfcopy_check tag dir rel how)
     set(_stamp "${dir}/.idf_version")
     if(NOT EXISTS "${_stamp}")
-        # Made before 6031, so nothing says which IDF. Say so once and
-        # take it as this one's; a copy from another would already have
-        # been failing to build.
+        # Made before 6032, so nothing says which IDF. 6033: neither
+        # script edits the component's CMakeLists.txt, and it differs
+        # between 5.5.5 and 6.1 for both, so a copy whose CMakeLists.txt
+        # is not this IDF's came from another one. That was the first
+        # 6.1 build after 6032: 5.5.5's esp_lcd, taken as 6.1's, failing
+        # on hal/lcd_types.h.
+        get_filename_component(_name "${dir}" NAME)
+        file(SHA256 "${dir}/CMakeLists.txt" _have)
+        file(SHA256 "$ENV{IDF_PATH}/components/${_name}/CMakeLists.txt" _want)
+        if(NOT _have STREQUAL _want)
+            message(FATAL_ERROR
+                "${tag}: ${rel} was copied from another ESP-IDF than this "
+                "one (${IDFCOPY_VERSION}): its CMakeLists.txt is not this "
+                "IDF's. ${how} Anything you changed inside it is yours to "
+                "carry over first.")
+        endif()
         message(WARNING
             "${tag}: ${rel} does not record which ESP-IDF it was copied "
-            "from (it predates that record). Taking it as ${IDFCOPY_VERSION}. "
-            "If it came from another version, delete it and reconfigure.")
+            "from (it predates that record). It matches this IDF's, so taking "
+            "it as ${IDFCOPY_VERSION}.")
         idfcopy_mark("${dir}")
         return()
     endif()

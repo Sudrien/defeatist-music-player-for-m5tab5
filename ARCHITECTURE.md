@@ -21286,3 +21286,25 @@ before this patch has no record: it is warned about once and taken as
 the current IDF's. Tried here: no record (warned, stamped), same IDF
 (silent), a 6.1 configure over a 5.5.5 stamp (stops), a fresh 5.5.5
 copy (stamped 5.5.5, main compiles).
+
+### 6033 -- an unrecorded copy is checked, not assumed
+
+The first 6.1 build after 6032, on a checkout that had been building
+5.5.5:
+
+    components/esp_lcd/include/esp_lcd_types.h:10:10: fatal error:
+        hal/lcd_types.h: No such file or directory
+
+The esp_lcd copy was 5.5.5's. It predated 6032's record, so 6032 warned
+and took it as 6.1's -- on the reasoning that a copy from another IDF
+would already have been failing, which is true only of a checkout that
+never changed IDF. 6.1 moved lcd_types.h into esp_hal_lcd, which 5.5.5's
+esp_lcd/CMakeLists.txt does not require.
+
+Neither script edits the component's CMakeLists.txt, and it differs
+between 5.5.5 and 6.1 for both esp_lcd and fatfs, so an unrecorded copy
+is now compared with this IDF's: the same file, and it is taken and
+recorded as before; a different one, and the configure stops the way a
+mismatched record does. Tried here with 5.5.5 copies under 6.1 (stops,
+on fatfs first) and 6.1 copies under 6.1 (recorded, main compiles).
+exfat's message now names `./tools/enable_exfat.sh --revert`.

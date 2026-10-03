@@ -60,7 +60,7 @@ elseif(EXISTS "${_exfat_dest}")
     # reverting that on the next configure would be a genuinely nasty
     # thing to do.
     idfcopy_check(exfat "${_exfat_dest}" components/fatfs
-        "Delete it and reconfigure; it is copied again from this IDF.")   # 6032
+        "Run ./tools/enable_exfat.sh --revert and reconfigure; it is copied again from this IDF.")   # 6032, 6033
     message(STATUS "exfat: components/fatfs present, leaving it alone")
 elseif(CMAKE_HOST_WIN32)
     # The script is bash and uses sed -i and a heredoc'd python3. Rather

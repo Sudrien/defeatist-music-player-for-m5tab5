@@ -23,6 +23,7 @@
 #include "ethernet.h"     /* 5096: net_online() */
 #include "gfx.h"
 #include "i18n.h"         /* 6013 */
+#include "launcher_import.h"
 #include "medialib.h"
 #include "menuscroll.h"
 #include "panel.h"
@@ -793,10 +794,26 @@ static void ntp_switch_box(int *x, int *y, int *w, int *h)
     *x = 0; *y = ntp_y(); *w = gfx_w(); *h = AUDIO_SWITCH_H;
 }
 
+/*
+ * Import from M5Launcher -- ABOVE "Add a network" deliberately. Under a
+ * launcher the networks are usually already on the card in Launcher's
+ * config.conf, so the fast path (one tap, no phone) is offered before
+ * the manual portal, not after it. See launcher_import.h.
+ */
+#define NET_LIMPORT_NOTE_LINES (3)
+static int limport_y(void) { return ntp_y() + AUDIO_SWITCH_H
+                                    + AUDIO_NOTE_GAP
+                                    + NET_NTP_NOTE_LINES * AUDIO_NOTE_STEP
+                                    + AUDIO_GAP; }
+static void limport_box(int *x, int *y, int *w, int *h)
+{
+    *x = 0; *y = limport_y(); *w = gfx_w(); *h = AUDIO_SWITCH_H;
+}
+
 #define NET_SETUP_NOTE_LINES (3)
-static int setup_y(void) { return ntp_y() + AUDIO_SWITCH_H
+static int setup_y(void) { return limport_y() + AUDIO_SWITCH_H
                                   + AUDIO_NOTE_GAP
-                                  + NET_NTP_NOTE_LINES * AUDIO_NOTE_STEP
+                                  + NET_LIMPORT_NOTE_LINES * AUDIO_NOTE_STEP
                                   + AUDIO_GAP; }
 static void setup_box(int *x, int *y, int *w, int *h)
 {
@@ -1129,6 +1146,35 @@ static int draw_net(void)
     }
 
     (void)draw_paras(y + bh + AUDIO_NOTE_GAP, k_ntp_note, COUNT(k_ntp_note), 99);
+
+    /* --- Import from M5Launcher (above the portal) ------------------- */
+    limport_box(&x, &y, &bw, &bh);
+    li_status_t li;
+    launcher_import_status(&li);
+    const bool li_busy = (li.phase == LI_RUNNING);
+    gfx_fill_rect(x, y, bw, bh, C_ROW);
+    gfx_draw_text(24, y + (bh - GFX_GLYPH_H(NAME_SCALE)) / 2, _("Import from M5Launcher"),
+                  NAME_SCALE, 400, C_TEXT);
+    {
+        const int pw = 132, ph = 56;
+        const char *pill = li_busy ? _("BUSY")
+                         : (li.phase == LI_DONE)   ? _("DONE")
+                         : (li.phase == LI_FAILED) ? _("RETRY")
+                                                   : _("IMPORT");
+        draw_state_pill(w - 24 - pw, y + (bh - ph) / 2, pw, ph,
+                        pill, li_busy, true, NAME_SCALE);
+    }
+    {
+        /* Idle: say what it does. Otherwise: the worker's own status line. */
+        const char *li_note[NET_LIMPORT_NOTE_LINES] = { NULL, NULL, NULL };
+        if (li.phase == LI_IDLE) {
+            li_note[0] = _("Copy saved Wi-Fi from an M5Launcher install on this board.");
+            li_note[1] = _("Reads its config.conf; no retyping, no network needed.");
+        } else {
+            li_note[0] = li.msg[0] ? _(li.msg) : "";
+        }
+        (void)draw_note(y + bh + AUDIO_NOTE_GAP, li_note, NET_LIMPORT_NOTE_LINES);
+    }
 
     /* --- Network setup ---------------------------------------------- */
     setup_box(&x, &y, &bw, &bh);
@@ -1645,6 +1691,21 @@ bool panel_touch(bool down, int x, int y)
             ESP_LOGI(TAG, "ntp %s%s", on ? "on" : "off",
                      settings_wifi_enabled() ? "" : " (wifi off)");
             s_dirty = true;
+        }
+
+        /* Import from M5Launcher. Like the rows below it only ASKS:
+         * launcher_import_request() hands the scan to its own task and
+         * returns, and the row's note line shows progress at the next
+         * redraw. A second tap while it runs is refused, not queued. */
+        limport_box(&bx, &by, &bw, &bh);
+        if (y >= by && y < by + bh) {
+            const esp_err_t err = launcher_import_request();
+            ESP_LOGI(TAG, "launcher import: %s",
+                     err == ESP_OK ? "started"
+                   : err == ESP_ERR_INVALID_STATE ? "already running"
+                                                   : "could not start");
+            s_dirty = true;
+            return false;
         }
 
         /* Neither call waits: portal_start() hands the work to the

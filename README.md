@@ -38,7 +38,7 @@ Note: the goal of this project is to max out the potential of this hardware with
 - Auto switching from headset to built in speaker on unplug and vice versa
   - The icon by the volume slider shows which one is actually playing - a speaker, headphones, or `UAC` when a USB audio device has the output. Tapping mutes and unmutes. 
 - Support for all (as far as I can tell) mp3 formats. This thing has fallback library after fallback library. Flac, ogg, wav, the standards are in here.
-- Album art display
+- Album art display: the picture in the file, or the album's cover.jpg / folder.jpg / front.jpg beside it
 - Battery status, in words at the end of the status line: `BATT 73%`, `CHRG 73%`, `CHARGED`, `NO BATT`
 - Wi-Fi on the status line: green connected, yellow connecting, grey off
 - Volume control

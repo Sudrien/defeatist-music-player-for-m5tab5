@@ -71,6 +71,7 @@
 #include "cuedir.h"
 #include "heapcheck.h"
 #include "mediacache.h"
+#include "folderart.h"             /* 6042 */
 #include "medialib.h"
 #include "browser.h"
 #include "cbrseek.h"
@@ -4760,6 +4761,80 @@ static void show_format_card(const char *path, long bytes, uint32_t gen)
     ui_show_art_info(lines, n);
 }
 
+/*
+ * 6042: the half of do_art() after the picture is in hand, so the
+ * folder's cover goes through exactly the path an embedded one does:
+ * the generation checks, the cache, the decode and its failure lines.
+ * `owned`: the bytes are ours, and the cache takes them.
+ */
+static void show_cover(const char *path, uint8_t *jpg, size_t jpg_len,
+                       bool owned, uint32_t gen)
+{
+    /*
+     * The track may have moved on during the read. Decoding anyway
+     * would put the previous song's cover over the current song's
+     * screen, and unlike the envelope -- which is only ever drawn
+     * once, from a flag -- there is no later redraw to correct it.
+     */
+    if (gen != s_track_gen) {
+        ESP_LOGI(TAG, "cover arrived after the track changed; dropped");
+        /* Into the cache rather than the bin. It was read for a track
+         * that moved on, but the track it belongs to is very likely the
+         * one being returned to -- a fast double-skip lands here, and
+         * throwing the bytes away means reading them again. */
+        if (owned) mediacache_put_art(path, jpg, jpg_len);
+        return;
+    }
+
+    /* A square, and the full width of the panel. albumart.c fits the
+     * decoded cover into whatever rectangle it is handed; handing it
+     * a square is what stops it letterboxing a square cover into a
+     * tall box with black above and below. */
+    /* The cover is about to cover the square, so the card goes with it.
+     * See ui.h: albumart_show() cannot drop it itself. */
+    ui_notice_clear();
+    /* The artwork region at the current angle: the full width and 560
+     * tall in portrait, 560 wide and full height in landscape. Was
+     * LCD_H_RES x UI_ART_H, which is only the portrait one. */
+    int art_w, art_h;
+    ui_art_band(NULL, NULL, &art_w, &art_h);
+    albumart_set_key(path);         /* the keystone leans per track */
+    const esp_err_t serr = albumart_show(s_panel, art_w, art_h,
+                                         jpg, jpg_len);
+
+    /* Kept, not freed, when we own it: this is the playing track, so it
+     * is about to be pinned and is the thing a back button wants. The
+     * cache takes ownership; a borrowed hit is left alone. */
+    if (owned) mediacache_put_art(path, jpg, jpg_len);
+
+    if (serr != ESP_OK) {
+        ESP_LOGW(TAG, "cover art failed to decode (%s)",
+                 esp_err_to_name(serr));
+        /* What the cache was holding at the moment it failed. albumart.c
+         * reports the PSRAM picture and cannot see this, and the two
+         * together are what say whether the cache is the tenant worth
+         * reclaiming or a bystander. */
+        if (serr == ESP_ERR_NO_MEM) {
+            int cent = 0;
+            size_t cbytes = 0, csaved = 0;
+            mediacache_stats(&cent, &cbytes, &csaved);
+            ESP_LOGW(TAG, "  cover cache held %d entries, %u KB at the time "
+                          "(%u KB saved by sharing)",
+                     cent, (unsigned)(cbytes / 1024),
+                     (unsigned)(csaved / 1024));
+        }
+        return;
+    }
+
+    /* One more generation check. The decode is the long part, and a
+     * cover blitted for a track that has already been replaced is
+     * exactly what the first check was avoiding. */
+    if (gen != s_track_gen) {
+        ESP_LOGI(TAG, "cover decoded after the track changed; not shown");
+        clear_art();                                                /* 5265 */
+    }
+}
+
 static void do_art(const char *path, uint32_t gen)
 {
     /*
@@ -4792,6 +4867,14 @@ static void do_art(const char *path, uint32_t gen)
     const char *file = cuedir_file_of(path, file_buf, sizeof(file_buf));
 
     if (mediacache_no_art(path)) {
+        /* 6042: nothing embedded, which is a statement about the file;
+         * the folder may still have the album's cover. */
+        uint8_t *img = NULL;
+        size_t img_len = 0;
+        if (folderart_load(file, path, &img, &img_len, NULL) == ESP_OK) {
+            show_cover(path, img, img_len, true, gen);
+            return;
+        }
         ESP_LOGI(TAG, "no cover art (cached); showing the format");
         long known = 0;
         FILE *sf = fopen(file, "rb");        /* size only: open, seek, close */
@@ -4865,74 +4948,23 @@ static void do_art(const char *path, uint32_t gen)
             }
         }
 
+        /* 6042: the folder's cover, when the file has none. Asked for
+         * the same two answers only -- a failed read of the file says
+         * nothing about the file, and is not a reason to look past it. */
+        if (xerr == ESP_ERR_NOT_FOUND || xerr == ESP_ERR_NOT_SUPPORTED) {
+            uint8_t *img = NULL;
+            size_t img_len = 0;
+            if (folderart_load(file, path, &img, &img_len, NULL) == ESP_OK) {
+                show_cover(path, img, img_len, true, gen);
+                return;
+            }
+        }
+
         if (gen == s_track_gen) show_format_card(path, fsize, gen);
         return;
     }
 
-    /*
-     * The track may have moved on during the read. Decoding anyway
-     * would put the previous song's cover over the current song's
-     * screen, and unlike the envelope -- which is only ever drawn
-     * once, from a flag -- there is no later redraw to correct it.
-     */
-    if (gen != s_track_gen) {
-        ESP_LOGI(TAG, "cover arrived after the track changed; dropped");
-        /* Into the cache rather than the bin. It was read for a track
-         * that moved on, but the track it belongs to is very likely the
-         * one being returned to -- a fast double-skip lands here, and
-         * throwing the bytes away means reading them again. */
-        if (owned) mediacache_put_art(path, jpg, jpg_len);
-        return;
-    }
-
-    /* A square, and the full width of the panel. albumart.c fits the
-     * decoded cover into whatever rectangle it is handed; handing it
-     * a square is what stops it letterboxing a square cover into a
-     * tall box with black above and below. */
-    /* The cover is about to cover the square, so the card goes with it.
-     * See ui.h: albumart_show() cannot drop it itself. */
-    ui_notice_clear();
-    /* The artwork region at the current angle: the full width and 560
-     * tall in portrait, 560 wide and full height in landscape. Was
-     * LCD_H_RES x UI_ART_H, which is only the portrait one. */
-    int art_w, art_h;
-    ui_art_band(NULL, NULL, &art_w, &art_h);
-    albumart_set_key(path);         /* the keystone leans per track */
-    const esp_err_t serr = albumart_show(s_panel, art_w, art_h,
-                                         jpg, jpg_len);
-
-    /* Kept, not freed, when we own it: this is the playing track, so it
-     * is about to be pinned and is the thing a back button wants. The
-     * cache takes ownership; a borrowed hit is left alone. */
-    if (owned) mediacache_put_art(path, jpg, jpg_len);
-
-    if (serr != ESP_OK) {
-        ESP_LOGW(TAG, "cover art failed to decode (%s)",
-                 esp_err_to_name(serr));
-        /* What the cache was holding at the moment it failed. albumart.c
-         * reports the PSRAM picture and cannot see this, and the two
-         * together are what say whether the cache is the tenant worth
-         * reclaiming or a bystander. */
-        if (serr == ESP_ERR_NO_MEM) {
-            int cent = 0;
-            size_t cbytes = 0, csaved = 0;
-            mediacache_stats(&cent, &cbytes, &csaved);
-            ESP_LOGW(TAG, "  cover cache held %d entries, %u KB at the time "
-                          "(%u KB saved by sharing)",
-                     cent, (unsigned)(cbytes / 1024),
-                     (unsigned)(csaved / 1024));
-        }
-        return;
-    }
-
-    /* One more generation check. The decode is the long part, and a
-     * cover blitted for a track that has already been replaced is
-     * exactly what the first check was avoiding. */
-    if (gen != s_track_gen) {
-        ESP_LOGI(TAG, "cover decoded after the track changed; not shown");
-        clear_art();                                                /* 5265 */
-    }
-
+    show_cover(path, jpg, jpg_len, owned, gen);
 }
 
 /*
@@ -5985,10 +6017,14 @@ static void media_task(void *arg)
          * symmetry would throw away most of what the prefetch bought.
          * "Already cached" includes knowing there is no cover: that puts
          * the format card up, and it is not a read either.
+         *
+         * 6042: "no cover in the file" is no longer "no cover". The folder
+         * may have one, and reading it is a read; folderart_in_hand() says
+         * when it would not be (none there, or a copy from the cache).
          */
         size_t cached_len = 0;
         const bool art_in_hand = mediacache_art(path, &cached_len) != NULL ||
-                                 mediacache_no_art(path);
+                                 (mediacache_no_art(path) && folderart_in_hand(path));
 
         if (!art_in_hand && !media_settle(gen, MEDIA_ART_DELAY_MS, MEDIA_MIN_RING_PCT, "cover")) {
             continue;
@@ -14541,6 +14577,7 @@ static void player_loop(void)
              * track with a coincidentally equal path getting someone
              * else's cover. */
             mediacache_clear();
+            folderart_forget();                     /* 6042: same reason */
             /* And the one decoded frame, for the same reason: it belongs
              * to a file that is no longer reachable, and it is a
              * megabyte the next large cover will want in one piece. */

@@ -21644,3 +21644,63 @@ whose '?' outnumber its letters, digits and non-ASCII bytes is damaged,
 and so is one with none of those at all. "What's On?" and "Radio ??"
 pass. A damaged name is logged once, with the list's name that is kept.
 A Latin-1 icy-name is a different fault and is not judged here.
+
+### 6042 -- the album's cover beside it, not only inside it
+
+Many albums ship their art as a file in the folder -- cover.jpg,
+folder.jpg (Windows Media Player, EAC), front.jpg -- and none in the
+tracks. The MPD server already answered `albumart` from the folder
+(5240); the screen only looked inside the file, so the same album had a
+cover on a phone and the format card on the Tab5.
+
+**Embedded first, the folder second.** `do_art()` asks the folder at
+both of its "no picture in the file" points: a fresh
+`covertag_extract_art()` that says NOT_FOUND or NOT_SUPPORTED, and the
+cached negative. Only those two -- a failed read says nothing about the
+file. The negative (`mediacache_no_art()`, and `has_art = false` in the
+sidecar) keeps its meaning, "nothing embedded", so sidecars written
+before this need nothing done to them. A folder cover goes through
+`show_cover()`, which is the old second half of `do_art()` split out,
+so it gets the same generation checks, cache, decode and failure lines
+as an embedded one, and the same JPEG/PNG decoders and 4 MB cap.
+
+**`folderart.c`**, with the pure half in `folderart.h`:
+
+- Names, in the screen's order: cover, folder, front, album; .jpg,
+  .jpeg, .png within each. No TIFF or BMP (albumart_show() decodes
+  neither) and no AlbumArtSmall.jpg (a 75 px thumbnail). FAT and exFAT
+  fold case, so Folder.JPG is found by asking for folder.jpg. MPD's
+  list moved here too, beside it, unchanged and in MPD's order, and
+  mpd.c reads it from there.
+- **One look per folder.** A stat() per name is a walk of the folder's
+  entries on FAT, so the answer is remembered per folder by hash, found
+  or not, four folders deep. An album's second track does not look.
+- **One read per album.** The last track to get a folder cover is the
+  donor; the next track in the same folder copies the picture out of
+  the cover cache (still there: previous, current and next are cached,
+  previous pinned) instead of reading a megabyte off the card playback
+  shares. The cache then shares the identical bytes between the two
+  paths, as it already did.
+- A cover.jpg that is not a JPEG or PNG, or is over the cap, is
+  remembered as none. A failed allocation is not.
+- Forgotten with the cover cache when the volume goes.
+
+**The settle gate changed meaning.** media_task skipped the wait before
+`do_art()` when the answer was "in hand", and "no embedded picture"
+counted, on the reasoning that putting up the format card is not a
+read. Now it may be. `folderart_in_hand()` says when it is not -- the
+folder is known to have nothing, or the cover can be copied -- and the
+gate asks it.
+
+**Tested.** `folderarttest`, 229 checks under ASan and UBSan:
+folderart.c whole, against real folders made on the host, with fakes
+for the storage arbiter, the cover cache and the image check. Order
+(cover.jpg before cover.png before folder.jpg); an album reading once
+and copying after, and reading again when the donor is evicted; a
+folder with nothing remembered until forgotten; a text file called
+cover.jpg; a cover deleted between tracks; more folders than slots;
+`in_hand` through all of it. Planted bugs -- the donor disabled, the
+names tried in reverse, the remembered-none skipped -- failed 2, 3, and
+an out-of-bounds index under UBSan. The whole of `make all` passes.
+player.c and mpd.c have not been through a compiler: they need the
+real IDF. The case folding is FAT's and the host cannot show it.

@@ -60,6 +60,7 @@
  *
  * SPDX-License-Identifier: MIT
  */
+#include "folderart.h"            /* 6042: FOLDERART_MPD_NAMES */
 #include "mpd.h"
 
 #include <errno.h>
@@ -2433,12 +2434,14 @@ static result_t lib_albumart(const ctx_t *x, const char *uri, const char *off_s)
     const char *slash = strrchr(rel, '/');
     const int dl = slash ? (int)(slash - rel) : 0;
     const storage_id_t id = v == MPDURI_VOL_SD ? STORAGE_SD : STORAGE_USB;
-    static const char *const names[] = { "cover.png", "cover.jpg", "cover.tiff", "cover.bmp" };
+    /* 6042: MPD's own list, kept in folderart.h beside the screen's so
+     * the two are read together; this one stays MPD's, in MPD's order. */
+    const char *const *const names = FOLDERART_MPD_NAMES;
 
     storage_hold_brief(id);
     FILE *f = NULL;
     struct stat st;
-    for (size_t i = 0; !f && storage_present(id) && i < sizeof(names) / sizeof(names[0]); i++) {
+    for (int i = 0; !f && storage_present(id) && i < FOLDERART_MPD_NNAMES; i++) {
         const int k = dl ? snprintf(s_lib->vfs, sizeof(s_lib->vfs), "%s/%.*s/%s",
                                     mpduri_mount(v), dl, rel, names[i])
                          : snprintf(s_lib->vfs, sizeof(s_lib->vfs), "%s/%s", mpduri_mount(v), names[i]);

@@ -157,6 +157,59 @@ int main(void)
               "MP3 bytes lost to a playlist Content-Type");
     }
 
+    /* ---------------------------------------------------------------- */
+    /* 6037: HLS is named, from the bytes or from its own Content-Type,  */
+    /* and a station .m3u stays a playlist                               */
+    /* ---------------------------------------------------------------- */
+    {
+        /* Al Jazeera's response, as far as the log showed it. */
+        static const char hls_media[] =
+            "#EXTM3U\n#EXT-X-VERSION:3\n#EXT-X-TARGETDURATION:10\n"
+            "#EXT-X-MEDIA-SEQUENCE:1\n#EXTINF:10.0,\nseg1.aac\n"
+            "#EXTINF:10.0,\nseg2.aac\n#EXTINF:10.0,\nseg3.aac\n";
+        codecplan_t r = codecplan_choose_bytes((const uint8_t *)hls_media,
+                                               sizeof(hls_media) - 1, NULL);
+        CHECK(r.why == CODECPLAN_IS_HLS, "HLS media bytes gave why %d", (int)r.why);
+        CHECK(!codecplan_ready(&r) && !codecplan_waiting(&r), "HLS is a verdict");
+        CHECK(r.message && strstr(r.message, "HLS"), "HLS message names it");
+
+        static const char hls_master[] =
+            "#EXTM3U\r\n#EXT-X-STREAM-INF:BANDWIDTH=64000,CODECS=\"mp4a.40.2\"\r\n"
+            "lo.m3u8\r\n#EXT-X-STREAM-INF:BANDWIDTH=128000\r\nhi.m3u8\r\n";
+        r = codecplan_choose_bytes((const uint8_t *)hls_master, sizeof(hls_master) - 1, NULL);
+        CHECK(r.why == CODECPLAN_IS_HLS, "HLS master bytes gave why %d", (int)r.why);
+
+        static const char station[] =
+            "#EXTM3U\n#EXTINF:-1,Some Station\nhttp://example/stream\n"
+            "#EXTINF:-1,Another\nhttp://example/other\n";
+        r = codecplan_choose_bytes((const uint8_t *)station, sizeof(station) - 1, NULL);
+        CHECK(r.why == CODECPLAN_IS_PLAYLIST, "station m3u gave why %d", (int)r.why);
+        r = codecplan_choose_bytes((const uint8_t *)station, sizeof(station) - 1,
+                                   "audio/x-mpegurl");
+        CHECK(r.why == CODECPLAN_IS_PLAYLIST, "x-mpegurl decides nothing: %d", (int)r.why);
+        r = codecplan_choose_bytes((const uint8_t *)station, sizeof(station) - 1,
+                                   "Application/VND.Apple.MpegURL; charset=UTF-8");
+        CHECK(r.why == CODECPLAN_IS_HLS, "apple type is HLS by name: %d", (int)r.why);
+
+        CHECK(codecplan_from_hls_type("application/vnd.apple.mpegurl"), "exact");
+        CHECK(codecplan_from_hls_type(" application/vnd.apple.mpegurl ;x"), "spaces");
+        CHECK(!codecplan_from_hls_type("application/vnd.apple.mpegurlx"), "longer");
+        CHECK(!codecplan_from_hls_type("application/vnd.apple"), "shorter");
+        CHECK(!codecplan_from_hls_type(NULL), "null");
+
+        /* Audio is still audio, whatever the header claims. */
+        static const uint8_t mp3[] = { 0xFF, 0xFB, 0x90, 0x64 };
+        uint8_t buf[PLENTY];
+        for (size_t i = 0; i < sizeof(buf); i++) buf[i] = mp3[i % 4];
+        r = codecplan_choose_bytes(buf, sizeof(buf), "application/vnd.apple.mpegurl");
+        CHECK(r.why != CODECPLAN_IS_HLS, "MP3 bytes became HLS by header");
+
+        /* Short: still buffering, not a verdict. */
+        r = codecplan_choose_bytes((const uint8_t *)"#EXTM3U\n", 8, NULL);
+        CHECK(r.why == CODECPLAN_IS_PLAYLIST || codecplan_waiting(&r),
+              "8 bytes of #EXTM3U gave %d", (int)r.why);
+    }
+
     /* Every refusal carries a message, and no message is empty. */
     {
         const sniff_t all[] = {

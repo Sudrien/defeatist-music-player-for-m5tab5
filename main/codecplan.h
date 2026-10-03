@@ -58,6 +58,7 @@
 #include <string.h>
 
 #include "streamsniff.h"
+#include "hlsplay.h"           /* hls_looks_like(), 6037 */
 
 #ifdef __cplusplus
 extern "C" {
@@ -76,7 +77,8 @@ typedef enum {
     CODECPLAN_FROM_TYPE,        /* the bytes said nothing; Content-Type did */
     CODECPLAN_NEED_SKIP,        /* an ID3 tag is in front; drop it and re-sniff */
     CODECPLAN_NEED_MORE,        /* not enough bytes yet to say anything */
-    CODECPLAN_IS_PLAYLIST,      /* a .m3u/.pls/HLS file, not a stream */
+    CODECPLAN_IS_PLAYLIST,      /* a .m3u/.pls file, not a stream */
+    CODECPLAN_IS_HLS,           /* 6037: an HLS playlist -- segments, not a body */
     CODECPLAN_IS_PAGE,          /* HTML: an error page where audio was expected */
     CODECPLAN_UNSUPPORTED,      /* real audio, not a format this decodes */
     CODECPLAN_UNKNOWN,          /* neither source said anything usable */
@@ -191,6 +193,21 @@ static inline bool codecplan_type_is_playlist(const char *ct)
     return false;
 }
 
+/* 6037: the one Content-Type that means HLS and nothing else. */
+static inline bool codecplan_from_hls_type(const char *ct)
+{
+    if (!ct) return false;
+    while (*ct == ' ') ct++;
+    static const char hls[] = "application/vnd.apple.mpegurl";
+    for (size_t i = 0; i < sizeof(hls) - 1; i++) {
+        char c = ct[i];
+        if (c >= 'A' && c <= 'Z') c = (char)(c - 'A' + 'a');
+        if (c != hls[i]) return false;
+    }
+    const char end = ct[sizeof(hls) - 1];
+    return end == '\0' || end == ';' || end == ' ';
+}
+
 /*
  * The decision. `sniffed` is what streamsniff.h made of the first bytes
  * (SNIFF_UNKNOWN if there are not enough yet), `have_bytes` is how many
@@ -280,6 +297,36 @@ static inline codecplan_t codecplan_choose(sniff_t sniffed, size_t have_bytes,
          * silently labels every codec added after the second as AAC. */
         r.message = stream_codec_name(from_type);
         return r;
+    }
+    return r;
+}
+
+/*
+ * 6037: codecplan_choose(), told apart from the bytes themselves.
+ *
+ * SNIFF_M3U is "#EXTM3U", which is both a list of station URLs and an
+ * HLS playlist. They are different problems -- one is a link to follow
+ * once, the other is a stream made of files -- and "That link is a
+ * playlist, not a stream" was the same line for both, so a log could
+ * not say which had happened. Any #EXT-X- tag in the first bytes is HLS;
+ * RFC 8216 requires EXT-X-TARGETDURATION in every media playlist and
+ * EXT-X-STREAM-INF is what a master one is made of, and both come in the
+ * first few lines. application/vnd.apple.mpegurl is HLS by its name; the
+ * other mpegurl types are used for both and decide nothing here.
+ *
+ * A separate function rather than a change to codecplan_choose(),
+ * because that one takes the sniff result and not the bytes, and its
+ * callers and its 8000 checks are written against that.
+ */
+static inline codecplan_t codecplan_choose_bytes(const uint8_t *b, size_t n,
+                                                 const char *content_type)
+{
+    codecplan_t r = codecplan_choose(sniff_bytes(b, n), n, content_type);
+    if (r.why != CODECPLAN_IS_PLAYLIST) return r;
+    if (hls_looks_like((const char *)b, n) ||
+        codecplan_from_hls_type(content_type)) {
+        r.why = CODECPLAN_IS_HLS;
+        r.message = "HLS stream: not played yet";
     }
     return r;
 }

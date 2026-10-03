@@ -21429,3 +21429,43 @@ Host-tested: `make run-hlsplay`, 80 checks under ASan and UBSan, plus
 every prefix of a CRLF playlist parsed with nothing read past it. The
 -O2 -Werror pass is clean. Not compiled for the target; nothing there
 includes it yet.
+
+### 6037 -- HLS is named, and the playlist is printed
+
+The log that started the series:
+
+    I (287676) tab5_netstream: hop 1: HTTP 200 -> play, connect+TLS 623 ms, ...
+    W (287681) tab5_netdec: That link is a playlist, not a stream
+    I (287685) tab5_netstream: stopped after 382 audio bytes
+
+Two things that line could not say. Whether it was a list of station
+URLs or HLS -- "#EXTM3U" is both, and they are different problems, one a
+link to follow once and the other a stream made of files. And what was
+in it, because the "first audio bytes look like" line waits for
+SNIFF_BYTES (1024) and the playlist was 382 bytes and a close.
+
+- `codecplan_choose_bytes()` wraps `codecplan_choose()` and turns
+  IS_PLAYLIST into the new **CODECPLAN_IS_HLS** when the bytes carry any
+  `#EXT-X-` tag, or the Content-Type is `application/vnd.apple.mpegurl`.
+  The other mpegurl types are used for both kinds and decide nothing. A
+  wrapper rather than a change, because `codecplan_choose()` takes the
+  sniff result and not the bytes, and its callers and its checks are
+  written against that. netdec calls the wrapper; the message is
+  "HLS stream: not played yet", in the log only (not on screen, so
+  nothing for ABBREVIATIONS.md or i18n).
+- netstream's `pump()` now describes a body that ended short of
+  SNIFF_BYTES, and when it is HLS prints it, a line at a time, at most
+  40 lines of 160 characters (`log_playlist()`). **The next run on the
+  Al Jazeera station is the measurement 6038 needs**: master or media,
+  and whether the segments are `.aac`, `.ts` or `.m4s`.
+
+Not changed, and noted: in that log `buffering -> playing` follows
+`giving up`. netstream moves to PLAYING when bytes reach the ring,
+whether or not they turn out to be audio, and netdec's verdict arrives
+on another task. Harmless ordering, and an HLS body stops going down
+that path entirely in 6038, so it is not patched on its own.
+
+Host-tested: codecplantest 8192 checks (14 new), hlsplaytest 80, and
+the whole of `make all` passes. `log_playlist()` was compiled on the
+host with ESP_LOGI as printf and run on a CRLF playlist with a blank
+line. netstream.c itself has not been through the target compiler.

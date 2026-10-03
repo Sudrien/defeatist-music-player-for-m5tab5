@@ -362,8 +362,9 @@ static void identify(void)
     const size_t have = framewin_avail(&s_win);
     if (have < CODECPLAN_MIN_SNIFF_BYTES) return;
 
+    /* 6037: _bytes, so an HLS playlist is named as one. */
     const codecplan_t plan =
-        codecplan_choose(sniff_bytes(framewin_data(&s_win), have), have, NULL);
+        codecplan_choose_bytes(framewin_data(&s_win), have, NULL);
     if (codecplan_ready(&plan)) {
         s_codec = plan.codec;
         ESP_LOGI(TAG, "stream is %s", stream_codec_name(s_codec));

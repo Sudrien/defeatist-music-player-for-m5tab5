@@ -25,6 +25,7 @@
 #include "lwip/sockets.h"
 
 #include "addrpin.h"
+#include "hlsplay.h"            /* 6037: log_playlist() */
 #include "icydemux.h"
 #include "streamsniff.h"
 #include "ethernet.h"
@@ -839,6 +840,32 @@ static netplan_action_t connect_hops(esp_http_client_handle_t c, uint32_t gen)
  * Returns the number of audio bytes that reached the ring, which is what
  * netplan_made_progress() is asked about.
  */
+/*
+ * 6037: an HLS playlist, a line at a time, so the log shows what the
+ * station actually serves. At most PLAYLIST_LOG_LINES lines of at most
+ * 160 characters: a segment URI with a CDN token runs long, and the
+ * point is its extension and shape, not every byte of the token.
+ */
+#define PLAYLIST_LOG_LINES  (40)
+
+static void log_playlist(const uint8_t *b, size_t n)
+{
+    const char *t = (const char *)b;
+    size_t pos = 0, lo, ln;
+    int lines = 0;
+    ESP_LOGI(TAG, "HLS %s playlist, %u bytes:",
+             hls_kind(t, n) == HLS_MASTER ? "master" : "media", (unsigned)n);
+    while (hls_line(t, n, &pos, &lo, &ln)) {
+        if (ln == 0) continue;
+        if (++lines > PLAYLIST_LOG_LINES) {
+            ESP_LOGI(TAG, "  ... (more)");
+            break;
+        }
+        ESP_LOGI(TAG, "  %.*s%s", (int)(ln > 160 ? 160 : ln), t + lo,
+                 ln > 160 ? "..." : "");
+    }
+}
+
 static uint64_t pump(esp_http_client_handle_t c, uint32_t gen, icydemux_t *d)
 {
     /* In PSRAM, not on the stack and not in internal RAM -- see the note
@@ -1173,6 +1200,22 @@ static uint64_t pump(esp_http_client_handle_t c, uint32_t gen, icydemux_t *d)
         }
     }
     splice_flush(gen);                          /* 5057 */
+
+    /*
+     * 6037: a body that ended before SNIFF_BYTES was never described,
+     * and the one that most needs describing is exactly that short: an
+     * HLS playlist is a few hundred bytes and then a close. Al Jazeera's
+     * was 382. Say what it was, and when it is HLS, print it -- which
+     * playlist kind, and whether its segments are .aac, .ts or .m4s, is
+     * what decides how much of the HLS series has to be written.
+     */
+    if (!sniff_logged && sniffed) {
+        ESP_LOGI(TAG, "first %u bytes look like %s (content-type %s)",
+                 (unsigned)sniffed, sniff_name(sniff_bytes(sniff, sniffed)),
+                 s_hdr_ctype[0] ? s_hdr_ctype : "absent");
+    }
+    if (sniffed && hls_looks_like((const char *)sniff, sniffed))
+        log_playlist(sniff, sniffed);
     return produced;
 }
 

@@ -698,7 +698,7 @@ $(STREAMPLAN_BIN): streamplantest.c ../main/streamplan.h ../main/bufferplan.h ..
 run-streamplan: $(STREAMPLAN_BIN) $(STATIONNAV_BIN)
 	ASAN_OPTIONS=detect_leaks=1:abort_on_error=0 ./$(STREAMPLAN_BIN) $(STATIONNAV_BIN)
 
-$(CODEC_BIN): codecplantest.c ../main/codecplan.h ../main/streamsniff.h
+$(CODEC_BIN): codecplantest.c ../main/codecplan.h ../main/streamsniff.h ../main/hlsplay.h
 	$(CC) $(WARNCFLAGS) -c codecplantest.c -o /dev/null
 	$(CC) $(CFLAGS) -D_GNU_SOURCE -o $@ codecplantest.c $(LDFLAGS)
 

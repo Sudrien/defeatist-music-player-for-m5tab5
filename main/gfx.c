@@ -19,6 +19,7 @@
 
 #include "ark12.h"
 #include "arabixel.h"
+#include "bidiline.h"      /* 6043 */
 
 #include "gfx.h"
 #include "brightness.h"
@@ -920,33 +921,112 @@ static void blit_glyph(const uint16_t *g, int w, int x, int y, int scale, uint16
  * its letters, and the spaces between two of them -- is read whole,
  * shaped (arabixel_shape(): joined forms, lam-alef, marks dropped) and
  * handed back reversed, so a name reads right to left inside a line
- * that is still laid out left to right. That is the whole of the bidi
- * here: a line of mixed text keeps its runs in logical order.
+ * that is still laid out left to right. For a line that STARTS left to
+ * right that is still the whole of it: its runs keep their logical
+ * order, which is right for a Latin title with an Arabic word in it.
+ *
+ * 6043: a line that starts right to left (text_is_rtl()) is laid out
+ * right to left as a whole. Its Arabic runs are shaped where they sit,
+ * put back in logical order, and the line goes through bidiline_rtl() --
+ * digits and Latin keep their own order inside it, brackets mirror. The
+ * 6029 rule had laid an Arabic title's phrases out last-first wherever a
+ * digit or a bracket split them; see bidiline.h for the photo.
+ *
+ * The whole line is held for that, at most TEXT_LINE_MAX codepoints in
+ * the same buffer a run uses. More than that cannot be visible --
+ * TAIL_MAX_GLYPHS's reasoning: 60 cells at the narrowest advance -- and
+ * the start of the line, which a right-to-left truncation keeps, is in
+ * the part held. `more` says the line went on, and gfx_text_w() reports
+ * such a line as too wide, so it is always drawn with its dots.
  *
  * A run longer than TEXT_RUN_MAX is shaped in pieces, each reversed on
  * its own -- a 48-letter Arabic word in a title is not a case this has
- * to win. The iterator is on the caller's stack: about 200 bytes.
+ * to win. The iterator is on the caller's stack: about 400 bytes since
+ * 6043, which holds a whole right-to-left line in it.
  *
  * gfx_wrap_line() measures with utf8_next() and unshaped glyphs: the
  * paragraphs it wraps are this player's own translated notes, and no
  * language on the BUILD tab is Arabic.
  */
 #define TEXT_RUN_MAX  (48)
+#define TEXT_LINE_MAX (96)      /* 6043: a whole right-to-left line */
 
 typedef struct {
     const char *p;
     int n, i;
-    uint32_t run[TEXT_RUN_MAX];
+    bool rtl, more;
+    uint32_t run[TEXT_LINE_MAX];    /* a shaped run, or a whole RTL line */
 } text_iter_t;
+
+static bool text_is_rtl(const char *s);
+
+/* 6043: the line in drawing order, into it->run. */
+static void text_line_rtl(text_iter_t *it, const char *s)
+{
+    int n = 0;
+    const char *p = s;
+    uint32_t cp = 0;
+    while (n < TEXT_LINE_MAX) {
+        const char *q = p;
+        cp = utf8_next(&q);
+        if (!cp) break;
+        p = q;
+        if (!arabixel_is_arabic(cp)) {
+            it->run[n++] = cp;
+            continue;
+        }
+        /* An Arabic run, by text_next()'s rule: letters, and spaces only
+         * when Arabic follows them. */
+        const int start = n;
+        it->run[n++] = cp;
+        while (n < TEXT_LINE_MAX) {
+            q = p;
+            cp = utf8_next(&q);
+            if (arabixel_is_arabic(cp)) {
+                it->run[n++] = cp;
+                p = q;
+                continue;
+            }
+            if (cp != ' ') break;
+            int sp = 1;
+            const char *at;
+            for (;;) {
+                at = q;
+                cp = utf8_next(&q);
+                if (cp != ' ') break;
+                sp++;
+            }
+            if (!arabixel_is_arabic(cp) || n + sp >= TEXT_LINE_MAX) break;
+            while (sp--) it->run[n++] = ' ';
+            p = at;
+        }
+        /* Shaped, which also reverses it; put back in logical order for
+         * bidiline_rtl() to reverse with the rest of the line. */
+        const int k = arabixel_shape(&it->run[start], n - start);
+        for (int a = start, b = start + k - 1; a < b; a++, b--) {
+            const uint32_t t = it->run[a]; it->run[a] = it->run[b]; it->run[b] = t;
+        }
+        n = start + k;
+    }
+    const char *q = p;
+    it->more = n == TEXT_LINE_MAX && utf8_next(&q) != 0;
+    bidiline_rtl(it->run, n);
+    it->n = n;
+    it->i = 0;
+}
 
 static void text_init(text_iter_t *it, const char *s)
 {
     it->p = s;
     it->n = it->i = 0;
+    it->more = false;
+    it->rtl = s && text_is_rtl(s);
+    if (it->rtl) text_line_rtl(it, s);
 }
 
 static uint32_t text_next(text_iter_t *it)
 {
+    if (it->rtl) return it->i < it->n ? it->run[it->i++] : 0;
     for (;;) {
         if (it->i < it->n) return it->run[it->i++];
 
@@ -1059,6 +1139,10 @@ int gfx_text_w(const char *s, int scale)
         if (!g.bits) continue;
         w += g.adv * scale;
     }
+    /* 6043: a right-to-left line longer than the iterator holds is wider
+     * than anything it could be drawn in. Said so, so a caller truncates
+     * it with its dots rather than drawing what was held as if whole. */
+    if (it.more) w += 1 << 20;
     return w;
 }
 

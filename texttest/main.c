@@ -691,6 +691,61 @@ static void test_arabic(void)
     for (int y = 10; y < 10 + ARK12_H; y++)
         if (fb[y * W + 10] == INK || fb[y * W + 11] == INK || fb[y * W + 12] == INK) dot_row = y;
     CHECK(dot_row >= 0, "RTL truncation: no ellipsis at the left edge");
+
+    /* 6043: a right-to-left line is laid out right to left as a whole.
+     * "مكة 2021": the year follows the word in reading order, so it is
+     * drawn to its LEFT -- 6029 drew it to the right. The leftmost glyph
+     * must be the '2', which is the same ink as "2021" drawn alone. */
+    {
+        const char *mix = "\xd9\x85\xd9\x83\xd8\xa9 2021";
+        clear();
+        gfx_draw_text(10, 10, "2021", 1, W - 20, INK);
+        int ax0, ay0, ax1, ay1;
+        ink_bbox(&ax0, &ay0, &ax1, &ay1);
+        static uint16_t alone[ARK12_H * 64];
+        const int dw = ax1 - ax0 + 1 < 64 ? ax1 - ax0 + 1 : 64;
+        for (int y = 0; y < ARK12_H; y++)
+            for (int x = 0; x < dw; x++) alone[y * 64 + x] = fb[(10 + y) * W + ax0 + x];
+        clear();
+        gfx_draw_text(10, 10, mix, 1, W - 20, INK);
+        int bx0, by0, bx1, by1;
+        ink_bbox(&bx0, &by0, &bx1, &by1);
+        int same = 1;
+        for (int y = 0; y < ARK12_H && same; y++)
+            for (int x = 0; x < dw && same; x++)
+                same = fb[(10 + y) * W + bx0 + x] == alone[y * 64 + x];
+        CHECK(same, "RTL: the year is not on the left of the Arabic word");
+        CHECK(gfx_text_w(mix, 1) == gfx_text_w("\xd9\x85\xd9\x83\xd8\xa9", 1) +
+                                    gfx_text_w(" 2021", 1),
+              "RTL: reordering changed the width");
+    }
+
+    /* The board photo's title, truncated: its start -- the first word,
+     * جديد -- is what is kept, at the right, with the dots at the left. */
+    {
+        const char *title =
+            "\xd8\xac\xd8\xaf\xd9\x8a\xd8\xaf 2021 \xd8\xb2\xd8\xa7\xd9\x85\xd9\x84 "
+            "( \xd8\xb9\xd8\xb1\xd9\x88\xd8\xb4 \xd8\xa7\xd9\x84\xd8\xac\xd9\x86 ) "
+            "\xd8\xa7\xd8\xaf\xd8\xa7\xd8\xa1 \xd8\xa7\xd9\x84\xd9\x85\xd9\x86\xd8\xb4\xd8\xaf";
+        const char *first = "\xd8\xac\xd8\xaf\xd9\x8a\xd8\xaf";
+        clear();
+        gfx_draw_text(10, 10, first, 1, W - 20, INK);
+        int fx0, fy0, fx1, fy1;
+        ink_bbox(&fx0, &fy0, &fx1, &fy1);
+        const int fw = fx1 - fx0 + 1;
+        static uint16_t word[ARK12_H * 128];
+        for (int y = 0; y < ARK12_H; y++)
+            for (int x = 0; x < fw && x < 128; x++) word[y * 128 + x] = fb[(10 + y) * W + fx0 + x];
+        clear();
+        gfx_draw_text(10, 10, title, 1, gfx_text_w(title, 1) / 2, INK);
+        int tx0, ty0, tx1, ty1;
+        ink_bbox(&tx0, &ty0, &tx1, &ty1);
+        int same = 1;
+        for (int y = 0; y < ARK12_H && same; y++)
+            for (int x = 0; x < fw && x < 128 && same; x++)
+                same = fb[(10 + y) * W + tx1 - fw + 1 + x] == word[y * 128 + x];
+        CHECK(same, "RTL truncation: the right end is not the title's first word");
+    }
 }
 
 int main(void)

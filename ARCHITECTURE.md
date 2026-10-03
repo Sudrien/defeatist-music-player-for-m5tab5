@@ -21704,3 +21704,61 @@ names tried in reverse, the remembered-none skipped -- failed 2, 3, and
 an out-of-bounds index under UBSan. The whole of `make all` passes.
 player.c and mpd.c have not been through a compiler: they need the
 real IDF. The case folding is FAT's and the host cannot show it.
+
+### 6043 -- a right-to-left line is laid out right to left
+
+A board photo of صوت المقاومة playing, title
+
+    جديد 2021 زامل ( عروش الجن ) اداء المنشد قناف المعظي
+
+showed, from the right, `اداء المنشد قناف المعظي ( عروش الجن ) ز...`. The
+station name above it was right; the title was wrong three ways, all
+from 6029's rule that a line keeps its runs in logical order and only
+reverses each Arabic run:
+
+1. a digit or a bracket ends an Arabic run, so the phrases were laid
+   out last-first -- the credit where a reader starts, "New 2021 zamil"
+   at the far end;
+2. the brackets were drawn as written, so to a reader they closed
+   before they opened;
+3. the truncation, which keeps the right of a right-to-left line
+   because that is its start, kept the end instead, and cut the first
+   word it showed to a single ز.
+
+**`bidiline.h`**: the part of UAX #9 a one-line label in a right-to-left
+paragraph needs. Three classes (R, L with European digits counted as L,
+N); a bracket pair takes one direction (R if R inside, else L if L
+inside and L before it -- so "Song (Live)" keeps its brackets in an
+Arabic line); other neutrals are L only between two L; the line is
+reversed, each L piece put back, and every bracket at R mirrored. No
+embeddings, isolates or weak-type detail: nothing this screen draws has
+them. In place, on codepoints.
+
+**`gfx.c`**: a line whose first letter is Arabic (`text_is_rtl()`, as
+before) is now read whole into the iterator -- its Arabic runs shaped
+where they sit and put back in logical order -- and handed to
+`bidiline_rtl()`. Everything downstream (width, draw, clipped draw, the
+tail truncation) takes codepoints from the iterator as it always did,
+so the truncation now keeps the title's start and puts the dots at its
+end. A line that starts left to right is untouched.
+
+The iterator holds at most 96 codepoints of such a line in the buffer a
+run used, which grew from 48: about 400 bytes on the caller's stack,
+from about 200. More cannot be visible (60 cells at the narrowest
+advance, TAIL_MAX_GLYPHS's reasoning), and a line that went on is
+measured as too wide by `gfx_text_w()`, so it is always drawn with its
+dots rather than cut silently.
+
+**Tested.** `bidilinetest`, 19 checks: the photo's title in shorthand,
+Latin and digits inside Arabic, a time, brackets around Arabic, around
+Latin after Latin and after Arabic, nesting, an unmatched bracket,
+guillemets, Arabic-Indic digits, leading and trailing neutrals, deep
+nesting. Expectations worked from UAX #9 by hand -- two of them were
+wrong the first time (`<` is Bidi_Mirrored; in `[x (CD) y]` x comes
+first, so it is on the right) and were corrected against the
+algorithm, not against the output. Planted bugs: no bracket pairing
+failed 1, no mirroring 7. In `texttest`'s gfx harness, two new checks
+on the real draw path -- the year in "مكة 2021" drawn left of the word,
+and the truncated photo title ending at its right with جديد -- fail on
+the old gfx.c and pass on this one. `make all` passes. Not on the
+board.

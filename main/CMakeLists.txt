@@ -17,7 +17,7 @@ idf_component_register(
        "wifistore.c" "wifi.c" "browser.c" "panel.c" "i18n.c" "i18n_tab.c" "duration.c" "cbrseek.c" "flacseek.c" "oggseek.c" "tsseek.c" "mp4seek.c" "waveform.c" "replaygain.c" "loudness.c"
          "portal.c" "portalweb.c" "dnsreply.c"
          "sleeppage.c" "streamprobe.c" "netstream.c" "netdec.c" "stations.c" "favorites.c" "starred.c" "streamgain.c" "radiobrowser.c" "bench.c" "ethernet.c" "cuedir.c" "cardtime.c" "mediacat.c" "mediawalk.c" "mediasync.c" "medialib.c" "mediadir.c" "rateconv.c" "polyrsp.c" "radiokeep.c" "icoimg.c" "hostedwrap.c" "heapmap.c" "flacenc.c" "recorder.c" "beam.c"
-         "mpdqueue.c" "mpdproto.c" "mpdfilter.c" "casefold_tab.c" "mpduri.c" "mpdmode.c" "mpdidle.c" "mpd.c" "uireq.c" "m3uline.c" "urlclean.c" "remote.c" "remoteproto.c" "certgen.c" "devcert.c" "wifijoin.c" "rtc8130.c" "nvsns.c"
+         "mpdqueue.c" "mpdproto.c" "mpdfilter.c" "casefold_tab.c" "mpduri.c" "mpdmode.c" "mpdidle.c" "mpd.c" "uireq.c" "m3uline.c" "urlclean.c" "remote.c" "remoteproto.c" "certgen.c" "devcert.c" "wifijoin.c" "rtc8130.c" "nvsns.c" "launcher_import.c"
     INCLUDE_DIRS "."
     EMBED_TXTFILES "remote_i18n.html"    # 6028: generated from remote.html
     EMBED_FILES "favicon.ico"
@@ -26,6 +26,7 @@ idf_component_register(
              usb usb_host_msc usb_host_uac esp_timer lwip ${DMP_JSON}
              nvs_flash esp_netif esp_event esp_http_server esp_https_server esp_http_client mbedtls
              esp_usbh_asix iot_eth iot_usbh_ecm iot_usbh_cdc
+             app_update spi_flash   # launcher_import.c: esp_ota_ops + esp_partition
     PRIV_REQUIRES pngle minimp3 ark12 arabixel stbjpeg
 )
 

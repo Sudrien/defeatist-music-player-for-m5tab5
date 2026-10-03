@@ -21268,3 +21268,21 @@ Not checked and worth watching on a first 6.1 build: IDF 6 defaults to
 picolibc (with newlib compatibility on) and esp_audio_codec 2.5 is
 precompiled; esp_hosted and esp_wifi_remote are unpinned or floored and
 will resolve to whatever supports 6.1.
+
+### 6032 -- the fatfs and esp_lcd copies record which IDF they came from
+
+exfat.cmake and dpi_instrument.cmake copy IDF's fatfs and esp_lcd into
+components/ once and then leave them alone. With 6031 there are two
+IDFs, and a copy made under one shadows the other's component: switching
+a checkout from 5.5.5 to 6.1 kept 5.5.5's esp_lcd, whose DPI config
+struct is not the one player.c's IDF 6 branch fills in.
+
+cmake/idfcopy.cmake writes `.idf_version` into each copy as it is made,
+and a configure under another IDF stops with the version each side is
+and how to make a new copy (delete components/fatfs; for esp_lcd,
+`./tools/instrument_dpi.sh --revert`). It stops rather than recopying,
+because esp_lcd's copy exists to be edited while debugging. A copy from
+before this patch has no record: it is warned about once and taken as
+the current IDF's. Tried here: no record (warned, stamped), same IDF
+(silent), a 6.1 configure over a 5.5.5 stamp (stops), a fresh 5.5.5
+copy (stamped 5.5.5, main compiles).

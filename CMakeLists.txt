@@ -10,6 +10,8 @@ include(${CMAKE_CURRENT_LIST_DIR}/cmake/vendored.cmake)
 # line above, and one more: IDF collects component Kconfig files during
 # that scan, so a fatfs that appears afterwards contributes no CONFIG_*
 # symbols and ffconf.h fails to compile against them.
+# 6032: which IDF the two copies below came from. Before both.
+include(${CMAKE_CURRENT_LIST_DIR}/cmake/idfcopy.cmake)
 include(${CMAKE_CURRENT_LIST_DIR}/cmake/exfat.cmake)
 
 # Vendor an esp_lcd whose DSI bridge underrun ISR increments a counter

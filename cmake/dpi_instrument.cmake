@@ -38,6 +38,8 @@ if(EXISTS "${_dpi_dest}")
     # editable and the whole point of it is that somebody is debugging
     # inside it. Silently reverting that on the next configure would be
     # a genuinely nasty thing to do.
+    idfcopy_check(dpi "${_dpi_dest}" components/esp_lcd
+        "Run ./tools/instrument_dpi.sh --revert and reconfigure; it is copied again from this IDF.")   # 6032
     message(STATUS "dpi: components/esp_lcd present, leaving it alone")
 elseif(CMAKE_HOST_WIN32)
     # The script is POSIX sh with a heredoc'd python3. Rather than
@@ -79,5 +81,6 @@ else()
                 "Delete components/esp_lcd if it was partly created, "
                 "then fix the above.")
         endif()
+        idfcopy_mark("${_dpi_dest}")   # 6032
     endif()
 endif()

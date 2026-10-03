@@ -59,6 +59,8 @@ elseif(EXISTS "${_exfat_dest}")
     # editable and somebody may be debugging inside it, and silently
     # reverting that on the next configure would be a genuinely nasty
     # thing to do.
+    idfcopy_check(exfat "${_exfat_dest}" components/fatfs
+        "Delete it and reconfigure; it is copied again from this IDF.")   # 6032
     message(STATUS "exfat: components/fatfs present, leaving it alone")
 elseif(CMAKE_HOST_WIN32)
     # The script is bash and uses sed -i and a heredoc'd python3. Rather
@@ -104,5 +106,6 @@ else()
                 "either fix the above or build without exFAT by setting "
                 "TAB5_NO_EXFAT in the environment.")
         endif()
+        idfcopy_mark("${_exfat_dest}")   # 6032
     endif()
 endif()

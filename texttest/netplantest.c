@@ -221,6 +221,19 @@ int main(void)
     CHECK(netplan_should_move(false, true, 428),
           "would not have moved in the board run that asked for this");
 
+    /* 6041: icy-name that a charset ate. */
+    CHECK(!netplan_name_usable("????? ??? ????????"), "Voice of the Resistance's question marks shown");
+    CHECK(!netplan_name_usable("?????"), "all question marks shown");
+    CHECK(!netplan_name_usable(""), "empty shown");
+    CHECK(!netplan_name_usable(NULL), "NULL shown");
+    CHECK(!netplan_name_usable("  - "), "punctuation only shown");
+    CHECK(!netplan_name_usable("?? ?? Fm"), "more ? than letters shown");
+    CHECK(netplan_name_usable("What's On?"), "a real question mark refused");
+    CHECK(netplan_name_usable("Radio ??"), "a mostly-good name refused");
+    CHECK(netplan_name_usable("\xd8\xb5\xd9\x88\xd8\xaa"), "UTF-8 Arabic refused");
+    CHECK(netplan_name_usable("WNZK 690"), "ordinary name refused");
+    CHECK(netplan_name_usable("1"), "digits refused");
+
     printf("%d checks, %d failures\n", checks, failures);
     printf(failures ? "FAILURES\n" : "all passed\n");
     return failures ? 1 : 0;

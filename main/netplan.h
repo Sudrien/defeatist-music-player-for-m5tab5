@@ -261,6 +261,36 @@ static inline bool netplan_should_move(bool on_cable, bool cable_usable,
     return !on_cable && cable_usable && audio_cs >= NETPLAN_MOVE_MIN_AUDIO_CS;
 }
 
+/*
+ * 6041: whether a station's icy-name is worth showing instead of the
+ * list's name for it.
+ *
+ * Not when it is empty, and not when it is question marks. صوت المقاومة
+ * sends `icy-name: ????? ??? ????????` -- five, three and eight, which is
+ * إذاعة صوت المقاومة with every Arabic letter turned into one '?' by a
+ * single-byte charset somewhere between the encoder and the relay. The
+ * bytes on the wire are 0x3F; nothing here can recover the name. Shown,
+ * it replaced the list's good one on screen.
+ *
+ * The rule: a name is damaged when its '?' outnumber everything else in
+ * it that is not a space or punctuation. "What's On?" passes, "Radio ??"
+ * passes (5 letters against 2), "?????" and "????? ???" do not. A
+ * single-byte name in Latin-1 is a different fault and is not judged
+ * here.
+ */
+static inline bool netplan_name_usable(const char *n)
+{
+    if (!n) return false;
+    int q = 0, other = 0;
+    for (const unsigned char *p = (const unsigned char *)n; *p; p++) {
+        if (*p == '?') q++;
+        else if (*p >= 0x80 || (*p >= '0' && *p <= '9') ||
+                 ((*p | 0x20) >= 'a' && (*p | 0x20) <= 'z')) other++;
+    }
+    if (q == 0) return other > 0;
+    return other > q;
+}
+
 #ifdef __cplusplus
 }
 #endif

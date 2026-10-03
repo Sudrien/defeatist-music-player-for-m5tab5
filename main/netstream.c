@@ -2019,7 +2019,13 @@ static void netstream_task(void *arg)
                 s_addr_turn++;
             }
             if (act == NETPLAN_PLAY) {
-                if (s_hdr_name[0]) publish_name(s_hdr_name);
+                /* 6041: not when a charset has turned it into '?'. */
+                if (netplan_name_usable(s_hdr_name)) {
+                    publish_name(s_hdr_name);
+                } else if (s_hdr_name[0]) {
+                    ESP_LOGW(TAG, "icy-name is damaged (\"%.40s\"); keeping \"%.60s\"",
+                             s_hdr_name, s_name_req);
+                }
                 /* A reconnect keeps the title on screen and restarts the
                  * byte phase on the new body's own metaint. */
                 icydemux_reconnect(s_demux, s_hdr_metaint);

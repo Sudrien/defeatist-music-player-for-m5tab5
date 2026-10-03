@@ -21625,3 +21625,22 @@ Board confirmation of 6039, from the same run: AAC (ADTS) on PID 0x133,
 65 kbit/s; 121 KB segments at 7.5-13.7x real time on one kept
 connection (no handshake between segments, `open` 127-588 ms); first
 sound at 7.5 s and a reserve of 28-34 s through the reload cycle.
+
+### 6041 -- an icy-name made of question marks is not a name
+
+صوت المقاومة, through Zeno to SurferNetwork:
+
+    I (36145) tab5_netstream:   icy-name: ????? ??? ????????
+
+Five, three and eight: إذاعة صوت المقاومة with every Arabic letter
+turned into one '?' by a single-byte charset somewhere upstream. The
+bytes on the wire are 0x3F -- the ICY title on the same connection
+printed Arabic correctly, so it is not the log -- and nothing can
+recover the name from them. It still replaced the station list's name
+on screen, because netstream published any non-empty icy-name.
+
+`netplan_name_usable()` (netplan.h, 11 checks in netplantest): a name
+whose '?' outnumber its letters, digits and non-ASCII bytes is damaged,
+and so is one with none of those at all. "What's On?" and "Radio ??"
+pass. A damaged name is logged once, with the list's name that is kept.
+A Latin-1 icy-name is a different fault and is not judged here.

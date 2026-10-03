@@ -295,13 +295,13 @@ static int build_usb(row_t *rows)
  * 5283: what this is and where it came from, for the BUILD tab. The
  * name is the one the boot banner and the remote's certificate use. The
  * repository is the canonical one, not a fork's remote, and is written
- * in two lines under the rows -- at 48 characters it is wider than a
+ * in two lines under the rows -- at 52 characters it is wider than a
  * row's value (about 32 at this scale) and than VAL_MAX -- broken at the
  * slash so each half can be typed as read.
  */
 #define PANEL_APP_NAME   same("Defeatist Music Player")
 #define PANEL_SOURCE_1   same("github.com/Sudrien/")
-#define PANEL_SOURCE_2   same("m5tab5_defeatist_music_player")
+#define PANEL_SOURCE_2   same("defeatist-music-player-for-m5tab5")
 
 static int build_build(row_t *rows)
 {

@@ -68,16 +68,16 @@ jobs:
           idf.py set-target esp32p4
           idf.py build
           idf.py merge-bin
-          mv build/merged-binary.bin build/m5tab5_defeatist_music_player_${{ steps.ver.outputs.name }}_standalone.bin
-          mv build/m5tab5_defeatist_music_player.bin build/m5tab5_defeatist_music_player_${{ steps.ver.outputs.name }}.bin
+          mv build/merged-binary.bin build/defeatist_music_player_for_m5tab5_${{ steps.ver.outputs.name }}_standalone.bin
+          mv build/defeatist_music_player_for_m5tab5.bin build/defeatist_music_player_for_m5tab5_${{ steps.ver.outputs.name }}.bin
 
       - name: Archive build output artifacts
         uses: actions/upload-artifact@v4
         with:
-          name: m5tab5_defeatist_music_player-${{ steps.ver.outputs.name }}
+          name: defeatist_music_player_for_m5tab5-${{ steps.ver.outputs.name }}
           path: |
-            build/m5tab5_defeatist_music_player_${{ steps.ver.outputs.name }}_standalone.bin
-            build/m5tab5_defeatist_music_player_${{ steps.ver.outputs.name }}.bin
+            build/defeatist_music_player_for_m5tab5_${{ steps.ver.outputs.name }}_standalone.bin
+            build/defeatist_music_player_for_m5tab5_${{ steps.ver.outputs.name }}.bin
 
       # Two ways in, one step. Pushing a tag releases; a manual run
       # releases only when the box is ticked, so the dispatch stays
@@ -96,5 +96,5 @@ jobs:
           generate_release_notes: true
           fail_on_unmatched_files: true
           files: |
-            build/m5tab5_defeatist_music_player_${{ steps.ver.outputs.name }}_standalone.bin
-            build/m5tab5_defeatist_music_player_${{ steps.ver.outputs.name }}.bin
+            build/defeatist_music_player_for_m5tab5_${{ steps.ver.outputs.name }}_standalone.bin
+            build/defeatist_music_player_for_m5tab5_${{ steps.ver.outputs.name }}.bin

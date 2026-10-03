@@ -106,7 +106,7 @@ What is running, and the screen's language.
 | Language | `English` / `简体中文` / `日本語` / `Español` | Tap to cycle. Each language is named in itself, and the row's label and the tab names are never translated, so the way back is findable from any of them. Kept in the device, not on the card. Only some screens are translated so far; the rest stay English. |
 
 - `app`, `version`, `built`, `idf`, and free `heap`, `psram` and `uptime`.
-- **Source**: the repository, github.com/Sudrien/m5tab5_defeatist_music_player.
+- **Source**: the repository, github.com/Sudrien/defeatist-music-player-for-m5tab5.
 - **Libraries**: every component and vendored library in this build, with
   its version, or its commit's first seven characters for a git one, and
   its licence after `--`. `licence not found` means the component shipped

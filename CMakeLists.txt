@@ -19,7 +19,7 @@ include(${CMAKE_CURRENT_LIST_DIR}/cmake/exfat.cmake)
 include(${CMAKE_CURRENT_LIST_DIR}/cmake/dpi_instrument.cmake)
 
 include($ENV{IDF_PATH}/tools/cmake/project.cmake)
-project(m5tab5_defeatist_music_player)
+project(defeatist_music_player_for_m5tab5)
 
 # esp_driver_sdmmc greets every mount attempt with
 #

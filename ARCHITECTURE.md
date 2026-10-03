@@ -21192,3 +21192,27 @@ bodies 3 to 4 px -- which is the font's size, not a bug. texttest: the
 shaping cases, every form in the table, a word drawn with no blank
 column, truncation at the left; Arabic in the corpus runs through the
 width, budget, clip and tail checks. Not on the board.
+
+### 6030 -- the repository renamed: Defeatist Music Player for M5Tab5
+
+The repository is github.com/Sudrien/defeatist-music-player-for-m5tab5,
+renamed from m5tab5_defeatist_music_player: the player's name first,
+the board second. GitHub redirects the old URL, so links and remotes
+still work, but nothing here should depend on that.
+
+- `CMakeLists.txt`: `project(defeatist_music_player_for_m5tab5)`. The
+  built image is `build/defeatist_music_player_for_m5tab5.bin` now, and
+  `esp_app_desc_t`'s project name with it.
+- `.github/workflows/main.yml`: the renames and the artifact name follow.
+- `main/panel.c`: the BUILD tab's source note (5283) reads
+  `github.com/Sudrien/` over `defeatist-music-player-for-m5tab5`. 52
+  characters together, still two lines, the second still under a row's
+  value.
+- `ABBREVIATIONS.md`, `CONTRIBUTING.md`: the URL.
+
+Not changed: the "Vendored change (m5tab5_defeatist_music_player NNNN)"
+comments in usb_host_uac and usb_host_msc, which name the patch that
+made the change and are a record, as 5283's entry above is; the
+`.defeatist.*` files, the `defeatist` NVS namespace and the
+`Defeatist-XXXX` AP, which are "Defeatist" already and would cost every
+listener their settings and saved networks to rename.

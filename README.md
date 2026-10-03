@@ -26,7 +26,7 @@ Claude, do not touch this README unless explicitly asked to. Use your own file.
 2. I I have storage, but no music: You can record FLAC files for later playback
 3. I have storage and Music: This is your music player - headphones, no headphones, Usb Audio Class dongles supported.
 
-## Here is what I was able to get working on ESP-IDF 5.5.5
+## Here is what I was able to get working on ESP-IDF ~~5.5.5~~ 6.1
 
 Note: the goal of this project is to max out the potential of this hardware without modifying it. No soldering, no accessories that can't be removed later.
 
@@ -86,7 +86,6 @@ Note: the goal of this project is to max out the potential of this hardware with
 - cover font gaps (seeing some boxes that show up as Arabic and ... Ethiopian? )
 
 ## What could happen
-- I think there is nothing in dependencies stopping from using esp-idf 6.1
 - more crash and burn handling, hey, you can always hook it up to `idf.py monitor` and see what you get.
 - Podcast over wifi downloader? Conceivable. Would want chapter support
   - there's so much. So so much.

@@ -62,6 +62,8 @@ Note: the goal of this project is to max out the potential of this hardware with
 - configurable crossfade
 - actually paying attention to gapless playback data
 - Internet Radio via https://www.radio-browser.info API, or manual list entry. This is "power tether" territory.
+  - MP3, AAC and Ogg streams, and HLS (`.m3u8`) with AAC or MP3 in plain or MPEG-TS segments. Not yet: encrypted or fMP4 HLS, and `.pls`/`.m3u` links a station serves.
+- Arabic titles and station names, joined and laid out right to left, against the right margin
 - Sleep timer (up t 2 hours, 15 minute intervals)
 - Power off after 15 min to 2 h with nothing playing, recording or touched -- separate from the sleep timer. `IDLE` on the status line is green while it counts down and yellow while something holds it off; the side button turns it back on
 - Low-battery guard: below 6.3 V for 30 s on the battery, it finishes any recording and turns itself off, before the pack is run flat enough to damage it. Not yet tested through a real discharge
@@ -83,7 +85,7 @@ Note: the goal of this project is to max out the potential of this hardware with
 
 ## v0.6.0 Goals
 - languages (English, simplified Chinese, Japanese, Spanish)
-- cover font gaps (seeing some boxes that show up as Arabic and ... Ethiopian? )
+- cover font gaps (seeing some boxes that show up as ... Ethiopian? Arabic is drawn now, 6029/6043)
 
 ## What could happen
 - more crash and burn handling, hey, you can always hook it up to `idf.py monitor` and see what you get.

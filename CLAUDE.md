@@ -167,6 +167,15 @@ protocol word, NVS key or anything parsed back. A translation Claude
 writes is named in the commit message as not yet read by a native
 speaker.
 
+**A station's text is not ASCII, and `%.80s` is bytes.** Anything a
+station, a tag or a directory supplies -- names, titles, favicons --
+can be Arabic or CJK, two to four bytes a letter. A log line that
+shortens it uses `logcut.h` (`"%.*s%s", n, s, logcut_more(s, n)`, 6045)
+so the cut never splits a letter; a bare `%.Ns` hands the terminal half
+of one. And a line on screen that starts right to left is laid out and
+aligned by gfx.c (6043, 6044): draw it with the gfx text calls, not by
+walking its bytes.
+
 Within a patch, change the lines that must change and no others. No
 reflowing, no drive-by renames, no reorganising code being passed
 through. Restructuring an existing function is sometimes the smallest

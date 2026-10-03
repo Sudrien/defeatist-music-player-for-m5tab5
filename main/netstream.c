@@ -1587,7 +1587,8 @@ static seg_result_t hls_segment(esp_http_client_handle_t c, uint32_t gen,
  * the ring, which netplan reads exactly as it reads pump()'s.
  *
  * s_hls_fatal is set for a station that will not play this way at all
- * -- encrypted, fMP4, MPEG-TS -- so the task gives up instead of
+ * -- encrypted, fMP4, or TS whose audio is LATM, AC-3 or absent (6039)
+ * -- so the task gives up instead of
  * reconnecting to the same refusal through the whole backoff schedule.
  */
 static uint64_t hls_run(esp_http_client_handle_t c, uint32_t gen)

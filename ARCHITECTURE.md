@@ -21827,3 +21827,30 @@ all 38 on the old gfx.c); 6029's ellipsis check moved from "at the left
 edge" to "within one glyph of it", which is what this changes.
 netstream.c clean at -O2 -Werror on stubs; `make all` passes. Not on
 the board.
+
+### 6046 -- documentation, after HLS, folder art and right-to-left
+
+What 6036-6045 left saying the wrong thing, put right:
+
+- README: the radio line says which streams play -- MP3, AAC, Ogg, and
+  HLS with AAC or MP3 in plain or MPEG-TS segments -- and which do not
+  yet (encrypted or fMP4 HLS, a station's own .pls/.m3u). Arabic gets
+  its own feature line, and the v0.6.0 font-gap goal no longer lists it.
+- netstream.h's "not here yet" still said MPEG-TS was refused; it has
+  played since 6039. hls_run()'s comment on what gives up at once now
+  names what does: encrypted, fMP4, and TS whose audio is LATM, AC-3 or
+  missing.
+- CLAUDE.md gains one rule: a station's text is not ASCII and `%.Ns`
+  is bytes -- log it through logcut.h, and draw a right-to-left line
+  with the gfx text calls.
+
+Earlier entries in this file that say "not supported yet" for HLS are
+history and stay as written.
+
+**The series, for whoever picks it up.** HLS: hlsplay.h (playlists),
+hlsseg.h (a segment's tag and kind), tsdemux.h (TS to ADTS/MP3), all
+host-tested, and hls_run() in netstream.c, one session throughout. Proven
+on the board against Al Jazeera's TS segments (6040's entry). Art:
+folderart.c, host-tested, not yet on the board. Text: bidiline.h and the
+gfx.c iterator, host-tested and photographed on the board through 6044;
+6045's flush right edge is not yet photographed.

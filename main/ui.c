@@ -480,6 +480,15 @@ bool ui_animating(void)
  */
 static inline int bar_x0(void) { return s_bar_x + BAR_PAD; }
 static inline int bar_x1(void) { return s_bar_x + UI_SQUARE - BAR_PAD; }
+
+/* 6044: one of the rows under the title, aligned to where it starts --
+ * the right edge for a right-to-left line that fits. */
+static void row_text(int y, const char *s, int win_w, uint16_t c)
+{
+    const int x = gfx_start_x(gfx_text_rtl(s), bar_x0(), win_w, gfx_text_w(s, 3));
+    gfx_draw_text(x, y, s, 3, win_w - (x - bar_x0()), c);
+}
+
 static inline int bar_cx(void) { return s_bar_x + UI_SQUARE / 2; }
 
 /* Row 2: the envelope, content edge to content edge. Nothing shares the
@@ -2090,14 +2099,23 @@ void ui_draw(const ui_state_t *st)
     }
     marquee_step(title, over);
 
-    gfx_draw_text_clipped(bar_x0() - s_marq_off, s_bar_top + TITLE_Y,
+    /*
+     * 6044: a right-to-left title starts at the right. One that fits sits
+     * against the right edge; one that bounces starts showing its right
+     * end, which is its beginning, and travels toward its left end. The
+     * same offset runs both: over - off where a left-to-right title has
+     * off. (over is negative when the title fits, and off is then 0.)
+     */
+    const int title_x = gfx_text_rtl(title) ? bar_x0() - over + s_marq_off
+                                            : bar_x0() - s_marq_off;
+    gfx_draw_text_clipped(title_x, s_bar_top + TITLE_Y,
                           bar_x0(), win_w, title, 3, C_THUMB);
 
     if (st->album && *st->album) {
-        gfx_draw_text(bar_x0(), s_bar_top + ALBUM_Y, st->album, 3, win_w, C_ALBUM);
+        row_text(s_bar_top + ALBUM_Y, st->album, win_w, C_ALBUM);
     }
     if (st->artist && *st->artist) {
-        gfx_draw_text(bar_x0(), s_bar_top + ARTIST_Y, st->artist, 3, win_w, C_ICON);
+        row_text(s_bar_top + ARTIST_Y, st->artist, win_w, C_ICON);
     }
 
     /*
@@ -2129,8 +2147,7 @@ void ui_draw(const ui_state_t *st)
      * draws this line.
      */
     if (st->live && st->stream_title && *st->stream_title) {
-        gfx_draw_text(bar_x0(), s_bar_top + ALBUM_Y, st->stream_title, 3,
-                      win_w, C_ICON);
+        row_text(s_bar_top + ALBUM_Y, st->stream_title, win_w, C_ICON);
     }
 
     vol_bounds(&x0, &x1, &y);

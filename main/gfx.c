@@ -1078,6 +1078,11 @@ static bool text_is_rtl(const char *s)
     return false;
 }
 
+bool gfx_text_rtl(const char *s)
+{
+    return s && text_is_rtl(s);
+}
+
 void gfx_draw_char(int x, int y, uint32_t cp, int scale, uint16_t c)
 {
     glyph_t g = glyph_for(cp);

@@ -746,6 +746,16 @@ static void test_arabic(void)
                 same = fb[(10 + y) * W + tx1 - fw + 1 + x] == word[y * 128 + x];
         CHECK(same, "RTL truncation: the right end is not the title's first word");
     }
+
+    /* 6044: where a row starts. */
+    CHECK(gfx_text_rtl("\xd8\xb5\xd9\x88\xd8\xaa") && !gfx_text_rtl("WNZK") &&
+          !gfx_text_rtl("") && !gfx_text_rtl(NULL) &&
+          gfx_text_rtl("2021 \xd8\xb5\xd9\x88\xd8\xaa") &&
+          !gfx_text_rtl("Radio \xd8\xb5\xd9\x88\xd8\xaa"), "gfx_text_rtl");
+    CHECK(gfx_start_x(false, 24, 600, 200) == 24, "LTR starts at the left");
+    CHECK(gfx_start_x(true, 24, 600, 200) == 424, "RTL that fits is against the right");
+    CHECK(gfx_start_x(true, 24, 600, 600) == 24, "RTL exactly the row: either edge");
+    CHECK(gfx_start_x(true, 24, 600, 900) == 24, "RTL too long fills the row");
 }
 
 int main(void)

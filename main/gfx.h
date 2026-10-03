@@ -280,6 +280,24 @@ void gfx_draw_text_clipped(int x, int y, int win_x, int win_w,
 int gfx_text_w(const char *s, int scale);
 
 /*
+ * 6044: whether a line reads right to left -- its first letter is
+ * Arabic -- which is the test gfx_draw_text() lays it out by (6043).
+ * Exported so a caller can align the line to its start: the right edge.
+ */
+bool gfx_text_rtl(const char *s);
+
+/*
+ * Where a line of width `w` starts in a row from x0, `win_w` wide: at
+ * x0, or for a right-to-left line that fits, against the row's right
+ * edge. A line that does not fit fills the row either way, and is
+ * truncated at its far end by gfx_draw_text().
+ */
+static inline int gfx_start_x(bool rtl, int x0, int win_w, int w)
+{
+    return (rtl && w < win_w) ? x0 + win_w - w : x0;
+}
+
+/*
  * 6018: one line of a paragraph -- the byte length of the longest
  * leading run of s that fits max_w by the same test gfx_draw_text() uses
  * (gfx_text_w() <= max_w), so a wrapped line never draws an ellipsis.

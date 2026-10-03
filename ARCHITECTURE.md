@@ -21762,3 +21762,29 @@ on the real draw path -- the year in "مكة 2021" drawn left of the word,
 and the truncated photo title ending at its right with جديد -- fail on
 the old gfx.c and pass on this one. `make all` passes. Not on the
 board.
+
+### 6044 -- a right-to-left row starts at the right
+
+6043 on the board: صوت المقاومة's title read correctly at last --
+«زامل : بالأسود اركبي إهداء لألوية العمالقة» -- and both Arabic lines
+sat against the left margin, their starts in the middle of the screen.
+A line begins at its right edge in Arabic, so that is where it belongs.
+
+- `gfx_text_rtl()` exports the test 6043 lays a line out by (first
+  letter Arabic), and `gfx_start_x()` (gfx.h, inline) puts a line that
+  reads right to left and fits against the row's right edge. One that
+  does not fit fills the row either way and is truncated at its far end.
+- ui.c's album, artist and ICY-title rows go through `row_text()`, which
+  is those two.
+- The title row's marquee runs the other way for such a title: one that
+  fits sits at the right; one that bounces starts showing its right
+  end, its beginning, and travels left. The same offset drives both --
+  `x0 - over + off` where a left-to-right title has `x0 - off`.
+
+Not changed: the station chooser and the other lists, which are laid
+out in columns with an icon at the left; and the format card, which is
+centred.
+
+Tested: texttest's checks of `gfx_text_rtl()` and `gfx_start_x()`;
+ui.c compiles clean against stubbed IDF headers (its one warning there,
+TAG unused, predates this); `make all` passes. Not on the board.

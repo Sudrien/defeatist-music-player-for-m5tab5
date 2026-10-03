@@ -13,7 +13,7 @@
  * so a format not decoded here is refused by name once rather than
  * resynced through as noise for ever:
  *
- *   0x47, and 0x47 again 188 bytes on   MPEG-2 TS       refused (6040)
+ *   0x47, and 0x47 again 188 bytes on   MPEG-2 TS       tsdemux.h (6039)
  *   ftyp/styp/moof/sidx at offset 4      fragmented MP4  refused
  *   anything else                        audio, handed to netdec
  *
@@ -68,6 +68,11 @@ typedef struct {
     bool     past_tags;         /* the payload has started */
     uint8_t  look[HLSSEG_DECIDE_BYTES];
     uint16_t ln;
+    /* 6039: bytes of the last hlsseg_feed() input consumed when it
+     * decided TS or FMP4. The segment's payload is then look[0..ln]
+     * followed by the rest of that input from here, which is what a
+     * demuxer is handed. */
+    size_t   used;
 } hlsseg_t;
 
 static inline void hlsseg_begin(hlsseg_t *s)
@@ -183,6 +188,7 @@ static inline size_t hlsseg_feed(hlsseg_t *s, const uint8_t *in, size_t n,
 
     if (s->kind == HLSSEG_UNKNOWN && i < n)
         i += hlsseg_look(s, in + i, n - i, false);
+    s->used = i;
     if (s->kind != HLSSEG_AUDIO) return 0;
 
     seg[0] = s->look;

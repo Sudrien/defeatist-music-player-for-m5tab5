@@ -28,6 +28,7 @@
 #include "codecplan.h"          /* 6038: codecplan_type_is_playlist() */
 #include "hlsplay.h"            /* 6037: log_playlist(); 6038: hls_run() */
 #include "hlsseg.h"             /* 6038 */
+#include "tsdemux.h"            /* 6039 */
 #include "icydemux.h"
 #include "streamsniff.h"
 #include "ethernet.h"
@@ -1261,6 +1262,12 @@ static char        *s_hls_base;     /* NETSTREAM_URL_MAX: the playlist's own URL
 static char        *s_hls_play;     /* NETSTREAM_URL_MAX: the media playlist */
 static char        *s_hls_next;     /* NETSTREAM_URL_MAX: the request being made */
 static char        *s_hls_title;    /* NETSTREAM_TITLE_MAX: an EXTINF title */
+/* 6039: MPEG-TS segments. The demuxer's state, and where it writes: a
+ * read, plus the lookahead hlsseg held, plus a packet's slack. */
+#define HLS_TS_OUT  (READ_CHUNK + HLSSEG_DECIDE_BYTES + TSDEMUX_OUT_SLACK)
+static tsdemux_t   *s_hls_ts;
+static uint8_t     *s_hls_ts_out;
+static bool         s_hls_ts_named;  /* the "MPEG-TS, AAC on PID" line, once a station */
 /* The cursor outlives a reconnect to the same station: a drop restarted
  * three segments back would play up to half a minute twice. Cleared
  * when a station is requested. */
@@ -1272,7 +1279,8 @@ static size_t       s_hls_len;      /* bytes of s_hls_text */
 static bool hls_alloc(void)
 {
     const size_t n = HLS_TEXT_MAX + 1 + sizeof(hls_media_t) + sizeof(hlsseg_t) +
-                     3 * NETSTREAM_URL_MAX + NETSTREAM_TITLE_MAX + 16;
+                     3 * NETSTREAM_URL_MAX + NETSTREAM_TITLE_MAX +
+                     sizeof(tsdemux_t) + HLS_TS_OUT + 32;
     uint8_t *w = heap_caps_malloc(n, MALLOC_CAP_SPIRAM);
     if (!w) return false;
     /* hls_media_t first: it has 64-bit members and the block is aligned. */
@@ -1282,6 +1290,9 @@ static bool hls_alloc(void)
     s_hls_play  = (char *)w;                    w += NETSTREAM_URL_MAX;
     s_hls_next  = (char *)w;                    w += NETSTREAM_URL_MAX;
     s_hls_title = (char *)w;                    w += NETSTREAM_TITLE_MAX;
+    w = (uint8_t *)(((uintptr_t)w + 7) & ~(uintptr_t)7);
+    s_hls_ts    = (tsdemux_t *)(void *)w;       w += sizeof(tsdemux_t);
+    s_hls_ts_out = w;                           w += HLS_TS_OUT;
     s_hls_text  = (char *)w;
     s_hls_base[0] = s_hls_play[0] = s_hls_next[0] = s_hls_text[0] = '\0';
     ESP_LOGI(TAG, "HLS: %u bytes in PSRAM", (unsigned)n);
@@ -1457,8 +1468,29 @@ static seg_result_t hls_segment(esp_http_client_handle_t c, uint32_t gen,
             body += (uint64_t)n;
             const uint8_t *seg[2];
             size_t segn[2];
-            hlsseg_feed(s_hls_seg, s_rx, (size_t)n, seg, segn);
-            if (s_hls_seg->kind == HLSSEG_TS || s_hls_seg->kind == HLSSEG_FMP4) break;
+            if (s_hls_seg->kind == HLSSEG_TS) {
+                /* 6039: already decided; the read goes to the demuxer. */
+                segn[0] = tsdemux_feed(s_hls_ts, s_rx, (size_t)n, s_hls_ts_out);
+                seg[0] = s_hls_ts_out;
+                segn[1] = 0;
+                if (s_hls_ts->err) break;
+            } else {
+                hlsseg_feed(s_hls_seg, s_rx, (size_t)n, seg, segn);
+                if (s_hls_seg->kind == HLSSEG_FMP4) break;
+                if (s_hls_seg->kind == HLSSEG_TS) {
+                    /* Decided on this read. The demuxer gets what
+                     * hlsseg held back, then the rest of this read. */
+                    tsdemux_init(s_hls_ts);
+                    size_t o = tsdemux_feed(s_hls_ts, s_hls_seg->look,
+                                            s_hls_seg->ln, s_hls_ts_out);
+                    o += tsdemux_feed(s_hls_ts, s_rx + s_hls_seg->used,
+                                      (size_t)n - s_hls_seg->used, s_hls_ts_out + o);
+                    seg[0] = s_hls_ts_out;
+                    segn[0] = o;
+                    segn[1] = 0;
+                    if (s_hls_ts->err) break;
+                }
+            }
             for (int k = 0; k < 2; k++) {
                 if (!segn[k]) continue;
                 if (!hls_ring_put(seg[k], segn[k], gen, stalled_ms)) return SEG_STOPPED;
@@ -1491,12 +1523,34 @@ static seg_result_t hls_segment(esp_http_client_handle_t c, uint32_t gen,
         }
     }
     *produced += got;
-    if (s_hls_seg->kind == HLSSEG_TS || s_hls_seg->kind == HLSSEG_FMP4) {
+    if (s_hls_seg->kind == HLSSEG_TS && s_hls_ts->err) {
+        ESP_LOGE(TAG, "HLS: segment %llu: %s", (unsigned long long)seq,
+                 tsdemux_err_name(s_hls_ts->err));
+        s_hls_why = tsdemux_err_name(s_hls_ts->err);
+        return SEG_REFUSED;
+    }
+    if (s_hls_seg->kind == HLSSEG_TS) {
+        if (s_hls_ts->audio_pid >= 0 &&
+            (!s_hls_ts_named || s_hls_ts->cc_gaps || s_hls_ts->resyncs)) {
+            ESP_LOGI(TAG, "HLS: MPEG-TS, %s on PID 0x%x: %u packets, %u audio, "
+                          "%u continuity gaps, %u resyncs, %u bytes lost",
+                     tsdemux_audio_name(s_hls_ts->audio), (unsigned)s_hls_ts->audio_pid,
+                     (unsigned)s_hls_ts->packets, (unsigned)s_hls_ts->audio_packets,
+                     (unsigned)s_hls_ts->cc_gaps, (unsigned)s_hls_ts->resyncs,
+                     (unsigned)s_hls_ts->bytes_lost);
+            s_hls_ts_named = true;
+        }
+        if (s_hls_ts->audio_pid < 0) {
+            ESP_LOGE(TAG, "HLS: segment %llu: MPEG-TS with no PAT/PMT found",
+                     (unsigned long long)seq);
+            s_hls_why = tsdemux_err_name(TSDEMUX_ERR_NO_AUDIO);
+            return SEG_REFUSED;
+        }
+    }
+    if (s_hls_seg->kind == HLSSEG_FMP4) {
         ESP_LOGE(TAG, "HLS: segment %llu is %s, which is not played yet",
                  (unsigned long long)seq, hlsseg_kind_name(s_hls_seg->kind));
-        s_hls_why = s_hls_seg->kind == HLSSEG_TS
-                  ? "HLS in MPEG-TS segments is not supported yet"
-                  : hls_err_name(HLS_ERR_FMP4);
+        s_hls_why = hls_err_name(HLS_ERR_FMP4);
         /* The body is abandoned half read; the connection cannot be
          * reused, and the task closes it. */
         return SEG_REFUSED;
@@ -1776,6 +1830,7 @@ static void netstream_task(void *arg)
         s_last_status = 0;
         s_kbps = 0;
         memset(&s_hls_cur, 0, sizeof(s_hls_cur));   /* 6038 */
+        s_hls_ts_named = false;                     /* 6039 */
 
         icydemux_init(s_demux, 0);
 

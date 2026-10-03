@@ -21541,3 +21541,68 @@ byte for byte. **Not flashed.** The first thing the board log should
 show on Al Jazeera is the playlist (6037's lines), then one
 `HLS: segment N, ...` line every few seconds whose `x` figure is above
 1.00 and whose `open` figure is near zero after the first.
+
+### 6039 -- MPEG-TS segments: tsdemux.h
+
+6038 on the board, Al Jazeera:
+
+    I (36094) tab5_netstream: HLS: 6 segments from 11509265, target 11000 ms, live
+    I (36232) tab5_netstream:   content-type: video/mp2t
+    E (36234) tab5_netstream: HLS: segment 11509268 is MPEG-TS, which is not played yet
+
+Everything up to the refusal did what it was written to: media playlist
+read, live edge three back (11509268 of 65-70), and the segment's
+headers 138 ms after the playlist's with no second "Certificate
+validated" -- the kept connection. The segments are `.ts`, as most
+broadcasters' are, so the TS demuxer this series left for last is this
+patch. (Numbered 6039, not the 6040 the plan said: the packed-audio work
+planned as 6039 went into 6038.)
+
+**`tsdemux.h`**, header-only. PAT -> the first program's PMT -> the first
+elementary stream that is AAC-ADTS (0x0F) or MPEG audio (0x03/0x04) ->
+that PID's PES payload, headers off. AAC in TS is ADTS frames and MPEG
+audio in TS is MP3 frames, so what comes out is exactly what netdec
+already decodes; nothing downstream changed. Other PIDs -- the timed-ID3
+stream HLS packagers add, null packets -- are skipped.
+
+- Partial packets wait in the struct, so reads need not respect 188.
+  Output for a call is at most input + 187, so a buffer of n + 188 always
+  holds it.
+- Lost sync is found again by scanning for 0x47 and counted. A
+  continuity gap on the audio PID is counted and the data kept: netdec
+  resyncs on the hole, where dropping the rest of the PES would turn one
+  lost packet into lost frames. A duplicate packet (same counter) is
+  dropped, as the spec allows one.
+- A PES header may span packets (a packager can put adaptation-field
+  stuffing first), and that is handled. A PAT or PMT is assumed to fit
+  one packet -- 16 and about 30 bytes against 183 -- and one that claims
+  otherwise is refused by name rather than half read.
+- LATM AAC (0x11) and AC-3 (0x81) are refused by name; netdec decodes
+  neither.
+
+**The handoff.** hlsseg.h decides TS from its first 189 bytes, which it
+has already consumed. It now records `used`, how much of the deciding
+read it took, so the demuxer is fed the lookahead then the rest of that
+read and loses nothing. The demuxer is reset per segment: every HLS TS
+segment carries its own PAT and PMT. One line names the stream the
+first time per station -- `HLS: MPEG-TS, AAC (ADTS) on PID 0x...` with
+packet, gap and resync counts -- and again only on a segment with gaps
+or resyncs.
+
+About 2.5 KB more PSRAM (the demuxer and its output buffer), allocated
+with the rest of 6038's.
+
+**Tested.** `tsdemuxtest`: segments built the way a broadcast packager
+builds them -- PAT with a network entry, PMT with a timed-ID3 stream
+before the audio and a descriptor on it, PTS in every PES header,
+stuffing at the end of every PES, a null packet -- fed whole, at every
+split and a byte at a time, for AAC and MP3; plus a PES header split
+across packets, leading garbage, a lost packet, a duplicate, LATM, AC-3,
+video only, an oversize PMT, audio before the PMT, and random bytes
+against the output bound. Three planted bugs (the PES header skip off by
+one, duplicates not dropped, the network PID taken as a program) failed
+7, 1 and 13 of its checks. `hlssegtest` gained the handoff at every cut.
+netstream.c is clean at -O2 -Werror against the stubbed IDF headers, and
+the host harness of 6038 now serves real TS segments: six played in
+order on one connection with only the audio in the ring, and a TS
+segment with no PAT/PMT refused by name. **Not flashed.**

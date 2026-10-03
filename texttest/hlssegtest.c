@@ -190,6 +190,37 @@ int main(void)
     pay[188] = 0x11;
     every_way("0x47 not ts", pay, 300, HLSSEG_AUDIO, pay, 300, 0);
 
+    /* 6039: once TS is decided, look[0..ln] then the rest of that read
+     * from `used` is the payload after the tags, at every cut. */
+    {
+        n = id3(in, 20, false);
+        const size_t tag = n;
+        for (int p = 0; p < 4; p++) { in[n] = 0x47; memset(in + n + 1, p + 1, 187); n += 188; }
+        int bad = 0;
+        for (size_t cut = 1; cut <= n; cut++) {
+            hlsseg_t s;
+            hlsseg_begin(&s);
+            static uint8_t re[4096];
+            size_t rn = 0, off = 0;
+            while (off < n) {
+                const size_t len = off == 0 ? cut : n - off;
+                const uint8_t *seg[2];
+                size_t segn[2];
+                hlsseg_feed(&s, in + off, len, seg, segn);
+                if (s.kind == HLSSEG_TS) {
+                    memcpy(re, s.look, s.ln); rn = s.ln;
+                    memcpy(re + rn, in + off + s.used, len - s.used); rn += len - s.used;
+                    off += len;
+                    memcpy(re + rn, in + off, n - off); rn += n - off;
+                    break;
+                }
+                off += len;
+            }
+            if (s.kind != HLSSEG_TS || rn != n - tag || memcmp(re, in + tag, rn)) bad++;
+        }
+        CHECK(!bad, "ts handoff wrong at %d cuts", bad);
+    }
+
     /* fMP4. */
     static const uint8_t mp4[] = { 0, 0, 0, 24, 's', 't', 'y', 'p', 'm', 's', 'd', 'h',
                                    0, 0, 0, 0, 'm', 's', 'd', 'h', 'm', 's', 'i', 'x' };

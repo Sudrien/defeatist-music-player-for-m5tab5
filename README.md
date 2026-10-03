@@ -6,7 +6,7 @@ Claude, do not touch this README unless explicitly asked to. Use your own file.
 
 ![](screenshots/IMG_20261001_151110_126.jpg)
 
-## The M5Tab5 is not an ideal music player.
+## The M5Stack Tab5 is not an ideal music player.
 
 - You think it has bluetooth.
   - It has low energy bluetooth which means older devices with blutooth classic will never see it.

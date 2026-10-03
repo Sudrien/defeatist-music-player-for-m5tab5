@@ -21335,3 +21335,56 @@ for GPIO[42]" was about the slot leaking on 5.x; this one is not that.
 Compiled clean at -O2 and -O3 against 5.5.5 and 6.1. Not on the board:
 the check is the same two actions -- card out for a few seconds, Wi-Fi
 off and on -- with no gpio line.
+
+### 6035 -- a damaged exFAT entry says so, and where, and what
+
+The 6.1 board runs that led here wrote `cannot write /sd/.defeatist.tmp
+(I/O error)` on every save to one card after Wi-Fi joined. It read as a
+driver fault. It was one torn directory entry set in the card's root --
+fsck.exfat: checksum wrong at 0x220560, then the set's two secondary
+entries -- most likely from pulling the card during a save. FatFs's
+load_xdir() had found it each time and returned FR_INT_ERR, and the VFS
+maps FR_INT_ERR and FR_DISK_ERR alike to EIO: a damaged filesystem and a
+failing card both said "I/O error".
+
+enable_exfat.sh now renames load_xdir() in its copy of ff.c to
+load_xdir_checked() and puts a wrapper of the old name after it, so
+every caller goes through the wrapper unchanged. On FR_INT_ERR the
+wrapper calls ff_tab5_bad_entry() (weak in ff.c; main/storage.c logs):
+
+    W tab5_storage: microSD: damaged exFAT directory entry for
+      ".defeatist.tmp", in the root, at sector 135 + 96 (byte 0x10e60);
+      FatFs refuses it, and an "I/O error" on this volume may be this.
+      Repair on a computer: fsck.exfat
+
+**The name only when it is that entry's.** load_xdir() reads the name
+entries into dirbuf and checks the checksum last; an earlier failure --
+entries out of order, an impossible size -- returns before the names are
+read, and dirbuf still holds the PREVIOUS entry's. The first version
+recomputed the checksum after the fact to decide, and a host test with a
+broken stream entry printed the file before it, "a.mp3". The checksum
+test is now flagged where FatFs makes it (tab5_sumfail, per volume);
+any other failure says "name unreadable". The torn write -- the case
+seen -- is the checksum one.
+
+**Why every save failed, not only one file.** A lookup scans the
+directory's entries in order and stops at the first broken set. In the
+host test, an undamaged file listed after the torn one could not be
+opened either. So one torn entry in the root stops every file after it
+there, which includes .defeatist.tmp on each save.
+
+Reported once per entry: every lookup in that directory meets it.
+"In the root" is the directory's start cluster being 0 (FatFs's mark
+for the root while following a path) or the root's own; a folder is not
+named, only that it is one. The byte offset is the sector times 512 plus
+the entry's offset, the form fsck.exfat prints.
+
+A components/fatfs copied before this has no wrapper and logs nothing
+new; exfat.cmake warns once per configure and says to run
+`./tools/enable_exfat.sh --revert`.
+
+Tested on the host: the patched ff.c from 5.5.5 and from 6.1, an exFAT
+RAM disk from f_mkfs, a file's checksum flipped (named, root, offset
+exact) and a stream entry's type broken in a folder (no name, folder).
+Compiled clean at -O2 and -O3 against both IDFs, ff.c included. Not on
+the board.

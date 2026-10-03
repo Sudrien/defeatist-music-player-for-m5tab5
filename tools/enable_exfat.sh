@@ -156,6 +156,88 @@ if fixed:
     print('guarded against unset Kconfig bools: ' + ', '.join(fixed))
 PYEOF
 
+# 6035: say where FatFs found a damaged exFAT entry. load_xdir() checks a
+# file's directory entry set -- order, sizes, checksum -- and returns
+# FR_INT_ERR, which the VFS reports as EIO, the same errno as a failed
+# read: a card with one torn entry and a dying card both said "I/O
+# error". The definition is renamed and a wrapper of the old name calls
+# it, so every caller is covered without touching one, and on failure
+# calls ff_tab5_bad_entry() (weak here; main/storage.c logs it).
+FFC="$DEST/src/ff.c"
+python3 - "$FFC" <<'PYEOF'
+import re, sys
+path = sys.argv[1]
+text = open(path).read()
+head = 'static FRESULT load_xdir ('
+if text.count(head) != 1:
+    sys.exit('error: expected one "%s" in %s; FatFs changed' % (head, path))
+start = text.index(head)
+end = text.index('\n}\n', start) + 3
+body = text[start:end].replace(head, 'static FRESULT load_xdir_checked (', 1)
+# The checksum test is the last one, made once every name entry is in
+# dirbuf. Flag it there, so the wrapper knows a name it prints is this
+# entry's and not left over from the one before.
+sumline = re.compile(r'if \(xdir_sum\(dirb\) != ld_(?:16|word)\(dirb \+ XDIR_SetSum\)\) return FR_INT_ERR;')
+if len(sumline.findall(body)) != 1:
+    sys.exit('error: expected one checksum test in load_xdir() in %s; FatFs changed' % path)
+body = sumline.sub('if (xdir_sum(dirb) != (WORD)(dirb[XDIR_SetSum] | dirb[XDIR_SetSum + 1] << 8)) '
+                   '{ tab5_sumfail[dp->obj.fs->pdrv] = 1; return FR_INT_ERR; }', body)
+text = (text[:start]
+        + '/* tools/enable_exfat.sh (6035): set by load_xdir_checked(), read by load_xdir(). */\n'
+        + 'static BYTE tab5_sumfail[FF_VOLUMES];\n\n'
+        + body
+        + """
+/* tools/enable_exfat.sh (6035): report where a damaged entry set is,
+ * and its name when that is known to be its own: only when the checksum
+ * test failed, which load_xdir_checked() flags. It is the last test,
+ * made after every name entry is in dirbuf. An earlier failure leaves
+ * the previous entry's name there (a host test printed exactly that),
+ * so it gets none. */
+void __attribute__((weak)) ff_tab5_bad_entry (BYTE pdrv, LBA_t sect, UINT ofs,
+                                              const char* name, int in_root)
+{
+	(void)pdrv; (void)sect; (void)ofs; (void)name; (void)in_root;
+}
+
+static FRESULT load_xdir (FF_DIR* dp)
+{
+	const LBA_t sect = dp->sect;
+	const UINT ofs = (UINT)(dp->dir - dp->obj.fs->win);
+	tab5_sumfail[dp->obj.fs->pdrv] = 0;
+	FRESULT res = load_xdir_checked(dp);
+	if (res == FR_INT_ERR) {
+		const BYTE *d = dp->obj.fs->dirbuf;
+		char name[3 * 64 + 1];
+		UINT n = 0;
+		if (tab5_sumfail[dp->obj.fs->pdrv]) {
+			UINT len = d[XDIR_NumName], k;
+			if (len > 64) len = 64;
+			for (k = 0; k < len; k++) {		/* UTF-16 (BMP) to UTF-8 */
+				const UINT e = 2 * SZDIRE + (k / 15) * SZDIRE + 2 + (k % 15) * 2;
+				const WCHAR c = (WCHAR)(d[e] | d[e + 1] << 8);
+				if (c < 0x80) {
+					name[n++] = (c >= 0x20) ? (char)c : '?';
+				} else if (c < 0x800) {
+					name[n++] = (char)(0xC0 | (c >> 6));
+					name[n++] = (char)(0x80 | (c & 0x3F));
+				} else {
+					name[n++] = (char)(0xE0 | (c >> 12));
+					name[n++] = (char)(0x80 | ((c >> 6) & 0x3F));
+					name[n++] = (char)(0x80 | (c & 0x3F));
+				}
+			}
+		}
+		name[n] = 0;
+		ff_tab5_bad_entry(dp->obj.fs->pdrv, sect, ofs, n ? name : NULL,
+		                  dp->obj.sclust == 0 || dp->obj.sclust == (DWORD)dp->obj.fs->dirbase);
+	}
+	return res;
+}
+""" + text[end:])
+open(path, 'w').write(text)
+print('wrapped load_xdir() in ' + path)
+PYEOF
+
 echo "patched $CONF:"
 grep -E '^#define (FF_FS_EXFAT|FF_LBA64|FF_USE_TRIM)' "$CONF" | sed 's/^/  /'
 echo

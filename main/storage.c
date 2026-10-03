@@ -301,6 +301,44 @@ void storage_mark_hidden(const char *path)
  * f_opendir() on a drive with nothing registered fails with
  * FR_NOT_ENABLED before touching any disk.
  */
+/* 6035: tools/enable_exfat.sh wraps FatFs's load_xdir(), which checks a
+ * file's exFAT directory entry set, and calls this when the set is
+ * damaged -- bad checksum, entries out of order, sizes that cannot be --
+ * with the file's name when FatFs had read it for this entry, which is
+ * the bad-checksum case: a torn write, the usual one.
+ * FatFs then refuses whatever needed that entry, and the VFS reports it
+ * as EIO, which callers log as "I/O error": the same words a failed
+ * read gets. This line says which it was and where.
+ *
+ * Called inside FatFs with the volume's lock held, so it only logs, and
+ * from any task that touches the volume. The byte offset is the
+ * sector's, in the form fsck.exfat prints ("at 0x220560"). The same
+ * entry is reported once: FatFs meets it on every lookup in that
+ * directory, and a reindex would print it a thousand times. */
+void ff_tab5_bad_entry(BYTE pdrv, LBA_t sect, UINT ofs, const char *name, int in_root)
+{
+    static BYTE s_pdrv = 0xFF;
+    static LBA_t s_sect;
+    static UINT s_ofs;
+    if (pdrv == s_pdrv && sect == s_sect && ofs == s_ofs) return;
+    s_pdrv = pdrv;
+    s_sect = sect;
+    s_ofs = ofs;
+
+    const bool sd = s_card && ff_diskio_get_pdrv_card(s_card) == pdrv;
+    /* The name only when FatFs had read it for this entry (bad checksum);
+     * "in the root" when the directory is the volume's root. */
+    ESP_LOGW(TAG, "%s: damaged exFAT directory entry for %s%s%s, %s, at "
+                  "sector %llu + %u (byte 0x%llx); FatFs refuses it, and an "
+                  "\"I/O error\" on this volume may be this. Repair on a "
+                  "computer: fsck.exfat",
+             sd ? "microSD" : "USB drive",
+             name ? "\"" : "", name ? name : "a file (name unreadable)", name ? "\"" : "",
+             in_root ? "in the root" : "in a folder",
+             (unsigned long long)sect, ofs,
+             (unsigned long long)sect * FF_MIN_SS + ofs);
+}
+
 int storage_ff_drive(storage_id_t id)
 {
     int sd = -1;

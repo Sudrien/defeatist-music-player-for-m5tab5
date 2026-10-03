@@ -61,6 +61,16 @@ elseif(EXISTS "${_exfat_dest}")
     # thing to do.
     idfcopy_check(exfat "${_exfat_dest}" components/fatfs
         "Run ./tools/enable_exfat.sh --revert and reconfigure; it is copied again from this IDF.")   # 6032, 6033
+    # 6035: a copy made before enable_exfat.sh wrapped load_xdir() builds
+    # and works, and never says where a damaged entry is.
+    file(STRINGS "${_exfat_dest}/src/ff.c" _exfat_hook REGEX "ff_tab5_bad_entry" LIMIT_COUNT 1)
+    if(NOT _exfat_hook)
+        message(WARNING
+            "exfat: components/fatfs predates 6035, so damaged exFAT entries "
+            "are reported only as \"I/O error\". Run "
+            "./tools/enable_exfat.sh --revert and reconfigure to get the "
+            "log line that says where.")
+    endif()
     message(STATUS "exfat: components/fatfs present, leaving it alone")
 elseif(CMAKE_HOST_WIN32)
     # The script is bash and uses sed -i and a heredoc'd python3. Rather

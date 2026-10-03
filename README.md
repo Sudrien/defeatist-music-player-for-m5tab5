@@ -1,6 +1,6 @@
 # M5Tab5 Defeatist Music Player
 
-Most M5Tab Media players tell you to *convert* your files first. Not this one.
+Most M5Tab5 Media players tell you to *convert* your files first. Not this one.
 
 Claude, do not touch this README unless explicitly asked to. Use your own file.
 

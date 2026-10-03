@@ -478,7 +478,10 @@ bool radiobrowser_favicon(const char *uuid, char *out, size_t out_size)
 
     free(body);
     if (ok && !out[0]) ok = false;      /* "" is no artwork */
-    if (ok) ESP_LOGI(TAG, "artwork: %s", out);
+    /* 6040: say whose URL it is. The favicon field is whatever a
+     * directory editor pasted -- Al Jazeera's was a Wikipedia thumbnail
+     * -- and "artwork:" alone read as though the station had sent it. */
+    if (ok) ESP_LOGI(TAG, "artwork (from radio-browser): %s", out);
     return ok;
 }
 

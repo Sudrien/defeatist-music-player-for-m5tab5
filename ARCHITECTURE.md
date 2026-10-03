@@ -21606,3 +21606,22 @@ netstream.c is clean at -O2 -Werror against the stubbed IDF headers, and
 the host harness of 6038 now serves real TS segments: six played in
 order on one connection with only the audio in the ring, and a TS
 segment with no PAT/PMT refused by name. **Not flashed.**
+
+### 6040 -- the directory's artwork says it is the directory's
+
+With Al Jazeera playing over HLS (6039), the log showed
+
+    I (50967) tab5_rb: artwork: https://upload.wikimedia.org/wikipedia/ar/thumb/7/71/Aljazeera.svg/1200px-Aljazeera.svg.png
+
+which reads as the station's own logo and is not: it is radio-browser's
+`favicon` field for that entry, which anyone can edit, and someone had
+pasted a Wikipedia thumbnail (Wikimedia answered 400). An HLS playlist
+has no icy-logo, so the directory is the only source for such a
+station. The line is now `artwork (from radio-browser): ...`. Log only;
+nothing on screen changes.
+
+Board confirmation of 6039, from the same run: AAC (ADTS) on PID 0x133,
+661 packets, 0 continuity gaps, 0 resyncs; 24 kHz stereo at about
+65 kbit/s; 121 KB segments at 7.5-13.7x real time on one kept
+connection (no handshake between segments, `open` 127-588 ms); first
+sound at 7.5 s and a reserve of 28-34 s through the reload cycle.

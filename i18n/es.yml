@@ -202,6 +202,7 @@ es:
     "Headset, UAC: the jack, a USB mic.": "Auricular, UAC: la toma, un micro USB."
     # ui.c
     "IDLE": "INAC"
+    "IDLE %dM": "INAC %dM"
     # panel.c
     "IN USE": "EN USO"
     # panel.c

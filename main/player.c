@@ -6673,9 +6673,19 @@ static void status_overlay(ui_state_t *st)
         ? sleeptimer_seconds_left(esp_timer_get_time(), s_sleep_deadline_us) : 0;
     st->sleep_min = left > 0 ? (int)((left + 59) / 60) : 0;
 
-    /* 6020: Power off as a state, not minutes (was 6001's countdown). */
-    st->idle_state = powerdown_seconds(settings_poweroff_step()) <= 0 ? 0
-                   : idle_held() ? 1 : 2;
+    /* Power off: the colour state (6020) AND the minutes left (6001,
+     * restored). While held, s_last_active_us is reset every pass, so
+     * the figure reads the full wait -- which is correct: that is how
+     * long it would take once activity stops. */
+    const int pd_s = powerdown_seconds(settings_poweroff_step());
+    st->idle_state = pd_s <= 0 ? 0 : idle_held() ? 1 : 2;
+    if (pd_s > 0 && s_last_active_us) {
+        const int64_t idle_s = (esp_timer_get_time() - s_last_active_us) / 1000000;
+        const int lm = (int)((pd_s - idle_s + 59) / 60);
+        st->idle_min = lm > 0 ? lm : 0;
+    } else {
+        st->idle_min = 0;
+    }
 }
 
 static void recording_overlay(ui_state_t *st)

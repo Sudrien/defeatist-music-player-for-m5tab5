@@ -4,7 +4,7 @@
 
 Qué significan las palabras cortas de la pantalla, y todos los ajustes que tiene el reproductor, por el lugar donde viven. El panel mide 720 px de ancho y la mayoría caben en un botón de una quinta parte de eso, así que son cortos a propósito.
 
-> Esta es una traducción de la comunidad; la versión canónica es la inglesa [ABBREVIATIONS.md](ABBREVIATIONS.md). La columna «En pantalla» conserva las etiquetas literales en inglés del código fuente; en una interfaz en español, salvo las palabras que se mantienen en inglés, la pantalla muestra los términos traducidos de la tabla «En otros idiomas» de más abajo.
+> Esta es una traducción automática; la versión canónica es la inglesa [ABBREVIATIONS.md](ABBREVIATIONS.md). La columna «En pantalla» conserva las etiquetas literales en inglés del código fuente; en una interfaz en español, salvo las palabras que se mantienen en inglés, la pantalla muestra los términos traducidos de la tabla «En otros idiomas» de más abajo.
 
 Tomado del código fuente (`browser.c`, `panel.c`, `sleeppage.c`, `ui.c`, `settings.h`, `playlist.h`). Si una etiqueta de aquí y la pantalla no coinciden, lo nuevo es la pantalla — corrige este archivo.
 

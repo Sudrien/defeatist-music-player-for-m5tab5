@@ -1696,17 +1696,28 @@ void ui_show_notice(const char *head, const char *const *body, int n,
     if (n > 4) n = 4;   /* see ui.h: four body lines, and the card is sized
                          * for them rather than growing off the square */
 
+    int aw, ah;
+    ui_art_band(NULL, NULL, &aw, &ah);
+    s_notice_w = aw - 2 * NOTICE_INSET;
+
+    /*
+     * Body text WRAPS rather than truncating: a message wider than the
+     * card flows onto further lines instead of ending in an ellipsis
+     * ("The device did not pow..."). gfx_para_rows() measures with the
+     * same width the draw loop below uses, so the reserved height and
+     * the drawn lines agree by construction -- see gfx.h.
+     */
+    const int avail = s_notice_w - 2 * NOTICE_PAD;
+    const int body_h = GFX_GLYPH_H(NOTICE_BODY_SC);
+
     /* Height from the content, so a one-line card is not a tall box
      * with a sentence floating in it. */
     int text_h = GFX_GLYPH_H(NOTICE_HEAD_SC);
     for (int i = 0; i < n; i++) {
-        text_h += NOTICE_GAP + GFX_GLYPH_H(NOTICE_BODY_SC);
+        const char *t = body && body[i] ? body[i] : "";
+        text_h += NOTICE_GAP + gfx_para_rows(t, NOTICE_BODY_SC, avail) * body_h;
     }
 
-    int aw, ah;
-    ui_art_band(NULL, NULL, &aw, &ah);
-
-    s_notice_w = aw - 2 * NOTICE_INSET;
     s_notice_h = text_h + 2 * NOTICE_PAD;
     s_notice_x = NOTICE_INSET;
     s_notice_y = (ah - s_notice_h) / 2;
@@ -1722,7 +1733,6 @@ void ui_show_notice(const char *head, const char *const *body, int n,
                   s_notice_h - 4, C_NOTICE_BG);
 
     int y = s_notice_y + NOTICE_PAD;
-    const int avail = s_notice_w - 2 * NOTICE_PAD;
 
     const int hw = gfx_text_w(head, NOTICE_HEAD_SC);
     int hx = s_notice_x + (s_notice_w - hw) / 2;
@@ -1733,11 +1743,19 @@ void ui_show_notice(const char *head, const char *const *body, int n,
 
     for (int i = 0; i < n; i++) {
         const char *t = body && body[i] ? body[i] : "";
-        const int tw = gfx_text_w(t, NOTICE_BODY_SC);
-        int tx = s_notice_x + (s_notice_w - tw) / 2;
-        if (tx < s_notice_x + NOTICE_PAD) tx = s_notice_x + NOTICE_PAD;
-        gfx_draw_text(tx, y, t, NOTICE_BODY_SC, avail, C_ICON);
-        y += GFX_GLYPH_H(NOTICE_BODY_SC) + NOTICE_GAP;
+        const int rows = gfx_para_rows(t, NOTICE_BODY_SC, avail);
+        if (rows <= 1) {
+            /* Fits on one line: keep it centred, as every notice was. */
+            const int tw = gfx_text_w(t, NOTICE_BODY_SC);
+            int tx = s_notice_x + (s_notice_w - tw) / 2;
+            if (tx < s_notice_x + NOTICE_PAD) tx = s_notice_x + NOTICE_PAD;
+            gfx_draw_text(tx, y, t, NOTICE_BODY_SC, avail, C_ICON);
+        } else {
+            /* Too wide: wrap, left-aligned in the padding. */
+            gfx_draw_para(s_notice_x + NOTICE_PAD, y, t, NOTICE_BODY_SC,
+                          avail, body_h, rows, C_ICON);
+        }
+        y += rows * body_h + NOTICE_GAP;
     }
 
     if (dismissible) {

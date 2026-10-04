@@ -14486,8 +14486,17 @@ static void player_loop(void)
             /* Idle: no decode loop is running, so the repaint that
              * normally happens there has to happen here. Otherwise a
              * chooser dismissed with nothing playing leaves its listing
-             * above the bar until something is chosen. */
-            if (s_repaint_art) {
+             * above the bar until something is chosen.
+             *
+             * 5214: not while recording. A recording runs with playback
+             * paused, so this idle branch is the loop that is live then,
+             * and the microphone owns the square -- without this guard a
+             * flag set mid-record (the countdown card clearing, a closed
+             * screen) repaints the paused track's cover over the mic. The
+             * flag waits; the rec-art block sets it again when recording
+             * ends, and the cover comes back. Mirrors the same test on
+             * the two decode-loop consumers of this flag. */
+            if (s_repaint_art && !recorder_active()) {
                 s_repaint_art = false;
                 if (s_path[0]) load_track_visuals(s_path);
                 else           clear_art();          /* 5265 */

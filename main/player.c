@@ -6986,6 +6986,20 @@ static bool idle_held(void)
 
 static void power_off_now(void)
 {
+    /*
+     * 5214: the PMS150 power controller cannot cut the rail while USB-C
+     * is feeding it, so a power-off attempt on external power does
+     * nothing but fade the screen to a dark panel that looks hung. Don't
+     * try: say why and leave the screen up. The low-battery guard only
+     * ever calls this on the pack (it gates on !battery_external() &&
+     * !battery_charging()), so this does not swallow that.
+     */
+    if (battery_external() || battery_charging()) {
+        ESP_LOGW(TAG, "power off: on USB power -- cannot switch off, unplug to power down");
+        notice_post(N_("Still plugged in"), N_("Unplug USB-C to power off."));
+        return;
+    }
+
     const bool saved = settings_flush(3000);
     rtc8130_write_forward(settings_now());      /* 6003: the time, for the next boot */
     ESP_LOGW(TAG, "powering off (settings %s)", saved ? "written" : "NOT written");
@@ -7018,11 +7032,19 @@ static void power_off_now(void)
 
     vTaskDelay(pdMS_TO_TICKS(2000));
     ESP_LOGW(TAG, "power off: still running -- the power controller did not "
-                  "switch off (on USB power?); waiting again");
-    if (s_screen_off) {                 /* as a tap wakes it */
-        s_screen_off = false;
-        backlight_set(screen_on_duty());
-    }
+                  "switch off (external power appeared?); bringing the screen back");
+    /*
+     * Reached only if the rail did not drop -- the device is still here.
+     * The external-power guard above should have caught the usual cause,
+     * so this is the belt-and-suspenders path. Restore the screen
+     * UNCONDITIONALLY: screen_fade_out() took the backlight to 0 without
+     * setting s_screen_off, so the old `if (s_screen_off)` never fired
+     * and left a dark panel. backlight + filter, as a wake from dim does.
+     */
+    s_screen_off = false;
+    backlight_set(screen_on_duty());
+    screen_apply_filter();
+    notice_post(N_("Still on"), N_("The device did not power off."));
 }
 static int s_rec_card_n;
 static bool s_rec_art_up;           /* 5214: the microphone is in the square */

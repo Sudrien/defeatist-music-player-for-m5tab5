@@ -77,6 +77,12 @@ jobs:
       - name: Build and Merge Binaries
         run: |
           idf.py set-target esp32p4
+          # Carry the release string into esp_app_desc_t.version so a
+          # launcher (and the About/BUILD tab) can tell one build from the
+          # next. ESP-IDF reads version.txt from the project dir; written
+          # here rather than committed so it always matches this release
+          # and local builds fall back to git describe.
+          echo "${{ steps.ver.outputs.name }}" > version.txt
           idf.py build
           idf.py merge-bin
           mv build/merged-binary.bin build/defeatist_${{ steps.ver.outputs.name }}_music_player_for_m5tab5_standalone.bin

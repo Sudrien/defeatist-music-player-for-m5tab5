@@ -1,5 +1,7 @@
 # Defeatist Music Player *for M5Tab5*
 
+**English** · [简体中文](README.zh-CN.md) · [日本語](README.ja.md) · [Español](README.es.md)
+
 Most M5Tab5 Media players tell you to *convert* your files first. Not this one.
 
 The goal of this project is to max out the potential of this hardware without modifying it. No soldering, no accessories that can't be removed later. Every format that an Esp32-P4 v1.3 can reasonably handle without knowing secrets. 

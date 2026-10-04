@@ -1147,6 +1147,27 @@ void remote_poll(bool want)
 
 bool remote_running(void) { return s_srv != NULL; }
 
+/*
+ * 6016: how many live websocket clients -- a browser with the remote page
+ * open holds one (h_ws), so this is the "someone is working the web remote"
+ * signal, the same shape as mpd_clients(). Read from ui_task for the idle
+ * power-off; httpd_get_client_list() locks the server's own list, so it is
+ * safe off the httpd task. Cheap: a copy of up to REMOTE_SOCKETS fds.
+ */
+int remote_ws_clients(void)
+{
+    httpd_handle_t srv = s_srv;
+    if (!srv) return 0;
+    int fds[REMOTE_SOCKETS];
+    size_t n = REMOTE_SOCKETS;
+    if (httpd_get_client_list(srv, &n, fds) != ESP_OK) return 0;
+    int ws = 0;
+    for (size_t i = 0; i < n; i++) {
+        if (httpd_ws_get_fd_info(srv, fds[i]) == HTTPD_WS_CLIENT_WEBSOCKET) ws++;
+    }
+    return ws;
+}
+
 bool remote_url(char *out, size_t out_size)
 {
     char ip[20];

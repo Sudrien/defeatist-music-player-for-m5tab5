@@ -42,6 +42,8 @@
 #include "esp_check.h"
 #include "esp_timer.h"
 #include "esp_app_desc.h"
+#include "esp_sleep.h"     /* esp_deep_sleep_start -- the Tab5 power-off tail */
+#include "esp_system.h"    /* esp_restart */
 #include "nvs_flash.h"
 #include "esp_heap_caps.h"
 #include "esp_log.h"
@@ -6959,10 +6961,22 @@ static bool idle_held(void)
 }
 
 /*
- * 6000: turn the device off -- the Tab5's own way, as M5Stack's BSP does
- * it (m5stack_tab5.c, bsp_generate_poweroff_signal()): PWROFF_PULSE is P4
- * of the PI4IOE5V6416 at 0x44, read by the PMS150 power controller beside
- * the side button, and it is pulsed high 100 ms, low 100 ms, three times.
+ * 6000: turn the device off -- the Tab5's own way, matched to M5Unified's
+ * Power_Class::powerOff() (utility/Power_Class.inl, board_M5Tab5):
+ * PWROFF_PULSE is P4 of the PI4IOE5V6416 at 0x44 (getIOExpander(1)), read
+ * by the PMS150 power controller beside the side button. M5Unified pulses
+ * it by toggling the pin ten times, alternating starting LOW, 50 ms apart
+ *   for (int i = 0; i < 10; ++i) { io1.digitalWrite(4, i & 1); delay(50); }
+ * then enters deep sleep. The earlier 3x high/low 100 ms pattern with no
+ * sleep was wrong on both counts and never switched the board off.
+ *
+ * The deep sleep is the half that actually makes it look off: on USB-C the
+ * PMS150 does not cut the 3V3 rail while power is supplied, but the SoC
+ * still drops to deep sleep -- screen dark, near-zero draw -- and a single
+ * click of the power button boots it back. On battery the controller cuts
+ * the rail during the pulse and deep sleep is never reached; either way the
+ * device goes dark, so there is no USB guard and no "did not power off"
+ * fallback to reach.
  *
  * Before the pulse: the settings that are still settling are written
  * (settings_flush()), and the screen goes dark first so the cut is not a
@@ -6972,14 +6986,6 @@ static bool idle_held(void)
  *
  * P4 is made an output and taken out of high impedance the way usbhost.c
  * and wifi.c do P3 and P0, read-modify-write so they keep their states.
- * Those two take no lock on the expander either; a power-off that races
- * one of them loses nothing it would have kept.
- *
- * IF THE BOARD IS STILL HERE two seconds later, the controller did not
- * act on it -- the pulse is the documented one, but the PMS150 runs
- * M5Stack's own program and whether it switches off while USB-C supplies
- * the board is not on the schematic. That is logged, the screen comes
- * back, and the caller restarts the wait rather than pulsing every pass.
  */
 #define PWROFF_PULSE_BIT  (1u << 4)
 
@@ -6996,25 +7002,6 @@ static bool idle_held(void)
 
 static void power_off_now(void)
 {
-    /*
-     * 5214: the PMS150 power controller cannot cut the rail while USB-C
-     * is feeding it, so a power-off attempt on external power does
-     * nothing but fade the screen to a dark panel that looks hung.
-     *
-     * Gate on battery_discharging(), not (external || charging): those
-     * two miss the common case -- at rest on USB-C with a full battery
-     * the current is near zero, so it is neither external (there IS a
-     * pack) nor charging, yet the rail is still externally held. The
-     * pack supplying the load (discharging) is the one state in which a
-     * power-off can actually succeed. The low-battery guard runs while
-     * discharging, so it is unaffected.
-     */
-    if (!battery_discharging()) {
-        ESP_LOGW(TAG, "power off: on external power -- cannot switch off, unplug USB-C");
-        notice_post(N_("Still plugged in"), N_("Unplug USB-C to power off."));
-        return;
-    }
-
     const bool saved = settings_flush(3000);
     rtc8130_write_forward(settings_now());      /* 6003: the time, for the next boot */
     ESP_LOGW(TAG, "powering off (settings %s)", saved ? "written" : "NOT written");
@@ -7036,30 +7023,32 @@ static void power_off_now(void)
         }
         uint8_t reg = PI4IOE_REG_OUT_SET, out = 0;
         if (i2c_master_transmit_receive(s_exp2, &reg, 1, &out, 1, I2C_TIMEOUT_MS) == ESP_OK) {
-            for (int i = 0; i < 3; i++) {
-                (void)reg_write(s_exp2, PI4IOE_REG_OUT_SET, (uint8_t)(out | PWROFF_PULSE_BIT));
-                vTaskDelay(pdMS_TO_TICKS(100));
-                (void)reg_write(s_exp2, PI4IOE_REG_OUT_SET, (uint8_t)(out & (uint8_t)~PWROFF_PULSE_BIT));
-                vTaskDelay(pdMS_TO_TICKS(100));
+            /*
+             * M5Unified's toggle: ten writes, bit4 = (i & 1), 50 ms apart.
+             * i=0 drives it LOW, so it starts low and ends high after five
+             * full cycles. On battery the PMS150 cuts the rail somewhere in
+             * here and this never returns.
+             */
+            for (int i = 0; i < 10; i++) {
+                uint8_t v = (i & 1) ? (uint8_t)(out | PWROFF_PULSE_BIT)
+                                    : (uint8_t)(out & (uint8_t)~PWROFF_PULSE_BIT);
+                (void)reg_write(s_exp2, PI4IOE_REG_OUT_SET, v);
+                vTaskDelay(pdMS_TO_TICKS(50));
             }
         }
     }
 
-    vTaskDelay(pdMS_TO_TICKS(2000));
-    ESP_LOGW(TAG, "power off: still running -- the power controller did not "
-                  "switch off (external power appeared?); bringing the screen back");
     /*
-     * Reached only if the rail did not drop -- the device is still here.
-     * The external-power guard above should have caught the usual cause,
-     * so this is the belt-and-suspenders path. Restore the screen
-     * UNCONDITIONALLY: screen_fade_out() took the backlight to 0 without
-     * setting s_screen_off, so the old `if (s_screen_off)` never fired
-     * and left a dark panel. backlight + filter, as a wake from dim does.
+     * On battery the rail is already gone. Reached only on external power,
+     * where the controller held the rail: follow M5Unified and drop the SoC
+     * into deep sleep so it goes dark at near-zero draw instead of sitting
+     * on a frozen frame. A single click of the power button boots it back.
+     * esp_deep_sleep_start() does not return; the restart is the belt-and-
+     * suspenders tail if the chip somehow wakes immediately.
      */
-    s_screen_off = false;
-    backlight_set(screen_on_duty());
-    screen_apply_filter();
-    notice_post(N_("Still on"), N_("The device did not power off."));
+    ESP_LOGW(TAG, "power off: entering deep sleep (rail held by external power?)");
+    esp_deep_sleep_start();
+    esp_restart();
 }
 static int s_rec_card_n;
 static bool s_rec_art_up;           /* 5214: the microphone is in the square */

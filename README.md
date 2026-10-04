@@ -26,7 +26,7 @@ Claude, do not touch this README unless explicitly asked to. Use your own file.
 ## The Three scenarios
 
 1. I have no storage, but I do have wifi (or Ethernet dongle): You can stream Internet Radio.
-2. I I have storage, but no music: You can record FLAC files for later playback
+2. I have storage, but no music: You can record FLAC files for later playback
 3. I have storage and Music: This is your music player - headphones, no headphones, Usb Audio Class dongles supported.
 
 ## Here is what I was able to get working on ESP-IDF ~~5.5.5~~ 6.1
@@ -39,7 +39,7 @@ Claude, do not touch this README unless explicitly asked to. Use your own file.
 - Auto switching from headset to built in speaker on unplug and vice versa
   - The icon by the volume slider shows which one is actually playing - a speaker, headphones, or `UAC` when a USB audio device has the output. Tapping mutes and unmutes. 
 - Support for all (as far as I can tell) mp3 format variants. This thing has fallback library after fallback library. Flac, ogg, wav, the standards are in here.
-- Album art display: wether the picture is in the file, or the album's cover.jpg / folder.jpg / front.jpg beside it
+- Album art display: whether the picture is in the file, or the album's cover.jpg / folder.jpg / front.jpg beside it
 - Battery status, in words at the end of the status line: `BATT 73%`, `CHRG 73%`, `CHARGED`, `NO BATT`
 - Wi-Fi on the status line: green connected, yellow connecting, grey off
 - Volume control
@@ -100,7 +100,7 @@ Claude, do not touch this README unless explicitly asked to. Use your own file.
   - Can it tell you have plugged one in? yes.
   - Can it use things plugged into them? Probably not.
   - Will one save you if your device requires enough power to brownout the Tab5? Uh. Define save.
-  - Multiple device speeds is is what isn't supported by the libraries, and I can't tell you what any given device's speed is.
+  - Multiple device speeds is what isn't supported by the libraries, and I can't tell you what any given device's speed is.
 - DRM'd files are no-go.
 - DSD and APE require too much processing
 

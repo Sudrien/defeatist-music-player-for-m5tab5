@@ -6,7 +6,7 @@ La mayoría de los reproductores multimedia para M5Tab5 te dicen que primero *co
 
 El objetivo de este proyecto es exprimir al máximo el potencial de este hardware sin modificarlo. Sin soldaduras, sin accesorios que no se puedan quitar después. Todo formato que un ESP32-P4 v1.3 pueda manejar razonablemente sin conocer trucos secretos.
 
-> Esta es una traducción de la comunidad; la versión canónica es la inglesa [README.md](README.md). Para las etiquetas cortas de pantalla, consulta [ABBREVIATIONS.es.md](ABBREVIATIONS.es.md).
+> Esta es una traducción automática; la versión canónica es la inglesa [README.md](README.md). Para las etiquetas cortas de pantalla, consulta [ABBREVIATIONS.es.md](ABBREVIATIONS.es.md).
 
 ![](screenshots/IMG_20261001_151110_126.jpg)
 

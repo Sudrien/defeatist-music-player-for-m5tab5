@@ -6,7 +6,7 @@
 
 本项目的目标，是在不改动硬件的前提下榨干这台设备的潜力。不焊接，不加任何无法事后拆除的配件。凡是 ESP32-P4 v1.3 在不依赖秘技的情况下能合理处理的格式，都支持。
 
-> 本译文为社区翻译，以英文版 [README.md](README.md) 为准。屏幕上的短标签请对照 [ABBREVIATIONS.zh-CN.md](ABBREVIATIONS.zh-CN.md)。
+> 本译文为机器翻译，以英文版 [README.md](README.md) 为准。屏幕上的短标签请对照 [ABBREVIATIONS.zh-CN.md](ABBREVIATIONS.zh-CN.md)。
 
 ![](screenshots/IMG_20261001_151110_126.jpg)
 

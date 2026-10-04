@@ -6,7 +6,7 @@
 
 このプロジェクトの目標は、ハードウェアに手を加えずにこの端末の潜在能力を限界まで引き出すこと。はんだ付けなし、あとで取り外せないアクセサリもなし。ESP32-P4 v1.3 が裏技なしで無理なく扱えるフォーマットは、すべて対象。
 
-> これはコミュニティ訳です。正典は英語版 [README.md](README.md)。画面上の短いラベルは [ABBREVIATIONS.ja.md](ABBREVIATIONS.ja.md) を参照。
+> これは機械翻訳です。正典は英語版 [README.md](README.md)。画面上の短いラベルは [ABBREVIATIONS.ja.md](ABBREVIATIONS.ja.md) を参照。
 
 ![](screenshots/IMG_20261001_151110_126.jpg)
 

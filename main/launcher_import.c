@@ -20,6 +20,7 @@
 #include "freertos/semphr.h"
 #include "esp_partition.h"
 #include "esp_ota_ops.h"
+#include "esp_system.h"   /* esp_restart */
 #include "esp_log.h"
 #include "cJSON.h"
 
@@ -500,4 +501,22 @@ esp_err_t launcher_import_request(void) {
         return ESP_FAIL;
     }
     return ESP_OK;
+}
+
+/* ---- launcher presence / return ----------------------------------------- */
+static const esp_partition_t *li_factory(void) {
+    return esp_partition_find_first(ESP_PARTITION_TYPE_APP,
+                                    ESP_PARTITION_SUBTYPE_APP_FACTORY, NULL);
+}
+
+bool launcher_present(void) {
+    const esp_partition_t *fac = li_factory();
+    return fac && fac != esp_ota_get_running_partition();
+}
+
+void launcher_exit_to_launcher(void) {
+    const esp_partition_t *fac = li_factory();
+    if (!fac) return;                                 /* not under Launcher */
+    if (esp_ota_set_boot_partition(fac) != ESP_OK) return;
+    esp_restart();                                    /* does not return */
 }

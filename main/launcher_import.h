@@ -74,6 +74,24 @@ bool launcher_import_running(void);
 /* Copy the current snapshot out. Safe from ui_task at any time. */
 void launcher_import_status(li_status_t *out);
 
+/*
+ * True when this firmware was launched from M5Launcher -- i.e. a factory
+ * app partition (Launcher lives there) exists and is not the partition
+ * we are running from. Cheap and instant (no flash scan): a single
+ * partition-table lookup, safe to call from a draw path. Used to hide
+ * the import row and the exit button on a standalone flash, where there
+ * is no Launcher to import from or return to.
+ */
+bool launcher_present(void);
+
+/*
+ * Reboot into M5Launcher by pointing the boot selection at the factory
+ * partition. Does not return on success. No-op (returns) when there is
+ * no factory partition -- see launcher_present(). Caller should stop
+ * playback/recording first; this does not unmount or flush.
+ */
+void launcher_exit_to_launcher(void);
+
 #ifdef __cplusplus
 }
 #endif

@@ -338,6 +338,7 @@ typedef enum {
     UI_ACTION_CROSSFADE,
     UI_ACTION_XFADE_ALBUM,
     UI_ACTION_SLEEP,
+    UI_ACTION_POWER_OFF,    /* the power icon, confirmed: power the device off now */
 } ui_action_kind_t;
 
 /* Name of an action, for logging. Never NULL. Lives beside the enum so a

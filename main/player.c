@@ -3903,7 +3903,7 @@ static bool screen_covered(void)
  */
 static void clear_art(void)
 {
-    if (screen_covered()) {
+    if (screen_covered() || recorder_active()) {   /* 5214: mic owns the band */
         s_repaint_art = true;
         return;
     }
@@ -4473,8 +4473,11 @@ static void load_track_visuals(const char *path)
      * is a transport bar to draw it on. A track change with the chooser
      * open is exactly the case that flag was added for; it just was not
      * being consulted on this side.
+     *
+     * 5214: and not while recording -- the microphone has the art band,
+     * so a track-visuals paint here would land the cover on top of it.
      */
-    if (screen_covered()) {
+    if (screen_covered() || recorder_active()) {
         s_repaint_art = true;
         return;
     }
@@ -4700,7 +4703,7 @@ static void show_format_card(const char *path, long bytes, uint32_t gen)
          * Xing-less MP3 is seconds long. Checked every slice for the
          * same reason gen is: this loop is the one place in the art path
          * that spends real time, so it is where the world changes. */
-        if (screen_covered()) {
+        if (screen_covered() || recorder_active()) {
             s_repaint_art = true;
             return;
         }
@@ -4718,8 +4721,12 @@ static void show_format_card(const char *path, long bytes, uint32_t gen)
      * The cover had this guard, in load_track_visuals(). The text that
      * stands in for a missing cover did not, and it comes through
      * media_task by a different route.
+     *
+     * 5214: recorder_active() for the same reason as screen_covered() --
+     * the recording microphone owns the art band, and the missing-cover
+     * card ("showing the format") is exactly what was landing on it.
      */
-    if (screen_covered()) {
+    if (screen_covered() || recorder_active()) {
         s_repaint_art = true;
         return;
     }
@@ -4849,8 +4856,12 @@ static void do_art(const char *path, uint32_t gen)
      *
      * s_repaint_art brings it back when the chooser closes, which every
      * browser exit already sets.
+     *
+     * 5214: likewise while recording -- the mic has the band. albumart_
+     * show()/ui_clear_art()/show_format_card() from here would overdraw
+     * it; the flag re-paints when the recording ends.
      */
-    if (screen_covered()) {
+    if (screen_covered() || recorder_active()) {
         s_repaint_art = true;
         return;
     }

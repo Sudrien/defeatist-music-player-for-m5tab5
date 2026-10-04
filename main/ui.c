@@ -1450,13 +1450,18 @@ static void draw_status(const ui_state_t *st)
      * grey Never. No minutes: the word and its colour say it. */
     const uint16_t idle_c = st->idle_state == 2 ? C_PLAY_ON
                           : st->idle_state == 1 ? C_RG : C_ICON_OFF;
+    char idlew[24];                     /* "IDLE " + minutes, or bare "IDLE" */
+    if (st->idle_state && st->idle_min > 0)
+        snprintf(idlew, sizeof(idlew), _("IDLE %dM"), st->idle_min);
+    else
+        snprintf(idlew, sizeof(idlew), "%s", _("IDLE"));
     const struct { const char *word; uint16_t c; } items[] = {
         { same("USB"),   st->usb_power ? C_PLAY_ON : C_ICON_OFF },
         { same("WIFI"),  wifi_c },
         { same("MPD"),   st->mpd_on ? C_PLAY_ON : C_ICON_OFF },
         { same("HTTPS"), st->https_on ? C_PLAY_ON : C_ICON_OFF },
         { sleepw,  st->sleep_min > 0 ? C_PLAY_ON : C_ICON_OFF },
-        { _("IDLE"), idle_c },
+        { idlew, idle_c },
     };
     const int top = y + STATUS_DY;
 

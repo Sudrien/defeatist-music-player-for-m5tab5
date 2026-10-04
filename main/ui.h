@@ -255,6 +255,10 @@ typedef struct {
      * Was the minutes left (6001); a number that sat at the full wait
      * whenever anything was going on said less than the colour does. */
     uint8_t idle_state;
+    /* Minutes left on the power-off wait, rounded up; 0 when Never. The
+     * number 6020 dropped and 6001 had -- restored because the colour
+     * alone was not what was wanted. Shown next to idle_state's colour. */
+    int  idle_min;
     /* 5217: Record from is OFF -- the switch is drawn as two positions,
      * pause and play, and cannot be slid to record. */
     bool rec_off;

@@ -355,11 +355,14 @@ static bool s_notice_up;
 static bool s_notice_dismissible;
 static int  s_notice_x, s_notice_y, s_notice_w, s_notice_h;
 
-/* Exit-to-Launcher: the rocket in row 9's right block (the old battery
- * icon's slot, above the battery words) and its confirm modal. The modal
- * captures all input while up; its two button boxes are set when it is
- * drawn. See draw_rocket()/draw_exit_confirm() and ui_touch(). */
-static bool s_exit_confirm;
+/* The two icons in row 9's right block (the old battery-icon slot, above
+ * the battery words): a power button, always present, and the exit
+ * rocket, only under a launcher. Either opens one confirm modal, which
+ * captures all input while up; s_confirm says which action it will take,
+ * and the two button boxes are set when it is drawn. See draw_power()/
+ * draw_rocket()/draw_confirm() and ui_touch(). */
+enum { CONFIRM_NONE = 0, CONFIRM_EXIT, CONFIRM_POWER };
+static int  s_confirm;
 static int  s_ex_ok_x, s_ex_ok_y, s_ex_ok_w, s_ex_ok_h;
 static int  s_ex_cancel_x, s_ex_cancel_y, s_ex_cancel_w, s_ex_cancel_h;
 
@@ -409,6 +412,7 @@ const char *ui_action_name(ui_action_kind_t k)
     case UI_ACTION_CROSSFADE:   return same("crossfade");             /* 5269 */
     case UI_ACTION_XFADE_ALBUM: return same("crossfade in album");
     case UI_ACTION_SLEEP:       return same("sleep timer");
+    case UI_ACTION_POWER_OFF:   return same("power off");
     }
     return "?";
 }
@@ -1859,10 +1863,31 @@ static bool launcher_here(void)
     return cached == 1;
 }
 
-static void exit_centre(int *cx, int *cy)
+/*
+ * Two icons share the right block, right-anchored. The power button is
+ * the rightmost (above the battery words) and is always present; the
+ * exit rocket sits one pitch to its left and only when under a launcher.
+ * With no launcher the power button is the only icon after the volume
+ * slider. RI_HALF is a tight hit half so the pair fits the block; the
+ * tap order in ui_touch() puts both ahead of the volume slider, so an
+ * overlap with the slider's padded box resolves in the icons' favour.
+ */
+#define RI_HALF   (17)
+#define RI_PITCH  (38)
+static int right_cy(void)  { return s_bar_top + VOL_Y; }
+static int power_cx(void)  { return bar_x1() - RI_HALF; }
+static int exit_cx(void)   { return power_cx() - RI_PITCH; }
+
+/* The IEC power glyph: a ring broken at the top by a vertical bar
+ * (line-in-circle). Drawn from primitives like the other icons. */
+static void draw_power(int cx, int cy, uint16_t c)
 {
-    *cx = bar_x1() - BATT_BLOCK / 2;
-    *cy = s_bar_top + VOL_Y;
+    const int r = 11;
+    gfx_fill_circle(cx, cy, r, c);                 /* ring: outer... */
+    gfx_fill_circle(cx, cy, r - 3, C_BG);          /* ...minus centre */
+    /* Break the ring at the top and lay the bar into the gap. */
+    gfx_fill_rect(cx - 4, cy - r - 2, 8, 8, C_BG); /* clear the top arc */
+    gfx_fill_rect(cx - 2, cy - r - 1, 4, r + 1, c);/* the I, from above centre */
 }
 
 /* A small upright rocket drawn from primitives, like the other icons. */
@@ -1881,12 +1906,13 @@ static void draw_rocket(int cx, int cy, uint16_t c)
 }
 
 /*
- * The confirm modal. Centred in the square, a heading and two buttons:
- * Cancel (grey) and Exit (red, because it drops playback and reboots).
+ * The confirm modal, shared by both icons. Centred in the square, a
+ * heading and two buttons: Cancel (grey) and the action (red, because
+ * both drop playback). s_confirm picks the heading and the OK label.
  * Button boxes are stored for ui_touch(). Renders into the framebuffer;
  * the caller blits.
  */
-static void draw_exit_confirm(void)
+static void draw_confirm(void)
 {
     const int inset = NOTICE_INSET, pad = NOTICE_PAD, gap = NOTICE_GAP;
     const int bh = 72;
@@ -1898,7 +1924,8 @@ static void draw_exit_confirm(void)
     gfx_fill_rect(x, y, w, h, C_NOTICE_EDGE);
     gfx_fill_rect(x + 2, y + 2, w - 4, h - 4, C_NOTICE_BG);
 
-    const char *head = _("Exit to Launcher?");
+    const char *head = (s_confirm == CONFIRM_POWER) ? _("Power off?")
+                                                    : _("Exit to Launcher?");
     const int hw = gfx_text_w(head, NOTICE_BODY_SC);
     gfx_draw_text(x + (w - hw) / 2, y + pad, head, NOTICE_BODY_SC,
                   w - 2 * pad, C_THUMB);
@@ -1912,7 +1939,8 @@ static void draw_exit_confirm(void)
 
     gfx_fill_rect(s_ex_cancel_x, by, bw, bh, C_NOTICE_EDGE);
     gfx_fill_rect(s_ex_ok_x,     by, bw, bh, C_FILL);
-    const char *cancel = _("Cancel"), *go = _("Exit");
+    const char *cancel = _("Cancel");
+    const char *go = (s_confirm == CONFIRM_POWER) ? _("Power off") : _("Exit");
     gfx_draw_text(s_ex_cancel_x + (bw - gfx_text_w(cancel, NOTICE_BODY_SC)) / 2,
                   by + (bh - GFX_GLYPH_H(NOTICE_BODY_SC)) / 2, cancel,
                   NOTICE_BODY_SC, bw, C_THUMB);
@@ -2258,11 +2286,8 @@ void ui_draw(const ui_state_t *st)
     draw_star_btn(st->fav);
     draw_moon();
 
-    if (launcher_here()) {
-        int ex, ey;
-        exit_centre(&ex, &ey);
-        draw_rocket(ex, ey, C_ICON);
-    }
+    draw_power(power_cx(), right_cy(), C_ICON);
+    if (launcher_here()) draw_rocket(exit_cx(), right_cy(), C_ICON);
 
     int cx, cy;
     /* Prev is never greyed: it always does something -- restart the
@@ -2276,7 +2301,7 @@ void ui_draw(const ui_state_t *st)
     s_rec_off = st->rec_off;                            /* 5217 */
     draw_play_pause(st->playing, st->recording, st->rec_ok);
 
-    if (s_exit_confirm) draw_exit_confirm();            /* over everything */
+    if (s_confirm) draw_confirm();                      /* over everything */
 
     ui_blit_bar();
 }
@@ -2312,19 +2337,25 @@ ui_action_t ui_touch(const ui_state_t *st, bool down, int x, int y)
     }
 
     /*
-     * The exit-confirm modal captures everything while it is up: Exit
-     * reboots into Launcher (and does not return), Cancel or a tap
-     * anywhere else closes it. ui_draw() repaints immediately so the
-     * modal appears and clears on the tap rather than at the next poll.
+     * The confirm modal captures everything while it is up. On OK: Exit
+     * reboots into Launcher (and does not return); Power off is handed
+     * back as an action for player.c to run (it owns power_off_now() and
+     * stops the recorder first). Cancel or a tap anywhere else closes it.
+     * ui_draw() repaints immediately so the modal appears and clears on
+     * the tap rather than at the next poll.
      */
-    if (s_exit_confirm) {
+    if (s_confirm) {
         if (tapped) {
-            if (x >= s_ex_ok_x && x < s_ex_ok_x + s_ex_ok_w &&
-                y >= s_ex_ok_y && y < s_ex_ok_y + s_ex_ok_h) {
+            const bool ok = x >= s_ex_ok_x && x < s_ex_ok_x + s_ex_ok_w &&
+                            y >= s_ex_ok_y && y < s_ex_ok_y + s_ex_ok_h;
+            const int which = s_confirm;
+            s_confirm = CONFIRM_NONE;
+            if (ok && which == CONFIRM_EXIT) {
                 launcher_exit_to_launcher();   /* no return when under Launcher */
+            } else if (ok && which == CONFIRM_POWER) {
+                act.kind = UI_ACTION_POWER_OFF;
             }
-            s_exit_confirm = false;            /* Cancel / elsewhere, or exit failed */
-            ui_draw(st);
+            ui_draw(st);                       /* erase modal (or redraw before off) */
         }
         return act;
     }
@@ -2493,16 +2524,28 @@ ui_action_t ui_touch(const ui_state_t *st, bool down, int x, int y)
     }
 
     /*
-     * The rocket, only under Launcher -- same gate as its draw, so when
-     * it is not shown the slot is dead space rather than an invisible
-     * control. Before the volume slider below, whose padded hit box can
-     * reach into this block; tested here, it wins. Opens the confirm
-     * modal rather than acting, and repaints so it shows at once.
+     * The power button (always) and the exit rocket (only under a
+     * launcher), both before the volume slider below -- its padded hit
+     * box can reach into this block, and tested here these win. Each
+     * opens the shared confirm modal rather than acting, and repaints so
+     * it shows at once. RI_HALF, not ICON_HALF: the pair sit a pitch
+     * apart, so the hit halves must not meet in the middle.
      */
-    if (launcher_here()) {
-        exit_centre(&cx, &cy);
-        if (in_box(x, y, cx, cy, ICON_HALF)) {
-            s_exit_confirm = true;
+    {
+        const int rcy = right_cy(), px = power_cx(), exx = exit_cx();
+        const bool yhit = y >= rcy - RI_HALF - HIT_PAD_Y &&
+                          y <= rcy + RI_HALF + HIT_PAD_Y;
+        /* Pad only on the outer edges so the two boxes meet, not overlap:
+         * power takes the pad toward the screen edge, exit toward the
+         * slider. The inner edges stay at +/-RI_HALF, a pitch apart. */
+        if (yhit && x >= px - RI_HALF && x <= px + RI_HALF + HIT_PAD_X) {
+            s_confirm = CONFIRM_POWER;
+            ui_draw(st);
+            return act;
+        }
+        if (yhit && launcher_here() &&
+            x >= exx - RI_HALF - HIT_PAD_X && x <= exx + RI_HALF) {
+            s_confirm = CONFIRM_EXIT;
             ui_draw(st);
             return act;
         }

@@ -9013,6 +9013,19 @@ static void ui_task(void *arg)
             s_screen_off = false;
             backlight_set(screen_on_duty());
             break;
+        case UI_ACTION_POWER_OFF:
+            /* The power icon, already confirmed on the modal. Finish any
+             * recording first, as the low-battery guard does, so a WAV in
+             * progress is closed rather than truncated; then cut power. */
+            ESP_LOGW(TAG, "power off: requested from the power button");
+            if (recorder_active()) {
+                recorder_stop();
+                for (int i = 0; i < 100 && recorder_active(); i++) {
+                    vTaskDelay(pdMS_TO_TICKS(100));     /* up to 10 s */
+                }
+            }
+            power_off_now();
+            break;
         default:
             break;
         }

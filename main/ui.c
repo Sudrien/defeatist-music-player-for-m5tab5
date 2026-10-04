@@ -18,6 +18,7 @@
 
 #include "ui.h"
 #include "i18n.h"         /* 6017 */
+#include "launcher_import.h"   /* launcher_present(), launcher_exit_to_launcher() */
 #include "waveform.h"
 
 static const char *TAG = "tab5_ui";
@@ -353,6 +354,14 @@ static bool s_landscape;
 static bool s_notice_up;
 static bool s_notice_dismissible;
 static int  s_notice_x, s_notice_y, s_notice_w, s_notice_h;
+
+/* Exit-to-Launcher: the rocket in row 9's right block (the old battery
+ * icon's slot, above the battery words) and its confirm modal. The modal
+ * captures all input while up; its two button boxes are set when it is
+ * drawn. See draw_rocket()/draw_exit_confirm() and ui_touch(). */
+static bool s_exit_confirm;
+static int  s_ex_ok_x, s_ex_ok_y, s_ex_ok_w, s_ex_ok_h;
+static int  s_ex_cancel_x, s_ex_cancel_y, s_ex_cancel_w, s_ex_cancel_h;
 
 static int s_drag = -1;         /* 0 = seek, 1 = volume, 2 = transport switch */
 /* The switch drag: where the finger went down, and the detent the knob
@@ -1835,6 +1844,83 @@ bool ui_in_art(int x, int y)
     return x < aw && y < ah;
 }
 
+/*
+ * Exit to Launcher -- a rocket (M5Launcher's own motif, simplified) in
+ * the right block of row 9, where the battery icon used to be and
+ * directly above the battery words on the status line. Shown only when
+ * we were launched from Launcher; on a standalone flash there is nothing
+ * to return to. launcher_present() is a partition-table lookup whose
+ * answer cannot change at runtime, so it is cached.
+ */
+static bool launcher_here(void)
+{
+    static int cached = -1;
+    if (cached < 0) cached = launcher_present() ? 1 : 0;
+    return cached == 1;
+}
+
+static void exit_centre(int *cx, int *cy)
+{
+    *cx = bar_x1() - BATT_BLOCK / 2;
+    *cy = s_bar_top + VOL_Y;
+}
+
+/* A small upright rocket drawn from primitives, like the other icons. */
+static void draw_rocket(int cx, int cy, uint16_t c)
+{
+    const int nose[6] = { cx, cy - 22,  cx - 6, cy - 12,  cx + 6, cy - 12 };
+    gfx_fill_poly(nose, 3, c);
+    gfx_fill_rect(cx - 6, cy - 12, 12, 20, c);           /* body */
+    const int finl[6] = { cx - 6, cy + 0,  cx - 13, cy + 10,  cx - 6, cy + 10 };
+    const int finr[6] = { cx + 6, cy + 0,  cx + 13, cy + 10,  cx + 6, cy + 10 };
+    gfx_fill_poly(finl, 3, c);
+    gfx_fill_poly(finr, 3, c);
+    gfx_fill_circle(cx, cy - 4, 3, C_BG);                /* porthole */
+    const int flame[6] = { cx - 4, cy + 8,  cx + 4, cy + 8,  cx, cy + 16 };
+    gfx_fill_poly(flame, 3, C_FILL);                     /* a little thrust */
+}
+
+/*
+ * The confirm modal. Centred in the square, a heading and two buttons:
+ * Cancel (grey) and Exit (red, because it drops playback and reboots).
+ * Button boxes are stored for ui_touch(). Renders into the framebuffer;
+ * the caller blits.
+ */
+static void draw_exit_confirm(void)
+{
+    const int inset = NOTICE_INSET, pad = NOTICE_PAD, gap = NOTICE_GAP;
+    const int bh = 72;
+    const int x = bar_x0() + inset;
+    const int w = (bar_x1() - bar_x0()) - 2 * inset;
+    const int h = pad + GFX_GLYPH_H(NOTICE_BODY_SC) + gap + bh + pad;
+    const int y = s_bar_top + (UI_SQUARE - h) / 2;
+
+    gfx_fill_rect(x, y, w, h, C_NOTICE_EDGE);
+    gfx_fill_rect(x + 2, y + 2, w - 4, h - 4, C_NOTICE_BG);
+
+    const char *head = _("Exit to Launcher?");
+    const int hw = gfx_text_w(head, NOTICE_BODY_SC);
+    gfx_draw_text(x + (w - hw) / 2, y + pad, head, NOTICE_BODY_SC,
+                  w - 2 * pad, C_THUMB);
+
+    const int bw = (w - 2 * pad - gap) / 2;
+    const int by = y + h - pad - bh;
+    s_ex_cancel_x = x + pad;            s_ex_cancel_y = by;
+    s_ex_cancel_w = bw;                 s_ex_cancel_h = bh;
+    s_ex_ok_x = x + pad + bw + gap;     s_ex_ok_y = by;
+    s_ex_ok_w = bw;                     s_ex_ok_h = bh;
+
+    gfx_fill_rect(s_ex_cancel_x, by, bw, bh, C_NOTICE_EDGE);
+    gfx_fill_rect(s_ex_ok_x,     by, bw, bh, C_FILL);
+    const char *cancel = _("Cancel"), *go = _("Exit");
+    gfx_draw_text(s_ex_cancel_x + (bw - gfx_text_w(cancel, NOTICE_BODY_SC)) / 2,
+                  by + (bh - GFX_GLYPH_H(NOTICE_BODY_SC)) / 2, cancel,
+                  NOTICE_BODY_SC, bw, C_THUMB);
+    gfx_draw_text(s_ex_ok_x + (bw - gfx_text_w(go, NOTICE_BODY_SC)) / 2,
+                  by + (bh - GFX_GLYPH_H(NOTICE_BODY_SC)) / 2, go,
+                  NOTICE_BODY_SC, bw, C_THUMB);
+}
+
 void ui_draw(const ui_state_t *st)
 {
     if (!s_fb) return;
@@ -2172,6 +2258,12 @@ void ui_draw(const ui_state_t *st)
     draw_star_btn(st->fav);
     draw_moon();
 
+    if (launcher_here()) {
+        int ex, ey;
+        exit_centre(&ex, &ey);
+        draw_rocket(ex, ey, C_ICON);
+    }
+
     int cx, cy;
     /* Prev is never greyed: it always does something -- restart the
      * track if nothing else -- so dimming it would be a lie about a
@@ -2183,6 +2275,8 @@ void ui_draw(const ui_state_t *st)
     draw_skip(cx, cy, true, st->has_next);
     s_rec_off = st->rec_off;                            /* 5217 */
     draw_play_pause(st->playing, st->recording, st->rec_ok);
+
+    if (s_exit_confirm) draw_exit_confirm();            /* over everything */
 
     ui_blit_bar();
 }
@@ -2214,6 +2308,24 @@ ui_action_t ui_touch(const ui_state_t *st, bool down, int x, int y)
      * would let one tap turn the screen off again. */
     if (st->screen_off) {
         if (tapped) act.kind = UI_ACTION_SCREEN_ON;
+        return act;
+    }
+
+    /*
+     * The exit-confirm modal captures everything while it is up: Exit
+     * reboots into Launcher (and does not return), Cancel or a tap
+     * anywhere else closes it. ui_draw() repaints immediately so the
+     * modal appears and clears on the tap rather than at the next poll.
+     */
+    if (s_exit_confirm) {
+        if (tapped) {
+            if (x >= s_ex_ok_x && x < s_ex_ok_x + s_ex_ok_w &&
+                y >= s_ex_ok_y && y < s_ex_ok_y + s_ex_ok_h) {
+                launcher_exit_to_launcher();   /* no return when under Launcher */
+            }
+            s_exit_confirm = false;            /* Cancel / elsewhere, or exit failed */
+            ui_draw(st);
+        }
         return act;
     }
 
@@ -2378,6 +2490,22 @@ ui_action_t ui_touch(const ui_state_t *st, bool down, int x, int y)
     if (in_box(x, y, cx, cy, ICON_HALF)) {
         act.kind = UI_ACTION_SCREEN_OFF;
         return act;
+    }
+
+    /*
+     * The rocket, only under Launcher -- same gate as its draw, so when
+     * it is not shown the slot is dead space rather than an invisible
+     * control. Before the volume slider below, whose padded hit box can
+     * reach into this block; tested here, it wins. Opens the confirm
+     * modal rather than acting, and repaints so it shows at once.
+     */
+    if (launcher_here()) {
+        exit_centre(&cx, &cy);
+        if (in_box(x, y, cx, cy, ICON_HALF)) {
+            s_exit_confirm = true;
+            ui_draw(st);
+            return act;
+        }
     }
 
     /* Before the volume slider, and with a box that does not reach it --

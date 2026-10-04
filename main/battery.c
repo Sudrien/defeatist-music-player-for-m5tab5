@@ -157,6 +157,7 @@ static volatile bool s_external;
 static volatile int  s_pct = -1;
 static volatile int  s_mv;
 static volatile bool s_charging;
+static volatile bool s_discharging;
 
 /* The smoothed voltage, in millivolts, held here rather than recomputed:
  * an exponential average needs its own history and this is it. */
@@ -230,6 +231,12 @@ static void battery_task(void *arg)
             /* 200 uV across 5 mohm is 40 mA -- comfortably above the
              * dither and well below any real charge current. */
             s_charging = (BATTERY_CHARGE_SIGN * shunt_uv) > 200;
+            /* The mirror: current flowing OUT of the pack, i.e. the pack
+             * is supplying the load. Distinct from !s_charging, which is
+             * also true at rest on USB-C with a full battery (near-zero
+             * current) -- that case is neither charging nor discharging,
+             * and is exactly when a power-off cannot drop the rail. */
+            s_discharging = (BATTERY_CHARGE_SIGN * shunt_uv) < -200;
 
             /* Exponential average, 1/8. Fast enough to follow a cable
              * being plugged in within a couple of seconds, slow enough
@@ -385,5 +392,6 @@ esp_err_t battery_start(void)
 
 int battery_pct(void)      { return s_pct; }
 bool battery_charging(void){ return s_charging; }
+bool battery_discharging(void){ return s_discharging; }
 int battery_mv(void)       { return s_mv; }
 bool battery_external(void) { return s_external; }

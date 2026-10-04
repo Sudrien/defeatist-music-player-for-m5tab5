@@ -6989,13 +6989,18 @@ static void power_off_now(void)
     /*
      * 5214: the PMS150 power controller cannot cut the rail while USB-C
      * is feeding it, so a power-off attempt on external power does
-     * nothing but fade the screen to a dark panel that looks hung. Don't
-     * try: say why and leave the screen up. The low-battery guard only
-     * ever calls this on the pack (it gates on !battery_external() &&
-     * !battery_charging()), so this does not swallow that.
+     * nothing but fade the screen to a dark panel that looks hung.
+     *
+     * Gate on battery_discharging(), not (external || charging): those
+     * two miss the common case -- at rest on USB-C with a full battery
+     * the current is near zero, so it is neither external (there IS a
+     * pack) nor charging, yet the rail is still externally held. The
+     * pack supplying the load (discharging) is the one state in which a
+     * power-off can actually succeed. The low-battery guard runs while
+     * discharging, so it is unaffected.
      */
-    if (battery_external() || battery_charging()) {
-        ESP_LOGW(TAG, "power off: on USB power -- cannot switch off, unplug to power down");
+    if (!battery_discharging()) {
+        ESP_LOGW(TAG, "power off: on external power -- cannot switch off, unplug USB-C");
         notice_post(N_("Still plugged in"), N_("Unplug USB-C to power off."));
         return;
     }

@@ -117,6 +117,15 @@ int battery_pct(void);
 /* Whether current is flowing into the pack. */
 bool battery_charging(void);
 
+/*
+ * Whether current is flowing OUT of the pack -- the pack is supplying
+ * the load, i.e. the device is genuinely running on battery. NOT the
+ * same as !battery_charging(): at rest on USB-C with a full pack the
+ * current is near zero, so neither is true. That case is external power,
+ * and it is the one where a power-off cannot drop the rail.
+ */
+bool battery_discharging(void);
+
 /* Pack voltage in millivolts, or 0 when unknown. For logging -- the UI
  * shows the percentage, because a voltage is a number almost nobody can
  * convert into "will this last the album". */

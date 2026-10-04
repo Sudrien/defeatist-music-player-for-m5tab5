@@ -78,6 +78,10 @@ void remote_poll(bool want);
 bool remote_running(void);
 bool remote_url(char *out, size_t out_size);
 
+/* 6016: live websocket clients now -- a browser with the remote open holds
+ * one. For the idle power-off: web-remote interaction keeps it awake. */
+int remote_ws_clients(void);
+
 /*
  * The state ui_draw() is about to draw, plus what ui_state_t does not
  * carry: the path whose cover /art serves, and the record countdown.

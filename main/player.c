@@ -6956,8 +6956,27 @@ static volatile int s_rec_count;
  */
 static bool idle_held(void)
 {
-    return s_playing || s_decoding || s_streaming || recorder_active() ||
-           s_rec_count > 0 || medialib_busy();
+    /*
+     * 6016: genuine local activity always holds off the idle power-off.
+     * s_playing covers an active decode too -- play_file() sets it before
+     * the open -- so bare s_decoding is deliberately NOT here: the decode
+     * loop runs on through a pause (see PCM_RING_BYTES) and would otherwise
+     * pin the timer at full while paused, never letting a paused-then-
+     * walked-away device switch off.
+     */
+    if (s_playing || recorder_active() || s_rec_count > 0 || medialib_busy())
+        return true;
+    /*
+     * A paused track, or a paused stream whose connection is kept, is not
+     * activity in itself -- the listener stopped it, so the clock should
+     * run. But someone may still be working the device: a screen open on
+     * the glass, an MPD client, or a browser holding the web remote's
+     * websocket. Hold for those; a paused stream with none of them is an
+     * idle candidate like any other.
+     */
+    if (screen_covered() || mpd_clients() > 0 || remote_ws_clients() > 0)
+        return true;
+    return false;
 }
 
 /*

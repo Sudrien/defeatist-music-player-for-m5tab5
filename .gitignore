@@ -3,6 +3,10 @@
 /sdkconfig
 /sdkconfig.old
 /managed_components/
+# Written by the CI build step from the release string into
+# esp_app_desc_t.version; never committed (local builds fall back to
+# git describe). See .github/workflows/main.yml.
+/version.txt
 
 # minimp3 and pngle: fetched by cmake/vendored.cmake during idf.py build,
 # pinned to commits and SHA256-checked. Nothing to run by hand.

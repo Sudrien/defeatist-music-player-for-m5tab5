@@ -2,6 +2,9 @@
 
 Most M5Tab5 Media players tell you to *convert* your files first. Not this one.
 
+The goal of this project is to max out the potential of this hardware without modifying it. No soldering, no accessories that can't be removed later. Every format that an Esp32-P4 v1.3 can reasonably handle without knowing secrets. 
+
+
 Claude, do not touch this README unless explicitly asked to. Use your own file.
 
 ![](screenshots/IMG_20261001_151110_126.jpg)
@@ -28,22 +31,20 @@ Claude, do not touch this README unless explicitly asked to. Use your own file.
 
 ## Here is what I was able to get working on ESP-IDF ~~5.5.5~~ 6.1
 
-Note: the goal of this project is to max out the potential of this hardware without modifying it. No soldering, no accessories that can't be removed later.
-
-- MicroSD card and USB stick hotplug
-  - The microsd card is preferred. It will use less power.
-  - It will auto-mount usb if available, though. 
+- MicroSD card and USB flash drive hotplug
+  - The MicroSD card is preferred. It will use less power.
+  - It will auto-mount USB if available, though, if the USB indicator is green. If it isn't, turn USB power back on in settings. 
 - exFAT support
   - SDHC & SDXC cards have been tested (even if the latter died after week, not the software's fault). SDUC has not. Will Blu-ray size audio files play? Hell if I know.
 - Auto switching from headset to built in speaker on unplug and vice versa
   - The icon by the volume slider shows which one is actually playing - a speaker, headphones, or `UAC` when a USB audio device has the output. Tapping mutes and unmutes. 
-- Support for all (as far as I can tell) mp3 formats. This thing has fallback library after fallback library. Flac, ogg, wav, the standards are in here.
-- Album art display: the picture in the file, or the album's cover.jpg / folder.jpg / front.jpg beside it
+- Support for all (as far as I can tell) mp3 format variants. This thing has fallback library after fallback library. Flac, ogg, wav, the standards are in here.
+- Album art display: wether the picture is in the file, or the album's cover.jpg / folder.jpg / front.jpg beside it
 - Battery status, in words at the end of the status line: `BATT 73%`, `CHRG 73%`, `CHARGED`, `NO BATT`
 - Wi-Fi on the status line: green connected, yellow connecting, grey off
 - Volume control
 - play/pause
-- start of track/previous
+- start of track / previous track (double tap)
 - next track
 - screen sleep
 - drag to seek. Every format in the list above.
@@ -51,7 +52,7 @@ Note: the goal of this project is to max out the potential of this hardware with
 - volume waveform on the seek bar. I thought it was cool.
 - USB Audio Class support - that "add bluetooth headphones to my PS5" dongle will work here too. USB A port only. 
 - pause cuts power to the amp
-- some sdram caching. If you notice things acting up 20 seconds before a song change, please file an issue.
+- sdram caching. If you notice things acting up 20 seconds before a song change, please file an issue.
 - ReplayGain support. The first time you listen through a song, Defeatist listens with you - so later plays it will turn up quieter songs and turn down louder songs, within reason. [BS.1770](https://www.itu.int/rec/R-REC-BS.1770/en) reason.
   - The seek bar waveform comes from the same listen. Until a song has been heard all the way through once, its bar is plain grey.
   - Skipping or seeking during that first listen cancels it - it will try again next time.
@@ -78,14 +79,14 @@ Note: the goal of this project is to max out the potential of this hardware with
 - m3u/m3u8 - at least through MPD
 - Oh right, [Music Player Daemon](https://mpd.readthedocs.io/en/stable/user.html) support - yes, this should mean home assistant control too.
 - https web ui
-- Audio recording, since the hardware is right there
+- Audio recording, since the hardware is right there, in FLAC
   - with a level meter while it records
 - a status line under volume: USB power, MPD, HTTPS, and the sleep timer's minutes left. Green is on.
 - Oh Lord I looked at the M5Launcher app list let's fix that title order right now
-
-## v0.6.0 Goals
-- languages (English, simplified Chinese, Japanese, Spanish)
-- cover font gaps (seeing some boxes that show up as ... Ethiopian? Arabic is drawn now, 6029/6043)
+- User Interface languages (English, simplified Chinese, Japanese, Spanish), select in Settings Gear >> Build tab
+- [bmorcelli/Launcher](https://github.com/bmorcelli/Launcher) support
+  - exit back to launcher
+  - wifi credential import
 
 ## What could happen
 - more crash and burn handling, hey, you can always hook it up to `idf.py monitor` and see what you get.
@@ -95,7 +96,11 @@ Note: the goal of this project is to max out the potential of this hardware with
 ## What could not happen with current published code
 - classic BT dongle support
 - per file resume
-- usb hubs - Can it tell you have plugged one in? yes. Can it use things plugged into them? Probably not. Will one save you if your device requires enough power to brownout the Tab5? Uh. Define save.
+- usb hubs
+  - Can it tell you have plugged one in? yes.
+  - Can it use things plugged into them? Probably not.
+  - Will one save you if your device requires enough power to brownout the Tab5? Uh. Define save.
+  - Multiple device speeds is is what isn't supported by the libraries, and I can't tell you what any given device's speed is.
 - DRM'd files are no-go.
 - DSD and APE require too much processing
 

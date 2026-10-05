@@ -83,7 +83,7 @@ int main(void)
         "rg 2", "rg", "xfade 13", "xfade", "xfalbum 2", "sleep 9", "sleep -1", "sleep",
     };
     for (size_t i = 0; i < sizeof(bad) / sizeof(bad[0]); i++) {
-        remote_cmd_t c = { REMOTE_CMD_PLAY, 7 };
+        remote_cmd_t c = { .kind = REMOTE_CMD_PLAY, .value = 7 };
         const bool ok = remoteproto_parse(bad[i], strlen(bad[i]), &c);
         CHECK(!ok && c.kind == REMOTE_CMD_NONE, "\"%s\" accepted", bad[i]);
     }
@@ -137,7 +137,7 @@ int main(void)
     printf("  paths\n");
     {
         static const char *const good[] = {
-            "/", "/sd", "/usb", "/sd/Music", "/usb/B\xc3\xb4a - Twilight/01 Duvet.mp3",
+            "/", "/sd", "/usb", "/sd/Music", "/usb/B\xc3\xb4" "a - Twilight/01 Duvet.mp3",
             "/sd/a/b/c.flac", "/sd/.hidden/x", "/sd/..x", "/sd/x..",
         };
         for (size_t i = 0; i < sizeof(good) / sizeof(good[0]); i++) {

@@ -27,15 +27,15 @@
  *
  * STORED AS TILES (5247). A full-width glyph is four 6x6 tiles (top
  * left, top right, bottom left, bottom right) and a half-width one two
- * (top, bottom). Across the font 81614 tiles are only 33735
+ * (top, bottom). Across the font 81712 tiles are only 33775
  * distinct -- blank corners, shared radicals, repeated strokes -- so each
  * distinct tile is stored once, 36 bits packed end to end in
  * ark12_tiles, and a glyph is its tiles' numbers in ark12_tix. The
  * codepoints are runs of consecutive glyphs of one width (ark12_runs),
  * so there is no table per glyph at all: a glyph's tile numbers start
  * at its run's `tix` plus its place in the run times its tile count.
- * 341268 bytes, where one uint16_t row per scanline and a codepoint and
- * a width per glyph took 558063.
+ * 341748 bytes, where one uint16_t row per scanline and a codepoint and
+ * a width per glyph took 559035.
  *
  * SPDX-License-Identifier: OFL-1.1
  */
@@ -47,13 +47,13 @@
 #define ARK12_H       12
 #define ARK12_HALF_W  6
 #define ARK12_FULL_W  12
-#define ARK12_COUNT   20669
-#define ARK12_TILES   33735
-#define ARK12_RUNS    3278
+#define ARK12_COUNT   20705
+#define ARK12_TILES   33775
+#define ARK12_RUNS    3291
 
 /* 8 bytes a run: the width is the top bit of `count`, since a run is
  * never 32768 long -- a separate byte would pad the struct to 12, and
- * there are 3278 runs (the CJK blocks are not drawn whole). */
+ * there are 3291 runs (the CJK blocks are not drawn whole). */
 #define ARK12_RUN_FULL  0x8000u
 typedef struct {
     uint16_t first;     /* the run's first codepoint */

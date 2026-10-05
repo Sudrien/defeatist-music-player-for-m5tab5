@@ -71,7 +71,7 @@ es:
     # panel.c
     "Add a radio station to the card.": "Añade una emisora a la tarjeta."
     # radiobrowser.h
-    "Add a station by phone...": "Añadir emisora por teléfono..."
+    "Add a station by phone…": "Añadir emisora por teléfono…"
     # portal.c, remote.html
     "Add station": "Añadir emisora"
     # remote.html
@@ -123,7 +123,7 @@ es:
     # player.c
     "Cannot record": "No se puede grabar"
     # panel.c
-    "Cert %.29s...": "Cert. %.29s..."
+    "Cert %.29s…": "Cert. %.29s…"
     # portal.c
     "Choose the network this player should use, and enter its password. It is tried before it is saved.": "Elige la red que usará el reproductor e introduce su contraseña. Se prueba antes de guardarla."
     # remote.html
@@ -393,7 +393,7 @@ es:
     # portal.c, remote.html
     "Radio stations": "Emisoras de radio"
     # panel.c
-    "Reading %s without decoding...": "Leyendo %s sin decodificar..."
+    "Reading %s without decoding…": "Leyendo %s sin decodificar…"
     # remote.html
     "Reading…": "Leyendo…"
     # panel.c
@@ -419,7 +419,7 @@ es:
     # remote.html
     "Remove": "Quitar"
     # ui.c
-    "ReplayGain is listening...": "ReplayGain escuchando..."
+    "ReplayGain is listening…": "ReplayGain escuchando…"
     # sleeppage.c
     "Rotation": "Rotación"
     # ui.c
@@ -440,9 +440,7 @@ es:
     "Saved %.32s.": "Guardado %.32s."
     # remote.html
     "Scan": "Buscar"
-    # launcher_import.c
-    "Scanning...": "Buscando..."
-    # remote.c
+    # launcher_import.c, remote.c
     "Scanning…": "Buscando…"
     # sleeppage.c
     "Screen": "Pantalla"
@@ -473,7 +471,7 @@ es:
     # radiobrowser.h
     "Starred stations": "Emisoras favoritas"
     # panel.c
-    "Starting...": "Iniciando..."
+    "Starting…": "Iniciando…"
     # portal.c, remote.c
     "Station added.": "Emisora añadida."
     # panel.c
@@ -557,7 +555,7 @@ es:
     # remote.html
     "Tried before it is saved. Only over this encrypted page — never in the clear.": "Se prueba antes de guardarla. Solo por esta página cifrada; nunca en claro."
     # panel.c
-    "Trying %.32s...": "Probando %.32s..."
+    "Trying %.32s…": "Probando %.32s…"
     # portal.c
     "Trying %s… This can take fifteen seconds, and this phone may lose the setup network for a moment. The player's screen shows the result either way.": "Probando %s… Puede tardar quince segundos, y este teléfono puede perder la red de configuración un momento. La pantalla del reproductor muestra el resultado en cualquier caso."
     # panel.c
@@ -609,7 +607,7 @@ es:
     # panel.c
     "failed; the log says why": "falló; el registro dice por qué"
     # player.c
-    "fetching %s...": "obteniendo %s..."
+    "fetching %s…": "obteniendo %s…"
     # panel.c
     "from NTP": "de NTP"
     # audio_out.c
@@ -735,7 +733,7 @@ es:
     # player.c
     "waiting for the network to play %s": "esperando la red para %s"
     # player.c
-    "waiting for the network...": "esperando la red..."
+    "waiting for the network…": "esperando la red…"
     # panel.c
     "was damaged; reindex rebuilds it": "dañado; reindexar lo rehace"
   plural:

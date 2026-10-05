@@ -112,6 +112,7 @@ RANGES = [
     (0x00A0, 0x00FF),  # Latin-1 Supplement
     (0x0100, 0x017F),  # Latin Extended-A
     (0x0400, 0x04FF),  # Cyrillic (halfwidth; monospaced cut, 12px only)
+    (0x2000, 0x206F),  # General Punctuation (mixed: … ‘’“” halfwidth, — • fullwidth)
     (0x3000, 0x303F),  # CJK Symbols and Punctuation (fullwidth)
     (0x3040, 0x309F),  # Hiragana (fullwidth)
     (0x30A0, 0x30FF),  # Katakana (fullwidth)

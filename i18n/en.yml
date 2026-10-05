@@ -71,7 +71,7 @@ en:
     # panel.c
     "Add a radio station to the card.": ~
     # radiobrowser.h
-    "Add a station by phone...": ~
+    "Add a station by phone…": ~
     # portal.c, remote.html
     "Add station": ~
     # remote.html
@@ -123,7 +123,7 @@ en:
     # player.c
     "Cannot record": ~
     # panel.c
-    "Cert %.29s...": ~
+    "Cert %.29s…": ~
     # portal.c
     "Choose the network this player should use, and enter its password. It is tried before it is saved.": ~
     # remote.html
@@ -393,7 +393,7 @@ en:
     # portal.c, remote.html
     "Radio stations": ~
     # panel.c
-    "Reading %s without decoding...": ~
+    "Reading %s without decoding…": ~
     # remote.html
     "Reading…": ~
     # panel.c
@@ -419,7 +419,7 @@ en:
     # remote.html
     "Remove": ~
     # ui.c
-    "ReplayGain is listening...": ~
+    "ReplayGain is listening…": ~
     # sleeppage.c
     "Rotation": ~
     # ui.c
@@ -440,9 +440,7 @@ en:
     "Saved %.32s.": ~
     # remote.html
     "Scan": ~
-    # launcher_import.c
-    "Scanning...": ~
-    # remote.c
+    # launcher_import.c, remote.c
     "Scanning…": ~
     # sleeppage.c
     "Screen": ~
@@ -473,7 +471,7 @@ en:
     # radiobrowser.h
     "Starred stations": ~
     # panel.c
-    "Starting...": ~
+    "Starting…": ~
     # portal.c, remote.c
     "Station added.": ~
     # panel.c
@@ -557,7 +555,7 @@ en:
     # remote.html
     "Tried before it is saved. Only over this encrypted page — never in the clear.": ~
     # panel.c
-    "Trying %.32s...": ~
+    "Trying %.32s…": ~
     # portal.c
     "Trying %s… This can take fifteen seconds, and this phone may lose the setup network for a moment. The player's screen shows the result either way.": ~
     # panel.c
@@ -609,7 +607,7 @@ en:
     # panel.c
     "failed; the log says why": ~
     # player.c
-    "fetching %s...": ~
+    "fetching %s…": ~
     # panel.c
     "from NTP": ~
     # audio_out.c
@@ -735,7 +733,7 @@ en:
     # player.c
     "waiting for the network to play %s": ~
     # player.c
-    "waiting for the network...": ~
+    "waiting for the network…": ~
     # panel.c
     "was damaged; reindex rebuilds it": ~
   plural:

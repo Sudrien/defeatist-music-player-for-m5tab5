@@ -21932,3 +21932,33 @@ existing `Scanning…` key is the web page's, where it is fine.)
 On the board, in each language: the Exit and Power-off confirms, and
 the import row idle, scanning, done and failed -- the pills at 132 px
 are the likeliest to clip.
+
+### 6050 -- General Punctuation in Ark12, and one character for an ellipsis
+
+Ark Pixel draws General Punctuation (U+2000-206F) at 12px and
+`gen_ark12.py` never asked for it: `RANGES` went from Cyrillic to the
+CJK blocks. So `…`, the curly quotes and the dashes drew as the notdef
+box -- in a station name or a tag as much as anywhere -- and 6049 had
+to keep "Scanning..." as three full stops because `i18ntest` refused
+`…` on a screen string.
+
+The range is in `RANGES` now. It adds 36 glyphs and 480 bytes of flash.
+The block mixes Ark's cuts, and the table keeps the width Ark drew:
+`…`, `‘ ’ “ ”` and `–` are halfwidth like Latin; `—`, `―`, `•`, `† ‡`,
+`‰` and `※` are fullwidth, so an em dash in a Latin title is a 12 px
+cell. Regenerated with `--src` from a checkout of the pinned commit,
+which reproduced the old `ark12.c` byte for byte before the range was
+added. Every glyph outside the block is unchanged: texttest's golden
+count and hash are still 20669 and 0x8EE1A15E with it left out, and the
+pinned values move to the new font's.
+
+Every ellipsis in screen text is now `…` (U+2026) and not `...`: nine
+keys, renamed in the source and the YAML so no translation was lost.
+Byte lengths do not change -- `…` is three bytes in UTF-8 as `...` is
+three -- so the `%.29s`/`%.32s` cuts and the 63-byte benchmark budget
+hold as they were; on screen the ellipsis is one cell wide instead of
+three. "Scanning..." was the import worker's, and the remote's
+`Scanning…` already existed; they are one key now.
+
+Not changed: gfx.c's truncation still draws three `'.'` glyphs, log
+lines keep `...`, and the web pages were never limited to Ark12.

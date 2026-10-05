@@ -906,7 +906,7 @@ static void bench_lines(const bench_result_t *b, bool wifi,
         /* The name capped at 20 bytes, on a character boundary (6022);
          * every translation of the line is 40 bytes or fewer without it,
          * which tools/i18n.py's byte check in texttest holds them to. */
-        snprintf(l[0], 64, _("Reading %s without decoding..."),
+        snprintf(l[0], 64, _("Reading %s without decoding…"),
                  b->name[0] ? utf8_head(b->name, 20, name, sizeof(name))
                             : _("the station"));
         snprintf(l[1], 64, "%s", _("About twenty seconds."));
@@ -966,7 +966,7 @@ static void setup_lines(const portal_state_t *st, bool wifi, bool running,
         snprintf(l[0], 64, _("On a phone, open http://%s/"),
                  st->url_ip[0] ? st->url_ip : _("this player"));
         switch (st->status) {
-        case PORTAL_STARTING: snprintf(l[1], 64, "%s", _("Starting...")); break;
+        case PORTAL_STARTING: snprintf(l[1], 64, "%s", _("Starting…")); break;
         case PORTAL_ERROR:    snprintf(l[1], 64, "%s", _("Could not start.")); break;
         default:              snprintf(l[1], 64, "%s", _("Add a radio station to the card.")); break;
         }
@@ -979,8 +979,8 @@ static void setup_lines(const portal_state_t *st, bool wifi, bool running,
     if (running) {
         snprintf(l[0], 64, _("Join %s on a phone."), st->ap_ssid[0] ? st->ap_ssid : _("the setup network"));
         switch (st->status) {
-        case PORTAL_STARTING: snprintf(l[1], 64, "%s", _("Starting...")); break;
-        case PORTAL_TRYING:   snprintf(l[1], 64, _("Trying %.32s..."), st->last_ssid); break;
+        case PORTAL_STARTING: snprintf(l[1], 64, "%s", _("Starting…")); break;
+        case PORTAL_TRYING:   snprintf(l[1], 64, _("Trying %.32s…"), st->last_ssid); break;
         case PORTAL_FAILED:   snprintf(l[1], 64, _("%.32s did not work. Try again."), st->last_ssid); break;
         case PORTAL_SAVED:    snprintf(l[1], 64, _("Saved %.32s."), st->last_ssid); break;
         default:              snprintf(l[1], 64, "%s", _("A sign-in page opens with the form.")); break;
@@ -1087,7 +1087,7 @@ static int draw_net(void)
             static char fp_line[48];
             char fp[96];
             if (devcert_fingerprint(fp, sizeof(fp))) {
-                snprintf(fp_line, sizeof(fp_line), _("Cert %.29s..."), fp);
+                snprintf(fp_line, sizeof(fp_line), _("Cert %.29s…"), fp);
                 rn[1] = fp_line;
             } else {
                 rn[1] = N_("in a browser on the same network.");

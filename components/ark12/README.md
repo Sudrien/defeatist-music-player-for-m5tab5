@@ -31,14 +31,16 @@ font was public domain, so nothing had to travel with it.
 
 ## Coverage
 
-**20,669 glyphs, about 333 KB of flash** -- stored since 5247 as shared
-6×6 tiles (81,614 tiles, 33,735 distinct), where one 16-bit value per
+**20,705 glyphs, about 334 KB of flash** -- stored since 5247 as shared
+6×6 tiles (81,712 tiles, 33,775 distinct), where one 16-bit value per
 row took about 545 KB. Two cell sizes, and the table records which each
 glyph is rather than inferring it from the codepoint:
 
-- **6×12 halfwidth** (531 glyphs) — Basic Latin (U+0020–U+007E),
-  Latin-1 Supplement, Latin Extended-A, Cyrillic.
-- **12×12 fullwidth** (20,138 glyphs) — CJK Symbols and Punctuation,
+- **6×12 halfwidth** (554 glyphs) — Basic Latin (U+0020–U+007E),
+  Latin-1 Supplement, Latin Extended-A, Cyrillic, and General
+  Punctuation's quotes, en dash and ellipsis (… ‘ ’ “ ” –).
+- **12×12 fullwidth** (20,151 glyphs) — the rest of General
+  Punctuation drawn (— ― • † ‡ ‰ ※ among them), CJK Symbols and Punctuation,
   Hiragana, Katakana, CJK Unified Ideographs and Extension A, and
   Halfwidth and Fullwidth Forms.
 

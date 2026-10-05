@@ -353,6 +353,7 @@ extern uint32_t g_tab5_dpi_underruns;
 
 #define PI4IOE_ADDR_2           (0x44)
 #define PI4IOE2_IO_DIR          (0xB9)
+#define CHG_EN_BIT              (1u << 7)   /* 6052: P7, the charger's enable */
 
 /* ---- Audio plumbing ----
  *
@@ -770,6 +771,32 @@ static esp_err_t io_expanders_init(void)
     ESP_RETURN_ON_ERROR(add_dev(PI4IOE_ADDR_2, &s_exp2), TAG, "expander 0x44 absent");
     ESP_RETURN_ON_ERROR(reg_write(s_exp2, PI4IOE_REG_CHIP_RESET, 0xFF), TAG, "reset 2");
     ESP_RETURN_ON_ERROR(reg_write(s_exp2, PI4IOE_REG_IO_DIR, PI4IOE2_IO_DIR), TAG, "dir 2");
+
+    /*
+     * 6052: CHG_EN is P7 here, and the chip reset above leaves it in
+     * high-Z, where the charger stays off: on USB-C the board ran but
+     * the pack never charged. M5Unified's Tab5 init drives it high and
+     * setBatteryCharge() is digitalWrite(7, ...) on this expander.
+     * Direction, out of high-Z, drive -- the order wifi.c and usbhost.c
+     * use. Not fatal: a board that cannot charge can still play.
+     */
+    {
+        static const struct { uint8_t reg; bool set; } chg[] = {
+            { PI4IOE_REG_IO_DIR,     true  },   /* output        */
+            { PI4IOE_REG_OUT_HIGH_Z, false },   /* out of high-Z */
+            { PI4IOE_REG_OUT_SET,    true  },   /* drive high    */
+        };
+        esp_err_t err = ESP_OK;
+        for (size_t i = 0; i < sizeof(chg) / sizeof(chg[0]) && err == ESP_OK; i++) {
+            uint8_t reg = chg[i].reg, val = 0;
+            err = i2c_master_transmit_receive(s_exp2, &reg, 1, &val, 1, I2C_TIMEOUT_MS);
+            if (err != ESP_OK) break;
+            val = chg[i].set ? (uint8_t)(val | CHG_EN_BIT) : (uint8_t)(val & (uint8_t)~CHG_EN_BIT);
+            err = reg_write(s_exp2, reg, val);
+        }
+        if (err == ESP_OK) ESP_LOGI(TAG, "CHG_EN driven high (expander 0x%02X P7)", PI4IOE_ADDR_2);
+        else ESP_LOGW(TAG, "CHG_EN not set: %s -- the pack will not charge", esp_err_to_name(err));
+    }
 
     vTaskDelay(pdMS_TO_TICKS(100));     /* panel out of reset before first command */
     return ESP_OK;

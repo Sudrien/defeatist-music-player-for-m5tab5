@@ -21884,3 +21884,21 @@ JSON object. Those two now send `""` instead.
 Not compiled here (esp_http_server is not among texttest's fakes); the
 change is a guard on one helper and two return values. On the board: the
 first load of the setup page should show the whole form in English.
+
+### 6048 -- remoteprototest builds without its two warnings
+
+`texttest` built `remoteprototest.c` with two warnings, and one of them
+was a test that was not testing what it said.
+
+`"/usb/B\xc3\xb4a - Twilight/..."` meant "Bôa", but a hex escape takes
+every hex digit that follows it, so `\xb4a` is one escape, value 0xb4a,
+out of range for a char. GCC truncated it, and the path the test called
+"good" held a lone 0xc3 lead byte followed by something else -- not the
+two-byte ô it was written to check. The string is now split after the
+escape (`"B\xc3\xb4" "a - ..."`), which ends the escape where the
+letter does.
+
+The bad-command loop's `{ REMOTE_CMD_PLAY, 7 }` predates `value2`
+(5173) and `path`, and left them to the zero a partial initializer
+gives anyway. It names its two fields now (`.kind`, `.value`), which
+says the rest are meant to be zero; nothing about the test changes.

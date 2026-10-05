@@ -202,7 +202,7 @@ static void test_max_w_respected(void)
 {
     printf("max_w budget honoured\n");
     static const int budgets[] = { 0, 1, 6, 7, 13, 14, 20, 21, 27, 28,
-                                   40, 60, 100, 200, 400, 700 };
+                                   40, 41, 42, 55, 56, 60, 100, 200, 400, 700 };
     const int nb = (int)(sizeof(budgets) / sizeof(budgets[0]));
 
     for (int i = 0; i < NCORPUS; i++) {
@@ -295,10 +295,10 @@ static void test_tail_keeps_tail(void)
 
     for (int i = 0; i < n; i++) {
         const int scale = 1;
-        const int max_w = 3 * GFX_GLYPH_W(scale)
+        const int max_w = GFX_GLYPH_W(scale)
                         + gfx_text_w(cases[i].suffix, scale);
 
-        /* Ink from the truncated full string, minus the three dots. */
+        /* Ink from the truncated full string, minus the ellipsis. */
         clear();
         gfx_draw_text_tail(10, 10, cases[i].full, scale, max_w, INK);
         int fx0, fy0, fx1, fy1;
@@ -308,7 +308,7 @@ static void test_tail_keeps_tail(void)
 
         /* The suffix must be present: its own drawn width should equal
          * the width of the ink after the ellipsis. */
-        const int dots_w = 3 * GFX_GLYPH_W(scale);
+        const int dots_w = GFX_GLYPH_W(scale);   /* 6051: one U+2026 */
         const int suffix_w = gfx_text_w(cases[i].suffix, scale);
         const int tail_ink_w = fx1 - (10 + dots_w) + 1;
 

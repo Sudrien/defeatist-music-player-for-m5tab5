@@ -1259,11 +1259,10 @@ void gfx_draw_text(int x, int y, const char *s, int scale, int max_w, uint16_t c
         return;
     }
 
-    /* Doesn't fit as-is: draw what fits ahead of a three-dot ellipsis.
-     * The dots are always Latin regardless of the string's own script,
-     * so their width is the narrow advance -- GFX_GLYPH_W, not a
-     * per-glyph one -- and that does not change with what surrounds
-     * them.
+    /* Doesn't fit as-is: draw what fits ahead of an ellipsis -- one
+     * U+2026, halfwidth in Ark12 (6051; three '.' before), so its width
+     * is the narrow advance -- GFX_GLYPH_W, not a per-glyph one -- and
+     * that does not change with what surrounds it.
      *
      * The bail-out below is checked against that same narrow advance,
      * same as the original "room < 4" guard was: it is a check that
@@ -1272,7 +1271,7 @@ void gfx_draw_text(int x, int y, const char *s, int scale, int max_w, uint16_t c
      * that comparison once real widths are walked below. That leaves the
      * ellipsis drawn on its own in the rare case where budget admits a
      * narrow glyph but the string's last-fitting candidate is fullwidth
-     * -- three dots and nothing else is still a more honest answer than
+     * -- the ellipsis and nothing else is still a more honest answer than
      * silently dropping the ellipsis or overrunning max_w. */
     /* 6029: a line that reads right to left starts at its right edge,
      * so what has to go is on the left -- which is what the tail
@@ -1283,7 +1282,7 @@ void gfx_draw_text(int x, int y, const char *s, int scale, int max_w, uint16_t c
     }
 
     const int dot_adv = GFX_GLYPH_W(scale);
-    const int dots_w = 3 * dot_adv;
+    const int dots_w = dot_adv;         /* 6051: one U+2026 */
     if (max_w < dots_w + dot_adv) return;
 
     const int budget = max_w - dots_w;
@@ -1300,10 +1299,7 @@ void gfx_draw_text(int x, int y, const char *s, int scale, int max_w, uint16_t c
         cx += adv;
         used += adv;
     }
-    for (int i = 0; i < 3; i++) {
-        gfx_draw_char(cx, y, '.', scale, c);
-        cx += dot_adv;
-    }
+    gfx_draw_char(cx, y, GFX_ELLIPSIS, scale, c);
 }
 
 /* How many glyphs gfx_draw_text_tail() ever needs to remember at once --
@@ -1333,7 +1329,7 @@ void gfx_draw_text_tail(int x, int y, const char *s, int scale, int max_w, uint1
     }
 
     const int dot_adv = GFX_GLYPH_W(scale);
-    const int dots_w = 3 * dot_adv;
+    const int dots_w = dot_adv;         /* 6051: one U+2026 */
     if (max_w < dots_w + dot_adv) return;
     const int budget = max_w - dots_w;
 
@@ -1378,7 +1374,8 @@ void gfx_draw_text_tail(int x, int y, const char *s, int scale, int max_w, uint1
      * stops a letter short of the margin the uncut line above it
      * reaches. A left-to-right tail (a path) keeps its dots at x. */
     int cx = text_is_rtl(s) ? x + (budget - acc) : x;
-    for (int i = 0; i < 3; i++) { gfx_draw_char(cx, y, '.', scale, c); cx += dot_adv; }
+    gfx_draw_char(cx, y, GFX_ELLIPSIS, scale, c);
+    cx += dot_adv;
 
     /* keep-1 is the oldest of the retained glyphs (leftmost once drawn)
      * and 0 is the newest (the string's actual last character), so

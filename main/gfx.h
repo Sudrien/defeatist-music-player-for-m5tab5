@@ -251,6 +251,10 @@ void gfx_draw_pct_centred(int cx, int y, int pct, uint16_t c);
  * functions here walk are UTF-8, and a char cannot name 'ł'. */
 void gfx_draw_char(int x, int y, uint32_t cp, int scale, uint16_t c);
 
+/* 6051: the ellipsis a cut line ends (or, for a tail, starts) with --
+ * one halfwidth Ark12 glyph, GFX_GLYPH_W wide. */
+#define GFX_ELLIPSIS  0x2026
+
 /* Left-aligned, clipped to max_w with an ellipsis. No reflow. */
 void gfx_draw_text(int x, int y, const char *s, int scale, int max_w, uint16_t c);
 

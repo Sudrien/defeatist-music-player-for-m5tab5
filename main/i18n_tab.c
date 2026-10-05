@@ -9,7 +9,7 @@
 #include <stddef.h>
 #include "i18n.h"
 
-const unsigned i18n_count = 366;
+const unsigned i18n_count = 365;
 const char *const i18n_keys[] = {
     "%.32s did not work. Try again.",
     "%d h",
@@ -43,7 +43,7 @@ const char *const i18n_keys[] = {
     "About twenty seconds.",
     "Add a network",
     "Add a radio station to the card.",
-    "Add a station by phone...",
+    "Add a station by phone…",
     "Add station",
     "Add to the queue",
     "Added to %s on the card. The name is optional — without one the station is listed by its address.",
@@ -69,7 +69,7 @@ const char *const i18n_keys[] = {
     "CLOSE",
     "Cancel",
     "Cannot record",
-    "Cert %.29s...",
+    "Cert %.29s…",
     "Choose the network this player should use, and enter its password. It is tried before it is saved.",
     "Clear",
     "Clock",
@@ -204,7 +204,7 @@ const char *const i18n_keys[] = {
     "RUN",
     "Radio",
     "Radio stations",
-    "Reading %s without decoding...",
+    "Reading %s without decoding…",
     "Reading…",
     "Reads its config.conf; no retyping, no network needed.",
     "Reads the selected station without decoding it, to tell a slow network from a slow decoder.",
@@ -217,7 +217,7 @@ const char *const i18n_keys[] = {
     "Recording stopped",
     "Remote control",
     "Remove",
-    "ReplayGain is listening...",
+    "ReplayGain is listening…",
     "Rotation",
     "SLEEP",
     "SLEEP %dM",
@@ -228,7 +228,6 @@ const char *const i18n_keys[] = {
     "Same album",
     "Saved %.32s.",
     "Scan",
-    "Scanning...",
     "Scanning…",
     "Screen",
     "Screen off",
@@ -244,7 +243,7 @@ const char *const i18n_keys[] = {
     "Source",
     "Star",
     "Starred stations",
-    "Starting...",
+    "Starting…",
     "Station added.",
     "Station needs %d -- that is %d%%",
     "Station not answering",
@@ -286,7 +285,7 @@ const char *const i18n_keys[] = {
     "To change Wi-Fi networks instead, use Network setup on the player's screen. This page closes itself after %d minutes.",
     "Touch anywhere to wake it.",
     "Tried before it is saved. Only over this encrypted page — never in the clear.",
-    "Trying %.32s...",
+    "Trying %.32s…",
     "Trying %s… This can take fifteen seconds, and this phone may lose the setup network for a moment. The player's screen shows the result either way.",
     "Turn Wi-Fi on first.",
     "Turning off to protect the battery. Charge it before use.",
@@ -312,7 +311,7 @@ const char *const i18n_keys[] = {
     "connected",
     "drive",
     "failed; the log says why",
-    "fetching %s...",
+    "fetching %s…",
     "from NTP",
     "headphones",
     "headset",
@@ -375,7 +374,7 @@ const char *const i18n_keys[] = {
     "version",
     "waiting for a drive",
     "waiting for the network to play %s",
-    "waiting for the network...",
+    "waiting for the network…",
     "was damaged; reindex rebuilds it",
 };
 
@@ -414,7 +413,7 @@ const unsigned char i18n_on_screen[] = {
     1,  /* 'About twenty seconds.' */
     1,  /* 'Add a network' */
     1,  /* 'Add a radio station to the card.' */
-    1,  /* 'Add a station by phone...' */
+    1,  /* 'Add a station by phone…' */
     0,  /* 'Add station' */
     0,  /* 'Add to the queue' */
     0,  /* 'Added to %s on the card. The name is opt' */
@@ -440,7 +439,7 @@ const unsigned char i18n_on_screen[] = {
     1,  /* 'CLOSE' */
     1,  /* 'Cancel' */
     1,  /* 'Cannot record' */
-    1,  /* 'Cert %.29s...' */
+    1,  /* 'Cert %.29s…' */
     0,  /* 'Choose the network this player should us' */
     0,  /* 'Clear' */
     1,  /* 'Clock' */
@@ -575,7 +574,7 @@ const unsigned char i18n_on_screen[] = {
     1,  /* 'RUN' */
     1,  /* 'Radio' */
     0,  /* 'Radio stations' */
-    1,  /* 'Reading %s without decoding...' */
+    1,  /* 'Reading %s without decoding…' */
     0,  /* 'Reading…' */
     1,  /* 'Reads its config.conf; no retyping, no n' */
     1,  /* 'Reads the selected station without decod' */
@@ -588,7 +587,7 @@ const unsigned char i18n_on_screen[] = {
     1,  /* 'Recording stopped' */
     1,  /* 'Remote control' */
     0,  /* 'Remove' */
-    1,  /* 'ReplayGain is listening...' */
+    1,  /* 'ReplayGain is listening…' */
     1,  /* 'Rotation' */
     1,  /* 'SLEEP' */
     1,  /* 'SLEEP %dM' */
@@ -599,8 +598,7 @@ const unsigned char i18n_on_screen[] = {
     1,  /* 'Same album' */
     1,  /* 'Saved %.32s.' */
     0,  /* 'Scan' */
-    1,  /* 'Scanning...' */
-    0,  /* 'Scanning…' */
+    1,  /* 'Scanning…' */
     1,  /* 'Screen' */
     1,  /* 'Screen off' */
     1,  /* 'Sets the clock, in UTC. Streams need it:' */
@@ -615,7 +613,7 @@ const unsigned char i18n_on_screen[] = {
     1,  /* 'Source' */
     0,  /* 'Star' */
     1,  /* 'Starred stations' */
-    1,  /* 'Starting...' */
+    1,  /* 'Starting…' */
     0,  /* 'Station added.' */
     1,  /* 'Station needs %d -- that is %d%%' */
     1,  /* 'Station not answering' */
@@ -657,7 +655,7 @@ const unsigned char i18n_on_screen[] = {
     0,  /* 'To change Wi-Fi networks instead, use Ne' */
     1,  /* 'Touch anywhere to wake it.' */
     0,  /* 'Tried before it is saved. Only over this' */
-    1,  /* 'Trying %.32s...' */
+    1,  /* 'Trying %.32s…' */
     0,  /* 'Trying %s… This can take fifteen seconds' */
     1,  /* 'Turn Wi-Fi on first.' */
     1,  /* 'Turning off to protect the battery. Char' */
@@ -683,7 +681,7 @@ const unsigned char i18n_on_screen[] = {
     1,  /* 'connected' */
     1,  /* 'drive' */
     1,  /* 'failed; the log says why' */
-    1,  /* 'fetching %s...' */
+    1,  /* 'fetching %s…' */
     1,  /* 'from NTP' */
     1,  /* 'headphones' */
     1,  /* 'headset' */
@@ -746,7 +744,7 @@ const unsigned char i18n_on_screen[] = {
     1,  /* 'version' */
     1,  /* 'waiting for a drive' */
     1,  /* 'waiting for the network to play %s' */
-    1,  /* 'waiting for the network...' */
+    1,  /* 'waiting for the network…' */
     1,  /* 'was damaged; reindex rebuilds it' */
 };
 const unsigned char i18n_pon_screen[] = {
@@ -998,7 +996,6 @@ const char *const i18n_vals[] = {
     NULL,
     NULL,
     NULL,
-    NULL,
     "Station silent",
     NULL,
     NULL,
@@ -1162,7 +1159,7 @@ const char *const i18n_vals[] = {
     "约二十秒。",
     "添加网络",
     "向卡中添加电台。",
-    "用手机添加电台...",
+    "用手机添加电台…",
     "添加电台",
     "加入队列",
     "添加到卡上的 %s。名称可不填——不填时以地址列出该电台。",
@@ -1188,7 +1185,7 @@ const char *const i18n_vals[] = {
     "关闭",
     "取消",
     "无法录音",
-    "证书 %.29s...",
+    "证书 %.29s…",
     "选择本机要使用的网络并输入密码。保存前会先尝试连接。",
     "清空",
     "时钟",
@@ -1323,7 +1320,7 @@ const char *const i18n_vals[] = {
     "运行",
     "电台",
     "电台",
-    "正在读取 %s（不解码）...",
+    "正在读取 %s（不解码）…",
     "正在读取…",
     "读取其 config.conf，无需重输，无需联网。",
     "只读取所选电台而不解码，用来区分是网络慢还是解码慢。",
@@ -1336,7 +1333,7 @@ const char *const i18n_vals[] = {
     "录音已停止",
     "远程控制",
     "移除",
-    "ReplayGain 测量中...",
+    "ReplayGain 测量中…",
     "屏幕方向",
     "睡眠",
     "睡眠%d分",
@@ -1347,7 +1344,6 @@ const char *const i18n_vals[] = {
     "同一专辑",
     "已保存 %.32s。",
     "扫描",
-    "扫描中...",
     "正在扫描…",
     "屏幕",
     "关闭屏幕",
@@ -1363,7 +1359,7 @@ const char *const i18n_vals[] = {
     "源代码",
     "收藏",
     "收藏的电台",
-    "正在启动...",
+    "正在启动…",
     "电台已添加。",
     "电台需要 %d，达到 %d%%",
     "电台无响应",
@@ -1405,7 +1401,7 @@ const char *const i18n_vals[] = {
     "如需改用其他 Wi-Fi 网络，请在本机屏幕上使用“添加网络”。此页面会在 %d 分钟后自动关闭。",
     "触摸任意处就能唤醒。",
     "保存前会先尝试。仅通过这个加密页面传送——绝不以明文发送。",
-    "正在尝试 %.32s...",
+    "正在尝试 %.32s…",
     "正在尝试 %s… 这可能需要十五秒，手机可能会暂时断开设置网络。无论结果如何，本机屏幕都会显示。",
     "请先打开 Wi-Fi。",
     "正在关机以保护电池。\012使用前请充电。",
@@ -1431,7 +1427,7 @@ const char *const i18n_vals[] = {
     "已连接",
     "驱动器",
     "失败；原因见日志",
-    "正在获取 %s...",
+    "正在获取 %s…",
     "来自 NTP",
     "耳机",
     "耳麦",
@@ -1494,7 +1490,7 @@ const char *const i18n_vals[] = {
     "版本",
     "等待驱动器",
     "等待网络以播放 %s",
-    "等待网络...",
+    "等待网络…",
     "已损坏；重新索引可重建",
     /* ja */
     "%.32s は失敗。再試行を。",
@@ -1529,7 +1525,7 @@ const char *const i18n_vals[] = {
     "約20秒。",
     "ネットワーク追加",
     "カードに局を追加。",
-    "スマホで局を追加...",
+    "スマホで局を追加…",
     "局を追加",
     "キューに追加",
     "カードの %s に追加されます。名前は省略できます。省略すると局はアドレスで表示されます。",
@@ -1555,7 +1551,7 @@ const char *const i18n_vals[] = {
     "閉じる",
     "キャンセル",
     "録音できない",
-    "証明書 %.29s...",
+    "証明書 %.29s…",
     "この機器が使うネットワークを選び、パスワードを入力してください。保存する前に接続を試します。",
     "クリア",
     "時計",
@@ -1690,7 +1686,7 @@ const char *const i18n_vals[] = {
     "実行",
     "ラジオ",
     "ラジオ局",
-    "%s をデコードせずに読込中...",
+    "%s をデコードせずに読込中…",
     "読み込み中…",
     "config.conf を読むだけ。再入力もネットも不要。",
     "選んだ局をデコードせずに読み、遅いのがネットかデコーダかを見分ける。",
@@ -1703,7 +1699,7 @@ const char *const i18n_vals[] = {
     "録音停止",
     "リモコン",
     "削除",
-    "ReplayGain 測定中...",
+    "ReplayGain 測定中…",
     "回転",
     "睡眠",
     "睡眠%d分",
@@ -1714,7 +1710,6 @@ const char *const i18n_vals[] = {
     "同じアルバム",
     "%.32s を保存。",
     "スキャン",
-    "スキャン中...",
     "スキャン中…",
     "画面",
     "画面オフ",
@@ -1730,7 +1725,7 @@ const char *const i18n_vals[] = {
     "ソース",
     "お気に入り",
     "お気に入りの局",
-    "起動中...",
+    "起動中…",
     "局を追加しました。",
     "局の必要量 %d、その %d%%",
     "局が応答しない",
@@ -1772,7 +1767,7 @@ const char *const i18n_vals[] = {
     "Wi-Fiネットワークを変える場合は、機器の画面の「ネットワーク追加」を使ってください。このページは %d 分後に閉じます。",
     "どこかに触れると戻る。",
     "保存する前に試します。この暗号化されたページだけを通り、平文では送られません。",
-    "%.32s を試行中...",
+    "%.32s を試行中…",
     "%s を試しています… 15秒ほどかかり、このスマホは一時的に設定用ネットワークから外れることがあります。結果はどちらにしても機器の画面に表示されます。",
     "先にWi-Fiをオン。",
     "電池を守るため電源を切る。\012使う前に充電を。",
@@ -1798,7 +1793,7 @@ const char *const i18n_vals[] = {
     "接続済み",
     "ドライブ",
     "失敗。理由はログに",
-    "%s を取得中...",
+    "%s を取得中…",
     "NTPより",
     "ヘッドホン",
     "ヘッドセット",
@@ -1861,7 +1856,7 @@ const char *const i18n_vals[] = {
     "バージョン",
     "ドライブ待ち",
     "%s の再生はネット待ち",
-    "ネット待ち...",
+    "ネット待ち…",
     "破損。再索引で作り直す",
     /* es */
     "%.32s falló. Reinténtalo.",
@@ -1896,7 +1891,7 @@ const char *const i18n_vals[] = {
     "Unos veinte segundos.",
     "Añadir red",
     "Añade una emisora a la tarjeta.",
-    "Añadir emisora por teléfono...",
+    "Añadir emisora por teléfono…",
     "Añadir emisora",
     "Añadir a la cola",
     "Se añade a %s en la tarjeta. El nombre es opcional: sin él, la emisora aparece por su dirección.",
@@ -1922,7 +1917,7 @@ const char *const i18n_vals[] = {
     "CERRAR",
     "Cancelar",
     "No se puede grabar",
-    "Cert. %.29s...",
+    "Cert. %.29s…",
     "Elige la red que usará el reproductor e introduce su contraseña. Se prueba antes de guardarla.",
     "Vaciar",
     "Reloj",
@@ -2057,7 +2052,7 @@ const char *const i18n_vals[] = {
     "MEDIR",
     "Radio",
     "Emisoras de radio",
-    "Leyendo %s sin decodificar...",
+    "Leyendo %s sin decodificar…",
     "Leyendo…",
     "Lee su config.conf; sin reescribir ni red.",
     "Lee la emisora sin decodificar, para separar una red lenta de un decodificador lento.",
@@ -2070,7 +2065,7 @@ const char *const i18n_vals[] = {
     "Grabación detenida",
     "Control remoto",
     "Quitar",
-    "ReplayGain escuchando...",
+    "ReplayGain escuchando…",
     "Rotación",
     "SUEÑO",
     "SUEÑO %dM",
@@ -2081,7 +2076,6 @@ const char *const i18n_vals[] = {
     "Mismo álbum",
     "Guardado %.32s.",
     "Buscar",
-    "Buscando...",
     "Buscando…",
     "Pantalla",
     "Apagar pantalla",
@@ -2097,7 +2091,7 @@ const char *const i18n_vals[] = {
     "Código fuente",
     "Favorito",
     "Emisoras favoritas",
-    "Iniciando...",
+    "Iniciando…",
     "Emisora añadida.",
     "La emisora pide %d: es el %d%%",
     "Emisora sin señal",
@@ -2139,7 +2133,7 @@ const char *const i18n_vals[] = {
     "Para cambiar de red Wi-Fi, usa «Añadir red» en la pantalla del reproductor. Esta página se cierra sola tras %d minutos.",
     "Toca en cualquier sitio para despertarla.",
     "Se prueba antes de guardarla. Solo por esta página cifrada; nunca en claro.",
-    "Probando %.32s...",
+    "Probando %.32s…",
     "Probando %s… Puede tardar quince segundos, y este teléfono puede perder la red de configuración un momento. La pantalla del reproductor muestra el resultado en cualquier caso.",
     "Activa primero la Wi-Fi.",
     "Apagando para proteger\012la batería. Cárgala\012antes de usarla.",
@@ -2165,7 +2159,7 @@ const char *const i18n_vals[] = {
     "conectado",
     "unidad",
     "falló; el registro dice por qué",
-    "obteniendo %s...",
+    "obteniendo %s…",
     "de NTP",
     "auriculares",
     "auricular",
@@ -2228,7 +2222,7 @@ const char *const i18n_vals[] = {
     "versión",
     "esperando una unidad",
     "esperando la red para %s",
-    "esperando la red...",
+    "esperando la red…",
     "dañado; reindexar lo rehace",
 };
 

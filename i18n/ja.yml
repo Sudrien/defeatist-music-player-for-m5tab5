@@ -71,7 +71,7 @@ ja:
     # panel.c
     "Add a radio station to the card.": "カードに局を追加。"
     # radiobrowser.h
-    "Add a station by phone...": "スマホで局を追加..."
+    "Add a station by phone…": "スマホで局を追加…"
     # portal.c, remote.html
     "Add station": "局を追加"
     # remote.html
@@ -123,7 +123,7 @@ ja:
     # player.c
     "Cannot record": "録音できない"
     # panel.c
-    "Cert %.29s...": "証明書 %.29s..."
+    "Cert %.29s…": "証明書 %.29s…"
     # portal.c
     "Choose the network this player should use, and enter its password. It is tried before it is saved.": "この機器が使うネットワークを選び、パスワードを入力してください。保存する前に接続を試します。"
     # remote.html
@@ -393,7 +393,7 @@ ja:
     # portal.c, remote.html
     "Radio stations": "ラジオ局"
     # panel.c
-    "Reading %s without decoding...": "%s をデコードせずに読込中..."
+    "Reading %s without decoding…": "%s をデコードせずに読込中…"
     # remote.html
     "Reading…": "読み込み中…"
     # panel.c
@@ -419,7 +419,7 @@ ja:
     # remote.html
     "Remove": "削除"
     # ui.c
-    "ReplayGain is listening...": "ReplayGain 測定中..."
+    "ReplayGain is listening…": "ReplayGain 測定中…"
     # sleeppage.c
     "Rotation": "回転"
     # ui.c
@@ -440,9 +440,7 @@ ja:
     "Saved %.32s.": "%.32s を保存。"
     # remote.html
     "Scan": "スキャン"
-    # launcher_import.c
-    "Scanning...": "スキャン中..."
-    # remote.c
+    # launcher_import.c, remote.c
     "Scanning…": "スキャン中…"
     # sleeppage.c
     "Screen": "画面"
@@ -473,7 +471,7 @@ ja:
     # radiobrowser.h
     "Starred stations": "お気に入りの局"
     # panel.c
-    "Starting...": "起動中..."
+    "Starting…": "起動中…"
     # portal.c, remote.c
     "Station added.": "局を追加しました。"
     # panel.c
@@ -557,7 +555,7 @@ ja:
     # remote.html
     "Tried before it is saved. Only over this encrypted page — never in the clear.": "保存する前に試します。この暗号化されたページだけを通り、平文では送られません。"
     # panel.c
-    "Trying %.32s...": "%.32s を試行中..."
+    "Trying %.32s…": "%.32s を試行中…"
     # portal.c
     "Trying %s… This can take fifteen seconds, and this phone may lose the setup network for a moment. The player's screen shows the result either way.": "%s を試しています… 15秒ほどかかり、このスマホは一時的に設定用ネットワークから外れることがあります。結果はどちらにしても機器の画面に表示されます。"
     # panel.c
@@ -609,7 +607,7 @@ ja:
     # panel.c
     "failed; the log says why": "失敗。理由はログに"
     # player.c
-    "fetching %s...": "%s を取得中..."
+    "fetching %s…": "%s を取得中…"
     # panel.c
     "from NTP": "NTPより"
     # audio_out.c
@@ -735,7 +733,7 @@ ja:
     # player.c
     "waiting for the network to play %s": "%s の再生はネット待ち"
     # player.c
-    "waiting for the network...": "ネット待ち..."
+    "waiting for the network…": "ネット待ち…"
     # panel.c
     "was damaged; reindex rebuilds it": "破損。再索引で作り直す"
   plural:

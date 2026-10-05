@@ -422,7 +422,7 @@ static bool li_classify(const char *s, bool *is_psk) {
 
 /* ---- the job ------------------------------------------------------------ */
 static void li_run(void) {
-    set_status(LI_RUNNING, 0, 0, N_("Scanning..."));
+    set_status(LI_RUNNING, 0, 0, N_("Scanning…"));
 
     cJSON *wifi = NULL;
     cJSON *root = li_load_config(&wifi);
@@ -494,7 +494,7 @@ esp_err_t launcher_import_request(void) {
         if (!s_lock) return ESP_ERR_NO_MEM;
     }
     if (launcher_import_running()) return ESP_ERR_INVALID_STATE;
-    set_status(LI_RUNNING, 0, 0, N_("Scanning..."));
+    set_status(LI_RUNNING, 0, 0, N_("Scanning…"));
     /* 6 KB stack: the 4 KB read buffer and AES/cJSON state are on the heap. */
     if (xTaskCreate(li_task, "limport", 6144, NULL, 4, NULL) != pdPASS) {
         set_status(LI_IDLE, 0, 0, "");

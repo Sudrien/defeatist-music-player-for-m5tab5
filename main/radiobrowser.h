@@ -526,7 +526,7 @@ static inline const char *radiobrowser_menu_label(int row)
 {
     static const char *const tags[RADIOBROWSER_TAG_COUNT] = RADIOBROWSER_TAGS;
     if (row == RADIOBROWSER_MENU_CARD) return N_("stations.m3u on the card");
-    if (row == RADIOBROWSER_MENU_ADD)  return N_("Add a station by phone...");
+    if (row == RADIOBROWSER_MENU_ADD)  return N_("Add a station by phone…");
     if (row == RADIOBROWSER_MENU_FAV)  return N_("Starred stations");
     if (row == 3) return N_("Most voted");
     if (row == 4) return N_("Most listened");

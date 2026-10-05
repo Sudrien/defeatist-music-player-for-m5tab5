@@ -2088,7 +2088,7 @@ void ui_draw(const ui_state_t *st)
          */
         if (st->rg_measuring) {
             gfx_draw_text(x0 + 12, y - UI_WAVE_H / 2 - 8,
-                          _("ReplayGain is listening..."), 2, x1 - x0 - 24, C_RG);
+                          _("ReplayGain is listening…"), 2, x1 - x0 - 24, C_RG);
         }
 
         const int split = x0 + ((x1 - x0) * shown_pct) / 100;

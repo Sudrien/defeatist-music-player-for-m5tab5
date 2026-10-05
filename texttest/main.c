@@ -525,8 +525,10 @@ static void test_poly_basics(void)
  * the old table did not have. A regenerated font that changes a glyph on
  * purpose changes this number on purpose, and says so where it does.
  */
-#define ARK12_GOLDEN_COUNT  20669
-#define ARK12_GOLDEN_HASH   0x8EE1A15Eu
+/* 6050: General Punctuation (U+2000-206F) added, 36 glyphs. Outside
+ * that block the count and hash are still 20669 and 0x8EE1A15E. */
+#define ARK12_GOLDEN_COUNT  20705
+#define ARK12_GOLDEN_HASH   0xBB4F22F3u
 
 static void test_font_unchanged_by_tiling(void)
 {

@@ -6520,7 +6520,7 @@ static void station_fetch_run(void)
         if (!s_fetch_wait_since) {
             s_fetch_wait_since = now;
             ESP_LOGI(TAG, "directory: waiting for the network");
-            browser_set_radio_status(_("waiting for the network..."));
+            browser_set_radio_status(_("waiting for the network…"));
             browser_set_radio_busy(true);
         }
         if (now - s_fetch_wait_since < (int64_t)FETCH_NET_WAIT_MS * 1000) {
@@ -6554,7 +6554,7 @@ static void station_fetch_run(void)
     }
 
     char status[96];
-    snprintf(status, sizeof(status), _("fetching %s..."), _(label));
+    snprintf(status, sizeof(status), _("fetching %s…"), _(label));
     browser_set_radio_status(status);
 
     char *body = heap_caps_malloc(STATIONS_FILE_MAX, MALLOC_CAP_SPIRAM);

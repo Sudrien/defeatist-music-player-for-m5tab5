@@ -216,6 +216,9 @@ units.
 | Settings | `RUN` | 运行 | 実行 | MEDIR |
 | Settings | `RESET` | 重置 | 戻す | VOLVER |
 | Settings | `CLOSE` | 关闭 | 閉じる | CERRAR |
+| Settings | `IMPORT` | 导入 | 取込 | IMPORTAR |
+| Settings | `DONE` | 完成 | 完了 | HECHO |
+| Settings | `RETRY` | 重试 | 再試行 | REPETIR |
 | Record from | `MONO` | 单声道 | モノラル | MONO |
 | Record from | `STEREO` | 立体声 | ステレオ | ESTÉREO |
 | Record from | `FOCUSED` | 定向 | フォーカス | ENFOCADO |

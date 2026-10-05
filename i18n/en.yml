@@ -118,6 +118,8 @@ en:
     "CHRG %d%%": ~
     # panel.c, sleeppage.c
     "CLOSE": ~
+    # ui.c
+    "Cancel": ~
     # player.c
     "Cannot record": ~
     # panel.c
@@ -136,6 +138,8 @@ en:
     "Connecting": ~
     # remote.html
     "Connecting to the player…": ~
+    # panel.c
+    "Copy saved Wi-Fi from an M5Launcher install on this board.": ~
     # recorder.c
     "Could not create the recording file.": "Could not create the\nrecording file."
     # remote.c
@@ -166,6 +170,8 @@ en:
     "Crossfade within an album": ~
     # browser.c
     "DN": ~
+    # panel.c
+    "DONE": ~
     # portal.c
     "Defeatist setup": ~
     # sleeppage.c
@@ -180,6 +186,10 @@ en:
     "Empty.": ~
     # panel.c
     "Evens out loudness between tracks.": ~
+    # ui.c
+    "Exit": ~
+    # ui.c
+    "Exit to Launcher?": ~
     # browser.c
     "FLDR": ~
     # panel.c
@@ -202,11 +212,18 @@ en:
     "Headset, UAC: the jack, a USB mic.": ~
     # ui.c
     "IDLE": ~
+    # ui.c
     "IDLE %dM": ~
+    # panel.c
+    "IMPORT": ~
     # panel.c
     "IN USE": ~
     # panel.c
     "INDEXING": ~
+    # panel.c
+    "Import from M5Launcher": ~
+    # launcher_import.c, panel.c
+    "Imported %d, skipped %d": ~
     # player.c, recorder.c
     "Insert a card or a USB drive to record to.": "Insert a card or a USB\ndrive to record to."
     # panel.c
@@ -231,6 +248,8 @@ en:
     "Longer than the dim, and the backlight goes out altogether. Never while this page is open.": ~
     # remote.html
     "Lost the player. Reconnecting…": ~
+    # launcher_import.c
+    "M5Launcher not found on this board": ~
     # panel.c
     "MONO": ~
     # panel.c
@@ -267,6 +286,8 @@ en:
     "Never": ~
     # remote.html
     "Next": ~
+    # launcher_import.c
+    "No M5Launcher config.conf on card": ~
     # recorder.c
     "No USB microphone is plugged in.": "No USB microphone is\nplugged in."
     # portal.c
@@ -279,6 +300,8 @@ en:
     "No memory to measure with.": ~
     # panel.c
     "No password: anyone on it can use it.": ~
+    # launcher_import.c
+    "No saved networks to import": ~
     # streamplan.h
     "No signal": ~
     # bench.c
@@ -335,8 +358,10 @@ en:
     "Play, pause, skip, seek and volume from an MPD app such as MALP or mpc.": ~
     # panel.c
     "Playback pauses while setup runs.": ~
-    # sleeppage.c
+    # sleeppage.c, ui.c
     "Power off": ~
+    # ui.c
+    "Power off?": ~
     # remote.html
     "Previous": ~
     # sleeppage.c
@@ -351,6 +376,8 @@ en:
     "RESET": ~
     # panel.c
     "RESET: back to the build time; this boot's recordings are renamed to match.": ~
+    # panel.c
+    "RETRY": ~
     # browser.c
     "RLOD": ~
     # browser.c
@@ -369,6 +396,8 @@ en:
     "Reading %s without decoding...": ~
     # remote.html
     "Reading…": ~
+    # panel.c
+    "Reads its config.conf; no retyping, no network needed.": ~
     # panel.c
     "Reads the selected station without decoding it, to tell a slow network from a slow decoder.": ~
     # streamplan.h
@@ -411,6 +440,8 @@ en:
     "Saved %.32s.": ~
     # remote.html
     "Scan": ~
+    # launcher_import.c
+    "Scanning...": ~
     # remote.c
     "Scanning…": ~
     # sleeppage.c

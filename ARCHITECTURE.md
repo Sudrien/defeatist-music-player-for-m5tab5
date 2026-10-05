@@ -21902,3 +21902,33 @@ The bad-command loop's `{ REMOTE_CMD_PLAY, 7 }` predates `value2`
 (5173) and `path`, and left them to the zero a partial initializer
 gives anyway. It names its two fields now (`.kind`, `.value`), which
 says the rest are meant to be zero; nothing about the test changes.
+
+### 6049 -- the Launcher and power-off screens, extracted and translated
+
+`make -C texttest` failed at `run-i18n`, and with it the release
+workflow, which runs the host tests before the firmware build: a
+`v0.6.0` tag would have published nothing. The Exit-to-Launcher and
+power-off confirms and the M5Launcher Wi-Fi import added fifteen `_()`
+strings that were never extracted. They are extracted now and
+translated into zh-CN, ja and es.
+
+One of them could not have been translated as it was. The import
+worker prints the counts into its status line ("Imported 3, skipped
+0") and panel.c looked that finished text up with `_()`; no key
+matches a string with numbers already in it, so the finished line was
+English in every language. panel.c now formats
+`_("Imported %d, skipped %d")` itself from `li.imported` and
+`li.skipped`, which the status already carried. The worker's own line
+is unchanged and is still what the log shows.
+
+`Scanning...` keeps its three ASCII dots in translation. `…` is not in
+Ark12; `i18ntest` refuses it on a screen string, and did. (The
+existing `Scanning…` key is the web page's, where it is fine.)
+
+`IMPORT`, `DONE` and `RETRY` go into the label table in all four
+`ABBREVIATIONS` files. `RETRY` is `REPETIR` in Spanish rather than
+`REINTENTAR`, which is longer than any pill label already there.
+
+On the board, in each language: the Exit and Power-off confirms, and
+the import row idle, scanning, done and failed -- the pills at 132 px
+are the likeliest to clip.

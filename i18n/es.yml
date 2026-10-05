@@ -118,6 +118,8 @@ es:
     "CHRG %d%%": "CARG %d%%"
     # panel.c, sleeppage.c
     "CLOSE": "CERRAR"
+    # ui.c
+    "Cancel": "Cancelar"
     # player.c
     "Cannot record": "No se puede grabar"
     # panel.c
@@ -136,6 +138,8 @@ es:
     "Connecting": "Conectando"
     # remote.html
     "Connecting to the player…": "Conectando con el reproductor…"
+    # panel.c
+    "Copy saved Wi-Fi from an M5Launcher install on this board.": "Copia el Wi-Fi guardado de M5Launcher en esta placa."
     # recorder.c
     "Could not create the recording file.": "No se pudo crear el\narchivo de grabación."
     # remote.c
@@ -166,6 +170,8 @@ es:
     "Crossfade within an album": "Fundido cruzado dentro de un álbum"
     # browser.c
     "DN": "AV PÁG"
+    # panel.c
+    "DONE": "HECHO"
     # portal.c
     "Defeatist setup": "Configuración de Defeatist"
     # sleeppage.c
@@ -180,6 +186,10 @@ es:
     "Empty.": "Vacía."
     # panel.c
     "Evens out loudness between tracks.": "Iguala el volumen entre pistas."
+    # ui.c
+    "Exit": "Salir"
+    # ui.c
+    "Exit to Launcher?": "¿Salir al Launcher?"
     # browser.c
     "FLDR": "CARPETA"
     # panel.c
@@ -202,11 +212,18 @@ es:
     "Headset, UAC: the jack, a USB mic.": "Auricular, UAC: la toma, un micro USB."
     # ui.c
     "IDLE": "INAC"
+    # ui.c
     "IDLE %dM": "INAC %dM"
+    # panel.c
+    "IMPORT": "IMPORTAR"
     # panel.c
     "IN USE": "EN USO"
     # panel.c
     "INDEXING": "INDEXANDO"
+    # panel.c
+    "Import from M5Launcher": "Importar de M5Launcher"
+    # launcher_import.c, panel.c
+    "Imported %d, skipped %d": "Importadas %d, omitidas %d"
     # player.c, recorder.c
     "Insert a card or a USB drive to record to.": "Inserta una tarjeta o\nunidad USB para grabar."
     # panel.c
@@ -231,6 +248,8 @@ es:
     "Longer than the dim, and the backlight goes out altogether. Never while this page is open.": "Más que la atenuación, y la retroiluminación se apaga del todo. Nunca con esta página abierta."
     # remote.html
     "Lost the player. Reconnecting…": "Se perdió el reproductor. Reconectando…"
+    # launcher_import.c
+    "M5Launcher not found on this board": "M5Launcher no está en esta placa"
     # panel.c
     "MONO": "MONO"
     # panel.c
@@ -267,6 +286,8 @@ es:
     "Never": "Nunca"
     # remote.html
     "Next": "Siguiente"
+    # launcher_import.c
+    "No M5Launcher config.conf on card": "No hay config.conf de M5Launcher"
     # recorder.c
     "No USB microphone is plugged in.": "No hay micrófono USB\nconectado."
     # portal.c
@@ -279,6 +300,8 @@ es:
     "No memory to measure with.": "Sin memoria para medir."
     # panel.c
     "No password: anyone on it can use it.": "Sin contraseña: cualquiera en la red lo usa."
+    # launcher_import.c
+    "No saved networks to import": "No hay redes guardadas"
     # streamplan.h
     "No signal": "Sin señal"
     # bench.c
@@ -335,8 +358,10 @@ es:
     "Play, pause, skip, seek and volume from an MPD app such as MALP or mpc.": "Reproducir, pausar, saltar, buscar y volumen desde una app MPD como MALP o mpc."
     # panel.c
     "Playback pauses while setup runs.": "Se pausa la reproducción al configurar."
-    # sleeppage.c
+    # sleeppage.c, ui.c
     "Power off": "Apagado"
+    # ui.c
+    "Power off?": "¿Apagar?"
     # remote.html
     "Previous": "Anterior"
     # sleeppage.c
@@ -351,6 +376,8 @@ es:
     "RESET": "VOLVER"
     # panel.c
     "RESET: back to the build time; this boot's recordings are renamed to match.": "RESET: vuelve a la hora de compilación; las grabaciones de este arranque se renombran."
+    # panel.c
+    "RETRY": "REPETIR"
     # browser.c
     "RLOD": "RECARGAR"
     # browser.c
@@ -369,6 +396,8 @@ es:
     "Reading %s without decoding...": "Leyendo %s sin decodificar..."
     # remote.html
     "Reading…": "Leyendo…"
+    # panel.c
+    "Reads its config.conf; no retyping, no network needed.": "Lee su config.conf; sin reescribir ni red."
     # panel.c
     "Reads the selected station without decoding it, to tell a slow network from a slow decoder.": "Lee la emisora sin decodificar, para separar una red lenta de un decodificador lento."
     # streamplan.h
@@ -411,6 +440,8 @@ es:
     "Saved %.32s.": "Guardado %.32s."
     # remote.html
     "Scan": "Buscar"
+    # launcher_import.c
+    "Scanning...": "Buscando..."
     # remote.c
     "Scanning…": "Buscando…"
     # sleeppage.c

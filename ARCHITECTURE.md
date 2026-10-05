@@ -21983,3 +21983,33 @@ UI's scales (2 and up) they stay three distinct dots.
 texttest: the tail test's budget and ink offset take one cell, not
 three, and the max_w sweep gains 41, 42, 55 and 56 so the bail-out is
 straddled at scales 3 and 4 as it already was at 2.
+
+### 6052 -- the pack charges on USB-C
+
+On USB-C the board ran -- 0.40 A on a line meter -- and the status line
+never said CHRG: the pack was not being charged at all.
+
+The charger's enable, CHG_EN, is P7 of the PI4IOE5V6416 at 0x44.
+`expander_init()` chip-resets that expander and sets its directions
+(0xB9 makes P7 an output) and stops there; each pin this player uses
+-- P0 WLAN_PWR_EN in wifi.c, P3 USB5V_EN in usbhost.c, P4 PWROFF_PULSE
+-- is taken out of high-Z where it is used, and P7 never was. After the
+reset it sat in high-Z, and the charger read that as off. The reset
+also undoes whatever a launcher had set before handing over, so
+arriving from M5Launcher did not help.
+
+The pin is from M5Unified (`Power_Class.inl`, checked at fd40d58,
+2026-10-02): its Tab5 init writes 0x44 with CHG_EN as bit 7, driven
+high and out of high-Z, and `setBatteryCharge()` is
+`getIOExpander(1).digitalWrite(7, enable)`. `expander_init()` now does
+the same right after the direction write, in the order wifi.c and
+usbhost.c use: direction, out of high-Z, drive. A failure is logged
+and not fatal.
+
+Left alone: P5, nCHG_QC_EN, which M5Unified drives low. Charging works
+without it; whether quick-charge negotiation is wanted is its own
+question.
+
+Not compiled here (player.c needs ESP-IDF). On the board: the log line
+"CHG_EN driven high (expander 0x44 P7)"; on USB-C below 100% the
+status line reads CHRG and the shunt current goes negative.

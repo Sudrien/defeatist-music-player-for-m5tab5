@@ -21962,3 +21962,24 @@ three. "Scanning..." was the import worker's, and the remote's
 
 Not changed: gfx.c's truncation still draws three `'.'` glyphs, log
 lines keep `...`, and the web pages were never limited to Ark12.
+
+### 6051 -- a cut line ends in one … , not three full stops
+
+`gfx_draw_text()` and `gfx_draw_text_tail()` marked a cut with three
+`'.'` glyphs, because until 6050 Ark12 had no U+2026. It has one now,
+halfwidth, and both draw that instead: `GFX_ELLIPSIS` in gfx.h. The
+mark goes from three cells to one, so a cut title or path keeps two
+more of its own letters -- 14 px at LABEL_SCALE, 28 at scale 4.
+
+Nothing else about truncation moved. The ellipsis is still always the
+narrow advance, the bail-out is still "the ellipsis and one narrow
+glyph", and a right-to-left line still puts it on the left with the
+slack beyond it (6045).
+
+Ark's glyph is three single pixels with a pixel between, on the
+baseline -- the same dots as before at a third of the width. At the
+UI's scales (2 and up) they stay three distinct dots.
+
+texttest: the tail test's budget and ink offset take one cell, not
+three, and the max_w sweep gains 41, 42, 55 and 56 so the bail-out is
+straddled at scales 3 and 4 as it already was at 2.

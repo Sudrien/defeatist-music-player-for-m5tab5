@@ -9,7 +9,7 @@
 #include <stddef.h>
 #include "i18n.h"
 
-const unsigned i18n_count = 351;
+const unsigned i18n_count = 366;
 const char *const i18n_keys[] = {
     "%.32s did not work. Try again.",
     "%d h",
@@ -67,6 +67,7 @@ const char *const i18n_keys[] = {
     "CHARGED",
     "CHRG %d%%",
     "CLOSE",
+    "Cancel",
     "Cannot record",
     "Cert %.29s...",
     "Choose the network this player should use, and enter its password. It is tried before it is saved.",
@@ -76,6 +77,7 @@ const char *const i18n_keys[] = {
     "Connected to %.32s.",
     "Connecting",
     "Connecting to the player…",
+    "Copy saved Wi-Fi from an M5Launcher install on this board.",
     "Could not create the recording file.",
     "Could not join %s.",
     "Could not make the Recordings folder.",
@@ -91,6 +93,7 @@ const char *const i18n_keys[] = {
     "Crossfade seconds",
     "Crossfade within an album",
     "DN",
+    "DONE",
     "Defeatist setup",
     "Dim screen",
     "EAT",
@@ -98,6 +101,8 @@ const char *const i18n_keys[] = {
     "Empty the queue? What is playing carries on.",
     "Empty.",
     "Evens out loudness between tracks.",
+    "Exit",
+    "Exit to Launcher?",
     "FLDR",
     "FOCUSED",
     "Fades out, pauses, and turns the screen off.",
@@ -110,8 +115,11 @@ const char *const i18n_keys[] = {
     "Headset, UAC: the jack, a USB mic.",
     "IDLE",
     "IDLE %dM",
+    "IMPORT",
     "IN USE",
     "INDEXING",
+    "Import from M5Launcher",
+    "Imported %d, skipped %d",
     "Insert a card or a USB drive to record to.",
     "It comes back when setup closes.",
     "It reached 4 GB, the most one file can hold.",
@@ -124,6 +132,7 @@ const char *const i18n_keys[] = {
     "Libraries",
     "Longer than the dim, and the backlight goes out altogether. Never while this page is open.",
     "Lost the player. Reconnecting…",
+    "M5Launcher not found on this board",
     "MONO",
     "MPD server",
     "MUTED",
@@ -142,12 +151,14 @@ const char *const i18n_keys[] = {
     "Network time",
     "Never",
     "Next",
+    "No M5Launcher config.conf on card",
     "No USB microphone is plugged in.",
     "No answer from that network. Try again.",
     "No app connected.",
     "No memory for the recording task.",
     "No memory to measure with.",
     "No password: anyone on it can use it.",
+    "No saved networks to import",
     "No signal",
     "No station selected.",
     "None on the card yet.",
@@ -177,6 +188,7 @@ const char *const i18n_keys[] = {
     "Play, pause, skip, seek and volume from an MPD app such as MALP or mpc.",
     "Playback pauses while setup runs.",
     "Power off",
+    "Power off?",
     "Previous",
     "Quarter turns. 90 and 270 are landscape; 180 is for when the cable is at the wrong end.",
     "Queue",
@@ -184,6 +196,7 @@ const char *const i18n_keys[] = {
     "REINDEX",
     "RESET",
     "RESET: back to the build time; this boot's recordings are renamed to match.",
+    "RETRY",
     "RLOD",
     "RND",
     "RPT",
@@ -193,6 +206,7 @@ const char *const i18n_keys[] = {
     "Radio stations",
     "Reading %s without decoding...",
     "Reading…",
+    "Reads its config.conf; no retyping, no network needed.",
     "Reads the selected station without decoding it, to tell a slow network from a slow decoder.",
     "Reconnecting",
     "Record from",
@@ -214,6 +228,7 @@ const char *const i18n_keys[] = {
     "Same album",
     "Saved %.32s.",
     "Scan",
+    "Scanning...",
     "Scanning…",
     "Screen",
     "Screen off",
@@ -423,6 +438,7 @@ const unsigned char i18n_on_screen[] = {
     1,  /* 'CHARGED' */
     1,  /* 'CHRG %d%%' */
     1,  /* 'CLOSE' */
+    1,  /* 'Cancel' */
     1,  /* 'Cannot record' */
     1,  /* 'Cert %.29s...' */
     0,  /* 'Choose the network this player should us' */
@@ -432,6 +448,7 @@ const unsigned char i18n_on_screen[] = {
     1,  /* 'Connected to %.32s.' */
     1,  /* 'Connecting' */
     0,  /* 'Connecting to the player…' */
+    1,  /* 'Copy saved Wi-Fi from an M5Launcher inst' */
     1,  /* 'Could not create the recording file.' */
     0,  /* 'Could not join %s.' */
     1,  /* 'Could not make the Recordings folder.' */
@@ -447,6 +464,7 @@ const unsigned char i18n_on_screen[] = {
     0,  /* 'Crossfade seconds' */
     0,  /* 'Crossfade within an album' */
     1,  /* 'DN' */
+    1,  /* 'DONE' */
     0,  /* 'Defeatist setup' */
     1,  /* 'Dim screen' */
     1,  /* 'EAT' */
@@ -454,6 +472,8 @@ const unsigned char i18n_on_screen[] = {
     0,  /* 'Empty the queue? What is playing carries' */
     0,  /* 'Empty.' */
     1,  /* 'Evens out loudness between tracks.' */
+    1,  /* 'Exit' */
+    1,  /* 'Exit to Launcher?' */
     1,  /* 'FLDR' */
     1,  /* 'FOCUSED' */
     1,  /* 'Fades out, pauses, and turns the screen ' */
@@ -466,8 +486,11 @@ const unsigned char i18n_on_screen[] = {
     1,  /* 'Headset, UAC: the jack, a USB mic.' */
     1,  /* 'IDLE' */
     1,  /* 'IDLE %dM' */
+    1,  /* 'IMPORT' */
     1,  /* 'IN USE' */
     1,  /* 'INDEXING' */
+    1,  /* 'Import from M5Launcher' */
+    1,  /* 'Imported %d, skipped %d' */
     1,  /* 'Insert a card or a USB drive to record t' */
     1,  /* 'It comes back when setup closes.' */
     1,  /* 'It reached 4 GB, the most one file can h' */
@@ -480,6 +503,7 @@ const unsigned char i18n_on_screen[] = {
     1,  /* 'Libraries' */
     1,  /* 'Longer than the dim, and the backlight g' */
     0,  /* 'Lost the player. Reconnecting…' */
+    1,  /* 'M5Launcher not found on this board' */
     1,  /* 'MONO' */
     1,  /* 'MPD server' */
     1,  /* 'MUTED' */
@@ -498,12 +522,14 @@ const unsigned char i18n_on_screen[] = {
     1,  /* 'Network time' */
     1,  /* 'Never' */
     0,  /* 'Next' */
+    1,  /* 'No M5Launcher config.conf on card' */
     1,  /* 'No USB microphone is plugged in.' */
     0,  /* 'No answer from that network. Try again.' */
     1,  /* 'No app connected.' */
     1,  /* 'No memory for the recording task.' */
     1,  /* 'No memory to measure with.' */
     1,  /* 'No password: anyone on it can use it.' */
+    1,  /* 'No saved networks to import' */
     1,  /* 'No signal' */
     1,  /* 'No station selected.' */
     0,  /* 'None on the card yet.' */
@@ -533,6 +559,7 @@ const unsigned char i18n_on_screen[] = {
     1,  /* 'Play, pause, skip, seek and volume from ' */
     1,  /* 'Playback pauses while setup runs.' */
     1,  /* 'Power off' */
+    1,  /* 'Power off?' */
     0,  /* 'Previous' */
     1,  /* 'Quarter turns. 90 and 270 are landscape;' */
     0,  /* 'Queue' */
@@ -540,6 +567,7 @@ const unsigned char i18n_on_screen[] = {
     1,  /* 'REINDEX' */
     1,  /* 'RESET' */
     1,  /* 'RESET: back to the build time; this boot' */
+    1,  /* 'RETRY' */
     1,  /* 'RLOD' */
     1,  /* 'RND' */
     1,  /* 'RPT' */
@@ -549,6 +577,7 @@ const unsigned char i18n_on_screen[] = {
     0,  /* 'Radio stations' */
     1,  /* 'Reading %s without decoding...' */
     0,  /* 'Reading…' */
+    1,  /* 'Reads its config.conf; no retyping, no n' */
     1,  /* 'Reads the selected station without decod' */
     1,  /* 'Reconnecting' */
     1,  /* 'Record from' */
@@ -570,6 +599,7 @@ const unsigned char i18n_on_screen[] = {
     1,  /* 'Same album' */
     1,  /* 'Saved %.32s.' */
     0,  /* 'Scan' */
+    1,  /* 'Scanning...' */
     0,  /* 'Scanning…' */
     1,  /* 'Screen' */
     1,  /* 'Screen off' */
@@ -798,6 +828,8 @@ const char *const i18n_vals[] = {
     NULL,
     NULL,
     NULL,
+    NULL,
+    NULL,
     "Could not create the\012recording file.",
     NULL,
     "Could not make the\012Recordings folder.",
@@ -805,6 +837,12 @@ const char *const i18n_vals[] = {
     NULL,
     NULL,
     "Could not start\012the file.",
+    NULL,
+    NULL,
+    NULL,
+    NULL,
+    NULL,
+    NULL,
     NULL,
     NULL,
     NULL,
@@ -864,10 +902,13 @@ const char *const i18n_vals[] = {
     NULL,
     NULL,
     NULL,
+    NULL,
+    NULL,
     "No USB microphone is\012plugged in.",
     NULL,
     NULL,
     "No memory for the\012recording task.",
+    NULL,
     NULL,
     NULL,
     NULL,
@@ -920,7 +961,11 @@ const char *const i18n_vals[] = {
     NULL,
     NULL,
     NULL,
+    NULL,
+    NULL,
+    NULL,
     "Recording is off\012(AUDIO, Record from).",
+    NULL,
     NULL,
     NULL,
     NULL,
@@ -1141,6 +1186,7 @@ const char *const i18n_vals[] = {
     "已充满",
     "充电 %d%%",
     "关闭",
+    "取消",
     "无法录音",
     "证书 %.29s...",
     "选择本机要使用的网络并输入密码。保存前会先尝试连接。",
@@ -1150,6 +1196,7 @@ const char *const i18n_vals[] = {
     "已连接 %.32s。",
     "连接中",
     "正在连接播放器…",
+    "从本机的 M5Launcher 复制已保存的 Wi-Fi。",
     "无法创建录音文件。",
     "无法连接 %s。",
     "无法创建\012Recordings 文件夹。",
@@ -1165,6 +1212,7 @@ const char *const i18n_vals[] = {
     "交叉淡化秒数",
     "同一专辑内也交叉淡化",
     "下页",
+    "完成",
     "Defeatist 设置",
     "屏幕变暗",
     "播完删除",
@@ -1172,6 +1220,8 @@ const char *const i18n_vals[] = {
     "清空队列？正在播放的会继续。",
     "空。",
     "平衡曲目之间的响度。",
+    "退出",
+    "退出到 Launcher？",
     "播放目录",
     "定向",
     "淡出、暂停并关闭屏幕。",
@@ -1184,8 +1234,11 @@ const char *const i18n_vals[] = {
     "耳麦、UAC：插孔、USB 麦克风。",
     "空闲",
     "空闲%d分",
+    "导入",
     "使用中",
     "索引中",
+    "从 M5Launcher 导入",
+    "已导入 %d 个，跳过 %d 个",
     "请插入存储卡或 U 盘\012再录音。",
     "设置关闭后恢复。",
     "已达 4 GB，\012单个文件的上限。",
@@ -1198,6 +1251,7 @@ const char *const i18n_vals[] = {
     "库",
     "比变暗更久，背光会完全熄灭。此页面打开时不会熄灭。",
     "与播放器断开。正在重新连接…",
+    "本机未找到 M5Launcher",
     "单声道",
     "MPD 服务器",
     "静音",
@@ -1216,12 +1270,14 @@ const char *const i18n_vals[] = {
     "网络时间",
     "从不",
     "下一首",
+    "卡上没有 M5Launcher 的 config.conf",
     "未插入 USB 麦克风。",
     "该网络没有响应。请重试。",
     "没有应用连接。",
     "录音任务内存不足。",
     "内存不足，无法测量。",
     "没有密码：同一网络中的任何人都能使用。",
+    "没有可导入的网络",
     "无信号",
     "未选择电台。",
     "卡上还没有。",
@@ -1251,6 +1307,7 @@ const char *const i18n_vals[] = {
     "用 MALP 或 mpc 等 MPD 应用播放、暂停、切歌、定位和调音量。",
     "设置期间暂停播放。",
     "自动关机",
+    "关机？",
     "上一首",
     "以 90 度为单位。90 和 270 为横屏；线缆在另一端时用 180。",
     "队列",
@@ -1258,6 +1315,7 @@ const char *const i18n_vals[] = {
     "重新索引",
     "重置",
     "RESET：回到构建时间；本次启动的录音会相应改名。",
+    "重试",
     "重新加载",
     "随机",
     "重复",
@@ -1267,6 +1325,7 @@ const char *const i18n_vals[] = {
     "电台",
     "正在读取 %s（不解码）...",
     "正在读取…",
+    "读取其 config.conf，无需重输，无需联网。",
     "只读取所选电台而不解码，用来区分是网络慢还是解码慢。",
     "重新连接中",
     "录音来源",
@@ -1288,6 +1347,7 @@ const char *const i18n_vals[] = {
     "同一专辑",
     "已保存 %.32s。",
     "扫描",
+    "扫描中...",
     "正在扫描…",
     "屏幕",
     "关闭屏幕",
@@ -1493,6 +1553,7 @@ const char *const i18n_vals[] = {
     "満充電",
     "充電 %d%%",
     "閉じる",
+    "キャンセル",
     "録音できない",
     "証明書 %.29s...",
     "この機器が使うネットワークを選び、パスワードを入力してください。保存する前に接続を試します。",
@@ -1502,6 +1563,7 @@ const char *const i18n_vals[] = {
     "%.32s に接続済み。",
     "接続中",
     "プレーヤーに接続中…",
+    "このボードの M5Launcher から保存済み Wi-Fi をコピー。",
     "録音ファイルを\012作れなかった。",
     "%s に接続できませんでした。",
     "Recordings フォルダを\012作れなかった。",
@@ -1517,6 +1579,7 @@ const char *const i18n_vals[] = {
     "クロスフェードの秒数",
     "同じアルバム内でもクロスフェード",
     "次頁",
+    "完了",
     "Defeatist の設定",
     "画面を暗く",
     "消費",
@@ -1524,6 +1587,8 @@ const char *const i18n_vals[] = {
     "キューを空にしますか？再生中の曲は続きます。",
     "空です。",
     "曲ごとの音量差をならす。",
+    "終了",
+    "Launcher に戻りますか？",
     "フォルダ",
     "フォーカス",
     "フェードアウトして一時停止し、画面を消す。",
@@ -1536,8 +1601,11 @@ const char *const i18n_vals[] = {
     "ヘッドセット、UAC：端子、USBマイク。",
     "待機",
     "待機%d分",
+    "取込",
     "使用中",
     "索引中",
+    "M5Launcher から取込",
+    "取込 %d 件、スキップ %d 件",
     "カードかUSBドライブを\012入れて録音を。",
     "設定が閉じると戻る。",
     "4 GB に達した。\0121ファイルの上限。",
@@ -1550,6 +1618,7 @@ const char *const i18n_vals[] = {
     "ライブラリ",
     "暗くなるより長く、バックライトが完全に消える。このページを開いている間は消えない。",
     "プレーヤーとの接続が切れました。再接続中…",
+    "このボードに M5Launcher がありません",
     "モノラル",
     "MPDサーバー",
     "無音",
@@ -1568,12 +1637,14 @@ const char *const i18n_vals[] = {
     "ネット時刻",
     "しない",
     "次へ",
+    "カードに M5Launcher の config.conf なし",
     "USBマイクが\012つながっていない。",
     "そのネットワークから応答がありません。もう一度お試しください。",
     "接続中のアプリなし。",
     "録音タスクのメモリ不足。",
     "測定するメモリがない。",
     "パスワードなし：同じネットワークの誰でも使える。",
+    "取り込むネットワークがありません",
     "信号なし",
     "局が選ばれていない。",
     "カードにはまだありません。",
@@ -1603,6 +1674,7 @@ const char *const i18n_vals[] = {
     "MALPやmpcなどのMPDアプリから再生、一時停止、スキップ、シーク、音量。",
     "設定中は再生を一時停止。",
     "電源オフ",
+    "電源を切りますか？",
     "前へ",
     "90度単位。90と270は横向き。ケーブルが逆側にあるときは180。",
     "キュー",
@@ -1610,6 +1682,7 @@ const char *const i18n_vals[] = {
     "再索引",
     "戻す",
     "RESET：ビルド時刻に戻す。今回の起動の録音はそれに合わせて改名。",
+    "再試行",
     "再読込",
     "ランダム",
     "リピート",
@@ -1619,6 +1692,7 @@ const char *const i18n_vals[] = {
     "ラジオ局",
     "%s をデコードせずに読込中...",
     "読み込み中…",
+    "config.conf を読むだけ。再入力もネットも不要。",
     "選んだ局をデコードせずに読み、遅いのがネットかデコーダかを見分ける。",
     "再接続中",
     "録音元",
@@ -1640,6 +1714,7 @@ const char *const i18n_vals[] = {
     "同じアルバム",
     "%.32s を保存。",
     "スキャン",
+    "スキャン中...",
     "スキャン中…",
     "画面",
     "画面オフ",
@@ -1845,6 +1920,7 @@ const char *const i18n_vals[] = {
     "CARGADA",
     "CARG %d%%",
     "CERRAR",
+    "Cancelar",
     "No se puede grabar",
     "Cert. %.29s...",
     "Elige la red que usará el reproductor e introduce su contraseña. Se prueba antes de guardarla.",
@@ -1854,6 +1930,7 @@ const char *const i18n_vals[] = {
     "Conectado a %.32s.",
     "Conectando",
     "Conectando con el reproductor…",
+    "Copia el Wi-Fi guardado de M5Launcher en esta placa.",
     "No se pudo crear el\012archivo de grabación.",
     "No se pudo conectar a %s.",
     "No se pudo crear la\012carpeta Recordings.",
@@ -1869,6 +1946,7 @@ const char *const i18n_vals[] = {
     "Segundos de fundido cruzado",
     "Fundido cruzado dentro de un álbum",
     "AV PÁG",
+    "HECHO",
     "Configuración de Defeatist",
     "Atenuar pantalla",
     "BORRAR",
@@ -1876,6 +1954,8 @@ const char *const i18n_vals[] = {
     "¿Vaciar la cola? Lo que suena sigue sonando.",
     "Vacía.",
     "Iguala el volumen entre pistas.",
+    "Salir",
+    "¿Salir al Launcher?",
     "CARPETA",
     "ENFOCADO",
     "Baja el volumen, pausa y apaga la pantalla.",
@@ -1888,8 +1968,11 @@ const char *const i18n_vals[] = {
     "Auricular, UAC: la toma, un micro USB.",
     "INAC",
     "INAC %dM",
+    "IMPORTAR",
     "EN USO",
     "INDEXANDO",
+    "Importar de M5Launcher",
+    "Importadas %d, omitidas %d",
     "Inserta una tarjeta o\012unidad USB para grabar.",
     "Vuelve cuando se cierra la configuración.",
     "Llegó a 4 GB, el máximo\012de un archivo.",
@@ -1902,6 +1985,7 @@ const char *const i18n_vals[] = {
     "Bibliotecas",
     "Más que la atenuación, y la retroiluminación se apaga del todo. Nunca con esta página abierta.",
     "Se perdió el reproductor. Reconectando…",
+    "M5Launcher no está en esta placa",
     "MONO",
     "Servidor MPD",
     "MUDO",
@@ -1920,12 +2004,14 @@ const char *const i18n_vals[] = {
     "Hora de red",
     "Nunca",
     "Siguiente",
+    "No hay config.conf de M5Launcher",
     "No hay micrófono USB\012conectado.",
     "Esa red no responde. Inténtalo otra vez.",
     "Ninguna app conectada.",
     "Sin memoria para la\012tarea de grabación.",
     "Sin memoria para medir.",
     "Sin contraseña: cualquiera en la red lo usa.",
+    "No hay redes guardadas",
     "Sin señal",
     "No hay emisora elegida.",
     "Aún no hay ninguna en la tarjeta.",
@@ -1955,6 +2041,7 @@ const char *const i18n_vals[] = {
     "Reproducir, pausar, saltar, buscar y volumen desde una app MPD como MALP o mpc.",
     "Se pausa la reproducción al configurar.",
     "Apagado",
+    "¿Apagar?",
     "Anterior",
     "En cuartos de vuelta. 90 y 270 son horizontales; 180 es para cuando el cable queda al otro lado.",
     "Cola",
@@ -1962,6 +2049,7 @@ const char *const i18n_vals[] = {
     "REINDEXAR",
     "VOLVER",
     "RESET: vuelve a la hora de compilación; las grabaciones de este arranque se renombran.",
+    "REPETIR",
     "RECARGAR",
     "AZAR",
     "REPETIR",
@@ -1971,6 +2059,7 @@ const char *const i18n_vals[] = {
     "Emisoras de radio",
     "Leyendo %s sin decodificar...",
     "Leyendo…",
+    "Lee su config.conf; sin reescribir ni red.",
     "Lee la emisora sin decodificar, para separar una red lenta de un decodificador lento.",
     "Reconectando",
     "Grabar desde",
@@ -1992,6 +2081,7 @@ const char *const i18n_vals[] = {
     "Mismo álbum",
     "Guardado %.32s.",
     "Buscar",
+    "Buscando...",
     "Buscando…",
     "Pantalla",
     "Apagar pantalla",

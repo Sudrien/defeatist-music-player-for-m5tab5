@@ -192,6 +192,9 @@
 | 设置 | `RUN` | 运行 | 実行 | MEDIR |
 | 设置 | `RESET` | 重置 | 戻す | VOLVER |
 | 设置 | `CLOSE` | 关闭 | 閉じる | CERRAR |
+| 设置 | `IMPORT` | 导入 | 取込 | IMPORTAR |
+| 设置 | `DONE` | 完成 | 完了 | HECHO |
+| 设置 | `RETRY` | 重试 | 再試行 | REPETIR |
 | 录音来源 | `MONO` | 单声道 | モノラル | MONO |
 | 录音来源 | `STEREO` | 立体声 | ステレオ | ESTÉREO |
 | 录音来源 | `FOCUSED` | 定向 | フォーカス | ENFOCADO |

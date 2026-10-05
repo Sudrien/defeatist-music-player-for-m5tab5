@@ -118,6 +118,8 @@ ja:
     "CHRG %d%%": "充電 %d%%"
     # panel.c, sleeppage.c
     "CLOSE": "閉じる"
+    # ui.c
+    "Cancel": "キャンセル"
     # player.c
     "Cannot record": "録音できない"
     # panel.c
@@ -136,6 +138,8 @@ ja:
     "Connecting": "接続中"
     # remote.html
     "Connecting to the player…": "プレーヤーに接続中…"
+    # panel.c
+    "Copy saved Wi-Fi from an M5Launcher install on this board.": "このボードの M5Launcher から保存済み Wi-Fi をコピー。"
     # recorder.c
     "Could not create the recording file.": "録音ファイルを\n作れなかった。"
     # remote.c
@@ -166,6 +170,8 @@ ja:
     "Crossfade within an album": "同じアルバム内でもクロスフェード"
     # browser.c
     "DN": "次頁"
+    # panel.c
+    "DONE": "完了"
     # portal.c
     "Defeatist setup": "Defeatist の設定"
     # sleeppage.c
@@ -180,6 +186,10 @@ ja:
     "Empty.": "空です。"
     # panel.c
     "Evens out loudness between tracks.": "曲ごとの音量差をならす。"
+    # ui.c
+    "Exit": "終了"
+    # ui.c
+    "Exit to Launcher?": "Launcher に戻りますか？"
     # browser.c
     "FLDR": "フォルダ"
     # panel.c
@@ -202,11 +212,18 @@ ja:
     "Headset, UAC: the jack, a USB mic.": "ヘッドセット、UAC：端子、USBマイク。"
     # ui.c
     "IDLE": "待機"
+    # ui.c
     "IDLE %dM": "待機%d分"
+    # panel.c
+    "IMPORT": "取込"
     # panel.c
     "IN USE": "使用中"
     # panel.c
     "INDEXING": "索引中"
+    # panel.c
+    "Import from M5Launcher": "M5Launcher から取込"
+    # launcher_import.c, panel.c
+    "Imported %d, skipped %d": "取込 %d 件、スキップ %d 件"
     # player.c, recorder.c
     "Insert a card or a USB drive to record to.": "カードかUSBドライブを\n入れて録音を。"
     # panel.c
@@ -231,6 +248,8 @@ ja:
     "Longer than the dim, and the backlight goes out altogether. Never while this page is open.": "暗くなるより長く、バックライトが完全に消える。このページを開いている間は消えない。"
     # remote.html
     "Lost the player. Reconnecting…": "プレーヤーとの接続が切れました。再接続中…"
+    # launcher_import.c
+    "M5Launcher not found on this board": "このボードに M5Launcher がありません"
     # panel.c
     "MONO": "モノラル"
     # panel.c
@@ -267,6 +286,8 @@ ja:
     "Never": "しない"
     # remote.html
     "Next": "次へ"
+    # launcher_import.c
+    "No M5Launcher config.conf on card": "カードに M5Launcher の config.conf なし"
     # recorder.c
     "No USB microphone is plugged in.": "USBマイクが\nつながっていない。"
     # portal.c
@@ -279,6 +300,8 @@ ja:
     "No memory to measure with.": "測定するメモリがない。"
     # panel.c
     "No password: anyone on it can use it.": "パスワードなし：同じネットワークの誰でも使える。"
+    # launcher_import.c
+    "No saved networks to import": "取り込むネットワークがありません"
     # streamplan.h
     "No signal": "信号なし"
     # bench.c
@@ -335,8 +358,10 @@ ja:
     "Play, pause, skip, seek and volume from an MPD app such as MALP or mpc.": "MALPやmpcなどのMPDアプリから再生、一時停止、スキップ、シーク、音量。"
     # panel.c
     "Playback pauses while setup runs.": "設定中は再生を一時停止。"
-    # sleeppage.c
+    # sleeppage.c, ui.c
     "Power off": "電源オフ"
+    # ui.c
+    "Power off?": "電源を切りますか？"
     # remote.html
     "Previous": "前へ"
     # sleeppage.c
@@ -351,6 +376,8 @@ ja:
     "RESET": "戻す"
     # panel.c
     "RESET: back to the build time; this boot's recordings are renamed to match.": "RESET：ビルド時刻に戻す。今回の起動の録音はそれに合わせて改名。"
+    # panel.c
+    "RETRY": "再試行"
     # browser.c
     "RLOD": "再読込"
     # browser.c
@@ -369,6 +396,8 @@ ja:
     "Reading %s without decoding...": "%s をデコードせずに読込中..."
     # remote.html
     "Reading…": "読み込み中…"
+    # panel.c
+    "Reads its config.conf; no retyping, no network needed.": "config.conf を読むだけ。再入力もネットも不要。"
     # panel.c
     "Reads the selected station without decoding it, to tell a slow network from a slow decoder.": "選んだ局をデコードせずに読み、遅いのがネットかデコーダかを見分ける。"
     # streamplan.h
@@ -411,6 +440,8 @@ ja:
     "Saved %.32s.": "%.32s を保存。"
     # remote.html
     "Scan": "スキャン"
+    # launcher_import.c
+    "Scanning...": "スキャン中..."
     # remote.c
     "Scanning…": "スキャン中…"
     # sleeppage.c

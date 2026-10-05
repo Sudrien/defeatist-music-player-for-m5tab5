@@ -1187,6 +1187,13 @@ static int draw_net(void)
             if (li.phase == LI_IDLE) {
                 li_note[0] = _("Copy saved Wi-Fi from an M5Launcher install on this board.");
                 li_note[1] = _("Reads its config.conf; no retyping, no network needed.");
+            } else if (li.phase == LI_DONE) {
+                /* 6049: msg holds the counts already printed in, which no key
+                 * matches; the counts are in li, so print the translation. */
+                static char li_done[96];
+                snprintf(li_done, sizeof(li_done), _("Imported %d, skipped %d"),
+                         li.imported, li.skipped);
+                li_note[0] = li_done;
             } else {
                 li_note[0] = li.msg[0] ? _(li.msg) : "";
             }

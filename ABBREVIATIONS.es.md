@@ -192,6 +192,9 @@ En todos los idiomas se mantienen en inglés, mediante `same()`: los nombres de 
 | Ajustes | `RUN` | 运行 | 実行 | MEDIR |
 | Ajustes | `RESET` | 重置 | 戻す | VOLVER |
 | Ajustes | `CLOSE` | 关闭 | 閉じる | CERRAR |
+| Ajustes | `IMPORT` | 导入 | 取込 | IMPORTAR |
+| Ajustes | `DONE` | 完成 | 完了 | HECHO |
+| Ajustes | `RETRY` | 重试 | 再試行 | REPETIR |
 | Grabar desde | `MONO` | 单声道 | モノラル | MONO |
 | Grabar desde | `STEREO` | 立体声 | ステレオ | ESTÉREO |
 | Grabar desde | `FOCUSED` | 定向 | フォーカス | ENFOCADO |

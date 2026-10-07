@@ -11,7 +11,8 @@
 #                            project() and so in scope here)
 #   components/usb_host_*/   the vendored USB class drivers' own manifests;
 #     idf_component.yml      both carry fixes past that version (5026, 5035)
-#   tools/gen_ark12.py       the Ark Pixel commit the font was cut from
+#   gen_ark12.py             the Ark Pixel commit the font was cut from,
+#                            in feckless-graphics-handler's tools/ (6055)
 #
 # Include AFTER project(). Sets LIBVERSIONS_DIR to the directory holding
 # libversions.h. The header is rewritten only when its text changes, so
@@ -145,13 +146,14 @@ foreach(_pair "minimp3;MINIMP3_COMMIT;CC0-1.0" "pngle;PNGLE_COMMIT;MIT"
     endif()
 endforeach()
 
-set(_ark "${_root}/tools/gen_ark12.py")
+# 6055: the generator moved to feckless-graphics-handler with the font.
+set(_ark "${_managed}/feckless_graphics_handler/tools/gen_ark12.py")
 if(EXISTS "${_ark}")
     set_property(DIRECTORY APPEND PROPERTY CMAKE_CONFIGURE_DEPENDS "${_ark}")
     file(STRINGS "${_ark}" _v REGEX "^ARK_COMMIT *=")
     string(REGEX REPLACE "^ARK_COMMIT *= *\"([0-9a-f]+)\".*$" "\\1" _v "${_v}")
     _lv_short(_v "${_v}")
-    # OFL-1.1, and components/ark12 with it -- see its README and
+    # OFL-1.1, and fonts/ark12 in that library with it -- see its README and
     # LICENSE-OFL, which has to ship with the firmware.
     list(APPEND _libs "Ark Pixel font ${_v} -- OFL-1.1")
 endif()

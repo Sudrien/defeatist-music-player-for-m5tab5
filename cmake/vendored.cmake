@@ -25,7 +25,8 @@ set(PNGLE_COMMIT   b1c68193f1d3f8642b3e0e095d457a828038e6fb)
 # 5062: stb_image v2.30, the last JPEG decoder. See components/stbjpeg.
 set(STB_COMMIT     013ac3beddff3dbffafd5177e7972067cd2b5083)
 
-# The font is no longer fetched here. components/ark12 is generated from
+# The font is no longer fetched here. ark12 (feckless-graphics-handler's
+# fonts/ark12 since 6055) is generated from
 # Ark Pixel Font by tools/gen_ark12.py and committed, because Ark ships
 # one PNG per glyph rather than a header -- there is no single file to
 # pin, and pulling a 17 MB archive on every fresh configure to extract

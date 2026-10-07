@@ -22145,3 +22145,64 @@ moved with micpcm.h. `make all` passes with all three pointed at clones.
 Not built against ESP-IDF here. On the board: "asking for configuration
 2" when a Realtek adapter is plugged in (the line no longer ends
 "(CDC-ECM)"), and the boot log otherwise unchanged.
+
+### 6055 -- the display and gfx, moved out into a fourth library
+
+The panel, its backlight, gfx and the two fonts are
+[feckless-graphics-handler-for-tab5](https://github.com/Sudrien/feckless-graphics-handler-for-tab5)
+now, a git dependency of main pinned to `v0.1.0`. Its first user other
+than this player is meant to be the moving map's C port.
+
+What moved: main/gfx.c/.h, bidiline.h, logcut.h, brightness.h;
+components/ark12 and components/arabixel, whole; tools/gen_ark12.py and
+gen_arabixel.py; texttest/main.c (the gfx text-path test this
+directory was named for), bidilinetest.c, logcuttest.c and
+brightnesstest.c. The fonts are compiled into the one component from
+its fonts/ directory, since a git dependency is one component; their
+READMEs and licences went with them, and LICENSE-OFL still has to ship
+with the firmware.
+
+The panel was not a file. Five ranges of player.c -- the display
+defines, the LDO and backlight defines, DPI_COLOR_FORMAT, the three
+backlight functions, dpi_axi_priority() and panel_init() -- are the
+library's lcd.c; its import commit lists the line numbers and a command
+that checks them byte for byte. Here they leave a comment each, and:
+
+  backlight_init(); panel_init();   ->  lcd_init(&s_panel)
+  backlight_set()                   ->  lcd_backlight_set()
+  backlight_set_counts()            ->  lcd_backlight_set_counts()
+
+LCD_H_RES, LCD_V_RES and LCD_LEDC_DUTY_MAX come from its lcd.h.
+s_panel stays here, since albumart and ui take it. The ST7121 and AXI
+QoS boot lines now print under the tag "tab5_lcd" instead of this
+file's.
+
+What stayed:
+
+- **Brightness policy.** effective_brightness(), the idle dim, the
+  screen-off fade, the filter apply and LCD_BRIGHTNESS_PERCENT are the
+  player's screen behaviour; they call the library's backlight and
+  gfx's filter as they called the statics before.
+- **The io expanders,** including LCD_RST. lcd_init() expects the
+  panel already out of reset, which io_expanders_init() still does.
+- **g_tab5_dpi_underruns and the instrumented esp_lcd**
+  (cmake/dpi_instrument.cmake): it has to be in place before
+  project.cmake, which only the project can arrange.
+- **i18ntest** builds against the library's gfx.c and font tables, as
+  it built against main's.
+
+Rev 1 Tabs (ILI9881C) were never supported here and are not now:
+panel_init() has only ever brought up the ST7121.
+
+cmake/libversions.cmake reads ARK_COMMIT from the generator's new home
+under managed_components/, so the BUILD tab still names the font's
+commit.
+
+The manifest: esp_lcd_st7121 moved into the library's, pinned "^1.0.0"
+as it was. The next build re-resolves both locks; one new git entry is
+expected and esp_lcd_st7121 leaves direct_dependencies.
+
+Not built against ESP-IDF here, and lcd.c has had no compiler look at
+it since it left this file. On the board: "ST7121 initialised
+(720x1280)" under tab5_lcd, a picture, and the backlight coming up at
+the setting as before.

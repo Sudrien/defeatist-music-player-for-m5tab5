@@ -87,9 +87,10 @@ dependencies:
   # and touch are feckless-drivers-for-tab5. The two touch controllers'
   # entries (GT911 for rev 1, ST7123 for rev 2, both because the
   # controller is probed) moved into its manifest and arrive through it.
+  # 6056: v0.2.0 adds tab5io (the I2C bus and expanders) and audio_out.
   feckless_drivers:
     git: https://github.com/Sudrien/feckless-drivers-for-tab5.git
-    version: "v0.1.0"
+    version: "v0.2.0"
 
   # 6055: the panel, the backlight and gfx, with the Ark12 and Arabixel
   # fonts, are feckless-graphics-handler-for-tab5. esp_lcd_st7121 moved

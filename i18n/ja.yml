@@ -566,7 +566,7 @@ ja:
     "UP": "上へ"
     # browser.c
     "UP^": "前頁"
-    # audio_out.c
+    # panel.c
     "USB audio": "USBオーディオ"
     # browser.c
     "USB port coming up": "USBポート起動中"
@@ -610,7 +610,7 @@ ja:
     "fetching %s…": "%s を取得中…"
     # panel.c
     "from NTP": "NTPより"
-    # audio_out.c
+    # panel.c
     "headphones": "ヘッドホン"
     # panel.c
     "headset": "ヘッドセット"
@@ -686,7 +686,7 @@ ja:
     "sector": "セクタ"
     # player.c
     "slide or tap to cancel": "スライドかタップで中止"
-    # audio_out.c
+    # panel.c
     "speaker": "スピーカー"
     # panel.c
     "speed": "速度"

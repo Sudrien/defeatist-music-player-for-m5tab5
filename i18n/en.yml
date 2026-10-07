@@ -566,7 +566,7 @@ en:
     "UP": ~
     # browser.c
     "UP^": ~
-    # audio_out.c
+    # panel.c
     "USB audio": ~
     # browser.c
     "USB port coming up": ~
@@ -610,7 +610,7 @@ en:
     "fetching %s…": ~
     # panel.c
     "from NTP": ~
-    # audio_out.c
+    # panel.c
     "headphones": ~
     # panel.c
     "headset": ~
@@ -686,7 +686,7 @@ en:
     "sector": ~
     # player.c
     "slide or tap to cancel": ~
-    # audio_out.c
+    # panel.c
     "speaker": ~
     # panel.c
     "speed": ~

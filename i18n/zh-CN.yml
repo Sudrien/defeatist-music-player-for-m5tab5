@@ -566,7 +566,7 @@ zh-CN:
     "UP": "上级"
     # browser.c
     "UP^": "上页"
-    # audio_out.c
+    # panel.c
     "USB audio": "USB 音频"
     # browser.c
     "USB port coming up": "USB 端口启动中"
@@ -610,7 +610,7 @@ zh-CN:
     "fetching %s…": "正在获取 %s…"
     # panel.c
     "from NTP": "来自 NTP"
-    # audio_out.c
+    # panel.c
     "headphones": "耳机"
     # panel.c
     "headset": "耳麦"
@@ -686,7 +686,7 @@ zh-CN:
     "sector": "扇区"
     # player.c
     "slide or tap to cancel": "滑动或轻点以取消"
-    # audio_out.c
+    # panel.c
     "speaker": "扬声器"
     # panel.c
     "speed": "速度"

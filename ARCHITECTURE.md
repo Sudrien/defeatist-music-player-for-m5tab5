@@ -22013,3 +22013,81 @@ question.
 Not compiled here (player.c needs ESP-IDF). On the board: the log line
 "CHG_EN driven high (expander 0x44 P7)"; on USB-C below 100% the
 status line reads CHRG and the shunt current goes negative.
+
+### 6053 -- network and storage, moved out into two libraries
+
+Wi-Fi, the saved networks and USB Ethernet are
+[feckless-network-handler-for-tab5](https://github.com/Sudrien/feckless-network-handler-for-tab5)
+now, and the SD card, the USB drive and the storage arbiter are
+[feckless-storage-handler-for-tab5](https://github.com/Sudrien/feckless-storage-handler-for-tab5).
+Both come in as git dependencies of main, pinned to `v0.1.0`.
+
+What moved, from main/ unless marked:
+
+  network   wifi.c/.h, wifistore.c/.h, ethernet.c/.h, netlink.h,
+            ethcfg.h, hostedwrap.c (and its --wrap, from main's
+            CMakeLists.txt); texttest/wifistoretest.c, netlinktest.c,
+            fake/wifistore_host.h
+  storage   storage.c/.h, storage_io.c/.h; a copy of rtctask.h, which
+            stays here too because other files use it
+
+Each library's first patch is those files byte for byte, and its second
+is everything it took to build without the player, so what changed in
+the move is one diff to read. Every section of this file that explains
+one of them still holds; the code it describes is in the library now.
+
+What stayed, and why:
+
+- **usbhost.c.** Mass storage and Ethernet both register a class driver
+  on the one USB-A port, and so do USB audio and HID. One of them has
+  to own the bus, and it is none of the libraries' business which.
+  Both libraries take a `register_class` function from the caller.
+- **wifijoin.c.** It is the glue between portalweb.c's join plan and
+  wifi_join(), and portalweb is the player's.
+- **nvsns.c.** The player's namespace and its 6006 migration.
+  `wifistore_init()` now takes the namespace as an argument, and the
+  player passes DEFEATIST_NVS_NS, so no saved network moves.
+- **The exFAT fatfs** (cmake/exfat.cmake). It has to be in place before
+  project.cmake scans components, which only the project can arrange.
+  The storage library requires `fatfs` and `usb_host_msc` by name, so
+  this project's vendored copies of both are still the ones built.
+- **sdkconfig.defaults**, all of it, including the esp_hosted board
+  preset and reset GPIO: a component cannot set another's Kconfig.
+
+What the call sites became. wifi.c and ethernet.c called five player
+modules by name; they now call hooks from `feckless_net.h`, set in
+app_main() right after `wifistore_init()` and before `settings_init()`,
+and every hook is the function the call site used to name:
+
+  heap_note            heapmap_log
+  online               streamprobe_kick
+  ntp_enabled          settings_ntp_enabled
+  ntp_reply            settings_note_ntp_reply
+  wifi_enabled         settings_wifi_enabled
+  portal_running       portal_running
+  portal_stop          portal_stop
+  usb_register_class   usbhost_register_class
+
+storage_init() takes a `storage_usb_t` of usbhost_register_class,
+usbhost_set_power and usbhost_powered. The order of events at every
+site is unchanged.
+
+The manifest. esp_wifi_remote, esp_hosted, esp_usbh_asix and
+iot_usbh_ecm moved, pins and comments unchanged, into the network
+library's idf_component.yml and arrive through it. That re-resolves
+dependencies.lock (and dependencies.lock.idf6) on the next build, and
+two new git entries appear in it; read the diff before committing.
+Nothing else should move -- every entry that was unpinned is still
+unpinned in the same way, but that is exactly the kind that can.
+
+texttest: the files that include storage.h and friends find them
+through `FECKLESS_NET` / `FECKLESS_STORAGE`, which default to
+managed_components/ and can be pointed at clones. playlisttest included
+`../main/storage.h` by path and now includes it by name. With both
+pointed at clones, `make all` passes.
+
+Not built against ESP-IDF here. The hook tables were type-checked on
+the host against the prototypes in settings.h, portal.h, heapmap.h,
+streamprobe.h and usbhost.h. On the board, the boot log should be the
+6052 log with nothing missing: "SDMMC IO power up", the MSC and "eth"
+class registrations, "station up" from the heap map, and "NTP sync".

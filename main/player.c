@@ -84,6 +84,7 @@
 #include "tailplan.h"
 #include "replaygain.h"
 #include "ethernet.h"
+#include "feckless_net.h"     /* 6053 */
 #include "heapmap.h"          /* 5097 */
 #include "hid.h"
 #include "panel.h"
@@ -100,6 +101,7 @@
 #include "usbhost.h"
 #include "wifi.h"
 #include "portal.h"
+#include "streamprobe.h"         /* 6053: the network hooks */
 #include "sleeppage.h"
 #include "brightness.h"
 #include "screendim.h"
@@ -14999,7 +15001,14 @@ void app_main(void)
      */
     storage_io_init();
 
-    ESP_ERROR_CHECK(storage_init());
+    /* 6053: storage lives in feckless-storage-handler now and does not
+     * own the bus; this is the bus. */
+    static const storage_usb_t storage_usb = {
+        .register_class = usbhost_register_class,
+        .set_power      = usbhost_set_power,
+        .powered        = usbhost_powered,
+    };
+    ESP_ERROR_CHECK(storage_init(&storage_usb));
 
     /*
      * Starts the writer task; loads nothing, because which volume the
@@ -15038,7 +15047,25 @@ void app_main(void)
         ESP_LOGE(TAG, "nvs_flash_init: %s", esp_err_to_name(nvs_err));
     }
     if (nvs_err == ESP_OK) nvsns_migrate();     /* 6006: before anything reads it */
-    wifistore_init();
+    wifistore_init(DEFEATIST_NVS_NS);           /* 6053: the namespace is ours to name */
+
+    /*
+     * 6053: what wifi.c and ethernet.c used to call by name, now that
+     * they live in feckless-network-handler. Before anything can run
+     * them: settings_init() below may ask for the radio. Every one of
+     * these is the function the call site named before the move.
+     */
+    static const feckless_net_hooks_t net_hooks = {
+        .heap_note          = heapmap_log,
+        .online             = streamprobe_kick,
+        .ntp_enabled        = settings_ntp_enabled,
+        .ntp_reply          = settings_note_ntp_reply,
+        .wifi_enabled       = settings_wifi_enabled,
+        .portal_running     = portal_running,
+        .portal_stop        = portal_stop,
+        .usb_register_class = usbhost_register_class,
+    };
+    feckless_net_set_hooks(&net_hooks);
 
     /* 5051: after NVS, not before it. 5049 made settings_init() read the
      * Wi-Fi switch from NVS, and here it ran ahead of nvs_flash_init(),

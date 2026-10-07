@@ -13,10 +13,10 @@ endif()
 
 idf_component_register(
     SRCS "player.c" "decoder.c" "albumart.c" "covertag.c" "folderart.c" "tagextra.c" "mediacache.c" "ui.c" "gfx.c" "touch.c" "audio_out.c"
-         "battery.c" "storage.c" "storage_io.c" "usbhost.c" "uac.c" "hid.c" "playlist.c" "settings.c"
-       "wifistore.c" "wifi.c" "browser.c" "panel.c" "i18n.c" "i18n_tab.c" "duration.c" "cbrseek.c" "flacseek.c" "oggseek.c" "tsseek.c" "mp4seek.c" "waveform.c" "replaygain.c" "loudness.c"
+         "battery.c" "usbhost.c" "uac.c" "hid.c" "playlist.c" "settings.c"
+       "browser.c" "panel.c" "i18n.c" "i18n_tab.c" "duration.c" "cbrseek.c" "flacseek.c" "oggseek.c" "tsseek.c" "mp4seek.c" "waveform.c" "replaygain.c" "loudness.c"
          "portal.c" "portalweb.c" "dnsreply.c"
-         "sleeppage.c" "streamprobe.c" "netstream.c" "netdec.c" "stations.c" "favorites.c" "starred.c" "streamgain.c" "radiobrowser.c" "bench.c" "ethernet.c" "cuedir.c" "cardtime.c" "mediacat.c" "mediawalk.c" "mediasync.c" "medialib.c" "mediadir.c" "rateconv.c" "polyrsp.c" "radiokeep.c" "icoimg.c" "hostedwrap.c" "heapmap.c" "flacenc.c" "recorder.c" "beam.c"
+         "sleeppage.c" "streamprobe.c" "netstream.c" "netdec.c" "stations.c" "favorites.c" "starred.c" "streamgain.c" "radiobrowser.c" "bench.c" "cuedir.c" "cardtime.c" "mediacat.c" "mediawalk.c" "mediasync.c" "medialib.c" "mediadir.c" "rateconv.c" "polyrsp.c" "radiokeep.c" "icoimg.c" "heapmap.c" "flacenc.c" "recorder.c" "beam.c"
          "mpdqueue.c" "mpdproto.c" "mpdfilter.c" "casefold_tab.c" "mpduri.c" "mpdmode.c" "mpdidle.c" "mpd.c" "uireq.c" "m3uline.c" "urlclean.c" "remote.c" "remoteproto.c" "certgen.c" "devcert.c" "wifijoin.c" "rtc8130.c" "nvsns.c" "launcher_import.c"
     INCLUDE_DIRS "."
     EMBED_TXTFILES "remote_i18n.html"    # 6028: generated from remote.html
@@ -27,6 +27,7 @@ idf_component_register(
              nvs_flash esp_netif esp_event esp_http_server esp_https_server esp_http_client mbedtls
              esp_usbh_asix iot_eth iot_usbh_ecm iot_usbh_cdc
              app_update spi_flash   # launcher_import.c: esp_ota_ops + esp_partition
+             feckless_network_handler feckless_storage_handler   # 6053
     PRIV_REQUIRES pngle minimp3 ark12 arabixel stbjpeg
 )
 
@@ -47,13 +48,8 @@ if(WAVEFORM)
     message(STATUS "waveform envelope scan ENABLED")
 endif()
 
-# 5092: esp_hosted's per-packet buffers from PSRAM. See hostedwrap.c.
-# --wrap turns esp_hosted's calls to eh_host_port_dma_alloc() into calls
-# to __wrap_eh_host_port_dma_alloc(); -u makes the linker take that
-# definition from this component's archive whatever the link order.
-target_link_libraries(${COMPONENT_LIB} INTERFACE
-    "-Wl,--wrap=eh_host_port_dma_alloc"
-    "-Wl,-u,__wrap_eh_host_port_dma_alloc")
+# 5092's --wrap of eh_host_port_dma_alloc moved to
+# feckless-network-handler's CMakeLists.txt with hostedwrap.c (6053).
 
 # 5277: every file in main at -O3, off by default. Build with
 #   idf.py -DO3CHECK=1 build

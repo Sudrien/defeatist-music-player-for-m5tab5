@@ -27,13 +27,25 @@ CC      ?= cc
 # That happened, twice, on code that had been "checked".
 #
 # Warnings only: no binary is kept and nothing is run from it.
+# 6053: storage.h, storage_io.h, wifi.h and ethernet.h moved into the two
+# feckless libraries, and files here still include them. The component
+# manager puts a git dependency in managed_components/ under its bare
+# name, so these are right after the first idf.py build or reconfigure;
+# before one, point them at clones:
+#   make FECKLESS_NET=../../feckless-network-handler-for-tab5 \
+#        FECKLESS_STORAGE=../../feckless-storage-handler-for-tab5
+# Their own tests (wifistoretest, netlinktest) moved with them.
+FECKLESS_NET     ?= ../managed_components/feckless_network_handler
+FECKLESS_STORAGE ?= ../managed_components/feckless_storage_handler
+FECKLESS_INC     := -I$(FECKLESS_NET)/include -I$(FECKLESS_STORAGE)/include
+
 WARNCFLAGS := -std=c11 -O2 -Wall -Wextra -Werror -Wno-unused-parameter \
-              -D_GNU_SOURCE -I. -Ifake -I../main -I../components/ark12 -I../components/arabixel
+              -D_GNU_SOURCE -I. -Ifake -I../main $(FECKLESS_INC) -I../components/ark12 -I../components/arabixel
 
 CFLAGS  := -std=c11 -g -O1 -Wall -Wextra -Wno-unused-parameter \
            -fsanitize=address,undefined -fno-sanitize-recover=all \
            -fno-omit-frame-pointer \
-           -I. -Ifake -I../main -I../components/ark12 -I../components/arabixel
+           -I. -Ifake -I../main $(FECKLESS_INC) -I../components/ark12 -I../components/arabixel
 LDFLAGS := -fsanitize=address,undefined -lm
 
 SRCS := main.c shim.c ../main/gfx.c ../components/ark12/ark12.c ../components/arabixel/arabixel_tab.c ../components/arabixel/arabixel_shape.c
@@ -42,10 +54,6 @@ BIN  := texttest
 # The USB control-transfer ownership handoff, which needs threads and its
 # own main(). Separate binary rather than another file in BIN.
 CTRL_BIN := ctrltest
-
-# The saved-network list. Its own binary for the same reason ctrltest is:
-# its own main(), and no overlap with the text path.
-WIFI_BIN := wifistoretest
 
 # The screen's translations (6013): i18n.c against fixtures, then against
 # the committed table, after tools/i18n.py check says that table is what
@@ -285,16 +293,11 @@ RADIOBROWSER_BIN := radiobrowsertest
 # reserve-to-columns conversion the drawing will use.
 LEVELHIST_BIN := levelhisttest
 
-# When the USB Ethernet cable counts as a network. Header-only, like
-# favmatchtest, so this compiles netlink.h itself -- and ethcfg.h, the
-# Realtek configuration choice.
-NETLINK_BIN := netlinktest
-
 # Cue sheets. Header-only; the test reads the five sheets out of
 # ../test_audio_files so the bytes under test are the bytes on the card.
 CUE_BIN := cuesheettest
 
-all: run-remote run run-ctrl run-wifi run-clock run-rotate run-cardtime run-mediaindex run-medialist run-mediasearch run-mpdqueue run-mpdproto run-mpduri run-mpdfilter run-mpdmode run-mpdidle run-uireq run-m3uline run-urlclean run-playlist run-screendim run-artplace run-mediawalk run-mediasync run-menuscroll run-fade run-tail run-portal run-old check-ui check-netbudget run-bright run-sleep run-sniff run-icy run-netplan run-stations run-pcmfold run-bufplan run-stbjpeg run-addrpin run-codec run-hlsplay run-hlsseg run-tsdemux run-folderart run-bidi run-logcut run-mp3 run-framewin run-streamplan run-stationnav run-radiobrowser run-levelhist run-favmatch run-netlink run-cue run-tagextra run-flacenc run-beam run-micpcm run-i18n
+all: run-remote run run-ctrl run-clock run-rotate run-cardtime run-mediaindex run-medialist run-mediasearch run-mpdqueue run-mpdproto run-mpduri run-mpdfilter run-mpdmode run-mpdidle run-uireq run-m3uline run-urlclean run-playlist run-screendim run-artplace run-mediawalk run-mediasync run-menuscroll run-fade run-tail run-portal run-old check-ui check-netbudget run-bright run-sleep run-sniff run-icy run-netplan run-stations run-pcmfold run-bufplan run-stbjpeg run-addrpin run-codec run-hlsplay run-hlsseg run-tsdemux run-folderart run-bidi run-logcut run-mp3 run-framewin run-streamplan run-stationnav run-radiobrowser run-levelhist run-favmatch run-cue run-tagextra run-flacenc run-beam run-micpcm run-i18n
 
 $(BIN): $(SRCS) shim.h ../main/gfx.h ../main/bidiline.h ../components/ark12/ark12.h ../components/arabixel/arabixel.h
 	$(CC) $(CFLAGS) -o $@ $(SRCS) $(LDFLAGS)
@@ -307,12 +310,6 @@ $(CTRL_BIN): ctrltest.c
 
 run-ctrl: $(CTRL_BIN)
 	ASAN_OPTIONS=detect_leaks=1:abort_on_error=0 ./$(CTRL_BIN)
-
-$(WIFI_BIN): wifistoretest.c ../main/wifistore.c ../main/wifistore.h fake/wifistore_host.h
-	$(CC) $(CFLAGS) -DWIFISTORE_HOST -o $@ wifistoretest.c ../main/wifistore.c $(LDFLAGS)
-
-run-wifi: $(WIFI_BIN)
-	ASAN_OPTIONS=detect_leaks=1:abort_on_error=0 ./$(WIFI_BIN)
 
 $(I18N_BIN): i18ntest.c ../main/i18n.c ../main/i18n.h ../main/i18n_tab.c ../components/ark12/ark12.c ../main/gfx.c ../main/gfx.h
 	$(CC) $(WARNCFLAGS) -c ../main/i18n.c -o /dev/null
@@ -535,13 +532,6 @@ $(BEAM_BIN): beamtest.c ../main/beam.c ../main/beam.h
 run-beam: $(BEAM_BIN)
 	ASAN_OPTIONS=detect_leaks=1:abort_on_error=0 ./$(BEAM_BIN)
 
-$(NETLINK_BIN): netlinktest.c ../main/netlink.h ../main/ethcfg.h
-	$(CC) $(WARNCFLAGS) -c netlinktest.c -o /dev/null
-	$(CC) $(CFLAGS) -o $@ netlinktest.c $(LDFLAGS)
-
-run-netlink: $(NETLINK_BIN)
-	ASAN_OPTIONS=detect_leaks=1:abort_on_error=0 ./$(NETLINK_BIN)
-
 # 5262: the ID3v1 genre table and the genre-number fix.
 TAGEXTRA_BIN := tagextratest
 $(TAGEXTRA_BIN): tagextratest.c ../main/tagextra.c ../main/tagextra.h
@@ -598,8 +588,8 @@ run-old: $(OLD_BINS)
 	done
 
 clean:
-	rm -f netbudget_probe.c $(BIN) $(CTRL_BIN) $(WIFI_BIN) $(I18N_BIN) $(I18N_BIN)-fixture $(CLOCK_BIN) $(FADE_BIN) $(TAIL_BIN) $(PORTAL_BIN) $(REMOTE_BIN) $(OLD_BINS) $(BRIGHT_BIN) $(SLEEP_BIN) $(SNIFF_BIN) $(ICY_BIN) $(NETPLAN_BIN) $(STATION_BIN) $(BUFPLAN_BIN) $(CODEC_BIN) $(HLSPLAY_BIN) $(HLSSEG_BIN) $(TSDEMUX_BIN) $(FOLDERART_BIN) $(BIDI_BIN) $(LOGCUT_BIN) $(MP3_BIN) $(FRAMEWIN_BIN) $(STREAMPLAN_BIN) $(STATIONNAV_BIN) $(RADIOBROWSER_BIN) $(LEVELHIST_BIN) $(SGAIN_BIN) $(JSONPICK_BIN) $(FAVMATCH_BIN) $(FLACENC_BIN) $(BEAM_BIN) $(MICPCM_BIN) $(NETLINK_BIN) $(CUE_BIN) $(TAGEXTRA_BIN) $(ROTATE_BIN) $(CARDTIME_BIN) $(MEDIAINDEX_BIN) $(MEDIALIST_BIN) $(MEDIASEARCH_BIN) $(MPDQUEUE_BIN) $(MPDPROTO_BIN) $(MPDURI_BIN) $(MPDFILTER_BIN) $(MPDMODE_BIN) $(MPDIDLE_BIN) $(UIREQ_BIN) $(M3ULINE_BIN) $(URLCLEAN_BIN) $(PLAYLIST_BIN) $(SCREENDIM_BIN) $(ARTPLACE_BIN) $(MEDIAWALK_BIN) $(MEDIASYNC_BIN) $(MENUSCROLL_BIN) $(STBJPEG_BIN) $(ADDRPIN_BIN)
-	rm -rf $(BIN).dSYM $(CTRL_BIN).dSYM $(WIFI_BIN).dSYM $(CLOCK_BIN).dSYM $(FADE_BIN).dSYM $(TAIL_BIN).dSYM $(PORTAL_BIN).dSYM
+	rm -f netbudget_probe.c $(BIN) $(CTRL_BIN) $(I18N_BIN) $(I18N_BIN)-fixture $(CLOCK_BIN) $(FADE_BIN) $(TAIL_BIN) $(PORTAL_BIN) $(REMOTE_BIN) $(OLD_BINS) $(BRIGHT_BIN) $(SLEEP_BIN) $(SNIFF_BIN) $(ICY_BIN) $(NETPLAN_BIN) $(STATION_BIN) $(BUFPLAN_BIN) $(CODEC_BIN) $(HLSPLAY_BIN) $(HLSSEG_BIN) $(TSDEMUX_BIN) $(FOLDERART_BIN) $(BIDI_BIN) $(LOGCUT_BIN) $(MP3_BIN) $(FRAMEWIN_BIN) $(STREAMPLAN_BIN) $(STATIONNAV_BIN) $(RADIOBROWSER_BIN) $(LEVELHIST_BIN) $(SGAIN_BIN) $(JSONPICK_BIN) $(FAVMATCH_BIN) $(FLACENC_BIN) $(BEAM_BIN) $(MICPCM_BIN) $(CUE_BIN) $(TAGEXTRA_BIN) $(ROTATE_BIN) $(CARDTIME_BIN) $(MEDIAINDEX_BIN) $(MEDIALIST_BIN) $(MEDIASEARCH_BIN) $(MPDQUEUE_BIN) $(MPDPROTO_BIN) $(MPDURI_BIN) $(MPDFILTER_BIN) $(MPDMODE_BIN) $(MPDIDLE_BIN) $(UIREQ_BIN) $(M3ULINE_BIN) $(URLCLEAN_BIN) $(PLAYLIST_BIN) $(SCREENDIM_BIN) $(ARTPLACE_BIN) $(MEDIAWALK_BIN) $(MEDIASYNC_BIN) $(MENUSCROLL_BIN) $(STBJPEG_BIN) $(ADDRPIN_BIN)
+	rm -rf $(BIN).dSYM $(CTRL_BIN).dSYM $(CLOCK_BIN).dSYM $(FADE_BIN).dSYM $(TAIL_BIN).dSYM $(PORTAL_BIN).dSYM
 	rm -rf $(addsuffix .dSYM,$(OLD_BINS))
 
 $(BRIGHT_BIN): brightnesstest.c ../main/brightness.h
@@ -821,4 +811,4 @@ check-netbudget: $(NETBUDGET_H)
 	@rm -f netbudget_probe.c
 	@echo "netbudget: refuses below 22, accepts 22 and up, refuses unset -- all passed"
 
-.PHONY: all run-pcmfold run run-ctrl run-wifi run-clock run-rotate run-cardtime run-mediaindex run-medialist run-mediasearch run-mpdqueue run-mpdproto run-mpduri run-mpdmode run-mpdidle run-uireq run-m3uline run-urlclean run-playlist run-screendim run-artplace run-mediawalk run-mediasync run-menuscroll run-fade run-tail run-portal run-old check-ui check-netbudget run-bright run-sleep run-sniff run-icy run-netplan run-stations run-pcmfold run-bufplan run-stbjpeg run-addrpin run-codec run-hlsplay run-hlsseg run-tsdemux run-folderart run-bidi run-logcut run-mp3 run-framewin run-streamplan run-stationnav run-radiobrowser run-levelhist run-favmatch run-netlink run-cue run-tagextra run-flacenc run-beam run-micpcm run-i18n clean
+.PHONY: all run-pcmfold run run-ctrl run-clock run-rotate run-cardtime run-mediaindex run-medialist run-mediasearch run-mpdqueue run-mpdproto run-mpduri run-mpdmode run-mpdidle run-uireq run-m3uline run-urlclean run-playlist run-screendim run-artplace run-mediawalk run-mediasync run-menuscroll run-fade run-tail run-portal run-old check-ui check-netbudget run-bright run-sleep run-sniff run-icy run-netplan run-stations run-pcmfold run-bufplan run-stbjpeg run-addrpin run-codec run-hlsplay run-hlsseg run-tsdemux run-folderart run-bidi run-logcut run-mp3 run-framewin run-streamplan run-stationnav run-radiobrowser run-levelhist run-favmatch run-cue run-tagextra run-flacenc run-beam run-micpcm run-i18n clean

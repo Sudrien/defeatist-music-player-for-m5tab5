@@ -69,66 +69,24 @@ dependencies:
   # is ILI9881C + GT911, rev 2 is ST7121/ST7123 + ST7123. Dropping the one
   # your board does not have saves a little flash and guarantees the other
   # revision fails at runtime instead of at link time.
-  # The radio, which is an ESP32-C6 on the other end of SDIO2. The P4 has
-  # none of its own. esp_wifi_remote makes the C6 look like a local
-  # esp_wifi; esp_hosted is the transport underneath it.
+  # 6053: Wi-Fi, the saved networks and USB Ethernet are
+  # feckless-network-handler-for-tab5 now, and the SD card, the USB drive
+  # and the storage arbiter are feckless-storage-handler-for-tab5. The
+  # esp_wifi_remote, esp_hosted, esp_usbh_asix and iot_usbh_ecm entries
+  # that were here moved into the first one's manifest, pins and comments
+  # unchanged, and arrive through it. Both PINNED TO A TAG, for
+  # esp_usbh_asix's reason: a moving branch would change underneath a
+  # build that worked.
   #
-  # esp_wifi_remote is DELIBERATELY UNPINNED, following usb_host_msc's
-  # reasoning: a guessed pin that the registry cannot satisfy stops the
-  # project configuring entirely. It follows whatever esp_hosted allows.
-  #
-  # esp_hosted IS PINNED, and the floor is not caution. 3.0.2 is the
-  # release that added per-board presets with M5Stack Tab5 among them, and
-  # sdkconfig.defaults selects that preset (CONFIG_ESP32P4_TAB5_C6_BOARD)
-  # and sets the reset line through Kconfig, which is the one pin wifi.c
-  # cannot set from code -- see the note on CONFIG_ESP_HOSTED_HOST_RESET_GPIO
-  # there. Everything in wifi.c has only ever been built and run against
-  # 3.x.
-  #
-  # NO OLDER FALLBACK. This comment used to offer esp_hosted 1.4.0 with
-  # esp_wifi_remote 0.8.5, a pairing from BufferRoot/M5STACK-TAB5-DEMO-CLEAN,
-  # as known-good. The pin below excludes it, and nothing in this tree has
-  # been built against it since the pin went in. If a newer release breaks
-  # the radio, pin back to the last pair that worked, which
-  # dependencies.lock records -- esp_hosted 3.0.7 with esp_wifi_remote
-  # 1.6.4 when this was written -- not to a 1.x.
-  #
-  # The M5 slave firmware reports no version, so esp_hosted 3.0.7 logs
-  #   E eh_init_evt: major version mismatch — OTA coprocessor from host
-  # at every radio start, and works anyway: scan, APSTA, join and NTP all
-  # ran on hardware with that line printed above them. It is upstream's
-  # advice, not a fault. DO NOT act on it without a reason: an OTA would
-  # replace M5's C6 firmware with a stock slave build, which has never been
-  # tried on this board, and this tree has nothing that writes one.
-  #
-  # NOTHING TO SELECT IN MENUCONFIG. sdkconfig.defaults selects the board
-  # and sets reset GPIO 15 and its polarity; wifi.c sets the data pins
-  # (CLK 12, CMD 13, D0 11, D1 10, D2 9, D3 8) and logs the struct the
-  # driver actually copied as "SDIO in use", which is the line to believe
-  # -- eh_sdio's own banner prints build-time defaults. A build that logs
-  # the P4-Function-EV-Board pins instead (CLK 18, CMD 19, D0-D3 14-17,
-  # reset 54) is using an sdkconfig generated before those defaults
-  # existed: sdkconfig.defaults does not override an existing sdkconfig,
-  # so `rm sdkconfig` and build. `idf.py fullclean` empties build/ only and
-  # would leave the stale sdkconfig in place.
-  espressif/esp_wifi_remote: "*"
-  espressif/esp_hosted: ">=3.0.2"
-
-  # USB Ethernet, for ASIX AX88772/A/B adapters in the USB-A port. Not
-  # in the registry, so it comes from git, PINNED TO A TAG: a moving
-  # branch would change it underneath a build that worked. v0.1.0 is
-  # 5843b0c, which ran on a Tab5 (DHCP, default route, unplug,
-  # streaming -- see 5045), plus that repository's README and CHANGELOG. It pulls in
-  # espressif/iot_eth. See ethernet.h.
-  esp_usbh_asix:
-    git: https://github.com/Sudrien/esp_usbh_asix.git
+  # The radio's sdkconfig.defaults lines (the Tab5 preset, reset GPIO 15,
+  # init deferred to app_main) stay in this project's file: a component
+  # cannot set another's Kconfig.
+  feckless_network_handler:
+    git: https://github.com/Sudrien/feckless-network-handler-for-tab5.git
     version: "v0.1.0"
-
-  # And CDC-ECM, for Realtek RTL8152/8153 adapters, which offer it as
-  # their second configuration (see ethcfg.h), and for any other adapter
-  # that speaks ECM out of the box. Espressif's, in the registry; it
-  # brings iot_usbh_cdc, and the same iot_eth the ASIX driver uses.
-  espressif/iot_usbh_ecm: "*"
+  feckless_storage_handler:
+    git: https://github.com/Sudrien/feckless-storage-handler-for-tab5.git
+    version: "v0.1.0"
 
   espressif/esp_lcd_touch_st7123: "*"
   espressif/esp_lcd_touch_gt911: "*"

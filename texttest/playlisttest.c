@@ -39,7 +39,7 @@
 #include "../main/playlist.h"
 #include "../main/cuedir.h"
 #include "../main/decoder.h"
-#include "../main/storage.h"
+#include "storage.h"            /* 6053: feckless-storage-handler */
 #include "esp_random.h"
 
 static int checks, failures;

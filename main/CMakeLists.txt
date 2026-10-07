@@ -12,7 +12,7 @@ else()
 endif()
 
 idf_component_register(
-    SRCS "player.c" "decoder.c" "albumart.c" "covertag.c" "folderart.c" "tagextra.c" "mediacache.c" "ui.c" "gfx.c" "audio_out.c"
+    SRCS "player.c" "decoder.c" "albumart.c" "covertag.c" "folderart.c" "tagextra.c" "mediacache.c" "ui.c" "audio_out.c"
          "playlist.c" "settings.c"
        "browser.c" "panel.c" "i18n.c" "i18n_tab.c" "duration.c" "cbrseek.c" "flacseek.c" "oggseek.c" "tsseek.c" "mp4seek.c" "waveform.c" "replaygain.c" "loudness.c"
          "portal.c" "portalweb.c" "dnsreply.c"
@@ -29,7 +29,8 @@ idf_component_register(
              app_update spi_flash   # launcher_import.c: esp_ota_ops + esp_partition
              feckless_network_handler feckless_storage_handler   # 6053
              feckless_drivers   # 6054
-    PRIV_REQUIRES pngle minimp3 ark12 arabixel stbjpeg
+             feckless_graphics_handler   # 6055: gfx, lcd, ark12, arabixel
+    PRIV_REQUIRES pngle minimp3 stbjpeg
 )
 
 # Heap integrity checkpoints, off by default. Build with

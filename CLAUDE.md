@@ -182,10 +182,11 @@ through. Restructuring an existing function is sometimes the smallest
 correct change -- when it is, say so in the commit message rather than
 letting it look like a small diff.
 
-**Wi-Fi, Ethernet and storage are not in this repository** (6053).
-wifi, wifistore, ethernet, netlink, ethcfg and hostedwrap are
-feckless-network-handler-for-tab5; storage and storage_io are
-feckless-storage-handler-for-tab5. A change to one of them is a patch
+**Wi-Fi, Ethernet, storage and the board drivers are not in this
+repository** (6053, 6054). wifi, wifistore, ethernet, netlink, ethcfg
+and hostedwrap are feckless-network-handler-for-tab5; storage and
+storage_io are feckless-storage-handler-for-tab5; usbhost, uac, hid,
+battery, rtc8130, touch and micpcm are feckless-drivers-for-tab5. A change to one of them is a patch
 against that repository, under the same rules as here, numbered in that
 repository's own series. The player picks it up by moving its tag in
 main/idf_component.yml, which is a manifest change -- see above -- in a

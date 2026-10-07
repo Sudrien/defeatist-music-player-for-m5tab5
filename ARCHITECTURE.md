@@ -22091,3 +22091,57 @@ the host against the prototypes in settings.h, portal.h, heapmap.h,
 streamprobe.h and usbhost.h. On the board, the boot log should be the
 6052 log with nothing missing: "SDMMC IO power up", the MSC and "eth"
 class registrations, "station up" from the heap map, and "NTP sync".
+
+### 6054 -- the board drivers, moved out into a third library
+
+The USB host, USB audio, HID, the battery monitor, the RX8130 clock and
+touch are
+[feckless-drivers-for-tab5](https://github.com/Sudrien/feckless-drivers-for-tab5)
+now, as a git dependency of main pinned to `v0.1.0`, the same way 6053
+did network and storage.
+
+What moved, from main/ unless marked: usbhost.c/.h, uac.c/.h,
+hid.c/.h, battery.c/.h, rtc8130.c/.h, touch.c/.h, micpcm.h;
+texttest/micpcmtest.c; a copy of rtctask.h. The library's first patch
+is them byte for byte and its second is the rest, as before.
+
+They were nearly self-contained already. usbhost.c and uac.c call
+battery.c, and uac.c uses micpcm.h, and all of those moved together.
+The one thing that left was usbhost.c's call to ethcfg_select(), which
+is in the network library: a drivers library that required the network
+one would have made the two depend on each other. usbhost.c asks
+through usbhost_set_config_select() now, and app_main() passes
+ethcfg_select right after usbhost_init(). Same call, same place, and
+it still needs CONFIG_USB_HOST_ENABLE_ENUM_FILTER_CALLBACK, which
+sdkconfig.defaults already sets.
+
+The network and storage libraries were left alone. They take
+usbhost_register_class as a hook rather than requiring this library, so
+either can still be used without it; the player passes the function
+from here as it passed the one from main/ before.
+
+What stayed:
+
+- **audio_out.c.** It drives the codec, but most of its 1.6k lines are
+  the player's output policy (UAC or analog, volume, the microphone
+  path), and it includes i18n.h.
+- **The IO expanders.** io_expanders_init() is still in player.c, and
+  usbhost.c and the network library's wifi.c still write their own
+  expander pins. A module that owns both expanders is a separate step.
+- **texttest/rotatetest.c.** It checks gfx.c's map against touch.c's
+  inverse by transcribing both, and gfx.c is the player's.
+- **components/usb_host_uac.** The library requires it by name, so this
+  project's vendored copy (5025, 5026) is still the one built.
+
+The manifest: esp_lcd_touch_st7123 and esp_lcd_touch_gt911 moved,
+unpinned as they were, into the library's manifest. The next build
+re-resolves both lock files; one new git entry is expected and the two
+touch drivers leave direct_dependencies. espressif/usb moved from 1.5.0
+to 1.6.0 in 6053's IDF 6 lock; it is unpinned, so look at it again.
+
+texttest: FECKLESS_DRIVERS beside 6053's two variables, and micpcmtest
+moved with micpcm.h. `make all` passes with all three pointed at clones.
+
+Not built against ESP-IDF here. On the board: "asking for configuration
+2" when a Realtek adapter is plugged in (the line no longer ends
+"(CDC-ECM)"), and the boot log otherwise unchanged.

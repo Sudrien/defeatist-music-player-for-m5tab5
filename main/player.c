@@ -85,6 +85,7 @@
 #include "replaygain.h"
 #include "ethernet.h"
 #include "feckless_net.h"     /* 6053 */
+#include "ethcfg.h"           /* 6054: usbhost asks, Ethernet answers */
 #include "heapmap.h"          /* 5097 */
 #include "hid.h"
 #include "panel.h"
@@ -14991,6 +14992,10 @@ void app_main(void)
      * it: registration is refused once the port is up, and storage_init()
      * registers one. */
     ESP_ERROR_CHECK(usbhost_init(s_exp2));
+    /* 6054: which configuration a Realtek adapter gets. usbhost.c used
+     * to call this itself; it is in feckless-drivers now and does not
+     * know about Ethernet. */
+    usbhost_set_config_select(ethcfg_select);
 
     /*
      * Before storage_init(), because settings.c reads through the same

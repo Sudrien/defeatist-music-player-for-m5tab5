@@ -279,6 +279,20 @@ dependencies:
       registry_url: https://components.espressif.com
       type: service
     version: 0.3.3
+  feckless_drivers:
+    component_hash: 5ed3dbf5dd83dd8b3981ab8d8696cad9fb5d1caa98c50ddf30297d173da18a29
+    dependencies:
+    - name: idf
+      version: '>=5.4.2'
+    - name: espressif/esp_lcd_touch_st7123
+      version: '*'
+    - name: espressif/esp_lcd_touch_gt911
+      version: '*'
+    source:
+      git: https://github.com/Sudrien/feckless-drivers-for-tab5.git
+      path: .
+      type: git
+    version: de19a5cd47eaf478a0c905a3df9ebb7215226875
   feckless_network_handler:
     component_hash: e56c5f758c010e267b49f10d1f2137a3b23b9fff86cf2b54fd85644781a54e1f
     dependencies:
@@ -318,12 +332,11 @@ direct_dependencies:
 - espressif/esp_audio_codec
 - espressif/esp_jpeg
 - espressif/esp_lcd_st7121
-- espressif/esp_lcd_touch_gt911
-- espressif/esp_lcd_touch_st7123
 - espressif/usb
+- feckless_drivers
 - feckless_network_handler
 - feckless_storage_handler
 - idf
-manifest_hash: cd596a495f5d0473483ab48cd483b0ddc564a1df70c79b97556ab48485b0f723
+manifest_hash: 425f436c7c9421631d31da67676468a624d791ad2ece18c9a70b8e18781b11fe
 target: esp32p4
 version: 3.0.0

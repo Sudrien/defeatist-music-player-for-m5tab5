@@ -249,7 +249,7 @@ dependencies:
     - esp32p4
     version: 0.4.0
   espressif/usb:
-    component_hash: 6c2cff118141dbbca181d0d27d71801fdddfc78f7ac03ae43f6e5a8cbd89cb99
+    component_hash: 99eee72ea224d9117d4c342442717a1f20bf8112e2ab5d7d7038b827874f4c92
     dependencies:
     - name: idf
       require: private
@@ -264,7 +264,7 @@ dependencies:
     - esp32p4
     - esp32h4
     - linux
-    version: 1.5.0
+    version: 1.6.0
   espressif/wifi_remote_over_eppp:
     component_hash: 1fd6968af20f0b19e421f6b519b0a8caf81d689afc3783b564c28559e45f66ef
     dependencies:
@@ -279,24 +279,51 @@ dependencies:
       registry_url: https://components.espressif.com
       type: service
     version: 0.3.3
+  feckless_network_handler:
+    component_hash: e56c5f758c010e267b49f10d1f2137a3b23b9fff86cf2b54fd85644781a54e1f
+    dependencies:
+    - name: idf
+      version: '>=5.4.2'
+    - name: espressif/esp_wifi_remote
+      version: '*'
+    - name: espressif/esp_hosted
+      version: '>=3.0.2'
+    - git: https://github.com/Sudrien/esp_usbh_asix.git
+      name: esp_usbh_asix
+      version: v0.1.0
+    - name: espressif/iot_usbh_ecm
+      version: '*'
+    source:
+      git: https://github.com/Sudrien/feckless-network-handler-for-tab5.git
+      path: .
+      type: git
+    version: b625e326653e9f656f7e3a75b7cab06da607c2b4
+  feckless_storage_handler:
+    component_hash: 146a764c800770e7d79c2c16a6d38f29334fef302bf4a28a003fdc70a87beb9e
+    dependencies:
+    - name: idf
+      version: '>=5.4.2'
+    source:
+      git: https://github.com/Sudrien/feckless-storage-handler-for-tab5.git
+      path: .
+      type: git
+    version: 25505536be67cf36f0b0c440ac9a05e3d129fdd7
   idf:
     source:
       type: idf
     version: 6.1.0
 direct_dependencies:
-- esp_usbh_asix
 - espressif/cjson
 - espressif/cmake_utilities
 - espressif/esp_audio_codec
-- espressif/esp_hosted
 - espressif/esp_jpeg
 - espressif/esp_lcd_st7121
 - espressif/esp_lcd_touch_gt911
 - espressif/esp_lcd_touch_st7123
-- espressif/esp_wifi_remote
-- espressif/iot_usbh_ecm
 - espressif/usb
+- feckless_network_handler
+- feckless_storage_handler
 - idf
-manifest_hash: b29243f506e1f615ca483c0669c3e0e8b7b2db8689664e792856333bad948986
+manifest_hash: cd596a495f5d0473483ab48cd483b0ddc564a1df70c79b97556ab48485b0f723
 target: esp32p4
 version: 3.0.0

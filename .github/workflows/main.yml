@@ -18,7 +18,7 @@ on:
       idf_version:
         description: 'ESP-IDF to build with'
         required: false
-        default: 'v5.5.5'
+        default: 'v6.1'
         type: choice
         options:
           - v5.5.5
@@ -63,7 +63,7 @@ jobs:
       - name: Install ESP-IDF
         uses: espressif/install-esp-idf-action@v1
         with:
-          version: ${{ github.event.inputs.idf_version || 'v5.5.5' }}
+          version: ${{ github.event.inputs.idf_version || 'v6.1' }}
           target: 'esp32p4'
 
       - name: Run exFAT and Vendored Setup Scripts

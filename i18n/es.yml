@@ -566,7 +566,7 @@ es:
     "UP": "SUBIR"
     # browser.c
     "UP^": "RE PÁG"
-    # audio_out.c
+    # panel.c
     "USB audio": "audio USB"
     # browser.c
     "USB port coming up": "Puerto USB arrancando"
@@ -610,7 +610,7 @@ es:
     "fetching %s…": "obteniendo %s…"
     # panel.c
     "from NTP": "de NTP"
-    # audio_out.c
+    # panel.c
     "headphones": "auriculares"
     # panel.c
     "headset": "auricular"
@@ -686,7 +686,7 @@ es:
     "sector": "sector"
     # player.c
     "slide or tap to cancel": "toca o desliza: cancela"
-    # audio_out.c
+    # panel.c
     "speaker": "altavoz"
     # panel.c
     "speed": "velocidad"

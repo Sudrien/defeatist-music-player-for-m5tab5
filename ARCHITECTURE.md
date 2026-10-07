@@ -22206,3 +22206,51 @@ Not built against ESP-IDF here, and lcd.c has had no compiler look at
 it since it left this file. On the board: "ST7121 initialised
 (720x1280)" under tab5_lcd, a picture, and the backlight coming up at
 the setting as before.
+
+### 6056 -- the I2C bus, the expanders and audio_out, into feckless-drivers
+
+feckless-drivers v0.2.0 adds two things this player had kept: tab5io,
+the internal I2C bus and the two PI4IOE5V6416 expanders, and
+audio_out, the I2S port with the ES8388 and the ES7210. Both are wanted
+by a second program (lothesome-audio-analyzer-for-m5tab5, which needs
+the panel out of reset and the microphones), and neither had a home
+but this one.
+
+tab5io was not a file. Five ranges of player.c -- the bus pins, the
+expanders' registers and output values, the three handles, and
+i2c_bus_init() through io_expanders_init() -- are the library's
+tab5io.c; its import commit lists them with a command that checks
+them byte for byte. Here:
+
+  i2c_bus_init(); io_expanders_init();  ->  tab5io_init()
+
+and s_i2c_bus, s_exp1 and s_exp2 are filled from it on the next three
+lines, so every other user of them is unchanged. reg_write() and
+I2C_TIMEOUT_MS stay for power_off_now(), which drives PWROFF_PULSE on
+0x44 itself; the PI4IOE register numbers it uses come from tab5io.h.
+The expander boot lines ("SPK_EN and LCD_RST released", "CHG_EN driven
+high") print under the tag "tab5io" now.
+
+audio_out moved whole, with polyrsp. The plan had been to split it --
+the codec and capture to the library, the speaker/headphone/USB routing
+here -- and that turned out to be the wrong cut: capture re-clocks the
+playback channel (5209) and shares its lock and DMA reserve, so the two
+halves are one piece of state. Moving the file unchanged kept every
+tested sequence as it was; its only player include was i18n.h, for
+N_(), which the library defines as the identity.
+
+That left one thing for i18n: tools/i18n.py reads main/ only, and
+the three route names audio_out_route_name() returns were marked in
+audio_out.c. panel.c, which draws them through _(), marks them now, so
+extract still sees them and a --prune would not drop their
+translations. The YAML changes only in which file each is attributed
+to; i18n_tab.c does not change.
+
+rateconv.c and flacenc.c use polyrsp from the library.
+
+The manifest: feckless_drivers moves to v0.2.0. The next build
+re-resolves both locks; only that entry's version should change.
+
+Not built against ESP-IDF here; tab5io.c compiles on the host against
+stub IDF headers. On the board: the same boot as before, with the two
+expander lines under tab5io.

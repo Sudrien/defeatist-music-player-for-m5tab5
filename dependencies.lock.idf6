@@ -280,7 +280,7 @@ dependencies:
       type: service
     version: 0.3.3
   feckless_drivers:
-    component_hash: 5ed3dbf5dd83dd8b3981ab8d8696cad9fb5d1caa98c50ddf30297d173da18a29
+    component_hash: bc431ebcf1e0e361a6050921e0fd486ec4c6e4043edcf4fd43469406bb744934
     dependencies:
     - name: idf
       version: '>=5.4.2'
@@ -292,7 +292,7 @@ dependencies:
       git: https://github.com/Sudrien/feckless-drivers-for-tab5.git
       path: .
       type: git
-    version: de19a5cd47eaf478a0c905a3df9ebb7215226875
+    version: c3e3b562d2fe87af1bfc4ff580f273c99965d26d
   feckless_graphics_handler:
     component_hash: d983cffa1f9b74e3e3b0a27922d655981d80cae7cbbf8287ec796d3d3badd51d
     dependencies:
@@ -349,6 +349,6 @@ direct_dependencies:
 - feckless_network_handler
 - feckless_storage_handler
 - idf
-manifest_hash: 1ec78944c45d91d6e4a5507ecfcd57dd86f25a43fe5b645f9e7c155c3a3bbecb
+manifest_hash: 3d944fc55c5d392c55404f60a87cc11c271e0ee3c7fb8be8c3eb6aa3932c8506
 target: esp32p4
 version: 3.0.0

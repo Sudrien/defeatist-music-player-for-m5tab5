@@ -162,7 +162,7 @@ PYEOF
 # read: a card with one torn entry and a dying card both said "I/O
 # error". The definition is renamed and a wrapper of the old name calls
 # it, so every caller is covered without touching one, and on failure
-# calls ff_tab5_bad_entry() (weak here; main/storage.c logs it).
+# calls ff_tab5_bad_entry() (weak here; feckless-storage-handler's storage.c logs it).
 FFC="$DEST/src/ff.c"
 python3 - "$FFC" <<'PYEOF'
 import re, sys

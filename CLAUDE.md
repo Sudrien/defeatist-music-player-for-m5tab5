@@ -182,6 +182,15 @@ through. Restructuring an existing function is sometimes the smallest
 correct change -- when it is, say so in the commit message rather than
 letting it look like a small diff.
 
+**Wi-Fi, Ethernet and storage are not in this repository** (6053).
+wifi, wifistore, ethernet, netlink, ethcfg and hostedwrap are
+feckless-network-handler-for-tab5; storage and storage_io are
+feckless-storage-handler-for-tab5. A change to one of them is a patch
+against that repository, under the same rules as here, numbered in that
+repository's own series. The player picks it up by moving its tag in
+main/idf_component.yml, which is a manifest change -- see above -- in a
+patch of its own.
+
 No not suggest updates to the Tab5's ESP-C6 or esp hosted. They can not be updated.
 
 `ARCHITECTURE.md` has everything else: why there are two decoders, how

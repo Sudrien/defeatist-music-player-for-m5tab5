@@ -274,7 +274,7 @@ static int build_usb(row_t *rows)
                               : _("none"));
     /* 6056: audio_out_route_name()'s three answers, marked here for
      * tools/i18n.py, which reads main/ only: audio_out.c, where they
-     * were marked, is in feckless-drivers-for-tab5 now. */
+     * were marked, is in feckless-drivers-for-m5tab5 now. */
     static const char *const route_names[] __attribute__((unused)) = {
         N_("speaker"), N_("headphones"), N_("USB audio"),
     };

@@ -22017,9 +22017,9 @@ status line reads CHRG and the shunt current goes negative.
 ### 6053 -- network and storage, moved out into two libraries
 
 Wi-Fi, the saved networks and USB Ethernet are
-[feckless-network-handler-for-tab5](https://github.com/Sudrien/feckless-network-handler-for-tab5)
+[feckless-network-handler-for-m5tab5](https://github.com/Sudrien/feckless-network-handler-for-m5tab5)
 now, and the SD card, the USB drive and the storage arbiter are
-[feckless-storage-handler-for-tab5](https://github.com/Sudrien/feckless-storage-handler-for-tab5).
+[feckless-storage-handler-for-m5tab5](https://github.com/Sudrien/feckless-storage-handler-for-m5tab5).
 Both come in as git dependencies of main, pinned to `v0.1.0`.
 
 What moved, from main/ unless marked:
@@ -22096,7 +22096,7 @@ class registrations, "station up" from the heap map, and "NTP sync".
 
 The USB host, USB audio, HID, the battery monitor, the RX8130 clock and
 touch are
-[feckless-drivers-for-tab5](https://github.com/Sudrien/feckless-drivers-for-tab5)
+[feckless-drivers-for-m5tab5](https://github.com/Sudrien/feckless-drivers-for-m5tab5)
 now, as a git dependency of main pinned to `v0.1.0`, the same way 6053
 did network and storage.
 
@@ -22149,7 +22149,7 @@ Not built against ESP-IDF here. On the board: "asking for configuration
 ### 6055 -- the display and gfx, moved out into a fourth library
 
 The panel, its backlight, gfx and the two fonts are
-[feckless-graphics-handler-for-tab5](https://github.com/Sudrien/feckless-graphics-handler-for-tab5)
+[feckless-graphics-handler-for-m5tab5](https://github.com/Sudrien/feckless-graphics-handler-for-m5tab5)
 now, a git dependency of main pinned to `v0.1.0`. Its first user other
 than this player is meant to be the moving map's C port.
 
@@ -22254,3 +22254,13 @@ re-resolves both locks; only that entry's version should change.
 Not built against ESP-IDF here; tab5io.c compiles on the host against
 stub IDF headers. On the board: the same boot as before, with the two
 expander lines under tab5io.
+
+### 6057 -- the four libraries renamed to -for-m5tab5
+
+feckless-drivers, -graphics-handler, -network-handler and
+-storage-handler were created as -for-tab5 and renamed to -for-m5tab5,
+to match this repository. Every mention of them here now uses the new
+name, including in the entries above (6053-6056), where they are
+references to follow rather than a record of what was done. The four
+git: URLs in main/idf_component.yml change with them; the component
+names and tags do not.

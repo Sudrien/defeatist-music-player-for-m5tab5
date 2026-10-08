@@ -65,8 +65,8 @@ dependencies:
   # espressif/usb_host_uac: "^1.5.0"
 
   # 6053: Wi-Fi, the saved networks and USB Ethernet are
-  # feckless-network-handler-for-tab5 now, and the SD card, the USB drive
-  # and the storage arbiter are feckless-storage-handler-for-tab5. The
+  # feckless-network-handler-for-m5tab5 now, and the SD card, the USB drive
+  # and the storage arbiter are feckless-storage-handler-for-m5tab5. The
   # esp_wifi_remote, esp_hosted, esp_usbh_asix and iot_usbh_ecm entries
   # that were here moved into the first one's manifest, pins and comments
   # unchanged, and arrive through it. Both PINNED TO A TAG, for
@@ -77,26 +77,26 @@ dependencies:
   # init deferred to app_main) stay in this project's file: a component
   # cannot set another's Kconfig.
   feckless_network_handler:
-    git: https://github.com/Sudrien/feckless-network-handler-for-tab5.git
+    git: https://github.com/Sudrien/feckless-network-handler-for-m5tab5.git
     version: "v0.1.0"
   feckless_storage_handler:
-    git: https://github.com/Sudrien/feckless-storage-handler-for-tab5.git
+    git: https://github.com/Sudrien/feckless-storage-handler-for-m5tab5.git
     version: "v0.1.0"
 
   # 6054: the USB host, USB audio, HID, the battery monitor, the clock
-  # and touch are feckless-drivers-for-tab5. The two touch controllers'
+  # and touch are feckless-drivers-for-m5tab5. The two touch controllers'
   # entries (GT911 for rev 1, ST7123 for rev 2, both because the
   # controller is probed) moved into its manifest and arrive through it.
   # 6056: v0.2.0 adds tab5io (the I2C bus and expanders) and audio_out.
   feckless_drivers:
-    git: https://github.com/Sudrien/feckless-drivers-for-tab5.git
+    git: https://github.com/Sudrien/feckless-drivers-for-m5tab5.git
     version: "v0.2.0"
 
   # 6055: the panel, the backlight and gfx, with the Ark12 and Arabixel
-  # fonts, are feckless-graphics-handler-for-tab5. esp_lcd_st7121 moved
+  # fonts, are feckless-graphics-handler-for-m5tab5. esp_lcd_st7121 moved
   # into its manifest, pinned as it was, and arrives through it.
   feckless_graphics_handler:
-    git: https://github.com/Sudrien/feckless-graphics-handler-for-tab5.git
+    git: https://github.com/Sudrien/feckless-graphics-handler-for-m5tab5.git
     version: "v0.1.0"
 
 # minimp3 is NOT here. It is two headers with no component manifest

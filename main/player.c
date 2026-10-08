@@ -142,15 +142,15 @@ static const char *TAG = "tab5_mp3";
  * against the rest of the file. Dead code that stops building is dead
  * code that cannot be switched back on to compare against.
  */
-/* ---- I2C bus: tab5io.c in feckless-drivers-for-tab5 (6056) ---- */
+/* ---- I2C bus: tab5io.c in feckless-drivers-for-m5tab5 (6056) ---- */
 #define I2C_TIMEOUT_MS          (1000)   /* power_off_now() */
 
 /* 6056: expander 1 (0x43) and its output value are tab5io.c in
- * feckless-drivers-for-tab5. */
+ * feckless-drivers-for-m5tab5. */
 
 /* ---- Display: ST7121 MIPI-DSI, portrait native ---- */
 /* 6055: the resolution, lanes, lane rate and DPI clock, with their
- * reasoning, are lcd.c in feckless-graphics-handler-for-tab5 now;
+ * reasoning, are lcd.c in feckless-graphics-handler-for-m5tab5 now;
  * LCD_H_RES and LCD_V_RES come from its lcd.h. */
 
 /*
@@ -237,7 +237,7 @@ extern uint32_t g_tab5_dpi_underruns;
  */
 #define SEEK_KEEP_RING          (0)
 /* 6055: the DSI PHY LDO and the backlight PWM: lcd.c in
- * feckless-graphics-handler-for-tab5. */
+ * feckless-graphics-handler-for-m5tab5. */
 #define LCD_BRIGHTNESS_PERCENT  (80)
 
 /* 6056: the expanders' registers and addresses are tab5io.h. */
@@ -576,7 +576,7 @@ static i2c_master_bus_handle_t s_i2c_bus;
 static i2c_master_dev_handle_t s_exp1, s_exp2;
 
 /* 6056: i2c_bus_init(), add_dev(), reg_write_retry() and
- * io_expanders_init() are tab5io.c in feckless-drivers-for-tab5 now;
+ * io_expanders_init() are tab5io.c in feckless-drivers-for-m5tab5 now;
  * tab5io_init() is the two calls app_main() made. reg_write() stays for
  * power_off_now(). */
 
@@ -592,7 +592,7 @@ static esp_err_t reg_write(i2c_master_dev_handle_t dev, uint8_t reg, uint8_t val
 
 static esp_lcd_panel_handle_t s_panel;
 /* 6055: backlight_init(), backlight_set() and backlight_set_counts()
- * are lcd.c in feckless-graphics-handler-for-tab5 now: lcd_init(),
+ * are lcd.c in feckless-graphics-handler-for-m5tab5 now: lcd_init(),
  * lcd_backlight_set(), lcd_backlight_set_counts(). s_panel stays here,
  * filled by lcd_init(). */
 
@@ -747,7 +747,7 @@ static void screen_fade_out(int ms)
 }
 
 /* 6055: dpi_axi_priority() and panel_init() are lcd.c in
- * feckless-graphics-handler-for-tab5 now, unchanged. */
+ * feckless-graphics-handler-for-m5tab5 now, unchanged. */
 
 /* ------------------------------------------------------------------ */
 /* Playback                                                            */

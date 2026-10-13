@@ -124,15 +124,22 @@ Claude, do not touch this README unless explicitly asked to. Use your own file.
 - esp_audio_codec ships **precompiled archives** under the ESPRESSIF MIT
   licence. Free, but the grant is limited to Espressif silicon. Fine
   here; worth knowing before this code gets copied somewhere it is not.
-- pngle and miniz are MIT, fetched the same way as minimp3.
+- pngle (kikuchan) and miniz (Rich Geldreich et al.) are MIT, fetched
+  the same way as minimp3. MIT's one condition is that the copyright and
+  permission notice go with "all copies or substantial portions", and a
+  firmware image is a copy: a binary redistribution carries their
+  notices (the headers of the fetched `pngle.c` and `miniz.c`) alongside
+  this project's `LICENSE`.
 - stb_image (the last-resort JPEG decoder in `components/stbjpeg`) is
   Sean Barrett's, offered under your choice of MIT or the Unlicense
-  (public domain). The wrapper around it is MIT.
+  (public domain). This project takes it under the Unlicense, so it adds
+  no notice to carry. The wrapper around it is MIT.
 - **`components/usb_host_msc` and `components/usb_host_uac` are
   Espressif's, Apache-2.0, not MIT.** They are vendored, patched copies
   of the esp-usb class drivers; each keeps its own licence file, and the
-  changed files keep their SPDX headers. A redistribution carries those
-  licence files and a note that the files were modified.
+  changed files keep Espressif's SPDX headers with a "Modified by" line
+  under them (Apache-2.0 section 4(b)); the vendored manifests say
+  `license: "Apache-2.0"`. A redistribution carries those licence files.
 - The exFAT-enabled fatfs that `cmake/exfat.cmake` vendors at configure
   time is IDF's component (Apache-2.0) wrapping ChaN's FatFs (FatFs
   licence, a one-clause BSD-style notice that must be retained).
@@ -159,7 +166,8 @@ Claude, do not touch this README unless explicitly asked to. Use your own file.
   https://arabiandev.itch.io/arabixel-basic-font), and so are
   the font file and generated table in feckless-graphics-handler-for-m5tab5's
   `fonts/arabixel`; its shaping
-  code is MIT. CC BY asks for credit, a link to the licence and a note
+  code is MIT. CC BY (https://creativecommons.org/licenses/by/4.0/)
+  asks for credit, a link to the licence and a note
   of the changes -- the component's README and the table's header carry
   them, and a redistribution, a firmware image included, keeps
   `fonts/arabixel/LICENSE.txt` with it.

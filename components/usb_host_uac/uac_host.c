@@ -2,6 +2,9 @@
  * SPDX-FileCopyrightText: 2024-2026 Espressif Systems (Shanghai) CO LTD
  *
  * SPDX-License-Identifier: Apache-2.0
+ *
+ * Modified by Sudrien, 2026, from Espressif's usb_host_uac 1.5.0 as released
+ * (changes 5026); each change is marked "Vendored change" below.
  */
 
 #include <stdbool.h>

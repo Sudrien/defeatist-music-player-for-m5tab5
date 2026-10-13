@@ -96,9 +96,10 @@ dependencies:
   # 6055: the panel, the backlight and gfx, with the Ark12 and Arabixel
   # fonts, are feckless-graphics-handler-for-m5tab5. esp_lcd_st7121 moved
   # into its manifest, pinned as it was, and arrives through it.
+  # 6059: v0.2.0 -- the shadow buffer 128-byte aligned, for the PPA.
   feckless_graphics_handler:
     git: https://github.com/Sudrien/feckless-graphics-handler-for-m5tab5.git
-    version: "v0.1.0"
+    version: "v0.2.0"
 
 # minimp3 is NOT here. It is two headers with no component manifest
 # upstream, so it is vendored by tools/fetch_vendored.sh into

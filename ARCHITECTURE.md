@@ -22296,3 +22296,19 @@ change that one entry's version in both locks and nothing else.
 Not built against ESP-IDF here. On the board: the "TDM frame N slots in"
 line once per capture begin, and a headset recording made straight
 after a built-in one is not silent.
+
+### 6059 -- feckless-graphics-handler to v0.2.0
+
+One change: gfx_init() takes the shadow framebuffer from
+heap_caps_aligned_alloc(128, ...) instead of heap_caps_malloc(), so a
+DMA engine that wants a cache-line-aligned output -- the PPA -- can
+write into gfx_fb() as it is. It was done for
+lothesome-audio-analyzer's waterfall. The player does not use the PPA
+on the shadow today; albumart.c writes into gfx_fb() with the CPU,
+which alignment does not change. The buffer is never freed, so
+heap_caps_free() versus an aligned block does not come up. Taken to
+stay on the library's current tag, and so album art could move to the
+PPA later without a second bump.
+
+The manifest: feckless_graphics_handler moves to v0.2.0. Its own
+dependencies are unchanged between the tags.

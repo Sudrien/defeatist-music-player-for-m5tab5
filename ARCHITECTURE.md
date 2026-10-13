@@ -22513,3 +22513,42 @@ cmake/defaults_check.cmake names the key until then. What a board run
 should show: no "Frequency Number" warning for either device, the
 Snowball streaming at 48000, and the adapter's alt 1 listed with all
 six rates.
+
+### 6067 -- the USB FIFO biased to periodic OUT, for a high-speed headset's output
+
+The Synaptics/Conexant USB-C headset adapter (0572:1b08) attached as an
+output and then could not be played to:
+
+    E HCD DWC: EP MPS (768) exceeds supported limit (512)
+    E USBH: EP Alloc error: ESP_ERR_NOT_SUPPORTED
+    E tab5_uac: stream start failed (ESP_ERR_NOT_SUPPORTED)
+    I tab5_audio: USB device cannot take 44100 Hz 2 ch; staying analog
+
+The DWC core on the P4's high-speed port shares one FIFO RAM (1024
+lines) between receive, non-periodic transmit and periodic transmit,
+and IDF's default bias splits it so periodic TX gets 128 lines, 512
+bytes. An isochronous OUT endpoint is allocated only if one packet fits,
+and the adapter's are 768 bytes on the 16-bit alternate and 576 on the
+24-bit one -- sized for 96 kHz, and the same at any rate played. The
+fallback to the jack worked as designed; the adapter could not be used.
+
+CONFIG_USB_HOST_HW_BUFFER_BIAS_PERIODIC_OUT gives RX 130 lines (520
+bytes), non-periodic TX 64 (256 bytes) and periodic TX the rest, which
+is what lothesome-audio-analyzer-for-m5tab5 set for this adapter (its
+0031) and played to it with.
+
+What that costs is the open question. The analyzer only opens audio
+devices. The player also uses bulk endpoints: the USB drive (MSC) and
+USB Ethernet (ASIX, CDC-ECM), whose high-speed bulk packets are 512
+bytes, against a non-periodic TX share of 256. Whether IDF's DWC host in
+DMA mode handles that -- by splitting, or by refusing the endpoint --
+is not something this session could check, so this patch is not proven
+until a board run plays to the adapter AND reads a file from a USB
+drive (and, if there is one to hand, brings up USB Ethernet). If either
+bulk device fails with this, the next step is a custom split, not
+reverting: IDF's default leaves the adapter unusable.
+
+The receive share of 520 bytes still holds every microphone seen so
+far: the Snowball's IN endpoint is 192, the adapter's 288.
+
+sdkconfig.defaults change: `rm sdkconfig` before the next build.

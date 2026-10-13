@@ -232,6 +232,26 @@ CONFIG_USB_HOST_CONTROL_TRANSFER_MAX_SIZE=1024
 # 48000" where it said 44100.
 CONFIG_UAC_FREQ_NUM_MAX=8
 
+# 6067: the USB host's FIFO split, biased to periodic OUT. IDF's default
+# (balanced) gives the periodic TX FIFO 128 lines, 512 bytes, on the
+# P4's high-speed core, and the Synaptics headset adapter's (0572:1b08)
+# output endpoints are 768 bytes at 16 bits and 576 at 24, sized for its
+# 96 kHz modes whatever rate is played:
+#
+#   E HCD DWC: EP MPS (768) exceeds supported limit (512)
+#   I tab5_audio: USB device cannot take 44100 Hz 2 ch; staying analog
+#
+# PERIODIC_OUT leaves RX 130 lines (520 bytes; the largest microphone IN
+# endpoint seen is the adapter's 288), control and bulk 64, and gives
+# periodic TX the rest. lothesome-audio-analyzer-for-m5tab5's value (its
+# 0031) for the same adapter. The player also does bulk -- the USB drive
+# and USB Ethernet -- which the analyzer never did; a board run with
+# each is what says the smaller non-periodic share is enough.
+#
+# rm sdkconfig before building. Proof it took: no "EP MPS" error, and
+# the adapter taking the output when a track plays.
+CONFIG_USB_HOST_HW_BUFFER_BIAS_PERIODIC_OUT=y
+
 # esp_log_level_set() is a no-op without this on IDF v6.
 CONFIG_LOG_DYNAMIC_LEVEL_CONTROL=y
 

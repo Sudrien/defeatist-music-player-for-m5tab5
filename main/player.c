@@ -2310,11 +2310,17 @@ static void i2s_writer_task(void *arg)
     if (!mixbuf) {
         ESP_LOGW(TAG, "no mix buffer; crossfade disabled this boot");
     }
-    /* 6075: the stages, internal RAM, for the life of the task -- same
-     * argument as mixbuf. Without all three, speed is off this boot. */
+    /* 6075: the stages, for the life of the task -- same argument as
+     * mixbuf. Without all three, speed is off this boot.
+     *
+     * 6077: in PSRAM. In internal RAM they were 12 KB of a heap the
+     * board log shows at "internal free 10515 ... min-ever 20" once
+     * Wi-Fi is up. Nothing DMAs from them: the writer copies through
+     * the stage into buf, so PSRAM costs one 4 KB memmove per chunk. */
     s_vs_ok = true;
     for (int r = 0; r < PCM_RINGS; r++) {
-        s_vs_stage[r] = heap_caps_malloc(PCM_CHUNK_BYTES, MALLOC_CAP_8BIT);
+        s_vs_stage[r] = heap_caps_malloc(PCM_CHUNK_BYTES,
+                                         MALLOC_CAP_SPIRAM | MALLOC_CAP_8BIT);
         if (!s_vs_stage[r]) s_vs_ok = false;
         s_vs_step[r] = VARISPEED_UNITY;
     }
@@ -11399,7 +11405,26 @@ static track_end_t play_file(const char *path)
         const bool running_ahead = ahead_before || paused_during ||
                                    (s_ring_play != s_ring_fill) ||
                                    s_tail_pending || !s_playing;
-        if (send_ms > LOOP_STALL_MS && !running_ahead) {
+        /*
+         * 6077: below ×1.00 the writer takes the ring at the speed, so a
+         * full ring drains that much slower and the send waits that much
+         * longer -- correctly. The board, at 16/33 and 16/78:
+         *
+         *   W ring send blocked 413 ms (ring 99%)
+         *   W ring send blocked 966 ms (ring 99%)
+         *
+         * once a block, the whole time. The threshold is scaled by the
+         * step of the ring being heard, so it still catches a writer
+         * that has stopped.
+         */
+        uint32_t stall_ms = LOOP_STALL_MS;
+        {
+            const uint32_t st = s_vs_ok ? s_vs_step[s_ring_play] : VARISPEED_UNITY;
+            if (st && st < VARISPEED_UNITY) {
+                stall_ms = (uint32_t)(((uint64_t)LOOP_STALL_MS * VARISPEED_UNITY) / st);
+            }
+        }
+        if (send_ms > stall_ms && !running_ahead) {
             ESP_LOGW(TAG, "ring send blocked %" PRIu32 " ms (ring %d%%)",
                      send_ms, ring_headroom_pct());
         }

@@ -22877,3 +22877,36 @@ sign-compare that comes from the fakes not declaring
 xStreamBufferReceive() (the real one returns size_t). The whole of
 texttest passes. Not compiled with ESP-IDF here. Not on the board: the
 drag distance and the box's look are board questions.
+
+### 6077 -- the first board run: a warning that was backpressure, and 12 KB in the wrong heap
+
+The first board log of 6073-6076 (v0.6.0-37-gb9dc0ca) shows the
+fraction working: every value a drag passed reached the player
+(`speed: 16/45`, `16/78`, ...), PLAYED and CUT both, while playing and
+while paused.
+
+It also shows, from the first drag below ×1.00 until the end:
+
+    W ring send blocked 413 ms (ring 99%)      (16/33, ×0.50)
+    W ring send blocked 966 ms (ring 99%)      (16/78, ×0.21)
+
+once a block. Not a stall: the writer takes the ring at the speed, so a
+full ring drains at that fraction of its rate and the decode's send
+waits 1/step as long, which is what the two figures are. The warning
+was written for a writer that has stopped while someone listens, and
+LOOP_STALL_MS (400) is the wait at ×1.00. It is scaled by the step of
+the ring being heard now, so 400 ms at ×1.00, 800 at ×0.50, 1870 at
+×0.21, and a stopped writer still trips it.
+
+And the heap. At "station up" the same log has
+
+    internal free 10515  largest 8704  min-ever 20
+
+-- twenty bytes, with the writer's three 4 KB stages in internal RAM
+since 6075. Nothing DMAs from a stage (the writer copies through it into
+buf), so they are PSRAM now. Whether 20 bytes was this patch's doing or
+was there before it is not known from one log; it was 12 KB closer to
+the edge with them where they were.
+
+Not on the board yet with this patch. Not compiled with ESP-IDF here;
+syntax-checked on the host as 6076 was, nothing new.

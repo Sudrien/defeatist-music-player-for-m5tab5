@@ -2205,7 +2205,16 @@ esp_err_t uac_host_device_open(const uac_host_device_config_t *config, uac_host_
     return ESP_OK;
 
 fail:
+    // Vendored change (m5tab5_defeatist_music_player 6062): the ring is
+    // deleted inside the uac_iface check and before the interface is
+    // freed. As released, `uac_iface->ringbuf` was read after this block --
+    // NULL when usb_host_device_open() failed (a load fault at offset 0x40,
+    // seen on the board), and freed memory when the interface had been added.
     if (uac_iface) {
+        if (uac_iface->ringbuf) {
+            uac_ringbuf_delete(uac_iface->ringbuf);
+            uac_iface->ringbuf = NULL;
+        }
         uac_host_interface_delete(uac_iface);
     }
     if (new_device) {
@@ -2213,9 +2222,6 @@ fail:
     }
     if (dev_hdl) {
         usb_host_device_close(s_uac_driver->client_handle, dev_hdl);
-    }
-    if (uac_iface->ringbuf) {
-        uac_ringbuf_delete(uac_iface->ringbuf);
     }
     return ret;
 }

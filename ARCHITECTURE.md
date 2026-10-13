@@ -22370,3 +22370,31 @@ Not built with ESP-IDF, not run on a board. No sdkconfig.defaults or
 idf_component.yml change. What a board run should show: after a
 recording, the cover lands first and the "Recording saved" card then
 whole on top of it, and tapping the card away leaves only the cover.
+### 6062 -- usb_host_uac: a failed open no longer reads a NULL interface
+
+A record press with the Blue Snowball announced panicked the player:
+
+    E USB HOST: usbh_devs_open error: ESP_ERR_NOT_FOUND
+    E uac-host: uac_host_device_open(2156): Unable to open U...
+    Guru Meditation Error: Core 1 panic'ed (Load access fault)
+    MTVAL 0x00000040
+    uac_host_device_open at uac_host.c:2217:  if (uac_iface->ringbuf) {
+
+uac_host_device_open()'s failure path, as released, checks uac_iface
+before deleting it and then reads uac_iface->ringbuf after the check.
+When usb_host_device_open() fails the interface was never made, so that
+read is through NULL (0x40 is ringbuf's offset); when a later step fails
+it is through the interface uac_host_interface_delete() just freed. The
+ring is now deleted inside the check, before the interface goes. A
+vendored change, marked in the source as 5032's are.
+
+Why the open failed is a separate question this does not answer. The
+microphone had been announced and recorded once in the same session;
+NOT_FOUND from usbh_devs_open means the USB host no longer had a device
+at that address -- unplugged, or dropped and re-enumerated without a
+new announcement reaching uac.c. With this, that case reaches the
+recorder as an error and the record press is refused, which is what a
+board run should show instead of the panic.
+
+Not built with ESP-IDF here. No sdkconfig.defaults or idf_component.yml
+change.

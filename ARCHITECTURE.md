@@ -22450,3 +22450,37 @@ run-flacenc and run-levelhist pass. recorder.c is not host-built. Not
 built with ESP-IDF, not run with a 24-bit microphone. What a board run
 with one should show: "microphone streaming: ... 24-bit in 3 bytes" (or
 4), then "recording to ... 24-bit"; with the Snowball, 16-bit as before.
+
+### 6065 -- USB control transfers up to 1024 bytes, so big descriptors enumerate
+
+A board run with a second USB device plugged in logged, at boot:
+
+    E (3864) ENUM: Configuration descriptor larger than control transfer max length
+    E (3865) ENUM: CHECK_SHORT_CONFIG_DESC FAILED
+
+and nothing else about the device: no class driver saw it, so auto
+recorded from the built-in pair. The enumerator reads the configuration
+descriptor through the default endpoint's buffer, whose size is
+CONFIG_USB_HOST_CONTROL_TRANSFER_MAX_SIZE, IDF's default 256. A device
+whose whole configuration is longer is dropped there.
+
+That is the descriptor a capable USB microphone has: an interface per
+alternate setting, each with its format, rates and endpoint, and often
+a feature unit and HID beside the audio. 6064 opened the recorder to
+24-bit and 32-bit microphones, which are the ones most likely to list
+several widths and rates, so this is the other half of it.
+
+1024 is lothesome-audio-analyzer-for-m5tab5's value. It met the same
+error on this board with a 365-byte microphone, speaker, mixer and HID
+device, and the same device enumerates there -- the player's run above
+was that device, so this is the setting known to work for it, and the
+two projects now agree. The buffer is per device and comes from the
+same allocator as the transfer buffers, which 5100 put in PSRAM, so
+the radio's internal pool is not touched. A device with a configuration
+descriptor over 1 KB would still fail; lsusb -v on a PC prints its
+wTotalLength.
+
+sdkconfig.defaults change: `rm sdkconfig` before the next build.
+cmake/defaults_check.cmake names this key until that is done. What a
+board run should show: no ENUM error, and the device reaching its class
+driver -- `tab5_uac: USB microphone announced` for a microphone.

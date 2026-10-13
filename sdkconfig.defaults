@@ -198,6 +198,26 @@ CONFIG_USB_HOST_ENABLE_ENUM_FILTER_CALLBACK=y
 # driver lines.
 CONFIG_USB_HOST_DWC_DMA_CAP_MEMORY_IN_PSRAM=y
 
+# 6065: the default endpoint's transfer buffer, 1024 bytes rather than
+# IDF's 256. A USB device whose configuration descriptor is longer than
+# that fails enumeration before any class driver sees it:
+#
+#   E ENUM: Configuration descriptor larger than control transfer max length
+#   E ENUM: CHECK_SHORT_CONFIG_DESC FAILED
+#
+# A USB microphone with several alternates, or a headset with audio,
+# a mixer and HID in one, is such a device. 1024 is the value
+# lothesome-audio-analyzer-for-m5tab5 uses for the same error on this
+# board -- its device had a 365-byte descriptor -- and that device
+# enumerates there. One buffer per device, allocated with the transfer
+# buffers above, so in PSRAM, not internal RAM.
+#
+# rm sdkconfig before building. Proof it took: no SDKCONFIG drift
+# warning for this key at configure time, and the device that failed
+# now gets as far as its class driver (for a microphone, `tab5_uac: USB
+# microphone announced`).
+CONFIG_USB_HOST_CONTROL_TRANSFER_MAX_SIZE=1024
+
 # esp_log_level_set() is a no-op without this on IDF v6.
 CONFIG_LOG_DYNAMIC_LEVEL_CONTROL=y
 

@@ -28,6 +28,7 @@
 #include "cJSON.h"
 #include "nvs.h"
 #include "screendim.h"
+#include "varispeed.h"          /* 6074 */
 #include "powerdown.h"           /* 6000 */
 #include "rtc8130.h"             /* 6003 */
 #include "rtctask.h"          /* 5183 */
@@ -189,7 +190,10 @@ static bool        s_prefs_nvs_known;
 /* And from 540 for "mpd" (5158): 12 more. */
 /* And from 552 for "mic_input" (5208): 14 more. 5216 replaced it and
  * "mic_stereo" with "rec_from", 20 fewer; the cap is left where it is. */
-#define SETTINGS_MAX_LINE       (568)
+/* And from 568 for turntable speed (6074): "speed_played", "speed_cut"
+ * and "speed_boot" with their values are 52 more, less the 20 5216 left
+ * spare. */
+#define SETTINGS_MAX_LINE       (600)
 
 /*
  * The file is append-only, and this is where it stops growing.
@@ -230,6 +234,10 @@ static bool       s_crossfade_album;
  * default: the best input that is there. Replaces 5109's mic_stereo and
  * 5208's mic_input. */
 static uint8_t    s_rec_from = SETTINGS_REC_AUTO;
+/* 6074: 33⅓/33⅓, TRACK. See settings.h. */
+static uint8_t    s_speed_played = 1;
+static uint8_t    s_speed_cut = 1;
+static bool       s_speed_boot;
 static bool       s_remote;           /* 5117: see settings.h */
 static bool       s_mpd;              /* 5158: see settings.h */
 static uint8_t    s_brightness = SETTINGS_BRIGHTNESS_DEFAULT;
@@ -509,6 +517,29 @@ void settings_set_rec_from(settings_rec_from_t in)
     if ((unsigned)in >= SETTINGS_REC_COUNT) in = SETTINGS_REC_AUTO;
     if ((uint8_t)in == s_rec_from) return;
     s_rec_from = (uint8_t)in;
+    s_dirty = true;
+    s_dirty_since = xTaskGetTickCount();
+}
+
+unsigned settings_speed_played(void) { return s_speed_played; }
+unsigned settings_speed_cut(void)    { return s_speed_cut; }
+bool     settings_speed_boot(void)   { return s_speed_boot; }
+
+void settings_set_speed(unsigned played, unsigned cut)
+{
+    if (played >= VARISPEED_RPMS) played = 1;
+    if (cut >= VARISPEED_RPMS) cut = 1;
+    if (played == s_speed_played && cut == s_speed_cut) return;
+    s_speed_played = (uint8_t)played;
+    s_speed_cut = (uint8_t)cut;
+    s_dirty = true;
+    s_dirty_since = xTaskGetTickCount();
+}
+
+void settings_set_speed_boot(bool boot)
+{
+    if (boot == s_speed_boot) return;
+    s_speed_boot = boot;
     s_dirty = true;
     s_dirty_since = xTaskGetTickCount();
 }
@@ -1009,6 +1040,21 @@ static bool parse_line(char *line, storage_id_t id, bool take_settings,
             any = true;
         }
 
+        /* 6074. The three are written together, so a record has all
+         * of them or none; TRACK's reset to matching is load_file()'s,
+         * once the newest record has been seen. */
+        const cJSON *sp = cJSON_GetObjectItemCaseSensitive(root, "speed_played");
+        const cJSON *sc = cJSON_GetObjectItemCaseSensitive(root, "speed_cut");
+        const cJSON *sh = cJSON_GetObjectItemCaseSensitive(root, "speed_boot");
+        if (take_settings && cJSON_IsNumber(sp) && cJSON_IsNumber(sc) &&
+            cJSON_IsBool(sh)) {
+            const int p = sp->valueint, c = sc->valueint;
+            s_speed_played = (uint8_t)((p >= 0 && p < VARISPEED_RPMS) ? p : 1);
+            s_speed_cut    = (uint8_t)((c >= 0 && c < VARISPEED_RPMS) ? c : 1);
+            s_speed_boot   = cJSON_IsTrue(sh);
+            any = true;
+        }
+
         const cJSON *rm = cJSON_GetObjectItemCaseSensitive(root, "remote");
         if (take_settings && cJSON_IsBool(rm)) {
             s_remote = cJSON_IsTrue(rm);
@@ -1230,6 +1276,10 @@ static bool load_file(storage_id_t id, const char *name, bool take_settings,
     }
     storage_io_close(f);
 
+    /* 6074: TRACK means a fraction does not outlive its track, and a
+     * boot is a new track. */
+    if (take_settings && !s_speed_boot) s_speed_played = s_speed_cut;
+
     /* 5064: a card's settings, taken, go to flash too, so a later boot
      * without the card starts where this one did. */
     if (take_settings && any) prefs_nvs_sync();
@@ -1320,7 +1370,9 @@ static int record_line(storage_id_t id, char *out, size_t out_len)
                             "\"wifi\":%s,\"ntp\":%s," \
                             "\"ntp_epoch\":%s,\"ntp_boot_us\":%s," \
                             "\"remote\":%s," \
-                            "\"mpd\":%s,\"rec_from\":%u"
+                            "\"mpd\":%s,\"rec_from\":%u," \
+                            "\"speed_played\":%u,\"speed_cut\":%u," \
+                            "\"speed_boot\":%s"
 #define SETTINGS_FIELDS_ARGS s_volume, rg, (unsigned)s_crossfade_sec, xa, \
                              (unsigned)s_brightness, \
                              (unsigned)s_dim_step, \
@@ -1328,7 +1380,10 @@ static int record_line(storage_id_t id, char *out, size_t out_len)
                              (unsigned)s_poweroff_step, fl, \
                              (unsigned)s_screen_rot, \
                              wf, np, nte, ntb, rc, md, \
-                             (unsigned)s_rec_from
+                             (unsigned)s_rec_from, \
+                             (unsigned)s_speed_played, \
+                             (unsigned)s_speed_cut, \
+                             s_speed_boot ? "true" : "false"
 
     if (id >= STORAGE_COUNT || !s_track[id][0]) {
         return snprintf(out, out_len, "{" SETTINGS_FIELDS_FMT "}\n",

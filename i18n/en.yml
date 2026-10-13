@@ -97,6 +97,8 @@ en:
     # ui.c
     "BATT %d%%": ~
     # panel.c
+    "BOOT": ~
+    # panel.c
     "BUSY": ~
     # portal.c
     "Back to the form": ~
@@ -106,6 +108,8 @@ en:
     "Battery low": ~
     # panel.c
     "Benchmark": ~
+    # panel.c
+    "Boot: kept until changed, through a power-off.": ~
     # sleeppage.c
     "Brightness   %d%%": ~
     # streamplan.h
@@ -466,6 +470,8 @@ en:
     "Sleep timer   off": ~
     # panel.c
     "Source": ~
+    # panel.c
+    "Speed holds": ~
     # remote.html
     "Star": ~
     # radiobrowser.h
@@ -484,6 +490,8 @@ en:
     "Stream address": ~
     # player.c
     "Stream too slow here": "Stream too slow"
+    # panel.c
+    "TRACK": ~
     # remote.c
     "That folder could not be opened.": ~
     # portal.c, remote.c
@@ -552,6 +560,8 @@ en:
     "To change Wi-Fi networks instead, use Network setup on the player's screen. This page closes itself after %d minutes.": ~
     # sleeppage.c
     "Touch anywhere to wake it.": ~
+    # panel.c
+    "Track: back to matching when a new track starts. Repeat one is not a new track.": ~
     # remote.html
     "Tried before it is saved. Only over this encrypted page — never in the clear.": ~
     # panel.c

@@ -97,6 +97,8 @@ fr:
     # ui.c
     "BATT %d%%": "BATT %d%%"
     # panel.c
+    "BOOT": "TOUJOURS"
+    # panel.c
     "BUSY": "OCCUPÉ"
     # portal.c
     "Back to the form": "Retour au formulaire"
@@ -106,6 +108,8 @@ fr:
     "Battery low": "Batterie faible"
     # panel.c
     "Benchmark": "Test de débit"
+    # panel.c
+    "Boot: kept until changed, through a power-off.": "Toujours : gardée jusqu'au prochain changement, même après extinction."
     # sleeppage.c
     "Brightness   %d%%": "Luminosité   %d%%"
     # streamplan.h
@@ -466,6 +470,8 @@ fr:
     "Sleep timer   off": "Minuterie   non"
     # panel.c
     "Source": "Code source"
+    # panel.c
+    "Speed holds": "La vitesse dure"
     # remote.html
     "Star": "Favori"
     # radiobrowser.h
@@ -484,6 +490,8 @@ fr:
     "Stream address": "Adresse du flux"
     # player.c
     "Stream too slow here": "Flux trop lent"
+    # panel.c
+    "TRACK": "PISTE"
     # remote.c
     "That folder could not be opened.": "Impossible d'ouvrir ce dossier."
     # portal.c, remote.c
@@ -552,6 +560,8 @@ fr:
     "To change Wi-Fi networks instead, use Network setup on the player's screen. This page closes itself after %d minutes.": "Pour changer plutôt de réseau Wi-Fi, utilisez « Ajouter un réseau » sur l'écran du lecteur. Cette page se ferme d'elle-même après %d minutes."
     # sleeppage.c
     "Touch anywhere to wake it.": "Touchez n'importe où pour la réveiller."
+    # panel.c
+    "Track: back to matching when a new track starts. Repeat one is not a new track.": "Piste : revient à la normale au début d'une nouvelle piste. Répéter une n'est pas une nouvelle piste."
     # remote.html
     "Tried before it is saved. Only over this encrypted page — never in the clear.": "Essayé avant d'être enregistré. Uniquement par cette page chiffrée, jamais en clair."
     # panel.c

@@ -9,7 +9,7 @@
 #include <stddef.h>
 #include "i18n.h"
 
-const unsigned i18n_count = 365;
+const unsigned i18n_count = 370;
 const char *const i18n_keys[] = {
     "%.32s did not work. Try again.",
     "%d h",
@@ -56,11 +56,13 @@ const char *const i18n_keys[] = {
     "Auto: USB, jack, mono. Off: no record.",
     "BATT",
     "BATT %d%%",
+    "BOOT",
     "BUSY",
     "Back to the form",
     "Battery empty",
     "Battery low",
     "Benchmark",
+    "Boot: kept until changed, through a power-off.",
     "Brightness   %d%%",
     "Buffering",
     "Busy; try again in a moment.",
@@ -241,6 +243,7 @@ const char *const i18n_keys[] = {
     "Sleep timer   %ld:%02ld",
     "Sleep timer   off",
     "Source",
+    "Speed holds",
     "Star",
     "Starred stations",
     "Starting…",
@@ -250,6 +253,7 @@ const char *const i18n_keys[] = {
     "Stop playback first.",
     "Stream address",
     "Stream too slow here",
+    "TRACK",
     "That folder could not be opened.",
     "That form was too large to be a name and a stream address.",
     "That form was too large to be a network name and a password.",
@@ -284,6 +288,7 @@ const char *const i18n_keys[] = {
     "Timed out connecting.",
     "To change Wi-Fi networks instead, use Network setup on the player's screen. This page closes itself after %d minutes.",
     "Touch anywhere to wake it.",
+    "Track: back to matching when a new track starts. Repeat one is not a new track.",
     "Tried before it is saved. Only over this encrypted page — never in the clear.",
     "Trying %.32s…",
     "Trying %s… This can take fifteen seconds, and this phone may lose the setup network for a moment. The player's screen shows the result either way.",
@@ -426,11 +431,13 @@ const unsigned char i18n_on_screen[] = {
     1,  /* 'Auto: USB, jack, mono. Off: no record.' */
     1,  /* 'BATT' */
     1,  /* 'BATT %d%%' */
+    1,  /* 'BOOT' */
     1,  /* 'BUSY' */
     0,  /* 'Back to the form' */
     1,  /* 'Battery empty' */
     1,  /* 'Battery low' */
     1,  /* 'Benchmark' */
+    1,  /* 'Boot: kept until changed, through a powe' */
     1,  /* 'Brightness   %d%%' */
     1,  /* 'Buffering' */
     0,  /* 'Busy; try again in a moment.' */
@@ -611,6 +618,7 @@ const unsigned char i18n_on_screen[] = {
     1,  /* 'Sleep timer   %ld:%02ld' */
     1,  /* 'Sleep timer   off' */
     1,  /* 'Source' */
+    1,  /* 'Speed holds' */
     0,  /* 'Star' */
     1,  /* 'Starred stations' */
     1,  /* 'Starting…' */
@@ -620,6 +628,7 @@ const unsigned char i18n_on_screen[] = {
     1,  /* 'Stop playback first.' */
     0,  /* 'Stream address' */
     1,  /* 'Stream too slow here' */
+    1,  /* 'TRACK' */
     0,  /* 'That folder could not be opened.' */
     0,  /* 'That form was too large to be a name and' */
     0,  /* 'That form was too large to be a network ' */
@@ -654,6 +663,7 @@ const unsigned char i18n_on_screen[] = {
     1,  /* 'Timed out connecting.' */
     0,  /* 'To change Wi-Fi networks instead, use Ne' */
     1,  /* 'Touch anywhere to wake it.' */
+    1,  /* 'Track: back to matching when a new track' */
     0,  /* 'Tried before it is saved. Only over this' */
     1,  /* 'Trying %.32s…' */
     0,  /* 'Trying %s… This can take fifteen seconds' */
@@ -761,6 +771,8 @@ const unsigned char i18n_pon_screen[] = {
 /* [lang * i18n_count + key] */
 const char *const i18n_vals[] = {
     /* en */
+    NULL,
+    NULL,
     NULL,
     NULL,
     NULL,
@@ -996,10 +1008,12 @@ const char *const i18n_vals[] = {
     NULL,
     NULL,
     NULL,
+    NULL,
     "Station silent",
     NULL,
     NULL,
     "Stream too slow",
+    NULL,
     NULL,
     NULL,
     NULL,
@@ -1015,6 +1029,7 @@ const char *const i18n_vals[] = {
     NULL,
     NULL,
     "The microphones did\012not start.",
+    NULL,
     NULL,
     NULL,
     NULL,
@@ -1172,11 +1187,13 @@ const char *const i18n_vals[] = {
     "自动：USB、插孔、单声道。关：不录音。",
     "电池",
     "电池 %d%%",
+    "保持",
     "进行中",
     "返回表单",
     "电池耗尽",
     "电量低",
     "测速",
+    "保持：在更改前一直保留，关机后也保留。",
     "亮度   %d%%",
     "缓冲中",
     "忙碌中，请稍后再试。",
@@ -1357,6 +1374,7 @@ const char *const i18n_vals[] = {
     "睡眠定时   %ld:%02ld",
     "睡眠定时   关",
     "源代码",
+    "速度保持",
     "收藏",
     "收藏的电台",
     "正在启动…",
@@ -1366,6 +1384,7 @@ const char *const i18n_vals[] = {
     "请先停止播放。",
     "流地址",
     "网络太慢",
+    "每曲",
     "无法打开该文件夹。",
     "表单内容过大，不像是名称和流地址。",
     "表单内容过大，不像是网络名称和密码。",
@@ -1400,6 +1419,7 @@ const char *const i18n_vals[] = {
     "连接超时。",
     "如需改用其他 Wi-Fi 网络，请在本机屏幕上使用“添加网络”。此页面会在 %d 分钟后自动关闭。",
     "触摸任意处就能唤醒。",
+    "每曲：新曲目开始时恢复原速。单曲重复不算新曲目。",
     "保存前会先尝试。仅通过这个加密页面传送——绝不以明文发送。",
     "正在尝试 %.32s…",
     "正在尝试 %s… 这可能需要十五秒，手机可能会暂时断开设置网络。无论结果如何，本机屏幕都会显示。",
@@ -1538,11 +1558,13 @@ const char *const i18n_vals[] = {
     "自動：USB、端子、モノラル。オフ：録音しない。",
     "電池",
     "電池 %d%%",
+    "保持",
     "作業中",
     "フォームに戻る",
     "電池切れ",
     "電池残量低下",
     "速度測定",
+    "保持：リセットするまで、電源を切っても保持します。",
     "明るさ   %d%%",
     "バッファ中",
     "処理中です。少し待ってからもう一度お試しください。",
@@ -1723,6 +1745,7 @@ const char *const i18n_vals[] = {
     "スリープタイマー   %ld:%02ld",
     "スリープタイマー   オフ",
     "ソース",
+    "速度の持続",
     "お気に入り",
     "お気に入りの局",
     "起動中…",
@@ -1732,6 +1755,7 @@ const char *const i18n_vals[] = {
     "先に再生を止める。",
     "ストリームのアドレス",
     "回線が遅すぎる",
+    "曲ごと",
     "そのフォルダを開けませんでした。",
     "名前とストリームのアドレスにしては大きすぎるフォームです。",
     "ネットワーク名とパスワードにしては大きすぎるフォームです。",
@@ -1766,6 +1790,7 @@ const char *const i18n_vals[] = {
     "接続がタイムアウト。",
     "Wi-Fiネットワークを変える場合は、機器の画面の「ネットワーク追加」を使ってください。このページは %d 分後に閉じます。",
     "どこかに触れると戻る。",
+    "曲ごと：新しい曲が始まると元に戻ります。1曲リピートは新しい曲ではありません。",
     "保存する前に試します。この暗号化されたページだけを通り、平文では送られません。",
     "%.32s を試行中…",
     "%s を試しています… 15秒ほどかかり、このスマホは一時的に設定用ネットワークから外れることがあります。結果はどちらにしても機器の画面に表示されます。",
@@ -1904,11 +1929,13 @@ const char *const i18n_vals[] = {
     "Auto: USB, toma, mono. No: sin grabar.",
     "BAT",
     "BAT %d%%",
+    "SIEMPRE",
     "OCUP.",
     "Volver al formulario",
     "Batería agotada",
     "Batería baja",
     "Medir velocidad",
+    "Siempre: se mantiene hasta que la cambies, también al apagar.",
     "Brillo   %d%%",
     "Cargando",
     "Ocupado; inténtalo en un momento.",
@@ -2089,6 +2116,7 @@ const char *const i18n_vals[] = {
     "Temporizador   %ld:%02ld",
     "Temporizador   desactivado",
     "Código fuente",
+    "La velocidad dura",
     "Favorito",
     "Emisoras favoritas",
     "Iniciando…",
@@ -2098,6 +2126,7 @@ const char *const i18n_vals[] = {
     "Detén primero la reproducción.",
     "Dirección del flujo",
     "Red muy lenta",
+    "PISTA",
     "No se pudo abrir esa carpeta.",
     "El formulario es demasiado grande para ser un nombre y una dirección.",
     "El formulario es demasiado grande para ser un nombre de red y una contraseña.",
@@ -2132,6 +2161,7 @@ const char *const i18n_vals[] = {
     "Tiempo de conexión agotado.",
     "Para cambiar de red Wi-Fi, usa «Añadir red» en la pantalla del reproductor. Esta página se cierra sola tras %d minutos.",
     "Toca en cualquier sitio para despertarla.",
+    "Pista: vuelve a la normal al empezar una pista nueva. Repetir una no es una pista nueva.",
     "Se prueba antes de guardarla. Solo por esta página cifrada; nunca en claro.",
     "Probando %.32s…",
     "Probando %s… Puede tardar quince segundos, y este teléfono puede perder la red de configuración un momento. La pantalla del reproductor muestra el resultado en cualquier caso.",
@@ -2270,11 +2300,13 @@ const char *const i18n_vals[] = {
     "Auto: USB, P2, mono. Não: sem gravar.",
     "BAT",
     "BAT %d%%",
+    "SEMPRE",
     "OCUP.",
     "Voltar ao formulário",
     "Bateria esgotada",
     "Bateria fraca",
     "Medir velocidade",
+    "Sempre: mantida até ser alterada, mesmo após desligar.",
     "Brilho   %d%%",
     "Carregando",
     "Ocupado; tente de novo em instantes.",
@@ -2455,6 +2487,7 @@ const char *const i18n_vals[] = {
     "Timer   %ld:%02ld",
     "Timer   não",
     "Código-fonte",
+    "A velocidade dura",
     "Favorito",
     "Rádios favoritas",
     "Iniciando…",
@@ -2464,6 +2497,7 @@ const char *const i18n_vals[] = {
     "Pare a reprodução antes.",
     "Endereço do stream",
     "Stream lento",
+    "FAIXA",
     "Não foi possível abrir essa pasta.",
     "O formulário é grande demais para um nome e um endereço de stream.",
     "O formulário é grande demais para um nome de rede e uma senha.",
@@ -2498,6 +2532,7 @@ const char *const i18n_vals[] = {
     "Tempo de conexão esgotado.",
     "Para trocar de rede Wi-Fi, use \"Adicionar rede\" na tela do player. Esta página fecha sozinha após %d minutos.",
     "Toque em qualquer lugar para acordá-la.",
+    "Faixa: volta ao normal quando começa uma nova faixa. Repetir uma não é uma nova faixa.",
     "É testada antes de ser salva. Só por esta página criptografada, nunca às claras.",
     "Testando %.32s…",
     "Testando %s… Pode levar quinze segundos, e este celular pode perder a rede de configuração por um momento. A tela do player mostra o resultado de qualquer jeito.",
@@ -2636,11 +2671,13 @@ const char *const i18n_vals[] = {
     "Auto : USB, prise, mono. Non : pas d'enregistrement.",
     "BATT",
     "BATT %d%%",
+    "TOUJOURS",
     "OCCUPÉ",
     "Retour au formulaire",
     "Batterie vide",
     "Batterie faible",
     "Test de débit",
+    "Toujours : gardée jusqu'au prochain changement, même après extinction.",
     "Luminosité   %d%%",
     "En tampon",
     "Occupé ; réessayez dans un instant.",
@@ -2821,6 +2858,7 @@ const char *const i18n_vals[] = {
     "Minuterie   %ld:%02ld",
     "Minuterie   non",
     "Code source",
+    "La vitesse dure",
     "Favori",
     "Radios favorites",
     "Démarrage…",
@@ -2830,6 +2868,7 @@ const char *const i18n_vals[] = {
     "Arrêtez d'abord la lecture.",
     "Adresse du flux",
     "Flux trop lent",
+    "PISTE",
     "Impossible d'ouvrir ce dossier.",
     "Ce formulaire est trop gros pour un nom et une adresse de flux.",
     "Ce formulaire est trop gros pour un nom de réseau et un mot de passe.",
@@ -2864,6 +2903,7 @@ const char *const i18n_vals[] = {
     "Délai de connexion dépassé.",
     "Pour changer plutôt de réseau Wi-Fi, utilisez « Ajouter un réseau » sur l'écran du lecteur. Cette page se ferme d'elle-même après %d minutes.",
     "Touchez n'importe où pour la réveiller.",
+    "Piste : revient à la normale au début d'une nouvelle piste. Répéter une n'est pas une nouvelle piste.",
     "Essayé avant d'être enregistré. Uniquement par cette page chiffrée, jamais en clair.",
     "Essai de %.32s…",
     "Essai de %s… Cela peut prendre quinze secondes, et ce téléphone peut perdre un moment le réseau de configuration. L'écran du lecteur affiche le résultat dans tous les cas.",
@@ -3002,11 +3042,13 @@ const char *const i18n_vals[] = {
     "Auto: USB, jack, mono. No: non registra.",
     "BATT",
     "BATT %d%%",
+    "SEMPRE",
     "OCCUP.",
     "Torna al modulo",
     "Batteria scarica",
     "Batteria bassa",
     "Misura velocità",
+    "Sempre: resta finché non la cambi, anche dopo lo spegnimento.",
     "Luminosità   %d%%",
     "Buffering",
     "Occupato; riprova tra un attimo.",
@@ -3187,6 +3229,7 @@ const char *const i18n_vals[] = {
     "Timer   %ld:%02ld",
     "Timer   no",
     "Codice sorgente",
+    "La velocità dura",
     "Preferito",
     "Radio preferite",
     "Avvio…",
@@ -3196,6 +3239,7 @@ const char *const i18n_vals[] = {
     "Ferma prima la riproduzione.",
     "Indirizzo dello stream",
     "Stream lento",
+    "BRANO",
     "Impossibile aprire quella cartella.",
     "Il modulo è troppo grande per un nome e un indirizzo di stream.",
     "Il modulo è troppo grande per un nome di rete e una password.",
@@ -3230,6 +3274,7 @@ const char *const i18n_vals[] = {
     "Connessione scaduta.",
     "Per cambiare rete Wi-Fi, usa \"Aggiungi rete\" sullo schermo del lettore. Questa pagina si chiude da sola dopo %d minuti.",
     "Tocca ovunque per risvegliarla.",
+    "Brano: torna normale quando inizia un nuovo brano. Ripeti uno non è un nuovo brano.",
     "Viene provata prima di salvarla. Solo tramite questa pagina cifrata, mai in chiaro.",
     "Provo %.32s…",
     "Provo %s… Può richiedere quindici secondi, e questo telefono può perdere per un attimo la rete di configurazione. Lo schermo del lettore mostra comunque il risultato.",

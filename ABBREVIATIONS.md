@@ -123,6 +123,7 @@ What is running, and the screen's language.
 | ReplayGain | on / off | Level tracks to each other. Off stops the adjustment, not the measuring. |
 | Crossfade | off, or seconds | Slider. |
 | Same album | on / off | Crossfade between tracks of one album too. Off leaves album joins alone. One folder counts as one album. |
+| Speed holds | `TRACK` / `BOOT` | How long a turntable speed lasts. `TRACK`: back to matching when a new track starts; repeat-one (`RPT1`) is not a new track. `BOOT`: kept until changed, through a power-off. Lit at `BOOT`. |
 | Record from | see below | What the record button records. |
 
 **Record from** -- tap to cycle. A choice is lit when its input is
@@ -219,6 +220,8 @@ units.
 | Settings | `IMPORT` | 导入 | 取込 | IMPORTAR |
 | Settings | `DONE` | 完成 | 完了 | HECHO |
 | Settings | `RETRY` | 重试 | 再試行 | REPETIR |
+| Settings | `TRACK` | 每曲 | 曲ごと | PISTA |
+| Settings | `BOOT` | 保持 | 保持 | SIEMPRE |
 | Record from | `MONO` | 单声道 | モノラル | MONO |
 | Record from | `STEREO` | 立体声 | ステレオ | ESTÉREO |
 | Record from | `FOCUSED` | 定向 | フォーカス | ENFOCADO |

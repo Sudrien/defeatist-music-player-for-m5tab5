@@ -97,6 +97,8 @@ zh-CN:
     # ui.c
     "BATT %d%%": "电池 %d%%"
     # panel.c
+    "BOOT": "保持"
+    # panel.c
     "BUSY": "进行中"
     # portal.c
     "Back to the form": "返回表单"
@@ -106,6 +108,8 @@ zh-CN:
     "Battery low": "电量低"
     # panel.c
     "Benchmark": "测速"
+    # panel.c
+    "Boot: kept until changed, through a power-off.": "保持：在更改前一直保留，关机后也保留。"
     # sleeppage.c
     "Brightness   %d%%": "亮度   %d%%"
     # streamplan.h
@@ -466,6 +470,8 @@ zh-CN:
     "Sleep timer   off": "睡眠定时   关"
     # panel.c
     "Source": "源代码"
+    # panel.c
+    "Speed holds": "速度保持"
     # remote.html
     "Star": "收藏"
     # radiobrowser.h
@@ -484,6 +490,8 @@ zh-CN:
     "Stream address": "流地址"
     # player.c
     "Stream too slow here": "网络太慢"
+    # panel.c
+    "TRACK": "每曲"
     # remote.c
     "That folder could not be opened.": "无法打开该文件夹。"
     # portal.c, remote.c
@@ -552,6 +560,8 @@ zh-CN:
     "To change Wi-Fi networks instead, use Network setup on the player's screen. This page closes itself after %d minutes.": "如需改用其他 Wi-Fi 网络，请在本机屏幕上使用“添加网络”。此页面会在 %d 分钟后自动关闭。"
     # sleeppage.c
     "Touch anywhere to wake it.": "触摸任意处就能唤醒。"
+    # panel.c
+    "Track: back to matching when a new track starts. Repeat one is not a new track.": "每曲：新曲目开始时恢复原速。单曲重复不算新曲目。"
     # remote.html
     "Tried before it is saved. Only over this encrypted page — never in the clear.": "保存前会先尝试。仅通过这个加密页面传送——绝不以明文发送。"
     # panel.c

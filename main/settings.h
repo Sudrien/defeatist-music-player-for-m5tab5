@@ -217,6 +217,28 @@ uint8_t settings_poweroff_step(void);
 void settings_set_poweroff_step(uint8_t step);
 
 /*
+ * 6074: turntable speed (varispeed.h), as a fraction: the speed PLAYED
+ * over the speed CUT, each an index into varispeed_rpm_thirds[] --
+ * 0 16⅔, 1 33⅓, 2 45, 3 78. Equal is ×1.00, whichever they are; the
+ * default is 33⅓/33⅓. Anything out of range reads as 33⅓.
+ *
+ * "Speed holds" says how long a fraction lasts:
+ *   TRACK (false, the default) -- the player puts PLAYED back to CUT
+ *     when a new track starts (RPT1's repeat is not a new track), and a
+ *     boot starts matching;
+ *   BOOT (true) -- kept until changed, through a power-off.
+ * Saved on the card only, like crossfade and Power off. Under TRACK the
+ * fraction is written all the same and ignored on load, so switching
+ * to BOOT later does not resurrect an old one: switching is a change,
+ * and the change writes the current fraction.
+ */
+unsigned settings_speed_played(void);
+unsigned settings_speed_cut(void);
+void settings_set_speed(unsigned played, unsigned cut);
+bool settings_speed_boot(void);
+void settings_set_speed_boot(bool boot);
+
+/*
  * 6000: write any change that is still settling, now, and wait for it --
  * for a power-off, which would otherwise lose the last SETTINGS_SETTLE_MS
  * of changes. The write is still done by the settings task, so the file

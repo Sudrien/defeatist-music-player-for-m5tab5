@@ -629,6 +629,12 @@ static const char *const k_album_note[] = {
     N_("Off keeps deliberate segues intact: live sets, mixes, and "
        "movements that are meant to run into each other."),
 };
+/* 6074: both readings, always -- the pill says which one is in force. */
+static const char *const k_speed_note[] = {
+    N_("Track: back to matching when a new track starts. Repeat one is "
+       "not a new track."),
+    N_("Boot: kept until changed, through a power-off."),
+};
 static const char *const k_input_note[] = {
     N_("Mono/stereo: the two by the screen."),
     N_("Focused: those two aimed out of it."),
@@ -637,6 +643,7 @@ static const char *const k_input_note[] = {
 };
 #define RG_NOTE_LINES       note_rows(k_rg_note, COUNT(k_rg_note))
 #define ALBUM_NOTE_LINES    note_rows(k_album_note, COUNT(k_album_note))
+#define SPEED_NOTE_LINES    note_rows(k_speed_note, COUNT(k_speed_note))
 
 static int rg_y(void)     { return list_top(); }
 static int slider_y(void) { return rg_y() + AUDIO_SWITCH_H
@@ -645,12 +652,26 @@ static int slider_y(void) { return rg_y() + AUDIO_SWITCH_H
                                    + AUDIO_GAP; }
 static int album_y(void)  { return slider_y() + AUDIO_SLIDER_H + AUDIO_GAP; }
 
-/* 5208: what the recorder records from. 5216: the only recording
- * switch -- 5109's Microphones row is gone -- under the album note. */
-static int input_y(void)  { return album_y() + AUDIO_SWITCH_H
+/* 6074: how long a turntable speed lasts, under the album note. */
+static int speed_y(void)  { return album_y() + AUDIO_SWITCH_H
                                    + AUDIO_NOTE_GAP
                                    + ALBUM_NOTE_LINES * AUDIO_NOTE_STEP
                                    + AUDIO_GAP; }
+
+/* 5208: what the recorder records from. 5216: the only recording
+ * switch -- 5109's Microphones row is gone. 6074: under the speed note. */
+static int input_y(void)  { return speed_y() + AUDIO_SWITCH_H
+                                   + AUDIO_NOTE_GAP
+                                   + SPEED_NOTE_LINES * AUDIO_NOTE_STEP
+                                   + AUDIO_GAP; }
+
+static void speed_hold_box(int *x, int *y, int *w, int *h)
+{
+    *x = 0;
+    *y = speed_y();
+    *w = gfx_w();
+    *h = AUDIO_SWITCH_H;
+}
 
 static void input_switch_box(int *x, int *y, int *w, int *h)
 {
@@ -1402,6 +1423,22 @@ static int draw_audio(void)
      */
     draw_paras(y + bh + AUDIO_NOTE_GAP, k_album_note, COUNT(k_album_note), 99);
 
+    /* --- Speed holds (6074) ------------------------------------------ */
+    speed_hold_box(&x, &y, &bw, &bh);
+    gfx_fill_rect(x, y, bw, bh, C_ROW);
+    gfx_draw_text(24, y + (bh - GFX_GLYPH_H(NAME_SCALE)) / 2, _("Speed holds"),
+                  NAME_SCALE, 400, C_TEXT);
+    {
+        /* Lit at BOOT: the one that outlives what the listener can see. */
+        const bool boot = settings_speed_boot();
+        const char *label = boot ? _("BOOT") : _("TRACK");
+        int pw = gfx_text_w(label, NAME_SCALE) + 48;
+        if (pw < 132) pw = 132;
+        const int ph = 56;
+        draw_pill(w - 24 - pw, y + (bh - ph) / 2, pw, ph, label, boot, NAME_SCALE);
+    }
+    draw_paras(y + bh + AUDIO_NOTE_GAP, k_speed_note, COUNT(k_speed_note), 99);
+
     /* --- Record from (5208, 5216) ------------------------------------ */
     input_switch_box(&x, &y, &bw, &bh);
     gfx_fill_rect(x, y, bw, bh, C_ROW);
@@ -1859,6 +1896,16 @@ bool panel_touch(bool down, int x, int y)
             ESP_LOGI(TAG, "crossfade within an album: %s%s",
                      on ? "on" : "off",
                      settings_crossfade_sec() ? "" : " (crossfade is off)");
+            s_dirty = true;
+            return false;
+        }
+
+        /* 6074: TRACK and BOOT. */
+        speed_hold_box(&bx, &by, &bw, &bh);
+        if (y >= by && y < by + bh) {
+            const bool boot = !settings_speed_boot();
+            settings_set_speed_boot(boot);
+            ESP_LOGI(TAG, "speed holds: %s", boot ? "boot" : "track");
             s_dirty = true;
             return false;
         }

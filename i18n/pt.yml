@@ -97,6 +97,8 @@ pt:
     # ui.c
     "BATT %d%%": "BAT %d%%"
     # panel.c
+    "BOOT": "SEMPRE"
+    # panel.c
     "BUSY": "OCUP."
     # portal.c
     "Back to the form": "Voltar ao formulário"
@@ -106,6 +108,8 @@ pt:
     "Battery low": "Bateria fraca"
     # panel.c
     "Benchmark": "Medir velocidade"
+    # panel.c
+    "Boot: kept until changed, through a power-off.": "Sempre: mantida até ser alterada, mesmo após desligar."
     # sleeppage.c
     "Brightness   %d%%": "Brilho   %d%%"
     # streamplan.h
@@ -466,6 +470,8 @@ pt:
     "Sleep timer   off": "Timer   não"
     # panel.c
     "Source": "Código-fonte"
+    # panel.c
+    "Speed holds": "A velocidade dura"
     # remote.html
     "Star": "Favorito"
     # radiobrowser.h
@@ -484,6 +490,8 @@ pt:
     "Stream address": "Endereço do stream"
     # player.c
     "Stream too slow here": "Stream lento"
+    # panel.c
+    "TRACK": "FAIXA"
     # remote.c
     "That folder could not be opened.": "Não foi possível abrir essa pasta."
     # portal.c, remote.c
@@ -552,6 +560,8 @@ pt:
     "To change Wi-Fi networks instead, use Network setup on the player's screen. This page closes itself after %d minutes.": "Para trocar de rede Wi-Fi, use \"Adicionar rede\" na tela do player. Esta página fecha sozinha após %d minutos."
     # sleeppage.c
     "Touch anywhere to wake it.": "Toque em qualquer lugar para acordá-la."
+    # panel.c
+    "Track: back to matching when a new track starts. Repeat one is not a new track.": "Faixa: volta ao normal quando começa uma nova faixa. Repetir uma não é uma nova faixa."
     # remote.html
     "Tried before it is saved. Only over this encrypted page — never in the clear.": "É testada antes de ser salva. Só por esta página criptografada, nunca às claras."
     # panel.c

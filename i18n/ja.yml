@@ -97,6 +97,8 @@ ja:
     # ui.c
     "BATT %d%%": "電池 %d%%"
     # panel.c
+    "BOOT": "保持"
+    # panel.c
     "BUSY": "作業中"
     # portal.c
     "Back to the form": "フォームに戻る"
@@ -106,6 +108,8 @@ ja:
     "Battery low": "電池残量低下"
     # panel.c
     "Benchmark": "速度測定"
+    # panel.c
+    "Boot: kept until changed, through a power-off.": "保持：リセットするまで、電源を切っても保持します。"
     # sleeppage.c
     "Brightness   %d%%": "明るさ   %d%%"
     # streamplan.h
@@ -466,6 +470,8 @@ ja:
     "Sleep timer   off": "スリープタイマー   オフ"
     # panel.c
     "Source": "ソース"
+    # panel.c
+    "Speed holds": "速度の持続"
     # remote.html
     "Star": "お気に入り"
     # radiobrowser.h
@@ -484,6 +490,8 @@ ja:
     "Stream address": "ストリームのアドレス"
     # player.c
     "Stream too slow here": "回線が遅すぎる"
+    # panel.c
+    "TRACK": "曲ごと"
     # remote.c
     "That folder could not be opened.": "そのフォルダを開けませんでした。"
     # portal.c, remote.c
@@ -552,6 +560,8 @@ ja:
     "To change Wi-Fi networks instead, use Network setup on the player's screen. This page closes itself after %d minutes.": "Wi-Fiネットワークを変える場合は、機器の画面の「ネットワーク追加」を使ってください。このページは %d 分後に閉じます。"
     # sleeppage.c
     "Touch anywhere to wake it.": "どこかに触れると戻る。"
+    # panel.c
+    "Track: back to matching when a new track starts. Repeat one is not a new track.": "曲ごと：新しい曲が始まると元に戻ります。1曲リピートは新しい曲ではありません。"
     # remote.html
     "Tried before it is saved. Only over this encrypted page — never in the clear.": "保存する前に試します。この暗号化されたページだけを通り、平文では送られません。"
     # panel.c

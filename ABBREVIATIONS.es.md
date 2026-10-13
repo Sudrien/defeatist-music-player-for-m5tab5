@@ -110,6 +110,7 @@ Qué está en marcha, y el idioma de la pantalla.
 | ReplayGain | sí / no | Nivela las pistas entre sí. Apagarlo detiene el ajuste, no la medición. |
 | Crossfade | no, o segundos | Deslizador. |
 | Mismo álbum | sí / no | Hacer crossfade también entre pistas de un mismo álbum. Apagado deja en paz las uniones del álbum. Una carpeta cuenta como un álbum. |
+| La velocidad dura | `PISTA` / `SIEMPRE` | Cuánto dura una velocidad de tocadiscos. `PISTA`: vuelve a la normal al empezar una pista nueva; repetir una (`RPT1`) no es una pista nueva. `SIEMPRE`: se mantiene hasta que la cambies, también al apagar. Encendido en `SIEMPRE`. |
 | Grabar desde | ver abajo | Qué graba el botón de grabación. |
 
 **Grabar desde** — toca para rotar. Una opción se enciende cuando su entrada está presente para grabar.
@@ -195,6 +196,8 @@ En todos los idiomas se mantienen en inglés, mediante `same()`: los nombres de 
 | Ajustes | `IMPORT` | 导入 | 取込 | IMPORTAR |
 | Ajustes | `DONE` | 完成 | 完了 | HECHO |
 | Ajustes | `RETRY` | 重试 | 再試行 | REPETIR |
+| Ajustes | `TRACK` | 每曲 | 曲ごと | PISTA |
+| Ajustes | `BOOT` | 保持 | 保持 | SIEMPRE |
 | Grabar desde | `MONO` | 单声道 | モノラル | MONO |
 | Grabar desde | `STEREO` | 立体声 | ステレオ | ESTÉREO |
 | Grabar desde | `FOCUSED` | 定向 | フォーカス | ENFOCADO |

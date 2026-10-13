@@ -22738,3 +22738,35 @@ all five fractions tried, 78/16⅔ (4.68, a step longer than some
 blocks) and 16⅔/78 (0.21) included; the slide lands on its target.
 Not called by the player yet, not compiled with ESP-IDF here, not on
 the board.
+
+### 6074 -- Speed holds, and the fraction it holds
+
+The settings half of turntable speed. Three keys in the card record,
+written together and taken together: `speed_played` and `speed_cut`,
+indexes into varispeed_rpm_thirds[] (0 16⅔, 1 33⅓, 2 45, 3 78; out of
+range is 33⅓), and `speed_boot`. Card only, like crossfade and Power
+off, so the flash blob's version is not bumped for them.
+
+"Speed holds" on the AUDIO tab, under Same album, cycles TRACK and
+BOOT. TRACK, the default: a fraction lasts until the next track, and
+the player (6075) puts PLAYED back to CUT when one starts; RPT1's
+repeat is not a new track. BOOT: kept until changed, through a
+power-off. A boot under TRACK is a new track, so load_file() sets
+PLAYED to CUT once the newest record has been read -- the fraction is
+written either way, and the flip from TRACK to BOOT is itself a change
+that writes the current one, so BOOT never resurrects a stale fraction.
+The pill is lit at BOOT, the setting whose effect outlives what is on
+the screen.
+
+SETTINGS_MAX_LINE 568 -> 600: the three keys are 52 bytes, 5216 had
+left 20 spare. Three functions hold a line on their stack; each is 32
+bytes bigger.
+
+The note under the row says both readings, always, so it is a fixed
+note with no budget to check. Translations by Claude, not yet read by a
+native speaker; the Japanese says リセット where it wanted 変更, whose
+first kanji is not in Ark12 -- i18ntest refused it.
+
+Nothing reads the fraction yet: the row is live and saved, and does
+nothing until 6075. texttest run-i18n passes. Not compiled with ESP-IDF
+here. Not on the board.

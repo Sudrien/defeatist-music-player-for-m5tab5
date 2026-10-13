@@ -36,6 +36,9 @@ const char *i18n_lang_name(i18n_lang_t lang)
         [I18N_ZH_CN] = "简体中文",
         [I18N_JA]    = "日本語",
         [I18N_ES]    = "Español",
+        [I18N_PT]    = "Português",
+        [I18N_FR]    = "Français",
+        [I18N_IT]    = "Italiano",
     };
     return names[(unsigned)lang < I18N_LANG_COUNT ? lang : I18N_EN];
 }
@@ -68,10 +71,14 @@ const char *i18n_get_in(i18n_lang_t lang_in, const char *msgid)
 
 /* CLDR cardinal rules, cut to what the table has: English one/other;
  * Spanish one/other too (CLDR's "many" is for exact millions);
- * Chinese and Japanese only other. Index 0 is one, 1 is other. */
+ * Chinese and Japanese only other. Index 0 is one, 1 is other.
+ * 6068: Italian is English's rule; French and Portuguese (CLDR's "pt",
+ * which is Brazil's) say one for 0 as well as 1. Their "many", like
+ * Spanish's, is for exact millions. */
 static int plural_form(int lang, long n)
 {
-    if (lang == I18N_EN || lang == I18N_ES) return n == 1 ? 0 : 1;
+    if (lang == I18N_EN || lang == I18N_ES || lang == I18N_IT) return n == 1 ? 0 : 1;
+    if (lang == I18N_FR || lang == I18N_PT) return (n == 0 || n == 1) ? 0 : 1;
     return 1;
 }
 
@@ -101,6 +108,7 @@ const char *i18n_lang_code(i18n_lang_t lang)
 {
     static const char *const codes[I18N_LANG_COUNT] = {
         [I18N_EN] = "en", [I18N_ZH_CN] = "zh-CN", [I18N_JA] = "ja", [I18N_ES] = "es",
+        [I18N_PT] = "pt", [I18N_FR] = "fr", [I18N_IT] = "it",
     };
     return codes[(unsigned)lang < I18N_LANG_COUNT ? lang : I18N_EN];
 }
@@ -125,6 +133,9 @@ static int tag_lang(const char *t, size_t n)
     if (p == 2 && strncmp(tag, "en", 2) == 0) return I18N_EN;
     if (p == 2 && strncmp(tag, "ja", 2) == 0) return I18N_JA;
     if (p == 2 && strncmp(tag, "es", 2) == 0) return I18N_ES;
+    if (p == 2 && strncmp(tag, "pt", 2) == 0) return I18N_PT;     /* pt-PT too */
+    if (p == 2 && strncmp(tag, "fr", 2) == 0) return I18N_FR;
+    if (p == 2 && strncmp(tag, "it", 2) == 0) return I18N_IT;
     if (p == 2 && strncmp(tag, "zh", 2) == 0) {
         if (strstr(tag, "-hant") || strstr(tag, "-tw") || strstr(tag, "-hk") ||
             strstr(tag, "-mo")) return -1;

@@ -34,6 +34,9 @@ typedef enum {
     I18N_ZH_CN,
     I18N_JA,
     I18N_ES,            /* 6014 */
+    I18N_PT,            /* 6068 */
+    I18N_FR,            /* 6068 */
+    I18N_IT,            /* 6068 */
     I18N_LANG_COUNT,
 } i18n_lang_t;
 

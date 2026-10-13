@@ -1,0 +1,763 @@
+# pt -- the screen's text. Edit the values; the keys are the
+# English in the source and are rewritten by ./tools/i18n.py extract.
+# ~ means not translated: the board shows the key. Then run
+# ./tools/i18n.py compile and commit main/i18n_tab.c with this file.
+# Format: tools/i18n.py's docstring.
+
+pt:
+  singular:
+    # panel.c
+    "%.32s did not work. Try again.": ~
+    # remote.html
+    "%d h": ~
+    # remote.html
+    "%d min": ~
+    # panel.c, remote.html
+    "%d s": ~
+    # remote.c
+    "%s did not answer.": ~
+    # remote.html
+    "%s left": ~
+    # remote.c
+    "%s refused the password.": ~
+    # remote.c
+    "%s was not found. Is it in range?": ~
+    # panel.c
+    "%s: %d mean, %d peak kbit/s": ~
+    # panel.c
+    "%u KB free": ~
+    # panel.c
+    "%u bytes": ~
+    # panel.c
+    "%u s": ~
+    # remote.html
+    "(from the next track)": ~
+    # powerdown.h
+    "1 h": ~
+    # screendim.h
+    "1 min": ~
+    # powerdown.h
+    "15 min": ~
+    # screendim.h
+    "15 s": ~
+    # powerdown.h, sleeppage.c
+    "2 h": ~
+    # screendim.h
+    "2 min": ~
+    # powerdown.h
+    "30 min": ~
+    # screendim.h
+    "30 s": ~
+    # screendim.h
+    "5 min": ~
+    # portal.c, remote.c
+    "A Wi-Fi password is 8 to 63 characters, or 64 hex digits.": ~
+    # portal.c, remote.c
+    "A network name is 1 to 32 characters.": ~
+    # panel.c
+    "A phone supplies the password.": ~
+    # panel.c
+    "A sign-in page opens with the form.": ~
+    # sleeppage.c
+    "A tap anywhere brings it back, and does not press anything.": ~
+    # browser.c
+    "ALL": ~
+    # panel.c
+    "AUTO": ~
+    # panel.c
+    "About twenty seconds.": ~
+    # panel.c
+    "Add a network": ~
+    # panel.c
+    "Add a radio station to the card.": ~
+    # radiobrowser.h
+    "Add a station by phone…": ~
+    # portal.c, remote.html
+    "Add station": ~
+    # remote.html
+    "Add to the queue": ~
+    # portal.c, remote.html
+    "Added to %s on the card. The name is optional — without one the station is listed by its address.": ~
+    # remote.html
+    "Adding…": ~
+    # sleeppage.c
+    "After this long with nothing playing, recording or touched. Not while music plays.": ~
+    # sleeppage.c
+    "After this long without a touch the screen drops to half brightness. Any touch puts it back.": ~
+    # remote.html
+    "Already on the card (%d of %d):": ~
+    # portal.c
+    "Already on the card (%d):": ~
+    # recorder.c
+    "Already recording.": ~
+    # panel.c
+    "Auto: USB, jack, mono. Off: no record.": ~
+    # ui.c
+    "BATT": ~
+    # ui.c
+    "BATT %d%%": ~
+    # panel.c
+    "BUSY": ~
+    # portal.c
+    "Back to the form": ~
+    # player.c
+    "Battery empty": ~
+    # player.c
+    "Battery low": ~
+    # panel.c
+    "Benchmark": ~
+    # sleeppage.c
+    "Brightness   %d%%": ~
+    # streamplan.h
+    "Buffering": ~
+    # remote.c
+    "Busy; try again in a moment.": ~
+    # ui.c
+    "CHARGED": ~
+    # ui.c
+    "CHRG %d%%": ~
+    # panel.c, sleeppage.c
+    "CLOSE": ~
+    # ui.c
+    "Cancel": ~
+    # player.c
+    "Cannot record": ~
+    # panel.c
+    "Cert %.29s…": ~
+    # portal.c
+    "Choose the network this player should use, and enter its password. It is tried before it is saved.": ~
+    # remote.html
+    "Clear": ~
+    # panel.c
+    "Clock": ~
+    # panel.c
+    "Connect an MPD app to %s": ~
+    # panel.c
+    "Connected to %.32s.": ~
+    # streamplan.h
+    "Connecting": ~
+    # remote.html
+    "Connecting to the player…": ~
+    # panel.c
+    "Copy saved Wi-Fi from an M5Launcher install on this board.": ~
+    # recorder.c
+    "Could not create the recording file.": ~
+    # remote.c
+    "Could not join %s.": ~
+    # recorder.c
+    "Could not make the Recordings folder.": ~
+    # remote.html
+    "Could not read the list.": ~
+    # player.c
+    "Could not save": ~
+    # remote.c
+    "Could not scan. Is Wi-Fi on, on the player?": ~
+    # recorder.c
+    "Could not start the file.": ~
+    # bench.c
+    "Could not start the stream.": ~
+    # panel.c
+    "Could not start.": ~
+    # remote.html
+    "Crossfade": ~
+    # panel.c
+    "Crossfade   %d s": ~
+    # panel.c
+    "Crossfade   off": ~
+    # remote.html
+    "Crossfade seconds": ~
+    # remote.html
+    "Crossfade within an album": ~
+    # browser.c
+    "DN": ~
+    # panel.c
+    "DONE": ~
+    # portal.c
+    "Defeatist setup": ~
+    # sleeppage.c
+    "Dim screen": ~
+    # browser.c
+    "EAT": ~
+    # browser.c
+    "EAT1": ~
+    # remote.html
+    "Empty the queue? What is playing carries on.": ~
+    # remote.html
+    "Empty.": ~
+    # panel.c
+    "Evens out loudness between tracks.": ~
+    # ui.c
+    "Exit": ~
+    # ui.c
+    "Exit to Launcher?": ~
+    # browser.c
+    "FLDR": ~
+    # panel.c
+    "FOCUSED": ~
+    # sleeppage.c
+    "Fades out, pauses, and turns the screen off.": ~
+    # player.c
+    "Favourites are full": ~
+    # remote.html
+    "Files": ~
+    # panel.c
+    "Focused: those two aimed out of it.": ~
+    # sleeppage.c
+    "For backlight life and battery. This panel cannot burn in.": ~
+    # panel.c
+    "Greyed while Wi-Fi is off; the setting is kept.": ~
+    # panel.c
+    "HEADSET": ~
+    # panel.c
+    "Headset, UAC: the jack, a USB mic.": ~
+    # ui.c
+    "IDLE": ~
+    # ui.c
+    "IDLE %dM": ~
+    # panel.c
+    "IMPORT": ~
+    # panel.c
+    "IN USE": ~
+    # panel.c
+    "INDEXING": ~
+    # panel.c
+    "Import from M5Launcher": ~
+    # launcher_import.c, panel.c
+    "Imported %d, skipped %d": ~
+    # player.c, recorder.c
+    "Insert a card or a USB drive to record to.": ~
+    # panel.c
+    "It comes back when setup closes.": ~
+    # recorder.c
+    "It reached 4 GB, the most one file can hold.": ~
+    # portal.c, remote.html
+    "Join": ~
+    # panel.c
+    "Join %s on a phone.": ~
+    # remote.c
+    "Joined and saved %s.": ~
+    # portal.c
+    "Joined and saved %s. The setup network is closing; you can leave it.": ~
+    # ui.c
+    "LIVE": ~
+    # panel.c
+    "Levels are still measured while off.": ~
+    # panel.c
+    "Libraries": ~
+    # sleeppage.c
+    "Longer than the dim, and the backlight goes out altogether. Never while this page is open.": ~
+    # remote.html
+    "Lost the player. Reconnecting…": ~
+    # launcher_import.c
+    "M5Launcher not found on this board": ~
+    # panel.c
+    "MONO": ~
+    # panel.c
+    "MPD server": ~
+    # ui.c
+    "MUTED": ~
+    # player.c
+    "Media removed": ~
+    # panel.c
+    "Mono/stereo: the two by the screen.": ~
+    # radiobrowser.h
+    "Most listened": ~
+    # radiobrowser.h
+    "Most voted": ~
+    # remote.html
+    "Move down": ~
+    # remote.html
+    "Move up": ~
+    # ui.c
+    "NO BATT": ~
+    # portal.c, remote.html
+    "Name": ~
+    # panel.c
+    "Needed for internet radio and the clock.": ~
+    # panel.c
+    "Needs a network: Wi-Fi or a cable.": ~
+    # portal.c, remote.html
+    "Network": ~
+    # remote.c
+    "Network setup is running on the player; use that page.": ~
+    # panel.c
+    "Network time": ~
+    # powerdown.h, screendim.h
+    "Never": ~
+    # remote.html
+    "Next": ~
+    # launcher_import.c
+    "No M5Launcher config.conf on card": ~
+    # recorder.c
+    "No USB microphone is plugged in.": ~
+    # portal.c
+    "No answer from that network. Try again.": ~
+    # panel.c
+    "No app connected.": ~
+    # recorder.c
+    "No memory for the recording task.": ~
+    # bench.c
+    "No memory to measure with.": ~
+    # panel.c
+    "No password: anyone on it can use it.": ~
+    # launcher_import.c
+    "No saved networks to import": ~
+    # streamplan.h
+    "No signal": ~
+    # bench.c
+    "No station selected.": ~
+    # remote.html
+    "None on the card yet.": ~
+    # recorder.c
+    "Not enough memory to record.": ~
+    # recorder.c
+    "Nothing is plugged into the headset jack.": ~
+    # remote.html
+    "Nothing playable here.": ~
+    # panel.c, sleeppage.c
+    "OFF": ~
+    # panel.c, sleeppage.c
+    "ON": ~
+    # browser.c
+    "ONE": ~
+    # browser.c
+    "ONE1": ~
+    # remote.html
+    "Off": ~
+    # panel.c
+    "Off by default. Nothing on the card needs it, and the radio draws power while on.": ~
+    # sleeppage.c
+    "Off fades the backlight out. Playback carries on.": ~
+    # panel.c
+    "Off keeps deliberate segues intact: live sets, mixes, and movements that are meant to run into each other.": ~
+    # panel.c
+    "Off while network setup has the page.": ~
+    # panel.c
+    "On a phone, open http://%s/": ~
+    # panel.c
+    "One folder counts as one album.": ~
+    # panel.c
+    "Open %s": ~
+    # portal.c, remote.c
+    "Open networks are not supported yet.": ~
+    # portal.c, remote.html
+    "Or type a network name": ~
+    # portal.c, remote.html
+    "Other or hidden network (type it below)": ~
+    # portal.c, remote.html
+    "Password": ~
+    # remote.html
+    "Play": ~
+    # remote.html
+    "Play next": ~
+    # remote.html
+    "Play or pause": ~
+    # panel.c
+    "Play, pause, skip, seek and volume from a browser on the same network.": ~
+    # panel.c
+    "Play, pause, skip, seek and volume from an MPD app such as MALP or mpc.": ~
+    # panel.c
+    "Playback pauses while setup runs.": ~
+    # sleeppage.c, ui.c
+    "Power off": ~
+    # ui.c
+    "Power off?": ~
+    # remote.html
+    "Previous": ~
+    # sleeppage.c
+    "Quarter turns. 90 and 270 are landscape; 180 is for when the cable is at the wrong end.": ~
+    # remote.html
+    "Queue": ~
+    # ui.c
+    "REC": ~
+    # panel.c
+    "REINDEX": ~
+    # panel.c
+    "RESET": ~
+    # panel.c
+    "RESET: back to the build time; this boot's recordings are renamed to match.": ~
+    # panel.c
+    "RETRY": ~
+    # browser.c
+    "RLOD": ~
+    # browser.c
+    "RND": ~
+    # browser.c
+    "RPT": ~
+    # browser.c
+    "RPT1": ~
+    # panel.c
+    "RUN": ~
+    # player.c
+    "Radio": ~
+    # portal.c, remote.html
+    "Radio stations": ~
+    # panel.c
+    "Reading %s without decoding…": ~
+    # remote.html
+    "Reading…": ~
+    # panel.c
+    "Reads its config.conf; no retyping, no network needed.": ~
+    # panel.c
+    "Reads the selected station without decoding it, to tell a slow network from a slow decoder.": ~
+    # streamplan.h
+    "Reconnecting": ~
+    # panel.c
+    "Record from": ~
+    # remote.html
+    "Recording": ~
+    # player.c, remote.html
+    "Recording in %d": ~
+    # recorder.c
+    "Recording is off (AUDIO, Record from).": ~
+    # recorder.c
+    "Recording saved": ~
+    # recorder.c
+    "Recording stopped": ~
+    # panel.c
+    "Remote control": ~
+    # remote.html
+    "Remove": ~
+    # ui.c
+    "ReplayGain is listening…": ~
+    # sleeppage.c
+    "Rotation": ~
+    # ui.c
+    "SLEEP": ~
+    # ui.c
+    "SLEEP %dM": ~
+    # panel.c
+    "START": ~
+    # panel.c
+    "STEREO": ~
+    # panel.c
+    "STOP": ~
+    # panel.c
+    "Same Wi-Fi as the player. %u:%02u left": ~
+    # panel.c
+    "Same album": ~
+    # panel.c
+    "Saved %.32s.": ~
+    # remote.html
+    "Scan": ~
+    # launcher_import.c, remote.c
+    "Scanning…": ~
+    # sleeppage.c
+    "Screen": ~
+    # sleeppage.c
+    "Screen off": ~
+    # panel.c
+    "Sets the clock, in UTC. Streams need it: a certificate is invalid at an unset clock.": ~
+    # remote.html
+    "Settings": ~
+    # panel.c
+    "Setup closed after five minutes.": ~
+    # panel.c
+    "Setup could not start.": ~
+    # sleeppage.c
+    "Sleep": ~
+    # remote.html
+    "Sleep timer": ~
+    # sleeppage.c
+    "Sleep timer   %d min": ~
+    # sleeppage.c
+    "Sleep timer   %ld:%02ld": ~
+    # sleeppage.c
+    "Sleep timer   off": ~
+    # panel.c
+    "Source": ~
+    # remote.html
+    "Star": ~
+    # radiobrowser.h
+    "Starred stations": ~
+    # panel.c
+    "Starting…": ~
+    # portal.c, remote.c
+    "Station added.": ~
+    # panel.c
+    "Station needs %d -- that is %d%%": ~
+    # player.c
+    "Station not answering": ~
+    # panel.c
+    "Stop playback first.": ~
+    # portal.c, remote.html
+    "Stream address": ~
+    # player.c
+    "Stream too slow here": ~
+    # remote.c
+    "That folder could not be opened.": ~
+    # portal.c, remote.c
+    "That form was too large to be a name and a stream address.": ~
+    # portal.c, remote.c
+    "That form was too large to be a network name and a password.": ~
+    # portal.c, remote.c
+    "That is not a usable stream address. It has to start with http:// or https:// and be one unbroken address.": ~
+    # portal.c, remote.c
+    "That name cannot be used. Names are up to 63 characters and cannot start with a #.": ~
+    # portal.c, remote.c
+    "That needs a stream address.": ~
+    # portal.c
+    "That network was not found. Check the name and try again.": ~
+    # recorder.c
+    "The USB microphone did not start.": ~
+    # recorder.c
+    "The USB microphone has no 16- or 24-bit format.": ~
+    # recorder.c
+    "The USB microphone is not there any more.": ~
+    # recorder.c
+    "The USB microphone was unplugged.\n%u:%02u on %s": ~
+    # recorder.c
+    "The card would not take any more.": ~
+    # sleeppage.c
+    "The device turns off. The side button turns it back on.": ~
+    # portal.c
+    "The list is full at %d stations. Remove one from %s on the card to add another.": ~
+    # recorder.c
+    "The microphones did not start.": ~
+    # portal.c
+    "The password contains %s. A Wi-Fi password is plain keyboard characters only; phones substitute these when autocorrect or smart punctuation is on. Retype it with that turned off.": ~
+    # portal.c
+    "The password did not work. Try again.": ~
+    # remote.c
+    "The password has a character a Wi-Fi password cannot have -- often a phone's smart punctuation. Retype it with that turned off.": ~
+    # remote.c
+    "The player could not start that. Try again.": ~
+    # remote.html
+    "The player did not answer.": ~
+    # remote.html
+    "The player is on %s, and you are on its cable.": ~
+    # remote.html
+    "The player is on %s.": ~
+    # remote.html
+    "The player is on its cable only.": ~
+    # remote.c
+    "The player is out of memory for that.": ~
+    # portal.c, remote.c
+    "The station could not be saved. The card may be full, absent, or write-protected, or the list may already be full.": ~
+    # bench.c
+    "The station did not answer.": ~
+    # panel.c
+    "The station does not say what it needs.": ~
+    # bench.c
+    "The station went away.": ~
+    # bench.c
+    "The stream stopped before it started.": ~
+    # panel.c
+    "Then it shows the address to open.": ~
+    # panel.c
+    "Then it shows the address to use.": ~
+    # bench.c
+    "Timed out connecting.": ~
+    # portal.c
+    "To change Wi-Fi networks instead, use Network setup on the player's screen. This page closes itself after %d minutes.": ~
+    # sleeppage.c
+    "Touch anywhere to wake it.": ~
+    # remote.html
+    "Tried before it is saved. Only over this encrypted page — never in the clear.": ~
+    # panel.c
+    "Trying %.32s…": ~
+    # portal.c
+    "Trying %s… This can take fifteen seconds, and this phone may lose the setup network for a moment. The player's screen shows the result either way.": ~
+    # panel.c
+    "Turn Wi-Fi on first.": ~
+    # player.c
+    "Turning off to protect the battery. Charge it before use.": ~
+    # browser.c
+    "UP": ~
+    # browser.c
+    "UP^": ~
+    # panel.c
+    "USB audio": ~
+    # browser.c
+    "USB port coming up": ~
+    # browser.c
+    "USB port on - waiting for a drive": ~
+    # remote.html
+    "Volume": ~
+    # remote.html
+    "Volumes": ~
+    # panel.c
+    "Waiting for a network address.": ~
+    # portal.c
+    "Waiting for a network.": ~
+    # player.c
+    "Waiting for network": ~
+    # player.c
+    "Web setup is open": ~
+    # remote.c
+    "Wi-Fi is off on the player.": ~
+    # remote.html
+    "You are reaching the player over Wi-Fi. Joining a different network drops this page; the player's NET tab shows which network it ended up on, and if the join fails it goes back to its saved networks within a minute.": ~
+    # panel.c
+    "a guess": ~
+    # browser.c
+    "all start with  %s": ~
+    # panel.c
+    "app": ~
+    # panel.c
+    "built": ~
+    # panel.c
+    "capacity": ~
+    # panel.c
+    "coming up": ~
+    # panel.c
+    "connected": ~
+    # panel.c
+    "drive": ~
+    # panel.c
+    "failed; the log says why": ~
+    # player.c
+    "fetching %s…": ~
+    # panel.c
+    "from NTP": ~
+    # panel.c
+    "headphones": ~
+    # panel.c
+    "headset": ~
+    # portal.c
+    "hidden nearby": ~
+    # panel.c
+    "in a browser on the same network.": ~
+    # panel.c
+    "index": ~
+    # panel.c
+    "indexing, %d so far": ~
+    # player.c
+    "it played, then ran out of buffer": ~
+    # player.c
+    "join %s": ~
+    # panel.c
+    "maker": ~
+    # player.c
+    "mono": ~
+    # panel.c
+    "mount": ~
+    # panel.c
+    "mounted": ~
+    # player.c
+    "multichannel": ~
+    # panel.c
+    "name": ~
+    # browser.c
+    "no %s on the card": ~
+    # browser.c, panel.c
+    "no card in the slot": ~
+    # player.c
+    "no cover art": ~
+    # player.c
+    "no network - check Wi-Fi or the cable, then tap again": ~
+    # player.c
+    "no network - the directory needs Wi-Fi or a cable": ~
+    # panel.c
+    "none": ~
+    # player.c
+    "not enough memory for that list": ~
+    # panel.c
+    "not run this session": ~
+    # player.c
+    "nothing starred yet - tap a star to keep one": ~
+    # panel.c, sleeppage.c, remote.html
+    "off": ~
+    # panel.c
+    "on": ~
+    # recorder.c
+    "on %s, %u:%02u\n%s": ~
+    # remote.html
+    "on the player": ~
+    # portal.c, remote.html
+    "only if not in the list": ~
+    # portal.c, remote.html
+    "optional": ~
+    # player.c
+    "playback stopped": ~
+    # player.c
+    "plug in to keep playing": ~
+    # panel.c
+    "port": ~
+    # panel.c
+    "product": ~
+    # remote.html
+    "queue, files, settings, stations": ~
+    # browser.c
+    "radio - the card, the charts, or a tag": ~
+    # panel.c
+    "route": ~
+    # panel.c
+    "sector": ~
+    # player.c
+    "slide or tap to cancel": ~
+    # panel.c
+    "speaker": ~
+    # panel.c
+    "speed": ~
+    # panel.c
+    "starts in a few seconds": ~
+    # panel.c
+    "state": ~
+    # radiobrowser.h
+    "stations.m3u on the card": ~
+    # player.c
+    "stereo": ~
+    # remote.html
+    "stop it on the player, or tap here": ~
+    # panel.c
+    "stopped: the volume went away": ~
+    # player.c
+    "that": ~
+    # player.c
+    "the card would not take the write": ~
+    # player.c
+    "the directory did not answer": ~
+    # player.c
+    "the directory has nothing there": ~
+    # panel.c
+    "the setup network": ~
+    # panel.c
+    "the station": ~
+    # player.c
+    "the stream did not start": ~
+    # player.c
+    "then http://%s/": ~
+    # panel.c
+    "this player": ~
+    # panel.c
+    "type": ~
+    # player.c
+    "unstar one to make room": ~
+    # panel.c
+    "uptime": ~
+    # panel.c
+    "version": ~
+    # panel.c
+    "waiting for a drive": ~
+    # player.c
+    "waiting for the network to play %s": ~
+    # player.c
+    "waiting for the network…": ~
+    # panel.c
+    "was damaged; reindex rebuilds it": ~
+  plural:
+    "%d apps connected.":
+      one: ~
+      other: ~
+    "%d hidden networks nearby. A hidden network's name has to be typed.":
+      one: ~
+      other: ~
+    "%d stations from %s":
+      one: ~
+      other: ~
+    "%d tracks":
+      one: ~
+      other: ~
+    "%d tracks (+%d ~%d -%d), %d s":
+      one: ~
+      other: ~
+    "%d tracks, unchanged, %d s":
+      one: ~
+      other: ~
+    "%u phones joined, %u:%02u left":
+      one: ~
+      other: ~
+    "Not connected. %d networks saved.":
+      one: ~
+      other: ~

@@ -492,7 +492,8 @@ static int draw_reindex(int nrows)
 
 /*
  * 6015: the language, row 0 of the BUILD tab. Tapped round, like Record
- * from: English, 简体中文, 日本語, Español, English.
+ * from: English, 简体中文, 日本語, Español, Português, Français,
+ * Italiano (6068), English.
  *
  * Nothing on this row is ever translated, and that is the point of it.
  * Someone who lands in a language they cannot read has to be able to

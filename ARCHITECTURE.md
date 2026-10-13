@@ -22552,3 +22552,42 @@ The receive share of 520 bytes still holds every microphone seen so
 far: the Snowball's IN endpoint is 192, the adapter's 288.
 
 sdkconfig.defaults change: `rm sdkconfig` before the next build.
+
+### 6068 -- Portuguese, French and Italian, plumbed in, not yet translated
+
+Three more locales the way 6014 added Spanish: I18N_PT, I18N_FR and
+I18N_IT after ES, so the NVS bytes already handed out keep their
+meaning; their own names for the BUILD row's pill and the setup page's
+picker (Português, Français, Italiano); codes pt, fr, it for
+`<html lang>` and Accept-Language; LOCALES, PLURAL_FORMS and
+LANG_NAMES in tools/i18n.py; and `i18n/{pt,fr,it}.yml`, written by
+`extract` with every value `~`. Until those are filled in, choosing one
+shows English, which is the fallback working as designed, not a fault.
+
+Plurals. Italian is English's rule. French and Portuguese say one for 0
+as well as 1 -- "0 piste". Portuguese means CLDR's "pt", which is
+Brazil's rule; Portugal's (pt-PT) says one for 1 only. tag_lang()
+matches the primary subtag, so pt-PT browsers get pt too. If the
+translation is written as European Portuguese, plural_form() changes to
+n == 1 for PT and nothing else does. All three have a CLDR "many" for
+exact millions, which no count here reaches, as for Spanish.
+
+A fallback to English uses English's rule for the count as well as its
+text: an untranslated plural in French shows "0 tracks", not "0 track".
+The fixture checks that.
+
+The pill is sized to its word; Português is nine halfwidth glyphs,
+under the 132 px minimum. The language row cycles through seven now.
+The remote page carries every language (6028), so each adds its share
+of `remote_i18n.html` as the translations arrive: about 4-5 KB each at
+Spanish's length.
+
+i18ntest's fixture gained the three columns, French and Italian plural
+cases, and the Accept-Language cases. One old case changed meaning:
+"fr-FR,fr;q=0.9,ja;q=0.7" was the example of an unknown language
+passing to the next preference, and French is known now. It is
+`de-DE` in that role.
+
+texttest's run-i18n passes against fixtures and against the real table,
+built with feckless-graphics-handler v0.2.1. Not compiled with ESP-IDF
+here. Not on the board.

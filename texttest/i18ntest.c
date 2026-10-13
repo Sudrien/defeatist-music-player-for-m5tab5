@@ -44,6 +44,9 @@ const char *const i18n_vals[] = {
     /* zh-CN */ "关",  "开",  NULL,  "同一专辑",
     /* ja */    "オフ", NULL,  NULL,  NULL,
     /* es */    "NO",  "SÍ",  NULL,  "Mismo álbum",
+    /* pt */    NULL,  NULL,  NULL,  NULL,
+    /* fr */    NULL,  "OUI", NULL,  NULL,
+    /* it */    NULL,  NULL,  NULL,  NULL,
 };
 const unsigned i18n_pcount = 1;
 const char *const i18n_pkeys[] = { "%d tracks" };
@@ -52,6 +55,9 @@ const char *const i18n_pvals[] = {
     /* zh-CN */ NULL,       "%d 首",
     /* ja */    NULL,       NULL,
     /* es */    "%d pista", "%d pistas",
+    /* pt */    NULL,       NULL,
+    /* fr */    "%d piste", "%d pistes",
+    /* it */    "%d traccia", "%d tracce",
 };
 
 static void fixture(void)
@@ -94,6 +100,20 @@ static void fixture(void)
     assert(strcmp(_p("%d tracks", 2), "%d pistas") == 0);
     assert(strcmp(_("ON"), "SÍ") == 0);
     assert(strcmp(_("ONE"), "One") == 0);          /* es NULL: en rewording */
+    i18n_set_lang(I18N_FR);                        /* 6068: 0 is one too */
+    assert(strcmp(_p("%d tracks", 0), "%d piste") == 0);
+    assert(strcmp(_p("%d tracks", 1), "%d piste") == 0);
+    assert(strcmp(_p("%d tracks", 2), "%d pistes") == 0);
+    assert(strcmp(_("ON"), "OUI") == 0);
+    assert(strcmp(_("OFF"), "OFF") == 0);          /* fr NULL, en NULL: key */
+    i18n_set_lang(I18N_IT);                        /* English's rule */
+    assert(strcmp(_p("%d tracks", 0), "%d tracce") == 0);
+    assert(strcmp(_p("%d tracks", 1), "%d traccia") == 0);
+    i18n_set_lang(I18N_PT);                        /* all NULL: en text, en rule */
+    assert(strcmp(_p("%d tracks", 0), "%d tracks") == 0);
+    assert(strcmp(_p("%d tracks", 1), "%d track") == 0);
+    assert(strcmp(_p("%d tracks", 2), "%d tracks") == 0);
+    assert(strcmp(_("ONE"), "One") == 0);
 
     i18n_set_lang((i18n_lang_t)7);                 /* from a bad NVS byte */
     assert(i18n_lang() == I18N_EN);
@@ -102,6 +122,9 @@ static void fixture(void)
     assert(strcmp(i18n_lang_name((i18n_lang_t)9), "English") == 0);
     assert(strcmp(i18n_lang_name(I18N_JA), "日本語") == 0);
     assert(strcmp(i18n_lang_name(I18N_ES), "Español") == 0);
+    assert(strcmp(i18n_lang_name(I18N_FR), "Français") == 0);
+    assert(strcmp(i18n_lang_code(I18N_PT), "pt") == 0);
+    assert(strcmp(i18n_lang_code(I18N_IT), "it") == 0);
     /* 6024: Accept-Language */
     assert(i18n_from_accept_language(NULL) == I18N_EN);
     assert(i18n_from_accept_language("") == I18N_EN);
@@ -112,12 +135,16 @@ static void fixture(void)
     assert(i18n_from_accept_language("zh-TW,zh;q=0.9,en;q=0.8") == I18N_ZH_CN);  /* zh generic */
     assert(i18n_from_accept_language("zh-TW,en;q=0.8") == I18N_EN);             /* no Hant */
     assert(i18n_from_accept_language("zh-Hant-HK, ja;q=0.5") == I18N_JA);
-    assert(i18n_from_accept_language("fr-FR,fr;q=0.9,ja;q=0.7,es;q=0.6") == I18N_JA);
+    assert(i18n_from_accept_language("fr-FR,fr;q=0.9,ja;q=0.7,es;q=0.6") == I18N_FR);  /* 6068 */
+    assert(i18n_from_accept_language("de-DE,de;q=0.9,ja;q=0.7,es;q=0.6") == I18N_JA);
+    assert(i18n_from_accept_language("pt-BR,pt;q=0.9") == I18N_PT);
+    assert(i18n_from_accept_language("pt-PT") == I18N_PT);
+    assert(i18n_from_accept_language("it-IT,en;q=0.5") == I18N_IT);
     assert(i18n_from_accept_language("en;q=0.2, es;q=0.21") == I18N_ES);
     assert(i18n_from_accept_language("es;q=0.5, ja;q=0.5") == I18N_ES);      /* tie: first */
     assert(i18n_from_accept_language("ja;q=0, es") == I18N_ES);              /* q=0: not this */
     assert(i18n_from_accept_language("ja;q=0") == I18N_EN);
-    assert(i18n_from_accept_language("fr, *;q=0.1") == I18N_EN);
+    assert(i18n_from_accept_language("de, *;q=0.1") == I18N_EN);
     assert(i18n_from_accept_language("JA-jp") == I18N_JA);
     assert(i18n_from_accept_language("es_ES") == I18N_ES);
     assert(i18n_from_accept_language("ja;q=1.0") == I18N_JA);

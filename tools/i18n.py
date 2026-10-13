@@ -70,13 +70,14 @@ OUT_C = os.path.join(SRC_DIR, "i18n_tab.c")
 # Order is the i18n_lang_t order in main/i18n.h, and index 0 is the
 # fallback. Adding a locale is a line here, an enum entry there, and a
 # YAML file -- `extract` creates the file.
-LOCALES = ["en", "zh-CN", "ja", "es"]
+LOCALES = ["en", "zh-CN", "ja", "es", "pt", "fr", "it"]
 
 # Plural categories per locale (CLDR). Chinese and Japanese have one
 # form; English and Spanish two. (CLDR gives Spanish a third, "many", for
 # exact millions -- "1 000 000 de pistas" -- which no count here reaches.) i18n.c's rule function has to agree with this.
 PLURAL_FORMS = {"en": ["one", "other"], "zh-CN": ["other"], "ja": ["other"],
-                "es": ["one", "other"]}
+                "es": ["one", "other"], "pt": ["one", "other"],
+                "fr": ["one", "other"], "it": ["one", "other"]}
 
 
 # ---------------------------------------------------------------- C side
@@ -519,7 +520,8 @@ def build_c():
 # Committed, like i18n_tab.c; `check` says when it is stale.
 REMOTE_SRC = os.path.join(SRC_DIR, "remote.html")
 REMOTE_OUT = os.path.join(SRC_DIR, "remote_i18n.html")
-LANG_NAMES = {"en": "English", "zh-CN": "简体中文", "ja": "日本語", "es": "Español"}
+LANG_NAMES = {"en": "English", "zh-CN": "简体中文", "ja": "日本語", "es": "Español",
+              "pt": "Português", "fr": "Français", "it": "Italiano"}
 
 _PICK_JS = (
     "(function(){var L=window.I18N.langs.map(function(l){return l[0]}),c='en';"

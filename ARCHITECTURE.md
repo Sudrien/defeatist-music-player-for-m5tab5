@@ -22663,3 +22663,27 @@ is drawn tail-first, so it would have lost "pas d", the same failure
 6023 fixed in English. Found by the check 6070 was written with, run
 back over French. It is "... vérifiez Wi-Fi/câble, retouchez", 658.
 Not on the board.
+
+### 6072 -- Italian
+
+All 365 strings and 8 plurals in `i18n/it.yml`, written by Claude and
+not yet read by a native speaker. The informal imperative throughout
+("Riprova", "Inserisci"), as phone software in Italian has it.
+Plurals are English's rule (6068). "Radio" does not inflect, so "%d
+stations from %s" is "%d radio da %s" in both forms.
+
+Measured as 6070 was. Over and reworded: Could not save "Non salvato"
+(the heading was 133 of 132), Already recording "Già in corso." and the
+battery body's first line "Si spegne per proteggere" (bodies at 176),
+and the NET tab's RESET note, 4 rows of 3 in i18ntest, which now reads
+"AZZERA: ... rinomina le registrazioni di questo avvio." The pill it
+names is AZZERA rather than RIPRISTINA for the same room; BUSY is
+OCCUP. Recording saved and stopped are "Reg. salvata" and "Reg.
+fermata", for the heading.
+
+Wider than any existing translation and not measured against its own
+box: the AUDIO and USB row labels (altoparlante, chiavetta, montaggio)
+and REINDICIZZA. A board run in Italian is the check.
+
+texttest run-i18n passes. Not compiled with ESP-IDF here. Not on the
+board.

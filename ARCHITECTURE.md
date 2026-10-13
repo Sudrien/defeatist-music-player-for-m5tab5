@@ -22957,3 +22957,19 @@ screen, so it is not; a restored track is on screen before its first
 decode, so it is not.
 
 Not on the board yet. Host syntax check: nothing new.
+
+### 6080 -- feckless-graphics-handler to v0.2.2
+
+For the thirds. Ark Pixel's 12px set has the whole Number Forms block
+(U+2150-218F), and the graphics repo's gen_ark12.py did not list it, so
+⅓ and ⅔ were never in the table -- 6076 worked round that with "16"
+and "33". Its 0006 adds the block (60 glyphs, 956 bytes), with its
+golden font hash moved on purpose and the old one checked to still hold
+outside the block; its 0005 makes its test harness link again, which it
+had not since v0.2.1's aligned shadow buffer.
+
+v0.2.2 is the tag this assumes for those two. If it is tagged as
+something else, this line is the one to change.
+
+A manifest change: the next build re-resolves dependencies.lock, and its
+diff is to be read before it is committed (CLAUDE.md).

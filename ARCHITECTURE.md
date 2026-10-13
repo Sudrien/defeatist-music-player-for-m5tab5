@@ -22654,3 +22654,12 @@ PG BAIXO, not ↑ and ↓. IDLE is OCIO, to sit beside OCIO %dM.
 
 texttest run-i18n passes. Not compiled with ESP-IDF here. Not on the
 board.
+
+### 6071 -- French: the radio line that lost its start
+
+6069 measured the chooser's status lines against 688 px and missed one:
+"pas de réseau - vérifiez Wi-Fi ou câble, retouchez" is 700. That line
+is drawn tail-first, so it would have lost "pas d", the same failure
+6023 fixed in English. Found by the check 6070 was written with, run
+back over French. It is "... vérifiez Wi-Fi/câble, retouchez", 658.
+Not on the board.

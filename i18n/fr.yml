@@ -645,7 +645,7 @@ fr:
     # player.c
     "no cover art": "pas de pochette"
     # player.c
-    "no network - check Wi-Fi or the cable, then tap again": "pas de réseau - vérifiez Wi-Fi ou câble, retouchez"
+    "no network - check Wi-Fi or the cable, then tap again": "pas de réseau - vérifiez Wi-Fi/câble, retouchez"
     # player.c
     "no network - the directory needs Wi-Fi or a cable": "pas de réseau - l'annuaire exige Wi-Fi ou câble"
     # panel.c

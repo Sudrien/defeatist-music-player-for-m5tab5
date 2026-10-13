@@ -2910,7 +2910,7 @@ const char *const i18n_vals[] = {
     "pas de %s sur la carte",
     "pas de carte dans le lecteur",
     "pas de pochette",
-    "pas de réseau - vérifiez Wi-Fi ou câble, retouchez",
+    "pas de réseau - vérifiez Wi-Fi/câble, retouchez",
     "pas de réseau - l'annuaire exige Wi-Fi ou câble",
     "aucun",
     "pas assez de mémoire pour cette liste",

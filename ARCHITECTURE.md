@@ -22910,3 +22910,28 @@ the edge with them where they were.
 
 Not on the board yet with this patch. Not compiled with ESP-IDF here;
 syntax-checked on the host as 6076 was, nothing new.
+
+### 6078 -- the speed fraction opens a popup, with + and −
+
+6076's drag is gone. A tap on the fraction in row 8 opens a box over
+the square: PLAYED on top, CUT below, each between a − and a +, the
+fraction's line between them and the ratio (×1.35) under, yellow when
+it is not ×1.00. Each sign steps its number through 16, 33, 45, 78 and
+sends the whole fraction as UI_ACTION_SPEED at once, so it is heard on
+the tap; a sign at the end of the range is drawn dim and does nothing.
+Anywhere outside the box closes it -- the fraction itself included,
+which sits below the square -- and a tap inside the box that misses a
+sign does nothing, so a near miss does not lose the box.
+
+It captures input as the confirm modal does, and is drawn last in
+ui_draw() for the same reason. What it shows is what was last asked
+for, so a tap changes the number immediately rather than at the next
+poll; it takes ui_state_t's fraction back once the player has caught up,
+which is also how a TRACK reset at a title change reaches an open box.
+
+No words in it: numbers, drawn signs (rectangles, not glyphs), and
+U+00D7, which Ark12 has. So no new _() text.
+
+The signs are 112 px square; the box is 560 x 404 inside the 720 square.
+Syntax-checked on the host at -O2 -Werror. Not compiled with ESP-IDF
+here. Not on the board.

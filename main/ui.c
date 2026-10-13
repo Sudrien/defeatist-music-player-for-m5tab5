@@ -367,11 +367,18 @@ static int  s_confirm;
 static int  s_ex_ok_x, s_ex_ok_y, s_ex_ok_w, s_ex_ok_h;
 static int  s_ex_cancel_x, s_ex_cancel_y, s_ex_cancel_w, s_ex_cancel_h;
 
-static int s_drag = -1;         /* 0 = seek, 1 = volume, 2 = transport switch,
-                                   3 = speed (6076) */
-/* 6076: the speed drag -- which number (0 PLAYED, 1 CUT), where the
- * finger went down, the fraction then, and the last one asked for. */
-static int s_spd_row, s_spd_y0, s_spd_p0, s_spd_c0, s_spd_sent;
+static int s_drag = -1;         /* 0 = seek, 1 = volume, 2 = transport switch */
+/*
+ * 6078: the speed popup. Up while s_spd_pop; captures all input like the
+ * confirm modal. s_pop_p and s_pop_c are what it shows -- the fraction
+ * as last asked for, so a tap shows at once rather than at the next
+ * poll -- and are taken back from ui_state_t once the player has caught
+ * up (s_pop_wait false). Box and button rectangles are set when drawn.
+ */
+static bool s_spd_pop, s_pop_wait;
+static int  s_pop_p, s_pop_c;
+static int  s_pop_x, s_pop_y, s_pop_w, s_pop_h;
+static int  s_pop_btn[4][4];    /* PLAYED -, PLAYED +, CUT -, CUT +: x y w h */
 /* The switch drag: where the finger went down, and the detent the knob
  * was on then (-1 record, 0 pause, 1 play). */
 static int s_sw_x0, s_sw_from;
@@ -954,17 +961,14 @@ static void draw_star_btn(int state)
 }
 
 /*
- * 6076: turntable speed, PLAYED over CUT, in the moon's old row.
- *
- * Numbers rather than an icon because the numbers are the control:
- * drag either one up or down to step it through 16, 33, 45, 78. Ark12
- * has no ⅓ or ⅔, so they are the numbers a turntable's switch has
+ * 6076: turntable speed, PLAYED over CUT, in the moon's old row. Ark12
+ * has no ⅓ or ⅔, so the numbers are the ones a turntable's switch has
  * printed on it. Equal is ×1.00, outlined; anything else is filled
- * yellow, C_RG's, like the remaining clock it changes.
+ * yellow, C_RG's, like the remaining clock it changes. 6078: a tap
+ * opens the popup (draw_speed_pop()); it is no longer dragged.
  */
 #define SPEED_HALF   (38)              /* half the box's width */
 #define SPEED_SCALE  (2)
-#define SPEED_STEP_PX (28)             /* finger travel per number */
 
 static void draw_speed(const ui_state_t *st)
 {
@@ -2032,6 +2036,79 @@ static void draw_confirm(void)
                   NOTICE_BODY_SC, bw, C_THUMB);
 }
 
+/*
+ * 6078: the speed popup. Two rows -- PLAYED over CUT -- each a minus, the
+ * number, a plus, with the fraction's line between them and the ratio
+ * under. No words: the numbers and the signs are the whole of it, and a
+ * tap outside the box closes it. A sign at the end of the range is
+ * drawn dim and does nothing. The signs are drawn, not typed, so they
+ * do not depend on the font.
+ */
+#define POP_NUM_SC   (6)
+#define POP_BTN      (112)             /* square sign buttons */
+
+static void pop_sign(int i, bool plus, bool live)
+{
+    const int x = s_pop_btn[i][0], y = s_pop_btn[i][1];
+    const int w = s_pop_btn[i][2], h = s_pop_btn[i][3];
+    gfx_fill_rect(x, y, w, h, live ? C_NOTICE_EDGE : C_NOTICE_BG);
+    if (!live) {
+        gfx_fill_rect(x, y, w, 2, C_NOTICE_EDGE);
+        gfx_fill_rect(x, y + h - 2, w, 2, C_NOTICE_EDGE);
+        gfx_fill_rect(x, y, 2, h, C_NOTICE_EDGE);
+        gfx_fill_rect(x + w - 2, y, 2, h, C_NOTICE_EDGE);
+    }
+    const uint16_t c = live ? C_THUMB : C_ICON_OFF;
+    const int cx = x + w / 2, cy = y + h / 2, arm = 26, th = 8;
+    gfx_fill_rect(cx - arm, cy - th / 2, 2 * arm, th, c);
+    if (plus) gfx_fill_rect(cx - th / 2, cy - arm, th, 2 * arm, c);
+}
+
+static void draw_speed_pop(void)
+{
+    const int inset = NOTICE_INSET, pad = NOTICE_PAD, gap = NOTICE_GAP;
+    const int rat_h = GFX_GLYPH_H(NOTICE_BODY_SC);
+    s_pop_w = (bar_x1() - bar_x0()) - 2 * inset;
+    s_pop_h = pad + POP_BTN + gap + 4 + gap + POP_BTN + gap + rat_h + pad;
+    s_pop_x = bar_x0() + inset;
+    s_pop_y = s_bar_top + (UI_SQUARE - s_pop_h) / 2;
+    const int x = s_pop_x, y = s_pop_y, w = s_pop_w;
+
+    gfx_fill_rect(x, y, w, s_pop_h, C_NOTICE_EDGE);
+    gfx_fill_rect(x + 2, y + 2, w - 4, s_pop_h - 4, C_NOTICE_BG);
+
+    const int ry[2] = { y + pad, y + pad + POP_BTN + gap + 4 + gap };
+    const int v[2]  = { s_pop_p, s_pop_c };
+    for (int r = 0; r < 2; r++) {
+        s_pop_btn[2 * r][0] = x + pad;
+        s_pop_btn[2 * r + 1][0] = x + w - pad - POP_BTN;
+        for (int k = 0; k < 2; k++) {
+            s_pop_btn[2 * r + k][1] = ry[r];
+            s_pop_btn[2 * r + k][2] = POP_BTN;
+            s_pop_btn[2 * r + k][3] = POP_BTN;
+        }
+        pop_sign(2 * r,     false, v[r] > 0);
+        pop_sign(2 * r + 1, true,  v[r] < VARISPEED_RPMS - 1);
+        const char *n = varispeed_rpm_label[v[r]];
+        gfx_draw_text(x + (w - gfx_text_w(n, POP_NUM_SC)) / 2,
+                      ry[r] + (POP_BTN - GFX_GLYPH_H(POP_NUM_SC)) / 2,
+                      n, POP_NUM_SC, w, C_THUMB);
+    }
+    /* The fraction's line, as wide as the numbers' column. */
+    gfx_fill_rect(x + pad + POP_BTN + gap, ry[0] + POP_BTN + gap,
+                  w - 2 * (pad + POP_BTN + gap), 4, C_THUMB);
+
+    /* The ratio, "×1.35", yellow when it is not ×1.00. */
+    const uint32_t st = varispeed_step((unsigned)s_pop_p, (unsigned)s_pop_c);
+    const uint32_t hund = (uint32_t)(((uint64_t)st * 100 + 32768) >> 16);
+    char rat[16];
+    snprintf(rat, sizeof(rat), "\u00d7%u.%02u", (unsigned)(hund / 100),
+             (unsigned)(hund % 100));
+    gfx_draw_text(x + (w - gfx_text_w(rat, NOTICE_BODY_SC)) / 2,
+                  ry[1] + POP_BTN + gap, rat, NOTICE_BODY_SC, w,
+                  st == VARISPEED_UNITY ? C_ICON : C_RG);
+}
+
 void ui_draw(const ui_state_t *st)
 {
     if (!s_fb) return;
@@ -2399,6 +2476,15 @@ void ui_draw(const ui_state_t *st)
     draw_play_pause(st->playing, st->recording, st->rec_ok);
 
     if (s_confirm) draw_confirm();                      /* over everything */
+    if (s_spd_pop) {                                    /* 6078 */
+        if (!s_pop_wait ||
+            (st->speed_played == s_pop_p && st->speed_cut == s_pop_c)) {
+            s_pop_wait = false;
+            s_pop_p = st->speed_played < VARISPEED_RPMS ? st->speed_played : 1;
+            s_pop_c = st->speed_cut    < VARISPEED_RPMS ? st->speed_cut    : 1;
+        }
+        draw_speed_pop();
+    }
 
     ui_blit_bar();
 }
@@ -2458,6 +2544,38 @@ ui_action_t ui_touch(const ui_state_t *st, bool down, int x, int y)
     }
 
     /*
+     * 6078: the speed popup captures everything while it is up, as the
+     * confirm modal does. A sign changes its number and sends the whole
+     * fraction; anywhere outside the box closes it; inside the box but
+     * off a sign does nothing, so a near miss does not close it.
+     */
+    if (s_spd_pop) {
+        if (tapped) {
+            const bool in = x >= s_pop_x && x < s_pop_x + s_pop_w &&
+                            y >= s_pop_y && y < s_pop_y + s_pop_h;
+            if (!in) {
+                s_spd_pop = false;
+            } else {
+                for (int i = 0; i < 4; i++) {
+                    const int *b = s_pop_btn[i];
+                    if (x < b[0] || x >= b[0] + b[2] ||
+                        y < b[1] || y >= b[1] + b[3]) continue;
+                    int *n = (i < 2) ? &s_pop_p : &s_pop_c;
+                    const int to = *n + ((i & 1) ? 1 : -1);
+                    if (to < 0 || to >= VARISPEED_RPMS) break;
+                    *n = to;
+                    s_pop_wait = true;
+                    act.kind = UI_ACTION_SPEED;
+                    act.value = (s_pop_p << 4) | s_pop_c;
+                    break;
+                }
+            }
+            ui_draw(st);
+        }
+        return act;
+    }
+
+    /*
      * The card, first, because it is drawn over everything above the
      * bar and a control that is covered must not still be pressable.
      *
@@ -2500,32 +2618,6 @@ ui_action_t ui_touch(const ui_state_t *st, bool down, int x, int y)
         if (to != s_sw_from) {
             act.kind = to < 0 ? UI_ACTION_RECORD
                      : to > 0 ? UI_ACTION_PLAY : UI_ACTION_PAUSE;
-        }
-        return act;
-    }
-
-    /*
-     * 6076: the speed fraction. Up is the bigger NUMBER on whichever one
-     * the finger is on -- a thumb rolling a wheel -- not "faster": a
-     * bigger CUT plays slower. Sent as the drag passes each number, so
-     * it is heard while moving; the release sends nothing new.
-     */
-    if (s_drag == 3) {
-        if (!down) {
-            s_drag = -1;
-            return act;
-        }
-        int steps = (s_spd_y0 - y) / SPEED_STEP_PX;
-        int p = s_spd_p0, c = s_spd_c0;
-        int *n = s_spd_row ? &c : &p;
-        *n += steps;
-        if (*n < 0) *n = 0;
-        if (*n >= VARISPEED_RPMS) *n = VARISPEED_RPMS - 1;
-        const int v = (p << 4) | c;
-        if (v != s_spd_sent) {
-            s_spd_sent = v;
-            act.kind = UI_ACTION_SPEED;
-            act.value = v;
         }
         return act;
     }
@@ -2640,16 +2732,12 @@ ui_action_t ui_touch(const ui_state_t *st, bool down, int x, int y)
         }
     }
 
-    /* 6076: the speed fraction. Nothing on the press -- it is a drag;
-     * the half the finger lands in is the number it moves. */
+    /* 6076: the speed fraction. 6078: a tap opens the popup. */
     speed_centre(&cx, &cy);
     if (in_box(x, y, cx, cy, SPEED_HALF)) {
-        s_drag = 3;
-        s_spd_row = (y >= cy);
-        s_spd_y0 = y;
-        s_spd_p0 = st->speed_played < VARISPEED_RPMS ? st->speed_played : 1;
-        s_spd_c0 = st->speed_cut    < VARISPEED_RPMS ? st->speed_cut    : 1;
-        s_spd_sent = (s_spd_p0 << 4) | s_spd_c0;
+        s_spd_pop = true;
+        s_pop_wait = false;
+        ui_draw(st);
         return act;
     }
 

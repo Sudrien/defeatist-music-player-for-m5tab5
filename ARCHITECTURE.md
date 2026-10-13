@@ -22398,3 +22398,18 @@ board run should show instead of the panic.
 
 Not built with ESP-IDF here. No sdkconfig.defaults or idf_component.yml
 change.
+
+### 6063 -- texttest: heap_caps_aligned_alloc() in the shim
+
+feckless-graphics-handler v0.2.0 (6059) takes gfx_init()'s shadow
+buffer from heap_caps_aligned_alloc(), and texttest's shim had no such
+function, so every test that links gfx.c -- run-i18n among them, which
+CLAUDE.md requires of every patch with screen text -- stopped linking:
+"undefined reference to heap_caps_aligned_alloc". The harness never
+calls gfx_init(); gfx.c only has to link. The shim's version is C11
+aligned_alloc() with the size rounded up to the alignment, which free()
+releases as heap_caps_free() expects.
+
+Found by running the host suite against the tags the lock now pins
+(drivers v0.5.0, graphics and network v0.2.1, storage v0.1.0): `make
+all` passes with this, and that is the only change it needed.

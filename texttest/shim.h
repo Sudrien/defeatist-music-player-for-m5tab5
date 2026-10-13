@@ -87,6 +87,10 @@ typedef int esp_err_t;
 #define MALLOC_CAP_INTERNAL       (1 << 11)
 void *heap_caps_malloc(size_t sz, uint32_t caps);
 void *heap_caps_calloc(size_t n, size_t sz, uint32_t caps);
+/* 6063: gfx_init() takes its shadow buffer aligned since
+ * feckless-graphics-handler v0.2.0. Never called by the harness, but
+ * gfx.c has to link. */
+void *heap_caps_aligned_alloc(size_t align, size_t sz, uint32_t caps);
 void  heap_caps_free(void *p);
 
 /* --- LCD panel ------------------------------------------------------ */

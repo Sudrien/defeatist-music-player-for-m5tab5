@@ -30,6 +30,12 @@ void *heap_caps_malloc(size_t sz, uint32_t caps)
     return p;
 }
 void *heap_caps_calloc(size_t n, size_t sz, uint32_t caps) { (void)caps; return calloc(n, sz); }
+void *heap_caps_aligned_alloc(size_t align, size_t sz, uint32_t caps)
+{
+    (void)caps;
+    /* C11's: the size a multiple of the alignment, and free()able. */
+    return aligned_alloc(align, (sz + align - 1) / align * align);
+}
 void  heap_caps_free(void *p) { free(p); }
 
 esp_err_t esp_lcd_panel_draw_bitmap(esp_lcd_panel_handle_t p, int x0, int y0,

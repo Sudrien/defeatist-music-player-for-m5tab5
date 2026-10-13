@@ -76,9 +76,10 @@ dependencies:
   # The radio's sdkconfig.defaults lines (the Tab5 preset, reset GPIO 15,
   # init deferred to app_main) stay in this project's file: a component
   # cannot set another's Kconfig.
+  # 6060: network v0.2.0 -- each scanned network's BSSID, and a quiet scan.
   feckless_network_handler:
     git: https://github.com/Sudrien/feckless-network-handler-for-m5tab5.git
-    version: "v0.1.0"
+    version: "v0.2.0"
   feckless_storage_handler:
     git: https://github.com/Sudrien/feckless-storage-handler-for-m5tab5.git
     version: "v0.1.0"

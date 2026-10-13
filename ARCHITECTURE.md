@@ -22312,3 +22312,21 @@ PPA later without a second bump.
 
 The manifest: feckless_graphics_handler moves to v0.2.0. Its own
 dependencies are unchanged between the tags.
+
+### 6060 -- feckless-network-handler to v0.2.0
+
+wifi_seen_t gains bssid[6] and there is a wifi_scan_list_quiet(); both
+were for aimless-moving-map. wifi_scan_list() behaves as before. The
+player's three users size the struct with sizeof -- portal.c's calloc
+and static list, remote.c's static raw[64] and its PSRAM copy -- and
+copy it whole, so the extra six bytes need nothing. remote.c's comment
+on raw[64] says 2.4 KB; it is now about 2.7 KB, still a static.
+
+Not used yet, but worth knowing: remote.c and the portal drop a repeat
+SSID, which is right for a list to join from. The BSSID is what would
+let them show the strongest access point of a name rather than the
+first one scanned.
+
+The manifest: feckless_network_handler moves to v0.2.0. Its own
+dependencies -- esp_wifi_remote and esp_hosted among them -- are
+unchanged between the tags, so this does not move the C6 side.

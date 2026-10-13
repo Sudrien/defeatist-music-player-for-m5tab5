@@ -349,6 +349,6 @@ direct_dependencies:
 - feckless_network_handler
 - feckless_storage_handler
 - idf
-manifest_hash: 0f52ff6a14cf18e9f04b832cf61fc23470932bad8480ed30743921257ecdd762
+manifest_hash: 17766327d15863dbcc868349be9192bc6646f2f33a0930c2710dd5e7d269929f
 target: esp32p4
 version: 3.0.0

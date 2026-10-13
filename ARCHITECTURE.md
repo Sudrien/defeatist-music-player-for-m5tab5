@@ -22935,3 +22935,25 @@ U+00D7, which Ark12 has. So no new _() text.
 The signs are 112 px square; the box is 560 x 404 inside the 720 square.
 Syntax-checked on the host at -O2 -Werror. Not compiled with ESP-IDF
 here. Not on the board.
+
+### 6079 -- "a new track" is one question, asked of the screen
+
+Second board log: 78/33 set while paused on the track restored at boot,
+then play -- and it played at ×1.00 while the fraction still said 78/33.
+
+6075 asked "is this a new track" twice, of two different things. The
+decode loop compared the path with the last path IT had decoded; since
+boot that was nothing, so the restored track was new and, under TRACK,
+its ring started at ×1.00. track_commit() compared with the path on
+SCREEN, which was the restored track, so it was not new and the
+fraction was left alone. Audio and numbers disagreed, and stayed so:
+the writer had already seen the fraction once and does not apply a
+setting it has seen.
+
+Both ask track_commit()'s question now -- different from s_shown_path
+-- and FNV-1a and s_vs_last_id are gone. A decode-ahead runs while the
+previous track is on screen, so it is new; RPT1 decodes the path on
+screen, so it is not; a restored track is on screen before its first
+decode, so it is not.
+
+Not on the board yet. Host syntax check: nothing new.

@@ -1443,7 +1443,6 @@ static uint8_t          *s_vs_stage[PCM_RINGS];    /* writer only */
 static volatile size_t   s_vs_stage_n[PCM_RINGS];  /* bytes; read by decode */
 static volatile bool     s_vs_fresh[PCM_RINGS];    /* decode -> writer */
 static volatile bool     s_vs_new_track[PCM_RINGS];/* decode -> writer */
-static uint32_t          s_vs_last_id;             /* decode only */
 static uint32_t          s_vs_seen = VARISPEED_UNITY;  /* writer only */
 /* The outgoing step a crossfade is sliding from, or 0 for no slide. */
 static uint32_t          s_vs_slide_from;          /* writer only */
@@ -11017,17 +11016,20 @@ static track_end_t play_file(const char *path)
                  * path. RPT1 decodes the same one again and keeps its
                  * speed; so does a one-track folder on RPT, which is the
                  * same track again in every way a listener can hear.
-                 * FNV-1a, because only "same as the last one" is asked.
+                 *
+                 * 6079: different from the one ON SCREEN, which is the
+                 * question track_commit() asks. 6075 compared with the
+                 * last path this loop decoded, and the two disagreed on
+                 * the first play after a boot: the restored track was on
+                 * screen but never decoded, so the audio started at
+                 * ×1.00 under TRACK while the screen kept 78/33 --
+                 *
+                 *   speed: 78/33          (paused, restored track)
+                 *   button: play
+                 *   playing /sd/Doctor.mp3    -- at ×1.00
                  */
-                {
-                    uint32_t id = 2166136261u;
-                    for (const char *c = path; *c; c++) {
-                        id = (id ^ (uint8_t)*c) * 16777619u;
-                    }
-                    s_vs_new_track[s_ring_fill] = (id != s_vs_last_id);
-                    s_vs_last_id = id;
-                    s_vs_fresh[s_ring_fill] = true;
-                }
+                s_vs_new_track[s_ring_fill] = (strcmp(path, s_shown_path) != 0);
+                s_vs_fresh[s_ring_fill] = true;
 
                 s_ring_pct = 0;
                 s_writer_stop = false;

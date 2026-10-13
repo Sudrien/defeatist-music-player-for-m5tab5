@@ -22633,3 +22633,24 @@ cycle. A board run in French is the check for those.
 
 texttest run-i18n passes. Not compiled with ESP-IDF here. Not on the
 board.
+
+### 6070 -- Portuguese, as spoken in Brazil
+
+All 365 strings and 8 plurals in `i18n/pt.yml`, Brazilian Portuguese
+as asked: "você", tela, arquivo, celular, pendrive, P2 for the jack.
+Written by Claude and not yet read by a native speaker. 6068's plural
+rule, one for 0 and 1, is Brazil's, so nothing changes in i18n.c.
+"Player", "stream", "app" and "crossfade" stay English, as Brazilian
+software usually leaves them.
+
+Measured the way 6069 was: headings under 528 px at scale 4, body lines
+under 528 at scale 3 in three lines and 95 bytes, the chooser's status
+lines under 688 at scale 2, the NET notes by i18ntest. One body line
+was over ("formato de 16 nem 24 bits.", 182 of 176) and is "formato 16
+ou 24 bits." Cannot record is "Não dá p/ gravar" to fit the heading.
+
+Ark12 has no arrows: the browser footer's page buttons are PG CIMA and
+PG BAIXO, not ↑ and ↓. IDLE is OCIO, to sit beside OCIO %dM.
+
+texttest run-i18n passes. Not compiled with ESP-IDF here. Not on the
+board.

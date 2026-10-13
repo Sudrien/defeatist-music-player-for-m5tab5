@@ -7,757 +7,757 @@
 pt:
   singular:
     # panel.c
-    "%.32s did not work. Try again.": ~
+    "%.32s did not work. Try again.": "%.32s falhou. Tente de novo."
     # remote.html
-    "%d h": ~
+    "%d h": "%d h"
     # remote.html
-    "%d min": ~
+    "%d min": "%d min"
     # panel.c, remote.html
-    "%d s": ~
+    "%d s": "%d s"
     # remote.c
-    "%s did not answer.": ~
+    "%s did not answer.": "%s não respondeu."
     # remote.html
-    "%s left": ~
+    "%s left": "faltam %s"
     # remote.c
-    "%s refused the password.": ~
+    "%s refused the password.": "%s recusou a senha."
     # remote.c
-    "%s was not found. Is it in range?": ~
+    "%s was not found. Is it in range?": "%s não foi encontrada. Está ao alcance?"
     # panel.c
-    "%s: %d mean, %d peak kbit/s": ~
+    "%s: %d mean, %d peak kbit/s": "%s: média %d, pico %d kbit/s"
     # panel.c
-    "%u KB free": ~
+    "%u KB free": "%u KB livres"
     # panel.c
-    "%u bytes": ~
+    "%u bytes": "%u bytes"
     # panel.c
-    "%u s": ~
+    "%u s": "%u s"
     # remote.html
-    "(from the next track)": ~
+    "(from the next track)": "(a partir da próxima faixa)"
     # powerdown.h
-    "1 h": ~
+    "1 h": "1 h"
     # screendim.h
-    "1 min": ~
+    "1 min": "1 min"
     # powerdown.h
-    "15 min": ~
+    "15 min": "15 min"
     # screendim.h
-    "15 s": ~
+    "15 s": "15 s"
     # powerdown.h, sleeppage.c
-    "2 h": ~
+    "2 h": "2 h"
     # screendim.h
-    "2 min": ~
+    "2 min": "2 min"
     # powerdown.h
-    "30 min": ~
+    "30 min": "30 min"
     # screendim.h
-    "30 s": ~
+    "30 s": "30 s"
     # screendim.h
-    "5 min": ~
+    "5 min": "5 min"
     # portal.c, remote.c
-    "A Wi-Fi password is 8 to 63 characters, or 64 hex digits.": ~
+    "A Wi-Fi password is 8 to 63 characters, or 64 hex digits.": "Uma senha de Wi-Fi tem de 8 a 63 caracteres, ou 64 dígitos hexadecimais."
     # portal.c, remote.c
-    "A network name is 1 to 32 characters.": ~
+    "A network name is 1 to 32 characters.": "Um nome de rede tem de 1 a 32 caracteres."
     # panel.c
-    "A phone supplies the password.": ~
+    "A phone supplies the password.": "Um celular fornece a senha."
     # panel.c
-    "A sign-in page opens with the form.": ~
+    "A sign-in page opens with the form.": "Abre uma página de login com o formulário."
     # sleeppage.c
-    "A tap anywhere brings it back, and does not press anything.": ~
+    "A tap anywhere brings it back, and does not press anything.": "Um toque em qualquer lugar a traz de volta, sem apertar nada."
     # browser.c
-    "ALL": ~
+    "ALL": "TODAS"
     # panel.c
-    "AUTO": ~
+    "AUTO": "AUTO"
     # panel.c
-    "About twenty seconds.": ~
+    "About twenty seconds.": "Uns vinte segundos."
     # panel.c
-    "Add a network": ~
+    "Add a network": "Adicionar rede"
     # panel.c
-    "Add a radio station to the card.": ~
+    "Add a radio station to the card.": "Adicione uma rádio ao cartão."
     # radiobrowser.h
-    "Add a station by phone…": ~
+    "Add a station by phone…": "Adicionar rádio pelo celular…"
     # portal.c, remote.html
-    "Add station": ~
+    "Add station": "Adicionar rádio"
     # remote.html
-    "Add to the queue": ~
+    "Add to the queue": "Adicionar à fila"
     # portal.c, remote.html
-    "Added to %s on the card. The name is optional — without one the station is listed by its address.": ~
+    "Added to %s on the card. The name is optional — without one the station is listed by its address.": "Adicionada a %s no cartão. O nome é opcional: sem ele, a rádio aparece pelo endereço."
     # remote.html
-    "Adding…": ~
+    "Adding…": "Adicionando…"
     # sleeppage.c
-    "After this long with nothing playing, recording or touched. Not while music plays.": ~
+    "After this long with nothing playing, recording or touched. Not while music plays.": "Depois desse tempo sem tocar, gravar nem ser tocado. Nunca com música tocando."
     # sleeppage.c
-    "After this long without a touch the screen drops to half brightness. Any touch puts it back.": ~
+    "After this long without a touch the screen drops to half brightness. Any touch puts it back.": "Depois desse tempo sem toque, a tela cai para meio brilho. Qualquer toque a restaura."
     # remote.html
-    "Already on the card (%d of %d):": ~
+    "Already on the card (%d of %d):": "Já no cartão (%d de %d):"
     # portal.c
-    "Already on the card (%d):": ~
+    "Already on the card (%d):": "Já no cartão (%d):"
     # recorder.c
-    "Already recording.": ~
+    "Already recording.": "Já está gravando."
     # panel.c
-    "Auto: USB, jack, mono. Off: no record.": ~
+    "Auto: USB, jack, mono. Off: no record.": "Auto: USB, P2, mono. Não: sem gravar."
     # ui.c
-    "BATT": ~
+    "BATT": "BAT"
     # ui.c
-    "BATT %d%%": ~
+    "BATT %d%%": "BAT %d%%"
     # panel.c
-    "BUSY": ~
+    "BUSY": "OCUP."
     # portal.c
-    "Back to the form": ~
+    "Back to the form": "Voltar ao formulário"
     # player.c
-    "Battery empty": ~
+    "Battery empty": "Bateria esgotada"
     # player.c
-    "Battery low": ~
+    "Battery low": "Bateria fraca"
     # panel.c
-    "Benchmark": ~
+    "Benchmark": "Medir velocidade"
     # sleeppage.c
-    "Brightness   %d%%": ~
+    "Brightness   %d%%": "Brilho   %d%%"
     # streamplan.h
-    "Buffering": ~
+    "Buffering": "Carregando"
     # remote.c
-    "Busy; try again in a moment.": ~
+    "Busy; try again in a moment.": "Ocupado; tente de novo em instantes."
     # ui.c
-    "CHARGED": ~
+    "CHARGED": "CARREGADA"
     # ui.c
-    "CHRG %d%%": ~
+    "CHRG %d%%": "CARR %d%%"
     # panel.c, sleeppage.c
-    "CLOSE": ~
+    "CLOSE": "FECHAR"
     # ui.c
-    "Cancel": ~
+    "Cancel": "Cancelar"
     # player.c
-    "Cannot record": ~
+    "Cannot record": "Não dá p/ gravar"
     # panel.c
-    "Cert %.29s…": ~
+    "Cert %.29s…": "Cert. %.29s…"
     # portal.c
-    "Choose the network this player should use, and enter its password. It is tried before it is saved.": ~
+    "Choose the network this player should use, and enter its password. It is tried before it is saved.": "Escolha a rede que este player vai usar e digite a senha. Ela é testada antes de ser salva."
     # remote.html
-    "Clear": ~
+    "Clear": "Limpar"
     # panel.c
-    "Clock": ~
+    "Clock": "Relógio"
     # panel.c
-    "Connect an MPD app to %s": ~
+    "Connect an MPD app to %s": "Conecte um app MPD a %s"
     # panel.c
-    "Connected to %.32s.": ~
+    "Connected to %.32s.": "Conectado a %.32s."
     # streamplan.h
-    "Connecting": ~
+    "Connecting": "Conectando"
     # remote.html
-    "Connecting to the player…": ~
+    "Connecting to the player…": "Conectando ao player…"
     # panel.c
-    "Copy saved Wi-Fi from an M5Launcher install on this board.": ~
+    "Copy saved Wi-Fi from an M5Launcher install on this board.": "Copia o Wi-Fi salvo pelo M5Launcher nesta placa."
     # recorder.c
-    "Could not create the recording file.": ~
+    "Could not create the recording file.": "Não foi possível criar\no arquivo de gravação."
     # remote.c
-    "Could not join %s.": ~
+    "Could not join %s.": "Não foi possível conectar a %s."
     # recorder.c
-    "Could not make the Recordings folder.": ~
+    "Could not make the Recordings folder.": "Não foi possível criar\na pasta Recordings."
     # remote.html
-    "Could not read the list.": ~
+    "Could not read the list.": "Não foi possível ler a lista."
     # player.c
-    "Could not save": ~
+    "Could not save": "Falha ao salvar"
     # remote.c
-    "Could not scan. Is Wi-Fi on, on the player?": ~
+    "Could not scan. Is Wi-Fi on, on the player?": "Não foi possível buscar. O Wi-Fi do player está ligado?"
     # recorder.c
-    "Could not start the file.": ~
+    "Could not start the file.": "Não foi possível\niniciar o arquivo."
     # bench.c
-    "Could not start the stream.": ~
+    "Could not start the stream.": "Não foi possível iniciar o stream."
     # panel.c
-    "Could not start.": ~
+    "Could not start.": "Não foi possível iniciar."
     # remote.html
-    "Crossfade": ~
+    "Crossfade": "Crossfade"
     # panel.c
-    "Crossfade   %d s": ~
+    "Crossfade   %d s": "Crossfade   %d s"
     # panel.c
-    "Crossfade   off": ~
+    "Crossfade   off": "Crossfade   não"
     # remote.html
-    "Crossfade seconds": ~
+    "Crossfade seconds": "Segundos de crossfade"
     # remote.html
-    "Crossfade within an album": ~
+    "Crossfade within an album": "Crossfade dentro do álbum"
     # browser.c
-    "DN": ~
+    "DN": "PG BAIXO"
     # panel.c
-    "DONE": ~
+    "DONE": "OK"
     # portal.c
-    "Defeatist setup": ~
+    "Defeatist setup": "Configuração do Defeatist"
     # sleeppage.c
-    "Dim screen": ~
+    "Dim screen": "Escurecer tela"
     # browser.c
-    "EAT": ~
+    "EAT": "COMER"
     # browser.c
-    "EAT1": ~
+    "EAT1": "COMER1"
     # remote.html
-    "Empty the queue? What is playing carries on.": ~
+    "Empty the queue? What is playing carries on.": "Esvaziar a fila? O que está tocando continua."
     # remote.html
-    "Empty.": ~
+    "Empty.": "Vazia."
     # panel.c
-    "Evens out loudness between tracks.": ~
+    "Evens out loudness between tracks.": "Iguala o volume entre as faixas."
     # ui.c
-    "Exit": ~
+    "Exit": "Sair"
     # ui.c
-    "Exit to Launcher?": ~
+    "Exit to Launcher?": "Sair para o Launcher?"
     # browser.c
-    "FLDR": ~
+    "FLDR": "PASTA"
     # panel.c
-    "FOCUSED": ~
+    "FOCUSED": "FOCADO"
     # sleeppage.c
-    "Fades out, pauses, and turns the screen off.": ~
+    "Fades out, pauses, and turns the screen off.": "Abaixa o som, pausa e desliga a tela."
     # player.c
-    "Favourites are full": ~
+    "Favourites are full": "Favoritos cheios"
     # remote.html
-    "Files": ~
+    "Files": "Arquivos"
     # panel.c
-    "Focused: those two aimed out of it.": ~
+    "Focused: those two aimed out of it.": "Focado: esses dois, virados para fora."
     # sleeppage.c
-    "For backlight life and battery. This panel cannot burn in.": ~
+    "For backlight life and battery. This panel cannot burn in.": "Pela vida útil da luz de fundo e pela bateria. Esta tela não marca."
     # panel.c
-    "Greyed while Wi-Fi is off; the setting is kept.": ~
+    "Greyed while Wi-Fi is off; the setting is kept.": "Cinza com o Wi-Fi desligado; o ajuste é mantido."
     # panel.c
-    "HEADSET": ~
+    "HEADSET": "HEADSET"
     # panel.c
-    "Headset, UAC: the jack, a USB mic.": ~
+    "Headset, UAC: the jack, a USB mic.": "Headset, UAC: o P2, um microfone USB."
     # ui.c
-    "IDLE": ~
+    "IDLE": "OCIO"
     # ui.c
-    "IDLE %dM": ~
+    "IDLE %dM": "OCIO %dM"
     # panel.c
-    "IMPORT": ~
+    "IMPORT": "IMPORTAR"
     # panel.c
-    "IN USE": ~
+    "IN USE": "EM USO"
     # panel.c
-    "INDEXING": ~
+    "INDEXING": "INDEXANDO"
     # panel.c
-    "Import from M5Launcher": ~
+    "Import from M5Launcher": "Importar do M5Launcher"
     # launcher_import.c, panel.c
-    "Imported %d, skipped %d": ~
+    "Imported %d, skipped %d": "%d importadas, %d puladas"
     # player.c, recorder.c
-    "Insert a card or a USB drive to record to.": ~
+    "Insert a card or a USB drive to record to.": "Insira um cartão ou um\npendrive para gravar."
     # panel.c
-    "It comes back when setup closes.": ~
+    "It comes back when setup closes.": "Volta quando a configuração fecha."
     # recorder.c
-    "It reached 4 GB, the most one file can hold.": ~
+    "It reached 4 GB, the most one file can hold.": "Chegou a 4 GB, o máximo\nde um arquivo."
     # portal.c, remote.html
-    "Join": ~
+    "Join": "Conectar"
     # panel.c
-    "Join %s on a phone.": ~
+    "Join %s on a phone.": "Entre em %s pelo celular."
     # remote.c
-    "Joined and saved %s.": ~
+    "Joined and saved %s.": "Conectado a %s e salva."
     # portal.c
-    "Joined and saved %s. The setup network is closing; you can leave it.": ~
+    "Joined and saved %s. The setup network is closing; you can leave it.": "Conectado a %s e salva. A rede de configuração está fechando; você já pode sair dela."
     # ui.c
-    "LIVE": ~
+    "LIVE": "AO VIVO"
     # panel.c
-    "Levels are still measured while off.": ~
+    "Levels are still measured while off.": "Os níveis são medidos mesmo desligado."
     # panel.c
-    "Libraries": ~
+    "Libraries": "Bibliotecas"
     # sleeppage.c
-    "Longer than the dim, and the backlight goes out altogether. Never while this page is open.": ~
+    "Longer than the dim, and the backlight goes out altogether. Never while this page is open.": "Mais que o escurecer, e a luz de fundo apaga de vez. Nunca com esta página aberta."
     # remote.html
-    "Lost the player. Reconnecting…": ~
+    "Lost the player. Reconnecting…": "Perdeu o player. Reconectando…"
     # launcher_import.c
-    "M5Launcher not found on this board": ~
+    "M5Launcher not found on this board": "M5Launcher não está nesta placa"
     # panel.c
-    "MONO": ~
+    "MONO": "MONO"
     # panel.c
-    "MPD server": ~
+    "MPD server": "Servidor MPD"
     # ui.c
-    "MUTED": ~
+    "MUTED": "MUDO"
     # player.c
-    "Media removed": ~
+    "Media removed": "Mídia removida"
     # panel.c
-    "Mono/stereo: the two by the screen.": ~
+    "Mono/stereo: the two by the screen.": "Mono/estéreo: os dois perto da tela."
     # radiobrowser.h
-    "Most listened": ~
+    "Most listened": "Mais ouvidas"
     # radiobrowser.h
-    "Most voted": ~
+    "Most voted": "Mais votadas"
     # remote.html
-    "Move down": ~
+    "Move down": "Descer"
     # remote.html
-    "Move up": ~
+    "Move up": "Subir"
     # ui.c
-    "NO BATT": ~
+    "NO BATT": "SEM BAT"
     # portal.c, remote.html
-    "Name": ~
+    "Name": "Nome"
     # panel.c
-    "Needed for internet radio and the clock.": ~
+    "Needed for internet radio and the clock.": "Necessário para a rádio pela internet e o relógio."
     # panel.c
-    "Needs a network: Wi-Fi or a cable.": ~
+    "Needs a network: Wi-Fi or a cable.": "Precisa de rede: Wi-Fi ou cabo."
     # portal.c, remote.html
-    "Network": ~
+    "Network": "Rede"
     # remote.c
-    "Network setup is running on the player; use that page.": ~
+    "Network setup is running on the player; use that page.": "O player está em configuração de rede; use aquela página."
     # panel.c
-    "Network time": ~
+    "Network time": "Hora da rede"
     # powerdown.h, screendim.h
-    "Never": ~
+    "Never": "Nunca"
     # remote.html
-    "Next": ~
+    "Next": "Próxima"
     # launcher_import.c
-    "No M5Launcher config.conf on card": ~
+    "No M5Launcher config.conf on card": "Sem config.conf do M5Launcher"
     # recorder.c
-    "No USB microphone is plugged in.": ~
+    "No USB microphone is plugged in.": "Nenhum microfone USB\nconectado."
     # portal.c
-    "No answer from that network. Try again.": ~
+    "No answer from that network. Try again.": "Essa rede não responde. Tente de novo."
     # panel.c
-    "No app connected.": ~
+    "No app connected.": "Nenhum app conectado."
     # recorder.c
-    "No memory for the recording task.": ~
+    "No memory for the recording task.": "Sem memória para a\ntarefa de gravação."
     # bench.c
-    "No memory to measure with.": ~
+    "No memory to measure with.": "Sem memória para medir."
     # panel.c
-    "No password: anyone on it can use it.": ~
+    "No password: anyone on it can use it.": "Sem senha: qualquer um na rede usa."
     # launcher_import.c
-    "No saved networks to import": ~
+    "No saved networks to import": "Nenhuma rede salva"
     # streamplan.h
-    "No signal": ~
+    "No signal": "Sem sinal"
     # bench.c
-    "No station selected.": ~
+    "No station selected.": "Nenhuma rádio escolhida."
     # remote.html
-    "None on the card yet.": ~
+    "None on the card yet.": "Nenhuma no cartão ainda."
     # recorder.c
-    "Not enough memory to record.": ~
+    "Not enough memory to record.": "Memória insuficiente\npara gravar."
     # recorder.c
-    "Nothing is plugged into the headset jack.": ~
+    "Nothing is plugged into the headset jack.": "Nada conectado na\nentrada de fone."
     # remote.html
-    "Nothing playable here.": ~
+    "Nothing playable here.": "Nada para tocar aqui."
     # panel.c, sleeppage.c
-    "OFF": ~
+    "OFF": "NÃO"
     # panel.c, sleeppage.c
-    "ON": ~
+    "ON": "SIM"
     # browser.c
-    "ONE": ~
+    "ONE": "UMA"
     # browser.c
-    "ONE1": ~
+    "ONE1": "UMA1"
     # remote.html
-    "Off": ~
+    "Off": "Não"
     # panel.c
-    "Off by default. Nothing on the card needs it, and the radio draws power while on.": ~
+    "Off by default. Nothing on the card needs it, and the radio draws power while on.": "Desligado por padrão. Nada no cartão precisa dele, e o rádio gasta energia enquanto ligado."
     # sleeppage.c
-    "Off fades the backlight out. Playback carries on.": ~
+    "Off fades the backlight out. Playback carries on.": "Desligar apaga a luz de fundo aos poucos. A reprodução continua."
     # panel.c
-    "Off keeps deliberate segues intact: live sets, mixes, and movements that are meant to run into each other.": ~
+    "Off keeps deliberate segues intact: live sets, mixes, and movements that are meant to run into each other.": "Desligado respeita as transições feitas de propósito: shows ao vivo, mixes e movimentos que emendam um no outro."
     # panel.c
-    "Off while network setup has the page.": ~
+    "Off while network setup has the page.": "Desligado durante a configuração de rede."
     # panel.c
-    "On a phone, open http://%s/": ~
+    "On a phone, open http://%s/": "No celular, abra http://%s/"
     # panel.c
-    "One folder counts as one album.": ~
+    "One folder counts as one album.": "Uma pasta conta como um álbum."
     # panel.c
-    "Open %s": ~
+    "Open %s": "Abra %s"
     # portal.c, remote.c
-    "Open networks are not supported yet.": ~
+    "Open networks are not supported yet.": "Redes abertas ainda não são suportadas."
     # portal.c, remote.html
-    "Or type a network name": ~
+    "Or type a network name": "Ou digite o nome de uma rede"
     # portal.c, remote.html
-    "Other or hidden network (type it below)": ~
+    "Other or hidden network (type it below)": "Outra rede ou rede oculta (digite abaixo)"
     # portal.c, remote.html
-    "Password": ~
+    "Password": "Senha"
     # remote.html
-    "Play": ~
+    "Play": "Tocar"
     # remote.html
-    "Play next": ~
+    "Play next": "Tocar em seguida"
     # remote.html
-    "Play or pause": ~
+    "Play or pause": "Tocar ou pausar"
     # panel.c
-    "Play, pause, skip, seek and volume from a browser on the same network.": ~
+    "Play, pause, skip, seek and volume from a browser on the same network.": "Tocar, pausar, pular, avançar e volume de um navegador na mesma rede."
     # panel.c
-    "Play, pause, skip, seek and volume from an MPD app such as MALP or mpc.": ~
+    "Play, pause, skip, seek and volume from an MPD app such as MALP or mpc.": "Tocar, pausar, pular, avançar e volume de um app MPD como MALP ou mpc."
     # panel.c
-    "Playback pauses while setup runs.": ~
+    "Playback pauses while setup runs.": "A reprodução pausa durante a configuração."
     # sleeppage.c, ui.c
-    "Power off": ~
+    "Power off": "Desligar"
     # ui.c
-    "Power off?": ~
+    "Power off?": "Desligar?"
     # remote.html
-    "Previous": ~
+    "Previous": "Anterior"
     # sleeppage.c
-    "Quarter turns. 90 and 270 are landscape; 180 is for when the cable is at the wrong end.": ~
+    "Quarter turns. 90 and 270 are landscape; 180 is for when the cable is at the wrong end.": "Em quartos de volta. 90 e 270 são paisagem; 180 é para quando o cabo fica do lado errado."
     # remote.html
-    "Queue": ~
+    "Queue": "Fila"
     # ui.c
-    "REC": ~
+    "REC": "GRAV"
     # panel.c
-    "REINDEX": ~
+    "REINDEX": "REINDEXAR"
     # panel.c
-    "RESET": ~
+    "RESET": "VOLTAR"
     # panel.c
-    "RESET: back to the build time; this boot's recordings are renamed to match.": ~
+    "RESET: back to the build time; this boot's recordings are renamed to match.": "VOLTAR: retorna à hora da compilação; as gravações desta inicialização são renomeadas."
     # panel.c
-    "RETRY": ~
+    "RETRY": "REPETIR"
     # browser.c
-    "RLOD": ~
+    "RLOD": "RECARR."
     # browser.c
-    "RND": ~
+    "RND": "ALEAT"
     # browser.c
-    "RPT": ~
+    "RPT": "REPETIR"
     # browser.c
-    "RPT1": ~
+    "RPT1": "REPETE 1"
     # panel.c
-    "RUN": ~
+    "RUN": "MEDIR"
     # player.c
-    "Radio": ~
+    "Radio": "Rádio"
     # portal.c, remote.html
-    "Radio stations": ~
+    "Radio stations": "Rádios"
     # panel.c
-    "Reading %s without decoding…": ~
+    "Reading %s without decoding…": "Lendo %s sem decodificar…"
     # remote.html
-    "Reading…": ~
+    "Reading…": "Lendo…"
     # panel.c
-    "Reads its config.conf; no retyping, no network needed.": ~
+    "Reads its config.conf; no retyping, no network needed.": "Lê o config.conf dele; sem redigitar nem precisar de rede."
     # panel.c
-    "Reads the selected station without decoding it, to tell a slow network from a slow decoder.": ~
+    "Reads the selected station without decoding it, to tell a slow network from a slow decoder.": "Lê a rádio escolhida sem decodificar, para distinguir rede lenta de decodificador lento."
     # streamplan.h
-    "Reconnecting": ~
+    "Reconnecting": "Reconectando"
     # panel.c
-    "Record from": ~
+    "Record from": "Gravar de"
     # remote.html
-    "Recording": ~
+    "Recording": "Gravando"
     # player.c, remote.html
-    "Recording in %d": ~
+    "Recording in %d": "Gravando em %d"
     # recorder.c
-    "Recording is off (AUDIO, Record from).": ~
+    "Recording is off (AUDIO, Record from).": "Gravação desligada\n(AUDIO, Gravar de)."
     # recorder.c
-    "Recording saved": ~
+    "Recording saved": "Gravação salva"
     # recorder.c
-    "Recording stopped": ~
+    "Recording stopped": "Gravação parada"
     # panel.c
-    "Remote control": ~
+    "Remote control": "Controle remoto"
     # remote.html
-    "Remove": ~
+    "Remove": "Remover"
     # ui.c
-    "ReplayGain is listening…": ~
+    "ReplayGain is listening…": "ReplayGain ouvindo…"
     # sleeppage.c
-    "Rotation": ~
+    "Rotation": "Rotação"
     # ui.c
-    "SLEEP": ~
+    "SLEEP": "SONO"
     # ui.c
-    "SLEEP %dM": ~
+    "SLEEP %dM": "SONO %dM"
     # panel.c
-    "START": ~
+    "START": "ABRIR"
     # panel.c
-    "STEREO": ~
+    "STEREO": "ESTÉREO"
     # panel.c
-    "STOP": ~
+    "STOP": "PARAR"
     # panel.c
-    "Same Wi-Fi as the player. %u:%02u left": ~
+    "Same Wi-Fi as the player. %u:%02u left": "Mesmo Wi-Fi do player. Faltam %u:%02u"
     # panel.c
-    "Same album": ~
+    "Same album": "Mesmo álbum"
     # panel.c
-    "Saved %.32s.": ~
+    "Saved %.32s.": "%.32s salva."
     # remote.html
-    "Scan": ~
+    "Scan": "Buscar"
     # launcher_import.c, remote.c
-    "Scanning…": ~
+    "Scanning…": "Buscando…"
     # sleeppage.c
-    "Screen": ~
+    "Screen": "Tela"
     # sleeppage.c
-    "Screen off": ~
+    "Screen off": "Desligar tela"
     # panel.c
-    "Sets the clock, in UTC. Streams need it: a certificate is invalid at an unset clock.": ~
+    "Sets the clock, in UTC. Streams need it: a certificate is invalid at an unset clock.": "Acerta o relógio, em UTC. Os streams precisam: um certificado não vale com o relógio desacertado."
     # remote.html
-    "Settings": ~
+    "Settings": "Ajustes"
     # panel.c
-    "Setup closed after five minutes.": ~
+    "Setup closed after five minutes.": "A configuração fechou após 5 min."
     # panel.c
-    "Setup could not start.": ~
+    "Setup could not start.": "A configuração não iniciou."
     # sleeppage.c
-    "Sleep": ~
+    "Sleep": "Repouso"
     # remote.html
-    "Sleep timer": ~
+    "Sleep timer": "Timer"
     # sleeppage.c
-    "Sleep timer   %d min": ~
+    "Sleep timer   %d min": "Timer   %d min"
     # sleeppage.c
-    "Sleep timer   %ld:%02ld": ~
+    "Sleep timer   %ld:%02ld": "Timer   %ld:%02ld"
     # sleeppage.c
-    "Sleep timer   off": ~
+    "Sleep timer   off": "Timer   não"
     # panel.c
-    "Source": ~
+    "Source": "Código-fonte"
     # remote.html
-    "Star": ~
+    "Star": "Favorito"
     # radiobrowser.h
-    "Starred stations": ~
+    "Starred stations": "Rádios favoritas"
     # panel.c
-    "Starting…": ~
+    "Starting…": "Iniciando…"
     # portal.c, remote.c
-    "Station added.": ~
+    "Station added.": "Rádio adicionada."
     # panel.c
-    "Station needs %d -- that is %d%%": ~
+    "Station needs %d -- that is %d%%": "A rádio pede %d: são %d%%"
     # player.c
-    "Station not answering": ~
+    "Station not answering": "Rádio muda"
     # panel.c
-    "Stop playback first.": ~
+    "Stop playback first.": "Pare a reprodução antes."
     # portal.c, remote.html
-    "Stream address": ~
+    "Stream address": "Endereço do stream"
     # player.c
-    "Stream too slow here": ~
+    "Stream too slow here": "Stream lento"
     # remote.c
-    "That folder could not be opened.": ~
+    "That folder could not be opened.": "Não foi possível abrir essa pasta."
     # portal.c, remote.c
-    "That form was too large to be a name and a stream address.": ~
+    "That form was too large to be a name and a stream address.": "O formulário é grande demais para um nome e um endereço de stream."
     # portal.c, remote.c
-    "That form was too large to be a network name and a password.": ~
+    "That form was too large to be a network name and a password.": "O formulário é grande demais para um nome de rede e uma senha."
     # portal.c, remote.c
-    "That is not a usable stream address. It has to start with http:// or https:// and be one unbroken address.": ~
+    "That is not a usable stream address. It has to start with http:// or https:// and be one unbroken address.": "Esse endereço de stream não serve. Precisa começar com http:// ou https:// e ser um endereço só, sem quebras."
     # portal.c, remote.c
-    "That name cannot be used. Names are up to 63 characters and cannot start with a #.": ~
+    "That name cannot be used. Names are up to 63 characters and cannot start with a #.": "Esse nome não pode ser usado. Os nomes têm até 63 caracteres e não podem começar com #."
     # portal.c, remote.c
-    "That needs a stream address.": ~
+    "That needs a stream address.": "Falta o endereço do stream."
     # portal.c
-    "That network was not found. Check the name and try again.": ~
+    "That network was not found. Check the name and try again.": "Essa rede não foi encontrada. Confira o nome e tente de novo."
     # recorder.c
-    "The USB microphone did not start.": ~
+    "The USB microphone did not start.": "O microfone USB\nnão iniciou."
     # recorder.c
-    "The USB microphone has no 16- or 24-bit format.": ~
+    "The USB microphone has no 16- or 24-bit format.": "O microfone USB não tem\nformato 16 ou 24 bits."
     # recorder.c
-    "The USB microphone is not there any more.": ~
+    "The USB microphone is not there any more.": "O microfone USB\nnão está mais lá."
     # recorder.c
-    "The USB microphone was unplugged.\n%u:%02u on %s": ~
+    "The USB microphone was unplugged.\n%u:%02u on %s": "O microfone USB foi\ndesconectado.\n%u:%02u em %s"
     # recorder.c
-    "The card would not take any more.": ~
+    "The card would not take any more.": "O cartão não aceita\nmais dados."
     # sleeppage.c
-    "The device turns off. The side button turns it back on.": ~
+    "The device turns off. The side button turns it back on.": "O aparelho desliga. O botão lateral liga de novo."
     # portal.c
-    "The list is full at %d stations. Remove one from %s on the card to add another.": ~
+    "The list is full at %d stations. Remove one from %s on the card to add another.": "A lista está cheia com %d rádios. Remova uma de %s no cartão para adicionar outra."
     # recorder.c
-    "The microphones did not start.": ~
+    "The microphones did not start.": "Os microfones\nnão iniciaram."
     # portal.c
-    "The password contains %s. A Wi-Fi password is plain keyboard characters only; phones substitute these when autocorrect or smart punctuation is on. Retype it with that turned off.": ~
+    "The password contains %s. A Wi-Fi password is plain keyboard characters only; phones substitute these when autocorrect or smart punctuation is on. Retype it with that turned off.": "A senha contém %s. Uma senha de Wi-Fi só usa caracteres comuns do teclado; os celulares os trocam quando a correção automática ou a pontuação inteligente está ativa. Digite de novo com isso desligado."
     # portal.c
-    "The password did not work. Try again.": ~
+    "The password did not work. Try again.": "A senha não funcionou. Tente de novo."
     # remote.c
-    "The password has a character a Wi-Fi password cannot have -- often a phone's smart punctuation. Retype it with that turned off.": ~
+    "The password has a character a Wi-Fi password cannot have -- often a phone's smart punctuation. Retype it with that turned off.": "A senha tem um caractere que uma senha de Wi-Fi não aceita; geralmente é a pontuação inteligente do celular. Digite de novo com isso desligado."
     # remote.c
-    "The player could not start that. Try again.": ~
+    "The player could not start that. Try again.": "O player não conseguiu iniciar. Tente de novo."
     # remote.html
-    "The player did not answer.": ~
+    "The player did not answer.": "O player não respondeu."
     # remote.html
-    "The player is on %s, and you are on its cable.": ~
+    "The player is on %s, and you are on its cable.": "O player está em %s, e você está no cabo dele."
     # remote.html
-    "The player is on %s.": ~
+    "The player is on %s.": "O player está em %s."
     # remote.html
-    "The player is on its cable only.": ~
+    "The player is on its cable only.": "O player está só no cabo."
     # remote.c
-    "The player is out of memory for that.": ~
+    "The player is out of memory for that.": "O player está sem memória para isso."
     # portal.c, remote.c
-    "The station could not be saved. The card may be full, absent, or write-protected, or the list may already be full.": ~
+    "The station could not be saved. The card may be full, absent, or write-protected, or the list may already be full.": "Não foi possível salvar a rádio. O cartão pode estar cheio, ausente ou protegido contra gravação, ou a lista já cheia."
     # bench.c
-    "The station did not answer.": ~
+    "The station did not answer.": "A rádio não respondeu."
     # panel.c
-    "The station does not say what it needs.": ~
+    "The station does not say what it needs.": "A rádio não diz do que precisa."
     # bench.c
-    "The station went away.": ~
+    "The station went away.": "A rádio sumiu."
     # bench.c
-    "The stream stopped before it started.": ~
+    "The stream stopped before it started.": "O stream parou antes de começar."
     # panel.c
-    "Then it shows the address to open.": ~
+    "Then it shows the address to open.": "Depois mostra o endereço a abrir."
     # panel.c
-    "Then it shows the address to use.": ~
+    "Then it shows the address to use.": "Depois mostra o endereço a usar."
     # bench.c
-    "Timed out connecting.": ~
+    "Timed out connecting.": "Tempo de conexão esgotado."
     # portal.c
-    "To change Wi-Fi networks instead, use Network setup on the player's screen. This page closes itself after %d minutes.": ~
+    "To change Wi-Fi networks instead, use Network setup on the player's screen. This page closes itself after %d minutes.": "Para trocar de rede Wi-Fi, use \"Adicionar rede\" na tela do player. Esta página fecha sozinha após %d minutos."
     # sleeppage.c
-    "Touch anywhere to wake it.": ~
+    "Touch anywhere to wake it.": "Toque em qualquer lugar para acordá-la."
     # remote.html
-    "Tried before it is saved. Only over this encrypted page — never in the clear.": ~
+    "Tried before it is saved. Only over this encrypted page — never in the clear.": "É testada antes de ser salva. Só por esta página criptografada, nunca às claras."
     # panel.c
-    "Trying %.32s…": ~
+    "Trying %.32s…": "Testando %.32s…"
     # portal.c
-    "Trying %s… This can take fifteen seconds, and this phone may lose the setup network for a moment. The player's screen shows the result either way.": ~
+    "Trying %s… This can take fifteen seconds, and this phone may lose the setup network for a moment. The player's screen shows the result either way.": "Testando %s… Pode levar quinze segundos, e este celular pode perder a rede de configuração por um momento. A tela do player mostra o resultado de qualquer jeito."
     # panel.c
-    "Turn Wi-Fi on first.": ~
+    "Turn Wi-Fi on first.": "Ligue o Wi-Fi antes."
     # player.c
-    "Turning off to protect the battery. Charge it before use.": ~
+    "Turning off to protect the battery. Charge it before use.": "Desligando para proteger\na bateria. Carregue-a\nantes de usar."
     # browser.c
-    "UP": ~
+    "UP": "SUBIR"
     # browser.c
-    "UP^": ~
+    "UP^": "PG CIMA"
     # panel.c
-    "USB audio": ~
+    "USB audio": "áudio USB"
     # browser.c
-    "USB port coming up": ~
+    "USB port coming up": "Porta USB iniciando"
     # browser.c
-    "USB port on - waiting for a drive": ~
+    "USB port on - waiting for a drive": "Porta USB ligada - esperando um pendrive"
     # remote.html
-    "Volume": ~
+    "Volume": "Volume"
     # remote.html
-    "Volumes": ~
+    "Volumes": "Volumes"
     # panel.c
-    "Waiting for a network address.": ~
+    "Waiting for a network address.": "Esperando um endereço de rede."
     # portal.c
-    "Waiting for a network.": ~
+    "Waiting for a network.": "Esperando uma rede."
     # player.c
-    "Waiting for network": ~
+    "Waiting for network": "Esperando a rede"
     # player.c
-    "Web setup is open": ~
+    "Web setup is open": "Ajuste web aberto"
     # remote.c
-    "Wi-Fi is off on the player.": ~
+    "Wi-Fi is off on the player.": "O Wi-Fi do player está desligado."
     # remote.html
-    "You are reaching the player over Wi-Fi. Joining a different network drops this page; the player's NET tab shows which network it ended up on, and if the join fails it goes back to its saved networks within a minute.": ~
+    "You are reaching the player over Wi-Fi. Joining a different network drops this page; the player's NET tab shows which network it ended up on, and if the join fails it goes back to its saved networks within a minute.": "Você está acessando o player pelo Wi-Fi. Conectá-lo a outra rede derruba esta página; a aba NET do player mostra em qual rede ele ficou, e se a conexão falhar ele volta às redes salvas em menos de um minuto."
     # panel.c
-    "a guess": ~
+    "a guess": "estimada"
     # browser.c
-    "all start with  %s": ~
+    "all start with  %s": "todos começam com  %s"
     # panel.c
-    "app": ~
+    "app": "app"
     # panel.c
-    "built": ~
+    "built": "compilado"
     # panel.c
-    "capacity": ~
+    "capacity": "capacidade"
     # panel.c
-    "coming up": ~
+    "coming up": "iniciando"
     # panel.c
-    "connected": ~
+    "connected": "conectado"
     # panel.c
-    "drive": ~
+    "drive": "pendrive"
     # panel.c
-    "failed; the log says why": ~
+    "failed; the log says why": "falhou; o log diz por quê"
     # player.c
-    "fetching %s…": ~
+    "fetching %s…": "buscando %s…"
     # panel.c
-    "from NTP": ~
+    "from NTP": "via NTP"
     # panel.c
-    "headphones": ~
+    "headphones": "fones"
     # panel.c
-    "headset": ~
+    "headset": "headset"
     # portal.c
-    "hidden nearby": ~
+    "hidden nearby": "ocultas por perto"
     # panel.c
-    "in a browser on the same network.": ~
+    "in a browser on the same network.": "num navegador na mesma rede."
     # panel.c
-    "index": ~
+    "index": "índice"
     # panel.c
-    "indexing, %d so far": ~
+    "indexing, %d so far": "indexando, %d até agora"
     # player.c
-    "it played, then ran out of buffer": ~
+    "it played, then ran out of buffer": "tocou e depois ficou\nsem buffer"
     # player.c
-    "join %s": ~
+    "join %s": "entre em %s"
     # panel.c
-    "maker": ~
+    "maker": "fabricante"
     # player.c
-    "mono": ~
+    "mono": "mono"
     # panel.c
-    "mount": ~
+    "mount": "montagem"
     # panel.c
-    "mounted": ~
+    "mounted": "montado"
     # player.c
-    "multichannel": ~
+    "multichannel": "multicanal"
     # panel.c
-    "name": ~
+    "name": "nome"
     # browser.c
-    "no %s on the card": ~
+    "no %s on the card": "sem %s no cartão"
     # browser.c, panel.c
-    "no card in the slot": ~
+    "no card in the slot": "sem cartão no slot"
     # player.c
-    "no cover art": ~
+    "no cover art": "sem capa"
     # player.c
-    "no network - check Wi-Fi or the cable, then tap again": ~
+    "no network - check Wi-Fi or the cable, then tap again": "sem rede - confira Wi-Fi ou cabo e toque de novo"
     # player.c
-    "no network - the directory needs Wi-Fi or a cable": ~
+    "no network - the directory needs Wi-Fi or a cable": "sem rede - o diretório precisa de Wi-Fi ou cabo"
     # panel.c
-    "none": ~
+    "none": "nenhum"
     # player.c
-    "not enough memory for that list": ~
+    "not enough memory for that list": "sem memória para essa lista"
     # panel.c
-    "not run this session": ~
+    "not run this session": "não rodou nesta sessão"
     # player.c
-    "nothing starred yet - tap a star to keep one": ~
+    "nothing starred yet - tap a star to keep one": "nenhum favorito - toque numa estrela"
     # panel.c, sleeppage.c, remote.html
-    "off": ~
+    "off": "não"
     # panel.c
-    "on": ~
+    "on": "sim"
     # recorder.c
-    "on %s, %u:%02u\n%s": ~
+    "on %s, %u:%02u\n%s": "em %s, %u:%02u\n%s"
     # remote.html
-    "on the player": ~
+    "on the player": "no player"
     # portal.c, remote.html
-    "only if not in the list": ~
+    "only if not in the list": "só se não estiver na lista"
     # portal.c, remote.html
-    "optional": ~
+    "optional": "opcional"
     # player.c
-    "playback stopped": ~
+    "playback stopped": "reprodução parada"
     # player.c
-    "plug in to keep playing": ~
+    "plug in to keep playing": "conecte para continuar"
     # panel.c
-    "port": ~
+    "port": "porta"
     # panel.c
-    "product": ~
+    "product": "produto"
     # remote.html
-    "queue, files, settings, stations": ~
+    "queue, files, settings, stations": "fila, arquivos, ajustes, rádios"
     # browser.c
-    "radio - the card, the charts, or a tag": ~
+    "radio - the card, the charts, or a tag": "rádio - o cartão, os rankings ou uma tag"
     # panel.c
-    "route": ~
+    "route": "saída"
     # panel.c
-    "sector": ~
+    "sector": "setor"
     # player.c
-    "slide or tap to cancel": ~
+    "slide or tap to cancel": "deslize ou toque: cancela"
     # panel.c
-    "speaker": ~
+    "speaker": "alto-falante"
     # panel.c
-    "speed": ~
+    "speed": "velocidade"
     # panel.c
-    "starts in a few seconds": ~
+    "starts in a few seconds": "começa em alguns segundos"
     # panel.c
-    "state": ~
+    "state": "estado"
     # radiobrowser.h
-    "stations.m3u on the card": ~
+    "stations.m3u on the card": "stations.m3u do cartão"
     # player.c
-    "stereo": ~
+    "stereo": "estéreo"
     # remote.html
-    "stop it on the player, or tap here": ~
+    "stop it on the player, or tap here": "pare no player, ou toque aqui"
     # panel.c
-    "stopped: the volume went away": ~
+    "stopped: the volume went away": "parado: o volume sumiu"
     # player.c
-    "that": ~
+    "that": "essa"
     # player.c
-    "the card would not take the write": ~
+    "the card would not take the write": "o cartão não aceitou\na gravação"
     # player.c
-    "the directory did not answer": ~
+    "the directory did not answer": "o diretório não respondeu"
     # player.c
-    "the directory has nothing there": ~
+    "the directory has nothing there": "o diretório não tem nada aí"
     # panel.c
-    "the setup network": ~
+    "the setup network": "a rede de configuração"
     # panel.c
-    "the station": ~
+    "the station": "a rádio"
     # player.c
-    "the stream did not start": ~
+    "the stream did not start": "o stream não começou"
     # player.c
-    "then http://%s/": ~
+    "then http://%s/": "depois http://%s/"
     # panel.c
-    "this player": ~
+    "this player": "este player"
     # panel.c
-    "type": ~
+    "type": "tipo"
     # player.c
-    "unstar one to make room": ~
+    "unstar one to make room": "desmarque um favorito\npara abrir espaço"
     # panel.c
-    "uptime": ~
+    "uptime": "ligado há"
     # panel.c
-    "version": ~
+    "version": "versão"
     # panel.c
-    "waiting for a drive": ~
+    "waiting for a drive": "esperando um pendrive"
     # player.c
-    "waiting for the network to play %s": ~
+    "waiting for the network to play %s": "esperando a rede para tocar %s"
     # player.c
-    "waiting for the network…": ~
+    "waiting for the network…": "esperando a rede…"
     # panel.c
-    "was damaged; reindex rebuilds it": ~
+    "was damaged; reindex rebuilds it": "danificado; reindexar refaz"
   plural:
     "%d apps connected.":
-      one: ~
-      other: ~
+      one: "%d app conectado."
+      other: "%d apps conectados."
     "%d hidden networks nearby. A hidden network's name has to be typed.":
-      one: ~
-      other: ~
+      one: "%d rede oculta por perto. O nome de uma rede oculta precisa ser digitado."
+      other: "%d redes ocultas por perto. O nome de uma rede oculta precisa ser digitado."
     "%d stations from %s":
-      one: ~
-      other: ~
+      one: "%d rádio de %s"
+      other: "%d rádios de %s"
     "%d tracks":
-      one: ~
-      other: ~
+      one: "%d faixa"
+      other: "%d faixas"
     "%d tracks (+%d ~%d -%d), %d s":
-      one: ~
-      other: ~
+      one: "%d faixa (+%d ~%d -%d), %d s"
+      other: "%d faixas (+%d ~%d -%d), %d s"
     "%d tracks, unchanged, %d s":
-      one: ~
-      other: ~
+      one: "%d faixa, sem mudanças, %d s"
+      other: "%d faixas, sem mudanças, %d s"
     "%u phones joined, %u:%02u left":
-      one: ~
-      other: ~
+      one: "%u celular conectado, faltam %u:%02u"
+      other: "%u celulares conectados, faltam %u:%02u"
     "Not connected. %d networks saved.":
-      one: ~
-      other: ~
+      one: "Desconectado. %d rede salva."
+      other: "Desconectado. %d redes salvas."

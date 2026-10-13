@@ -1,4 +1,5 @@
 #!/usr/bin/env python3
+# SPDX-License-Identifier: MIT
 """
 streamcheck.py -- measure what a PC gets from an internet radio station,
 in the same terms the Tab5 reports, so the two can be compared directly.

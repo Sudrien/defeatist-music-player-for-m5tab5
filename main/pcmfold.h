@@ -32,6 +32,8 @@
  * noise into headphones, and guessing has no safe side. Both callers
  * refuse 32 before reaching this file; see test files 19 and 20, which
  * are the same audio in both forms and are indistinguishable from here.
+ *
+ * SPDX-License-Identifier: MIT
  */
 #ifndef PCMFOLD_H
 #define PCMFOLD_H

@@ -1,5 +1,7 @@
 /*
  * heapmap -- see heapmap.h (5097).
+ *
+ * SPDX-License-Identifier: MIT
  */
 #include "heapmap.h"
 

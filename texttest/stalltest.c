@@ -5,6 +5,8 @@
  * wolf on behaviour the design intends. A starved overlap STRETCHES on
  * purpose (see the solo branch), so the interesting cases here are the
  * ones where it must stay quiet.
+ *
+ * SPDX-License-Identifier: MIT
  */
 #include <stdio.h>
 #include <stdbool.h>

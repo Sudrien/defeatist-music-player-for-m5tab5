@@ -44,6 +44,8 @@
  * structural guarantee rather than a check: a measurement taken while
  * the decoder competes for the same link would measure the two of them
  * together, which is the thing it exists to take apart.
+ *
+ * SPDX-License-Identifier: MIT
  */
 #ifndef BENCH_H
 #define BENCH_H

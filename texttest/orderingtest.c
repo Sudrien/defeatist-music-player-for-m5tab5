@@ -8,6 +8,8 @@
  *
  * The property is stated over the AUDIO: every byte written to a ring is
  * eventually played, in the order the tracks were decoded.
+ *
+ * SPDX-License-Identifier: MIT
  */
 #include <stdio.h>
 #include <stdbool.h>

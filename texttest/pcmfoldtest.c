@@ -22,6 +22,8 @@
  *     If the destination ever caught the source it would eat its own
  *     input, and the corruption would start partway through a buffer,
  *     which is the hardest kind to see in a log.
+ *
+ * SPDX-License-Identifier: MIT
  */
 #include <stdint.h>
 #include <stdio.h>

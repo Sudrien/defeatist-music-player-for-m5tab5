@@ -1,5 +1,7 @@
 /*
  * flacenc -- see flacenc.h, and 5104 in ARCHITECTURE.md.
+ *
+ * SPDX-License-Identifier: MIT
  */
 #include "flacenc.h"
 

@@ -1,3 +1,4 @@
+# SPDX-License-Identifier: MIT
 # Compare every CONFIG_ line in sdkconfig.defaults with the value the
 # build is actually using, and name the ones that differ.
 #

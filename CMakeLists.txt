@@ -1,3 +1,4 @@
+# SPDX-License-Identifier: MIT
 cmake_minimum_required(VERSION 3.16)
 
 # Pull down minimp3 and pngle if they are not here yet. Must run before

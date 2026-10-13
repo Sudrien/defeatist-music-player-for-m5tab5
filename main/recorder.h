@@ -29,6 +29,8 @@
  * held paused for it anyway: one rule for "recording".
  *
  * All of it from ui_task except the tasks themselves.
+ *
+ * SPDX-License-Identifier: MIT
  */
 #pragma once
 

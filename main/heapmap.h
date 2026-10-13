@@ -23,6 +23,8 @@
  * otherwise from heapmap_poll(), which ui_task calls every pass.
  * heapmap_log() prints it on demand -- once at the end of boot and once
  * at the first station's first sound, as baselines.
+ *
+ * SPDX-License-Identifier: MIT
  */
 #pragma once
 

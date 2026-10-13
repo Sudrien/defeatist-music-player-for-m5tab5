@@ -10,6 +10,8 @@
  *
  * The lines marked EXACT are the ones that must not move: an ordinary
  * track change has to fire at the same instant it always did.
+ *
+ * SPDX-License-Identifier: MIT
  */
 #include <stdio.h>
 #include <stdbool.h>

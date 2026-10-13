@@ -1,5 +1,7 @@
 /*
  * icoimg -- see icoimg.h (5088).
+ *
+ * SPDX-License-Identifier: MIT
  */
 #include "icoimg.h"
 

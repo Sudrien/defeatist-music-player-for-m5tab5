@@ -5,6 +5,8 @@
  * and obvious on the glass. What is checked here is that the position
  * and the LENGTH always come from the same track -- the pairing, not the
  * ring index, is the property that matters.
+ *
+ * SPDX-License-Identifier: MIT
  */
 #include <stdio.h>
 #include <stdbool.h>

@@ -20,6 +20,8 @@
  * directory and the DIB header is checked against the bytes in hand,
  * and images over ICOIMG_MAX_DIM on a side are refused. Pure C, no ESP-IDF
  * outside the allocator, so it builds on a host for testing.
+ *
+ * SPDX-License-Identifier: MIT
  */
 #pragma once
 

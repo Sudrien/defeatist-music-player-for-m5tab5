@@ -20,6 +20,8 @@
  * defines as "not computed". It would cost as much as the encoding.
  *
  * Not thread-safe per instance; one encoder is one caller's.
+ *
+ * SPDX-License-Identifier: MIT
  */
 #pragma once
 

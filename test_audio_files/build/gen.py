@@ -1,3 +1,4 @@
+# SPDX-License-Identifier: MIT
 import math, struct, wave
 
 SR, DUR = 44100, 60

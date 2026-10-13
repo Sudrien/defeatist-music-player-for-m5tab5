@@ -1,3 +1,4 @@
+# SPDX-License-Identifier: MIT
 # 5283: the libraries this build was made from, for the settings panel's
 # BUILD tab -- written as a header, libversions.h, that main includes.
 #

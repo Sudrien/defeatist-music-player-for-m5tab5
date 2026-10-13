@@ -1,6 +1,8 @@
 /*
  * bench.c -- see bench.h. Connect a station, read it as fast as it will
  * come, decode none of it, report what the transport managed.
+ *
+ * SPDX-License-Identifier: MIT
  */
 #include <stdio.h>
 #include <stdlib.h>

@@ -1,3 +1,4 @@
+/* SPDX-License-Identifier: MIT */
 /* host stand-in: storage.h names the I2C bus handle in one prototype,
  * and nothing on the host calls it. */
 #pragma once

@@ -7,6 +7,8 @@
  * boundary. So the property here is stated over the AUDIO, not over the
  * tail flag: no reset ever lands on a ring holding unplayed bytes,
  * except on the exits where the audio is being discarded on purpose.
+ *
+ * SPDX-License-Identifier: MIT
  */
 #include <stdio.h>
 #include <stdbool.h>

@@ -6,6 +6,8 @@
  * taken for the next track. Both need a track shorter than the ring
  * depth, which is why they only showed up around a 20 s track on a ring
  * that holds 20 s.
+ *
+ * SPDX-License-Identifier: MIT
  */
 #include <stdio.h>
 #include <stdbool.h>

@@ -5,6 +5,8 @@
  * before: settings written to one volume only (so the other lost them),
  * and one track shared by both (so returning to a volume resumed a file
  * that was not on it). Both directions are checked.
+ *
+ * SPDX-License-Identifier: MIT
  */
 #include <stdio.h>
 #include <string.h>

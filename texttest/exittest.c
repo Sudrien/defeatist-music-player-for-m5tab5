@@ -5,6 +5,8 @@
  * against log lines to decide whether a line was lost. So the two things
  * that matter are that a zero is never printed as present, and that a
  * long line truncates rather than running off the buffer.
+ *
+ * SPDX-License-Identifier: MIT
  */
 #include <stdio.h>
 #include <string.h>

@@ -6,6 +6,8 @@
  * picture or a crash three tracks later: a double free when two entries
  * share a blob and one is evicted, a use-after-free when the survivor is
  * then read, and a leak when the last reference goes.
+ *
+ * SPDX-License-Identifier: MIT
  */
 #include <assert.h>
 #include <stdio.h>

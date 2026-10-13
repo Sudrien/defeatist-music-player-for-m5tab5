@@ -4,6 +4,8 @@
  * The length rules are symmetric and it would be easy to write one of
  * them backwards, so both directions are checked against the boundary
  * value rather than a comfortable example.
+ *
+ * SPDX-License-Identifier: MIT
  */
 #include <stdio.h>
 #include <stdbool.h>

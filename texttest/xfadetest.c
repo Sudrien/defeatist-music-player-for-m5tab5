@@ -9,6 +9,8 @@
  *
  * Transcribed from the writer loop, so it checks the arithmetic rather
  * than the board.
+ *
+ * SPDX-License-Identifier: MIT
  */
 #include <stdio.h>
 #include <stdbool.h>

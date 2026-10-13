@@ -8,6 +8,8 @@
  *
  * What this does NOT check is that the board agrees. It checks that the
  * explanation is arithmetically sound and that 8 KB has real margin.
+ *
+ * SPDX-License-Identifier: MIT
  */
 #include <stdio.h>
 #include <stdbool.h>

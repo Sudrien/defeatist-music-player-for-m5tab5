@@ -5,6 +5,8 @@
  * Broken" stayed on screen across two subsequent tracks. So the property
  * under test is not any single branch, it is the absence of an exception
  * -- exhaustively, over every exit the writer has.
+ *
+ * SPDX-License-Identifier: MIT
  */
 #include <stdio.h>
 #include <stdbool.h>

@@ -5,6 +5,8 @@
  * that it holds memory the next decode needs. Both are checked, along
  * with the ownership rule, since a retained frame that is also freed is
  * a use-after-free the board would show as a corrupted cover much later.
+ *
+ * SPDX-License-Identifier: MIT
  */
 #include <stdio.h>
 #include <stdlib.h>

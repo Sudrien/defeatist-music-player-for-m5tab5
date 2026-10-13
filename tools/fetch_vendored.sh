@@ -1,12 +1,13 @@
 #!/usr/bin/env sh
 #
-# Fetch the two header-only libraries this project vendors:
+# Fetch the libraries this project vendors at a pinned commit:
 #
-#   minimp3  -- MP3 decode (Layers I/II/III, free format, gapless)
-#   pngle    -- streaming PNG decode for cover art
+#   minimp3   -- MP3 decode (Layers I/II/III, free format, gapless). CC0-1.0
+#   pngle     -- streaming PNG decode for cover art, with miniz. MIT
+#   stb_image -- last-resort JPEG decode. MIT or Unlicense
 #
-# The font is not here: components/ark10 is generated and committed. See
-# tools/gen_ark10.py.
+# The fonts are not here: they are generated and committed in
+# feckless-graphics-handler-for-m5tab5 (fonts/, tools/gen_ark12.py).
 #
 # You do not normally need to run this: cmake/vendored.cmake fetches the
 # same files, from the same pinned commits, at configure time. This is

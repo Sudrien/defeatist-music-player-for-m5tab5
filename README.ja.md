@@ -117,13 +117,16 @@
 
 ## ライセンス
 
-- このコードは MIT。
-- minimp3 は CC0／パブリックドメイン。表示義務はないが、ツリー内で監査できるよう同梱（vendored）している。
+- このコードは MIT。git で取り込む 4 つの feckless-*-for-m5tab5 コンポーネントも、フォント（下記）を除き MIT。
+- minimp3 は CC0-1.0（パブリックドメイン献呈）。表示義務はない。リポジトリには含めず、`cmake/vendored.cmake` が固定コミットで取得し SHA256 を検証するので、ソースは監査可能なまま。
 - esp_audio_codec は **プリコンパイル済みアーカイブ** として、ESPRESSIF MIT ライセンスで提供される。無料だが、許諾は Espressif シリコンに限定される。ここでは問題ないが、このコードが別の場所にコピーされる前に知っておく価値はある。
-- pngle と miniz は MIT。
+- pngle と miniz は MIT。minimp3 と同じ方法で取得する。
+- stb_image（`components/stbjpeg` の最終手段の JPEG デコーダ）は Sean Barrett のもので、MIT か Unlicense（パブリックドメイン）を選べる。ラッパーは MIT。
+- **`components/usb_host_msc` と `components/usb_host_uac` は Espressif のもので、MIT ではなく Apache-2.0。** esp-usb のクラスドライバを同梱・パッチしたコピーで、それぞれ自身のライセンスファイルを保持し、変更したファイルも SPDX ヘッダーを保持する。再配布にはそのライセンスファイルと変更した旨の記載を付ける。
+- `cmake/exfat.cmake` が構成時に同梱する exFAT 対応 fatfs は、IDF のコンポーネント（Apache-2.0）と ChaN の FatFs（FatFs ライセンス：保持が必要な 1 条項の BSD 風表示）。
 - **TJpgDec は ChaN のもので、独自ライセンス**、`espressif/esp_jpeg` コンポーネントとして入る。寛容なライセンス——個人・商用とも無料、ソース再配布も可——だが著作権表示は保持する必要があり、フォントの OFL と同じように再配布に付いて回る。ハードウェア JPEG デコーダがメモリを確保できないカバー用のフォールバックとしてのみ使用：P4 のデコーダにはスケーラがなく、3000 px のカバーは 17 MB の PSRAM を一塊で必要とするが、確保できない。
-- **Ark Pixel フォントは SIL OFL-1.1、したがって `components/ark12` も MIT ではなく OFL-1.1。** 字形 PNG を C 配列に変換したことで、それらのファイルは OFL 第 5 条の「改変版」となり、第 5 条は改変版を OFL のままに保つことを要求する。これは問題にならない——OFL は任意ライセンスのソフトとの同梱を明示的に許可し、束縛されるのはフォントファイルのみ——が、`components/ark12/LICENSE-OFL` は再配布（ファームウェアイメージを含む）に必ず付随させる必要があり、テーブル単体での販売はできない。Ark は予約フォント名（Reserved Font Name）を宣言していないため、派生版の改名は不要だった。それでも `ark12` と呼ぶのは、原版ではないから。
-- **Arabixel Basic は CC BY 4.0**（ArabianDev、<https://arabiandev.itch.io/arabixel-basic-font>）、したがって `components/arabixel` のフォントファイルと生成テーブルも同様。整形（shaping）コードは MIT。CC BY はクレジット、ライセンスへのリンク、変更点の記載を求める——コンポーネントの README とテーブルのヘッダーがそれらを担い、再配布（ファームウェアイメージを含む）は `components/arabixel/LICENSE.txt` を付随させる。
+- **Ark Pixel フォントは SIL OFL-1.1、したがって feckless-graphics-handler-for-m5tab5 の `ark12` テーブル（`fonts/ark12`）も MIT ではなく OFL-1.1。** 字形 PNG を C 配列に変換したことで、それらのファイルは OFL 第 5 条の「改変版」となり、第 5 条は改変版を OFL のままに保つことを要求する。これは問題にならない——OFL は任意ライセンスのソフトとの同梱を明示的に許可し、束縛されるのはフォントファイルのみ——が、`fonts/ark12/LICENSE-OFL` は再配布（ファームウェアイメージを含む）に必ず付随させる必要があり、テーブル単体での販売はできない。Ark は予約フォント名（Reserved Font Name）を宣言していないため、派生版の改名は不要だった。それでも `ark12` と呼ぶのは、原版ではないから。
+- **Arabixel Basic は CC BY 4.0**（ArabianDev、<https://arabiandev.itch.io/arabixel-basic-font>）、したがって feckless-graphics-handler-for-m5tab5 の `fonts/arabixel` のフォントファイルと生成テーブルも同様。整形（shaping）コードは MIT。CC BY はクレジット、ライセンスへのリンク、変更点の記載を求める——コンポーネントの README とテーブルのヘッダーがそれらを担い、再配布（ファームウェアイメージを含む）は `fonts/arabixel/LICENSE.txt` を付随させる。
 - MurmurHash2 はパブリックドメイン。
 
 ## 最後にもう一刺し

@@ -19,7 +19,8 @@
  *     comes from the internet and from cards, so it only ever sees
  *     pictures under STBJPEG_MAX_PIXELS that fit in memory.
  *
- * Public domain (Sean Barrett), pinned in cmake/vendored.cmake.
+ * stb_image is Sean Barrett's, under MIT or the Unlicense at your
+ * choice, pinned in cmake/vendored.cmake. This wrapper is MIT.
  *
  * SPDX-License-Identifier: MIT
  */

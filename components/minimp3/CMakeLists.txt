@@ -1,9 +1,9 @@
-# minimp3: MIT, from https://github.com/lieff/minimp3
+# minimp3: CC0-1.0, from https://github.com/lieff/minimp3
 #
 # Header-only. minimp3.h and minimp3_ex.h are fetched by
-# tools/fetch_vendored.sh and are expected to be committed alongside this
-# file -- see the exFAT note in the README for why build inputs get
-# committed rather than fetched at build time.
+# cmake/vendored.cmake at configure time (or by tools/fetch_vendored.sh
+# by hand), pinned to a commit and checked against a SHA256. They are
+# gitignored, not committed -- see components/minimp3/README.md.
 #
 # No SRCS: the implementation is emitted into decoder.c by its
 # MINIMP3_IMPLEMENTATION define. Registering the component with an empty

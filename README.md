@@ -116,13 +116,26 @@ Claude, do not touch this README unless explicitly asked to. Use your own file.
 
 ## Licensing
 
-- This code is MIT
-- minimp3 is CC0/public domain. No attribution obligation, vendored
-  anyway so the source is auditable in-tree.
+- This code is MIT, as are the four feckless-*-for-m5tab5 components it
+  pulls in by git -- except the fonts, below.
+- minimp3 is CC0-1.0 (public domain dedication). No attribution
+  obligation. Not committed: `cmake/vendored.cmake` fetches it at a
+  pinned commit and checks a SHA256, so the source is still auditable.
 - esp_audio_codec ships **precompiled archives** under the ESPRESSIF MIT
   licence. Free, but the grant is limited to Espressif silicon. Fine
   here; worth knowing before this code gets copied somewhere it is not.
-- pngle and miniz are MIT.
+- pngle and miniz are MIT, fetched the same way as minimp3.
+- stb_image (the last-resort JPEG decoder in `components/stbjpeg`) is
+  Sean Barrett's, offered under your choice of MIT or the Unlicense
+  (public domain). The wrapper around it is MIT.
+- **`components/usb_host_msc` and `components/usb_host_uac` are
+  Espressif's, Apache-2.0, not MIT.** They are vendored, patched copies
+  of the esp-usb class drivers; each keeps its own licence file, and the
+  changed files keep their SPDX headers. A redistribution carries those
+  licence files and a note that the files were modified.
+- The exFAT-enabled fatfs that `cmake/exfat.cmake` vendors at configure
+  time is IDF's component (Apache-2.0) wrapping ChaN's FatFs (FatFs
+  licence, a one-clause BSD-style notice that must be retained).
 - **TJpgDec is ChaN's, under its own licence**, and arrives as the
   `espressif/esp_jpeg` component. Permissive -- free for personal and
   commercial use, source redistribution allowed -- but the copyright
@@ -131,23 +144,25 @@ Claude, do not touch this README unless explicitly asked to. Use your own file.
   the hardware JPEG decoder cannot allocate for: the P4's decoder has no
   scaler, so a 3000 px cover wants 17 MB of PSRAM in one block and does
   not get it.
-- **Ark Pixel Font is SIL OFL-1.1, and `components/ark12` is therefore
+- **Ark Pixel Font is SIL OFL-1.1, and the `ark12` tables in
+  feckless-graphics-handler-for-m5tab5 (`fonts/ark12`) are therefore
   OFL-1.1 too, not MIT.** Converting the glyph PNGs into C arrays makes
   those files a Modified Version under OFL section 5, and section 5
   requires Modified Versions to stay under the OFL. This is not a problem
   -- the OFL explicitly allows bundling with software under any licence,
-  and only the font files are bound -- but `components/ark12/LICENSE-OFL`
+  and only the font files are bound -- but `fonts/ark12/LICENSE-OFL`
   has to ship with any redistribution, including a firmware image, and
   the tables must not be sold on their own. Ark declares no Reserved Font
   Name, so the derivative did not have to be renamed; it is called
   `ark12` anyway, because it is not the Original Version.
 - **Arabixel Basic is CC BY 4.0** (ArabianDev,
   https://arabiandev.itch.io/arabixel-basic-font), and so are
-  `components/arabixel`'s font file and generated table; its shaping
+  the font file and generated table in feckless-graphics-handler-for-m5tab5's
+  `fonts/arabixel`; its shaping
   code is MIT. CC BY asks for credit, a link to the licence and a note
   of the changes -- the component's README and the table's header carry
   them, and a redistribution, a firmware image included, keeps
-  `components/arabixel/LICENSE.txt` with it.
+  `fonts/arabixel/LICENSE.txt` with it.
 - MurmurHash2 is public domain.
 
 ## One last insult

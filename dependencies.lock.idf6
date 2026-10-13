@@ -280,7 +280,7 @@ dependencies:
       type: service
     version: 0.3.3
   feckless_drivers:
-    component_hash: bc431ebcf1e0e361a6050921e0fd486ec4c6e4043edcf4fd43469406bb744934
+    component_hash: 65d8b225d22f77231fee85d171914befab9bc13e6e0b876e12321db48f4eb964
     dependencies:
     - name: idf
       version: '>=5.4.2'
@@ -289,24 +289,24 @@ dependencies:
     - name: espressif/esp_lcd_touch_gt911
       version: '*'
     source:
-      git: https://github.com/Sudrien/feckless-drivers-for-tab5.git
+      git: https://github.com/Sudrien/feckless-drivers-for-m5tab5.git
       path: .
       type: git
-    version: c3e3b562d2fe87af1bfc4ff580f273c99965d26d
+    version: b56e1f092bf4b37ca5de72bbde1c45453c71e174
   feckless_graphics_handler:
-    component_hash: d983cffa1f9b74e3e3b0a27922d655981d80cae7cbbf8287ec796d3d3badd51d
+    component_hash: 885597639f75450ea8e34c9b1c31b3222fb83d029bc30136eaa3723ba6795366
     dependencies:
     - name: idf
       version: '>=5.4.2'
     - name: espressif/esp_lcd_st7121
       version: ^1.0.0
     source:
-      git: https://github.com/Sudrien/feckless-graphics-handler-for-tab5.git
+      git: https://github.com/Sudrien/feckless-graphics-handler-for-m5tab5.git
       path: .
       type: git
-    version: 390c89466719e0109d7067bbf57231f5381a4166
+    version: b6522f27adf63b02a8f30573ce7967b3f3670922
   feckless_network_handler:
-    component_hash: e56c5f758c010e267b49f10d1f2137a3b23b9fff86cf2b54fd85644781a54e1f
+    component_hash: 6659a7242271d17040b10e77fd7b937827601a6f2b14ad5e6d0731e7b05d03a6
     dependencies:
     - name: idf
       version: '>=5.4.2'
@@ -320,17 +320,17 @@ dependencies:
     - name: espressif/iot_usbh_ecm
       version: '*'
     source:
-      git: https://github.com/Sudrien/feckless-network-handler-for-tab5.git
+      git: https://github.com/Sudrien/feckless-network-handler-for-m5tab5.git
       path: .
       type: git
-    version: b625e326653e9f656f7e3a75b7cab06da607c2b4
+    version: 919473373b4a1c598bbee58403602f41d9a48947
   feckless_storage_handler:
     component_hash: 146a764c800770e7d79c2c16a6d38f29334fef302bf4a28a003fdc70a87beb9e
     dependencies:
     - name: idf
       version: '>=5.4.2'
     source:
-      git: https://github.com/Sudrien/feckless-storage-handler-for-tab5.git
+      git: https://github.com/Sudrien/feckless-storage-handler-for-m5tab5.git
       path: .
       type: git
     version: 25505536be67cf36f0b0c440ac9a05e3d129fdd7
@@ -349,6 +349,6 @@ direct_dependencies:
 - feckless_network_handler
 - feckless_storage_handler
 - idf
-manifest_hash: 3d944fc55c5d392c55404f60a87cc11c271e0ee3c7fb8be8c3eb6aa3932c8506
+manifest_hash: 0f52ff6a14cf18e9f04b832cf61fc23470932bad8480ed30743921257ecdd762
 target: esp32p4
 version: 3.0.0

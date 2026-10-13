@@ -79,7 +79,7 @@ dependencies:
   # 6060: network v0.2.0 -- each scanned network's BSSID, and a quiet scan.
   feckless_network_handler:
     git: https://github.com/Sudrien/feckless-network-handler-for-m5tab5.git
-    version: "v0.2.0"
+    version: "v0.2.1"
   feckless_storage_handler:
     git: https://github.com/Sudrien/feckless-storage-handler-for-m5tab5.git
     version: "v0.1.0"
@@ -100,7 +100,7 @@ dependencies:
   # 6059: v0.2.0 -- the shadow buffer 128-byte aligned, for the PPA.
   feckless_graphics_handler:
     git: https://github.com/Sudrien/feckless-graphics-handler-for-m5tab5.git
-    version: "v0.2.0"
+    version: "v0.2.1"
 
 # minimp3 is NOT here. It is two headers with no component manifest
 # upstream, so it is vendored by tools/fetch_vendored.sh into

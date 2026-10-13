@@ -22591,3 +22591,45 @@ passing to the next preference, and French is known now. It is
 texttest's run-i18n passes against fixtures and against the real table,
 built with feckless-graphics-handler v0.2.1. Not compiled with ESP-IDF
 here. Not on the board.
+
+### 6069 -- French
+
+All 365 strings and 8 plurals in `i18n/fr.yml`, written by Claude and
+not yet read by a native speaker. "Vous" throughout.
+
+Typography is held to what Ark12 has. It has no U+00A0, so there is no
+non-breaking space before `? ! ;` -- they follow the word, the Swiss
+convention -- and `:` takes a plain space, which a wrap can only orphan
+in a long paragraph. Apostrophes are straight. « » appear once, on the
+setup page, which a browser draws. Every other letter (é è ê à ç î ô û
+and the capitals) is Latin-1 and was already there.
+
+Measured, since only the NET notes have a test:
+
+- The NET notes, by i18ntest (6018): two were 4 rows of 3. "Sans mot
+  de passe : tout le réseau peut l'utiliser." was two rows and rides
+  under nearly every NET note, so it is "... ouvert à tout le réseau.";
+  RESET's note lost "en conséquence".
+- Notice headings, 528 px at scale 4: five were over, all of them on
+  "enregistrement" -- Recording saved "Enregistré", stopped "Enreg.
+  arrêté", Cannot record "Enreg. impossible", Recording in %d "Enreg.
+  dans %d" (its head buffer is 24 bytes, too); Could not save is "Échec
+  d'écriture", Web setup is open "Page web ouverte".
+- Notice bodies, 528 px a line at scale 3, three lines, 95 bytes: every
+  recorder and player body, by gfx_text_w(). "Already recording." is
+  "Déjà en cours." under the "Enreg. impossible" head; the cancel line
+  is "glissez/touchez : annuler", 175 of 176.
+- The chooser status lines at 688: the no-directory and no-favourites
+  lines were reworded to fit.
+- The rest compared with the widest existing translation of the same
+  key, which is known to fit. AUDIO's row is "Enreg. depuis", and the
+  recording-is-off body names it that way; START is OUVRIR (it opens
+  setup), RLOD RECHARG., IDLE INACT.
+
+Still wider than any existing translation and not measured against its
+own box: the status-bar words (VEILLE, SANS BATT, DIRECT, a few pixels
+each), the browser footer's PG HAUT, and "Jamais" in the sleep page's
+cycle. A board run in French is the check for those.
+
+texttest run-i18n passes. Not compiled with ESP-IDF here. Not on the
+board.

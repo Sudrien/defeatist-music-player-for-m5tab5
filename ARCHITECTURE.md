@@ -22264,3 +22264,35 @@ name, including in the entries above (6053-6056), where they are
 references to follow rather than a record of what was done. The four
 git: URLs in main/idf_component.yml change with them; the component
 names and tags do not.
+
+### 6058 -- feckless-drivers to v0.5.0, for the capture's slot alignment
+
+v0.3.0 is the one that matters here. The ES7210 capture is an I2S
+slave on the playback channel's clocks and used to start wherever the
+TDM frame happened to be, so after a capture restart every slot could
+arrive one to three positions late: the "array" was one microphone and
+the headset slot, and the "headset" was a slot of silence. That is the
+likely cause of the headset recording muted after a built-in or
+beamformed one. audio_out_capture_read() now finds the shift from the
+ES7210's never-driven slot 0 and hands back the slots as the slots.
+
+Nothing here changes for it. The recorder reads through
+audio_out_capture_read() and gets frames in the same layout as before;
+the alignment holds data back for about 150 ms per capture begin, which
+the recorder's 100 ms read loop already treats as an empty read and
+retries, ahead of its own REC_SETTLE_MS. The 300 ms zero test counts
+only frames it was given, so the wait does not read as a mute.
+
+v0.4.0 (uac_mic_open_bits(), 24-bit USB microphones) and v0.5.0
+(audio_out_monitor_write()) only add calls; uac_mic_open() and
+audio_out_write() behave as before, and the recorder uses neither new
+one. 24-bit USB recording is there to take later: the recorder already
+carries s_bits through to the level strip and flacenc.
+
+The manifest: feckless_drivers moves to v0.5.0. Its own dependencies
+did not change between the tags, so the next build's re-resolve should
+change that one entry's version in both locks and nothing else.
+
+Not built against ESP-IDF here. On the board: the "TDM frame N slots in"
+line once per capture begin, and a headset recording made straight
+after a built-in one is not silent.

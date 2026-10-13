@@ -22687,3 +22687,54 @@ and REINDICIZZA. A board run in Italian is the check.
 
 texttest run-i18n passes. Not compiled with ESP-IDF here. Not on the
 board.
+
+### 6073 -- varispeed: turntable speed, as a stage nothing calls yet
+
+The first of a series that lets the listener play a track at another
+turntable's speed, pitch and all: a fraction, PLAYED over CUT, from
+16⅔, 33⅓, 45 and 78. Equal numbers are ×1.00 whichever they are.
+Aurora Player (a closed Tab5 firmware) has the same thing as a
+75-125% slider called "Turntable speed"; this is the fraction instead
+of the slider.
+
+Where it goes, decided here so the later patches do not each re-argue
+it: in the WRITER, after the ring and before audio_out, one state per
+ring. Not in the decode path, because then the rings would hold output
+time and every position, gapless trim, waveform and ReplayGain
+measurement that counts ring frames as track frames would be wrong by
+the ratio. Not by retuning the I2S clock, which is what a turntable
+"really" is: reconfiguring the clock disables the channel (the
+rate-change dip exists because of it), a drag through four speeds
+would be four gaps, a USB Audio Class device has the rates its
+descriptor lists and no others, and a crossfade whose outgoing track
+slides back to ×1.00 while the incoming one plays at ×1.00 needs two
+speeds at once on one clock. rateconv/polyrsp is the wrong tool for
+the opposite reason: it is a fixed-ratio converter that keeps pitch,
+and its filter state is reset by every change of ratio.
+
+So: a variable-rate read, 4-point Catmull-Rom, a Q16.16 step. Pull
+model -- the writer peeks the ring, the stage says how many frames it
+is done with, the writer drops exactly those. Every frame offered is
+taken into a four-frame window, so a ring that wraps and offers one
+frame at a time cannot stall it: the first version needed three frames
+in one call and returned nothing, consumed nothing, for fewer -- the
+block-size test found it, a writer would have spun. The window keeps
+the last two frames of a track; they are not played.
+
+At ×1.00 every output frame is an input frame, bit for bit (the
+cubic at t = 0 is x0 exactly), and a track that has never left ×1.00
+does not pass through the stage at all (`varispeed_active()`), so
+the "samples reach the DAC exactly as decoded" promise holds for
+everyone who never touches the control.
+
+Known and accepted: faster than ×1.00 it is not band-limited, so what
+was above Nyquist / step folds back -- at 45/33⅓ on a 44.1 kHz file,
+whatever was above 16.3 kHz.
+
+texttest run-varispeed: ×1.00 bit for bit in any block sizes down to
+one frame; 1000 Hz comes out at 1349.4 Hz at 45/33⅓ and the input is
+eaten 1.350 times as fast; the same output for every block split at
+all five fractions tried, 78/16⅔ (4.68, a step longer than some
+blocks) and 16⅔/78 (0.21) included; the slide lands on its target.
+Not called by the player yet, not compiled with ESP-IDF here, not on
+the board.

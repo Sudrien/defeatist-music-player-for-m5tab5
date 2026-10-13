@@ -262,6 +262,9 @@ typedef struct {
     /* 5217: Record from is OFF -- the switch is drawn as two positions,
      * pause and play, and cannot be slid to record. */
     bool rec_off;
+    /* 6076: turntable speed, PLAYED over CUT, as indexes into
+     * varispeed.h's table. Equal is ×1.00. */
+    uint8_t speed_played, speed_cut;
 } ui_state_t;
 
 /* What a touch produced. The player acts on these; the UI never acts. */
@@ -343,6 +346,12 @@ typedef enum {
     UI_ACTION_XFADE_ALBUM,
     UI_ACTION_SLEEP,
     UI_ACTION_POWER_OFF,    /* the power icon, confirmed: power the device off now */
+    /*
+     * 6076: turntable speed, from a drag on the fraction in row 8.
+     * `value` is PLAYED << 4 | CUT (varispeed.h indexes). A request for a
+     * state, sent once per number the drag passes, not once per poll.
+     */
+    UI_ACTION_SPEED,
 } ui_action_kind_t;
 
 /* Name of an action, for logging. Never NULL. Lives beside the enum so a

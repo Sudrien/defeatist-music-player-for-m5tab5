@@ -8962,6 +8962,14 @@ static void ui_task(void *arg)
             s_screen_off = false;
             lcd_backlight_set(screen_on_duty());
             break;
+        case UI_ACTION_SPEED:
+            /* 6076: the writer picks the setting up on its next pass. */
+            settings_set_speed((unsigned)act.value >> 4,
+                               (unsigned)act.value & 15u);
+            ESP_LOGI(TAG, "speed: %s/%s",
+                     varispeed_rpm_label[settings_speed_played()],
+                     varispeed_rpm_label[settings_speed_cut()]);
+            break;
         case UI_ACTION_POWER_OFF:
             /* The power icon, already confirmed on the modal. Finish any
              * recording first, as the low-battery guard does, so a WAV in
@@ -9006,6 +9014,9 @@ static void ui_task(void *arg)
          * recording started before the switch was turned OFF still has
          * its knob on the left, and stopping it must stay possible. */
         st.rec_off = settings_rec_from() == SETTINGS_REC_OFF && !st.recording;
+        /* 6076 */
+        st.speed_played = (uint8_t)settings_speed_played();
+        st.speed_cut    = (uint8_t)settings_speed_cut();
         /* 5117: what the panel is about to draw is what the browser is
          * told, so the two cannot disagree. Before ui_draw(), which
          * returns early with the screen off -- a remote is most useful

@@ -20,6 +20,7 @@
 #include "i18n.h"         /* 6017 */
 #include "launcher_import.h"   /* launcher_present(), launcher_exit_to_launcher() */
 #include "waveform.h"
+#include "varispeed.h"       /* 6076 */
 
 static const char *TAG = "tab5_ui";
 
@@ -154,7 +155,7 @@ static const char *TAG = "tab5_ui";
  *   5  album
  *   6  artist
  *   7  prev, the record/pause/play switch, next
- *   8  folder, gear, star, sleep -- four on one pitch
+ *   8  folder, gear, star, speed, sleep -- five on one pitch (6076)
  *   9  output icon, volume, battery
  */
 #define BAR_PAD     (24)    /* square edge to content, both sides */
@@ -165,7 +166,7 @@ static const char *TAG = "tab5_ui";
 #define ARTIST_Y    (278)   /* row 6 */
 #define ROW_Y       (392)   /* row 7, transport centres */
 #define AUX_Y       (500)   /* row 8, the five icons' centres */
-#define AUX_COUNT   (4)     /* record moved onto the transport switch */
+#define AUX_COUNT   (5)     /* record moved onto the transport switch; 6076: speed */
 #define VOL_Y       (623)   /* row 9 */
 /*
  * The art overlay's inset. NOT the bar's -- the bar's text starts at
@@ -366,7 +367,11 @@ static int  s_confirm;
 static int  s_ex_ok_x, s_ex_ok_y, s_ex_ok_w, s_ex_ok_h;
 static int  s_ex_cancel_x, s_ex_cancel_y, s_ex_cancel_w, s_ex_cancel_h;
 
-static int s_drag = -1;         /* 0 = seek, 1 = volume, 2 = transport switch */
+static int s_drag = -1;         /* 0 = seek, 1 = volume, 2 = transport switch,
+                                   3 = speed (6076) */
+/* 6076: the speed drag -- which number (0 PLAYED, 1 CUT), where the
+ * finger went down, the fraction then, and the last one asked for. */
+static int s_spd_row, s_spd_y0, s_spd_p0, s_spd_c0, s_spd_sent;
 /* The switch drag: where the finger went down, and the detent the knob
  * was on then (-1 record, 0 pause, 1 play). */
 static int s_sw_x0, s_sw_from;
@@ -413,6 +418,7 @@ const char *ui_action_name(ui_action_kind_t k)
     case UI_ACTION_XFADE_ALBUM: return same("crossfade in album");
     case UI_ACTION_SLEEP:       return same("sleep timer");
     case UI_ACTION_POWER_OFF:   return same("power off");
+    case UI_ACTION_SPEED:       return same("speed");
     }
     return "?";
 }
@@ -610,6 +616,11 @@ static void next_centre(int *cx, int *cy)
  * floored -- 144 gave 92 and 94, and the layout test said so.
  * Padded hit boxes are 2 * (ICON_HALF + HIT_PAD_X) = 80 wide, so 64 px
  * of pitch is nobody's.
+ *
+ * 6076: five, with the speed fraction between the star and the moon.
+ * The pitch is (672 + 52 + 3) / 6 = 121. The fraction's box is wider
+ * than an icon's -- SPEED_HALF + HIT_PAD_X = 52 each side, 104 -- and
+ * still 17 px clear of its neighbours' padded boxes.
  */
 static void aux_centre(int idx, int *cx, int *cy)
 {
@@ -638,7 +649,8 @@ static void aux_centre(int idx, int *cx, int *cy)
 static void folder_centre(int *cx, int *cy) { aux_centre(0, cx, cy); }
 static void gear_centre(int *cx, int *cy)   { aux_centre(1, cx, cy); }
 static void star_centre(int *cx, int *cy)   { aux_centre(2, cx, cy); }
-static void moon_centre(int *cx, int *cy)   { aux_centre(3, cx, cy); }
+static void speed_centre(int *cx, int *cy)  { aux_centre(3, cx, cy); }
+static void moon_centre(int *cx, int *cy)   { aux_centre(4, cx, cy); }
 
 /*
  * Row 3, both clocks, in one place because they are laid out against
@@ -659,7 +671,10 @@ static void moon_centre(int *cx, int *cy)   { aux_centre(3, cx, cy); }
 #define CLOCK_SCALE (3)
 #define CLOCK_DASH  "--:--"
 
-static void draw_clocks(const char *elapsed, const char *remaining, uint16_t c)
+/* 6076: the remaining clock in its own colour -- yellow when it is time
+ * at a turntable speed rather than track time. */
+static void draw_clocks_rc(const char *elapsed, const char *remaining,
+                           uint16_t c, uint16_t rc)
 {
     const int ty = s_bar_top + TIME_Y;
     const char *l = elapsed   ? elapsed   : CLOCK_DASH;
@@ -667,7 +682,12 @@ static void draw_clocks(const char *elapsed, const char *remaining, uint16_t c)
 
     gfx_draw_time_text(bar_x0(), ty, l, CLOCK_SCALE, c);
     gfx_draw_time_text(bar_x1() - gfx_time_text_w(r, CLOCK_SCALE), ty,
-                       r, CLOCK_SCALE, c);
+                       r, CLOCK_SCALE, rc);
+}
+
+static void draw_clocks(const char *elapsed, const char *remaining, uint16_t c)
+{
+    draw_clocks_rc(elapsed, remaining, c, c);
 }
 
 /* ------------------------------------------------------------------ */
@@ -931,6 +951,46 @@ static void draw_star_btn(int state)
         gfx_fill_star(cx, cy, (ICON_HALF * 82) / 100, C_BG);
         break;
     }
+}
+
+/*
+ * 6076: turntable speed, PLAYED over CUT, in the moon's old row.
+ *
+ * Numbers rather than an icon because the numbers are the control:
+ * drag either one up or down to step it through 16, 33, 45, 78. Ark12
+ * has no ⅓ or ⅔, so they are the numbers a turntable's switch has
+ * printed on it. Equal is ×1.00, outlined; anything else is filled
+ * yellow, C_RG's, like the remaining clock it changes.
+ */
+#define SPEED_HALF   (38)              /* half the box's width */
+#define SPEED_SCALE  (2)
+#define SPEED_STEP_PX (28)             /* finger travel per number */
+
+static void draw_speed(const ui_state_t *st)
+{
+    int cx, cy;
+    speed_centre(&cx, &cy);
+    const unsigned p = st->speed_played < VARISPEED_RPMS ? st->speed_played : 1;
+    const unsigned c = st->speed_cut    < VARISPEED_RPMS ? st->speed_cut    : 1;
+    const bool off = p != c;
+    const int w = 2 * SPEED_HALF, h = 2 * ICON_HALF + 8;
+    const int x = cx - SPEED_HALF, y = cy - h / 2;
+
+    if (off) {
+        fill_rrect(x, y, w, h, 10, C_RG);
+    } else {
+        fill_rrect(x, y, w, h, 10, C_ICON_OFF);
+        fill_rrect(x + 2, y + 2, w - 4, h - 4, 8, C_BG);
+    }
+    const uint16_t fg = off ? C_BG : C_ICON;
+    const char *top = varispeed_rpm_label[p];
+    const char *bot = varispeed_rpm_label[c];
+    const int gh = GFX_GLYPH_H(SPEED_SCALE);
+    gfx_draw_text(cx - gfx_text_w(top, SPEED_SCALE) / 2, cy - 3 - gh,
+                  top, SPEED_SCALE, w, fg);
+    gfx_fill_rect(cx - 24, cy - 1, 48, 2, fg);
+    gfx_draw_text(cx - gfx_text_w(bot, SPEED_SCALE) / 2, cy + 3,
+                  bot, SPEED_SCALE, w, fg);
 }
 
 static void draw_moon(void)
@@ -2175,12 +2235,25 @@ void ui_draw(const ui_state_t *st)
         const uint16_t clock_c = seeking ? C_FILL : C_ICON;
 
         if (st->len_sec > 0) {
-            const uint32_t left = (st->len_sec > shown_sec)
-                                ? st->len_sec - shown_sec : 0;
+            uint32_t left = (st->len_sec > shown_sec)
+                          ? st->len_sec - shown_sec : 0;
+            /*
+             * 6076: at a turntable speed the remaining clock is how long
+             * the rest will take to hear, and is yellow to say it no
+             * longer adds up to the length with the left one -- which
+             * stays where the track is. Not during a seek drag, which
+             * is about positions.
+             */
+            uint16_t rem_c = clock_c;
+            const uint32_t step = varispeed_step(st->speed_played, st->speed_cut);
+            if (step != VARISPEED_UNITY && !seeking) {
+                left = (uint32_t)(((uint64_t)left << 16) / step);
+                rem_c = C_RG;
+            }
             char el[GFX_TIME_TEXT_MAX], rem[GFX_TIME_TEXT_MAX];
             gfx_time_text(el, sizeof(el), shown_sec, false);
             gfx_time_text(rem, sizeof(rem), left, true);
-            draw_clocks(el, rem, clock_c);
+            draw_clocks_rc(el, rem, clock_c, rem_c);
         } else {
             /* No duration: dashes on both, matching the bare groove.
              * The elapsed number is real and is still withheld, because
@@ -2307,6 +2380,7 @@ void ui_draw(const ui_state_t *st)
     draw_folder();
     draw_gear();
     draw_star_btn(st->fav);
+    draw_speed(st);                                     /* 6076 */
     draw_moon();
 
     draw_power(power_cx(), right_cy(), C_ICON);
@@ -2430,6 +2504,32 @@ ui_action_t ui_touch(const ui_state_t *st, bool down, int x, int y)
         return act;
     }
 
+    /*
+     * 6076: the speed fraction. Up is the bigger NUMBER on whichever one
+     * the finger is on -- a thumb rolling a wheel -- not "faster": a
+     * bigger CUT plays slower. Sent as the drag passes each number, so
+     * it is heard while moving; the release sends nothing new.
+     */
+    if (s_drag == 3) {
+        if (!down) {
+            s_drag = -1;
+            return act;
+        }
+        int steps = (s_spd_y0 - y) / SPEED_STEP_PX;
+        int p = s_spd_p0, c = s_spd_c0;
+        int *n = s_spd_row ? &c : &p;
+        *n += steps;
+        if (*n < 0) *n = 0;
+        if (*n >= VARISPEED_RPMS) *n = VARISPEED_RPMS - 1;
+        const int v = (p << 4) | c;
+        if (v != s_spd_sent) {
+            s_spd_sent = v;
+            act.kind = UI_ACTION_SPEED;
+            act.value = v;
+        }
+        return act;
+    }
+
     if (s_drag >= 0) {
         int x0, x1, sy;
         if (s_drag == 0) seek_bounds(&x0, &x1, &sy);
@@ -2538,6 +2638,19 @@ ui_action_t ui_touch(const ui_state_t *st, bool down, int x, int y)
             act.kind = UI_ACTION_FAVORITE;
             return act;
         }
+    }
+
+    /* 6076: the speed fraction. Nothing on the press -- it is a drag;
+     * the half the finger lands in is the number it moves. */
+    speed_centre(&cx, &cy);
+    if (in_box(x, y, cx, cy, SPEED_HALF)) {
+        s_drag = 3;
+        s_spd_row = (y >= cy);
+        s_spd_y0 = y;
+        s_spd_p0 = st->speed_played < VARISPEED_RPMS ? st->speed_played : 1;
+        s_spd_c0 = st->speed_cut    < VARISPEED_RPMS ? st->speed_cut    : 1;
+        s_spd_sent = (s_spd_p0 << 4) | s_spd_c0;
+        return act;
     }
 
     moon_centre(&cx, &cy);

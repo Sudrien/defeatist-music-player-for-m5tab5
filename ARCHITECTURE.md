@@ -22837,3 +22837,43 @@ varispeed_run() over the whole track, every frame consumed, no pass
 that neither writes nor finds both ring and stage empty, never dry
 while audio is staged. Not compiled with ESP-IDF here. Not on the
 board: what a crossfade at 78/16⅔ sounds like is a board question.
+
+### 6076 -- the fraction on the now-playing screen
+
+Row 8 is five now: folder, gear, star, the speed fraction, the moon.
+The pitch drops from 145 to 121; the fraction's box is 76 wide
+(SPEED_HALF 38), its padded hit box 104, and that still clears the
+star's and the moon's padded boxes by 17 px each.
+
+THE CONTROL IS THE NUMBERS. PLAYED over CUT at scale 2, outlined at
+×1.00, filled C_RG yellow at anything else. A press picks the number
+under the finger -- the top half or the bottom -- and the drag steps it
+one value per 28 px, up for the bigger number (a thumb on a wheel; a
+bigger CUT is slower, and the number says so). UI_ACTION_SPEED is sent
+once per value passed, not per poll, as PLAYED << 4 | CUT; the player
+sets the setting and the writer (6075) hears it on its next pass. ui.c
+keeps its rule that the screen never acts: the fraction comes back in
+ui_state_t's speed_played and speed_cut, from settings, like rec_off.
+
+Ark12 has no U+2153 or U+2154, so the labels are 16, 33, 45 and 78 --
+what a turntable's switch has printed on it. varispeed_rpm_label[] said
+16⅔ and 33⅓ from 6073 and is changed here rather than in 6073, which
+has been handed over.
+
+THE REMAINING CLOCK is time to hear at the speed: track time left over
+the step. It is drawn yellow because it no longer adds up to the length
+with the elapsed clock, which stays in track time -- the seek bar and
+the position are about where the track is. A seek drag shows positions
+on both, as before.
+
+Not in this patch: a status-line word for the speed (the line is full
+at portrait width, and the fraction says it), MPD and the browser
+remote. MPD has no speed command; its clients will see track time.
+
+Checked: ui.c, panel.c, settings.c and player.c syntax-checked on the
+host at -O2 against the fakes plus empty stubs for the IDF headers they
+lack, before and after 6073-6076 -- no new diagnostic but one
+sign-compare that comes from the fakes not declaring
+xStreamBufferReceive() (the real one returns size_t). The whole of
+texttest passes. Not compiled with ESP-IDF here. Not on the board: the
+drag distance and the box's look are board questions.

@@ -8,8 +8,11 @@
 #include <string.h>
 
 const uint16_t varispeed_rpm_thirds[VARISPEED_RPMS] = { 50, 100, 135, 234 };
+/* 6076: what a turntable's switch has printed on it. Ark12 has no
+ * U+2153 or U+2154 (the third fractions), so "33" plus a fraction drew
+ * as "33" and a missing glyph. */
 const char *const varispeed_rpm_label[VARISPEED_RPMS] = {
-    "16⅔", "33⅓", "45", "78"
+    "16", "33", "45", "78"
 };
 
 uint32_t varispeed_step(unsigned played, unsigned cut)

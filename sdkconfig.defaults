@@ -218,6 +218,20 @@ CONFIG_USB_HOST_DWC_DMA_CAP_MEMORY_IN_PSRAM=y
 # microphone announced`).
 CONFIG_USB_HOST_CONTROL_TRANSFER_MAX_SIZE=1024
 
+# 6066: usb_host_uac keeps only the first UAC_FREQ_NUM_MAX sample rates
+# of each alternate setting (default 4) and warns "Frequency Number N
+# exceed the maximum 4". The Blue Snowball lists 8000, 11025, 22050,
+# 44100 and 48000 -- the fifth is the rate uac.c asks for first, so it
+# was dropped and every Snowball recording here ran at 44.1 kHz. The
+# Synaptics headset adapter (0572:1b08) declares six on its 16-bit
+# alternate. 8 leaves room, and is lothesome-audio-analyzer-for-m5tab5's
+# value (its 0027). 4 bytes a rate, per alternate setting.
+#
+# rm sdkconfig before building. Proof it took: no "Frequency Number"
+# warning for those two devices, and the Snowball's "Set EP ... frequency
+# 48000" where it said 44100.
+CONFIG_UAC_FREQ_NUM_MAX=8
+
 # esp_log_level_set() is a no-op without this on IDF v6.
 CONFIG_LOG_DYNAMIC_LEVEL_CONTROL=y
 

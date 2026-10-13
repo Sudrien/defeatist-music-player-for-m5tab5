@@ -22484,3 +22484,32 @@ sdkconfig.defaults change: `rm sdkconfig` before the next build.
 cmake/defaults_check.cmake names this key until that is done. What a
 board run should show: no ENUM error, and the device reaching its class
 driver -- `tab5_uac: USB microphone announced` for a microphone.
+
+### 6066 -- eight sample rates per alternate, so 48 kHz is not dropped
+
+usb_host_uac copies the first CONFIG_UAC_FREQ_NUM_MAX rates of each
+alternate setting into uac_host_dev_alt_param_t, 4 by default, and logs
+"Frequency Number N exceed the maximum 4" for the rest. Every Snowball
+run today had `Frequency Number 5 exceed the maximum 4` and then `Set EP
+4 frequency 44100`: its descriptor lists 8000, 11025, 22050, 44100 and
+48000 Hz, the fifth was dropped, and feckless-drivers' uac.c, which
+asks for 48 kHz first, never saw it on offer. lothesome-audio-analyzer-
+for-m5tab5 found exactly this with `lsusb -v -d 074d:0005` (its 0027)
+and set 8; the player had not.
+
+The Synaptics headset adapter (0572:1b08) declares six rates on its
+16-bit alternate, of which the attach listing printed the first four
+(8000 16000 32000 44100) and then two values that were not rates at
+all: 808464440 and 808857888 are 0x30303038 and 0x30363120, the ASCII
+"8000" and " 160" of the listing's own text buffer, which sits after
+the parameter struct on the stack -- the listing's loop read past the
+4-entry array into it. That read is fixed in feckless-drivers (0010,
+v0.5.1); this change makes it moot for anything up to eight rates. The
+adapter's last two are most likely 48000 and 96000, which its 24-bit
+alternate lists and the analyzer reports, but the log cannot say.
+
+sdkconfig.defaults change: `rm sdkconfig` before the next build.
+cmake/defaults_check.cmake names the key until then. What a board run
+should show: no "Frequency Number" warning for either device, the
+Snowball streaming at 48000, and the adapter's alt 1 listed with all
+six rates.

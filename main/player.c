@@ -3453,6 +3453,10 @@ static char              s_media_path[512];
 static bool              s_usb_autooff_done;
 
 static volatile bool     s_media_want;
+/* 6061: media_task is between taking a want and finishing its draw --
+ * waiting out the settle or decoding a cover into the shadow. A card
+ * drawn then is half painted over; see service_notices(). */
+static volatile bool     s_art_busy;
 
 /*
  * The track whose envelope is already computed.
@@ -5678,8 +5682,10 @@ static void media_task(void *arg)
          * not call load_track_visuals().
          */
         if (s_stream_art_want) {
+            s_art_busy = true;                          /* 6061 */
             s_stream_art_want = false;
             do_stream_art();
+            s_art_busy = false;
             continue;
         }
 
@@ -5687,6 +5693,7 @@ static void media_task(void *arg)
             vTaskDelay(pdMS_TO_TICKS(50));
             continue;
         }
+        s_art_busy = true;          /* 6061: before the want drops, no gap */
         s_media_want = false;
         s_scan_abort = false;
         const uint32_t gen = s_track_gen;
@@ -5712,12 +5719,14 @@ static void media_task(void *arg)
                                  (mediacache_no_art(path) && folderart_in_hand(path));
 
         if (!art_in_hand && !media_settle(gen, MEDIA_ART_DELAY_MS, MEDIA_MIN_RING_PCT, "cover")) {
+            s_art_busy = false;
             continue;
         }
 
         HEAP_CHECK("before do_art");
         do_art(path, gen);
         HEAP_CHECK("after do_art");
+        s_art_busy = false;
 
         /* Whatever it decided -- a cover, a format card, or nothing at
          * all because the generation moved on -- the art strip is now
@@ -6798,6 +6807,18 @@ static void service_notices(void)
             /* no return: the "Recording saved" card is due next */
         }
     }
+
+    /*
+     * 6061: and not while a cover is on its way. The cover is drawn by
+     * media_task into the same shadow buffer: it drops the card, clears
+     * the band, then spends up to a second decoding. A card drawn in
+     * that second was overwritten only where the picture landed, so a
+     * cover narrower than the card left its edges standing, with the
+     * card still counted as up. Held, not dropped: s_notice_pending and
+     * the conditions below are all still true on the next pass, which
+     * comes after the cover is down and so puts the card on top of it.
+     */
+    if (s_media_want || s_art_busy) return;
 
     portal_state_t ps;
     const bool running = portal_running();

@@ -22330,3 +22330,43 @@ first one scanned.
 The manifest: feckless_network_handler moves to v0.2.0. Its own
 dependencies -- esp_wifi_remote and esp_hosted among them -- are
 unchanged between the tags, so this does not move the C6 side.
+
+### 6061 -- a card waits for the cover, so the cover cannot cut it in half
+
+Seen on the board after a USB-mic recording: the "Recording saved"
+card came up over the cover and stayed only partly drawn, its edges
+standing beside a 560-wide cover in the 720-wide band, and tapping it
+away left those edges until something else repainted the square.
+
+Two tasks draw into the artwork band. The player task draws the cards
+(service_notices()); media_task draws the cover (do_art() through
+show_cover()). Stopping a recording does both at once: s_repaint_art
+sends the cover to media_task, and the recorder's card is pending for
+the same pass. show_cover() drops any card, clears the band in the
+shadow buffer and decodes -- a PNG took 972 ms in the log -- while
+service_notices() drew the card into the same buffer and blitted it.
+When the decode finished it overwrote the cover's rectangle and blitted
+again, so the card survived wherever the picture did not reach: the
+whole card is 608 wide, the cover 560. And because the card was drawn
+after show_cover()'s ui_notice_clear(), it still counted as up.
+
+media_task now sets s_art_busy from the moment it takes a want until
+its draw is done -- across the settle wait, and around a station's
+artwork too -- and service_notices() draws nothing below the recording
+countdown and the microphone while that or s_media_want is set. Held,
+not dropped: s_notice_pending, the portal and the battery are all
+still true on the next pass, which comes after the cover is down and
+so puts the card on top of it. A card can now be up to a second or two
+late at a track change; the countdown and the microphone are above the
+check and not delayed.
+
+Not covered: the recording microphone (ui_show_rec_art()) is drawn
+above the check, so a recording started while a cover is decoding
+could be cut the same way. load_track_visuals() and do_art() already
+refuse to start a cover while recording; only one already in flight at
+the start could do it.
+
+Not built with ESP-IDF, not run on a board. No sdkconfig.defaults or
+idf_component.yml change. What a board run should show: after a
+recording, the cover lands first and the "Recording saved" card then
+whole on top of it, and tapping the card away leaves only the cover.

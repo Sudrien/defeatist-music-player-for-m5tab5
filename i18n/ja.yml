@@ -501,7 +501,7 @@ ja:
     # recorder.c
     "The USB microphone did not start.": "USBマイクが\n起動しなかった。"
     # recorder.c
-    "The USB microphone has no 16-bit format.": "USBマイクに\n16ビット形式がない。"
+    "The USB microphone has no 16- or 24-bit format.": "USBマイクに\n16/24ビット形式がない。"
     # recorder.c
     "The USB microphone is not there any more.": "USBマイクが\nもう見つからない。"
     # recorder.c

@@ -527,11 +527,18 @@ bool recorder_start(char *why, size_t why_len)
         if (!uac_mic_announced()) REFUSE(N_("No USB microphone is plugged in."));
         uint32_t rate = 0;
         uint8_t ch = 0;
-        const esp_err_t e = uac_mic_open(&rate, &ch);
+        uint8_t bits = 16;
+        /* 6063: up to 24 bits, so a microphone with only 24-bit (or
+         * 32-bit) formats records instead of being refused. One that
+         * offers both at its best rate records at 24; one with only
+         * 16, like the Blue Snowball, is unchanged. uac_mic_read() then
+         * hands back values of that width, sign-extended in int32, which
+         * is what the level strip and flacenc are told below. */
+        const esp_err_t e = uac_mic_open_bits(&rate, &ch, 24, &bits);
         if (e == ESP_OK) {
             s_rate = rate;
             s_in_ch = ch;
-            s_bits = 16;
+            s_bits = bits;
             s_fold = (ch == 2 && autom);
         } else if (autom) {
             ESP_LOGW(TAG, "auto: USB microphone did not open (%s); next input",
@@ -540,7 +547,7 @@ bool recorder_start(char *why, size_t why_len)
         } else if (e == ESP_ERR_NOT_FOUND) {
             REFUSE(N_("The USB microphone is not there any more."));
         } else if (e == ESP_ERR_NOT_SUPPORTED) {
-            REFUSE(N_("The USB microphone has no 16-bit format."));
+            REFUSE(N_("The USB microphone has no 16- or 24-bit format."));
         } else {
             /* 6022: the reason to the log, the sentence to the card */
             ESP_LOGW(TAG, "USB microphone did not start: %s", esp_err_to_name(e));

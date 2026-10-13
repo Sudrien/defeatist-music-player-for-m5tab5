@@ -258,7 +258,7 @@ const char *const i18n_keys[] = {
     "That needs a stream address.",
     "That network was not found. Check the name and try again.",
     "The USB microphone did not start.",
-    "The USB microphone has no 16-bit format.",
+    "The USB microphone has no 16- or 24-bit format.",
     "The USB microphone is not there any more.",
     "The USB microphone was unplugged.\012%u:%02u on %s",
     "The card would not take any more.",
@@ -628,7 +628,7 @@ const unsigned char i18n_on_screen[] = {
     0,  /* 'That needs a stream address.' */
     0,  /* 'That network was not found. Check the na' */
     1,  /* 'The USB microphone did not start.' */
-    1,  /* 'The USB microphone has no 16-bit format.' */
+    1,  /* 'The USB microphone has no 16- or 24-bit ' */
     1,  /* 'The USB microphone is not there any more' */
     1,  /* 'The USB microphone was unplugged.\n%u:%02' */
     1,  /* 'The card would not take any more.' */
@@ -1008,7 +1008,7 @@ const char *const i18n_vals[] = {
     NULL,
     NULL,
     "The USB microphone\012did not start.",
-    "The USB microphone has\012no 16-bit format.",
+    "The USB microphone has\012no 16- or 24-bit format.",
     "The USB microphone is\012not there any more.",
     "The USB microphone was\012unplugged.\012%u:%02u on %s",
     "The card would not\012take any more.",
@@ -1374,7 +1374,7 @@ const char *const i18n_vals[] = {
     "需要填写流地址。",
     "找不到该网络。请检查名称后重试。",
     "USB 麦克风未能启动。",
-    "USB 麦克风\012不支持 16 位格式。",
+    "USB 麦克风\012不支持 16 或 24 位格式。",
     "USB 麦克风已不在。",
     "USB 麦克风已拔出。\012%u:%02u，保存在 %s",
     "卡已写不下。",
@@ -1740,7 +1740,7 @@ const char *const i18n_vals[] = {
     "ストリームのアドレスが必要です。",
     "そのネットワークが見つかりません。名前を確認してもう一度お試しください。",
     "USBマイクが\012起動しなかった。",
-    "USBマイクに\01216ビット形式がない。",
+    "USBマイクに\01216/24ビット形式がない。",
     "USBマイクが\012もう見つからない。",
     "USBマイクが抜かれた。\012%u:%02u、%s に保存",
     "カードがもう書き込めない。",
@@ -2106,7 +2106,7 @@ const char *const i18n_vals[] = {
     "Falta la dirección del flujo.",
     "No se encontró esa red. Revisa el nombre e inténtalo otra vez.",
     "El micrófono USB\012no arrancó.",
-    "El micrófono USB no\012tiene formato de 16 bits.",
+    "El micrófono USB no tiene\012formato de 16 ni de 24 bits.",
     "El micrófono USB\012ya no está.",
     "Se desconectó el\012micrófono USB.\012%u:%02u en %s",
     "La tarjeta no admite\012más datos.",

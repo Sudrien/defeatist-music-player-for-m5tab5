@@ -22413,3 +22413,40 @@ releases as heap_caps_free() expects.
 Found by running the host suite against the tags the lock now pins
 (drivers v0.5.0, graphics and network v0.2.1, storage v0.1.0): `make
 all` passes with this, and that is the only change it needed.
+
+### 6064 -- USB microphones at up to 24 bits
+
+recorder_start() opened a USB microphone with uac_mic_open(), which
+takes only a 16-bit format, so a microphone with nothing but 24- or
+32-bit alternates was refused ("The USB microphone has no 16-bit
+format."). feckless-drivers v0.4.0 (in the player since 6058) added
+uac_mic_open_bits(): up to 24 bits, from 24 in a 3- or 4-byte subframe
+or 32 in 4 read at its top 24, preferred over 16 at the same rate, and
+the width that was started reported back. The recorder now opens with
+it at 24 and records at whatever width it reports.
+
+Nothing downstream needed to change. uac_mic_read() hands back values
+of the opened width sign-extended in int32; the ring, the fold to mono
+(micpcm_mono(), which averages in int32) and flacenc already carry 24
+bits for the built-in pair; the level strip scales by s_bits. So:
+
+- a 16-only microphone (the Blue Snowball) is as before, 16 bits;
+- one offering both at its best rate now records at 24, a bigger file
+  and the microphone's full depth -- a change for that kind of device;
+- a 24- or 32-bit-only one records, instead of being refused.
+
+What is still refused: a microphone with no PCM at either width -- in
+practice 32-bit float, UAC format type 3, which the driver does not
+take. The card says so as "no 16- or 24-bit format". A UAC 2.0-only
+microphone is outside this altogether: the vendored usb_host_uac speaks
+UAC 1.0, so such a device is never announced.
+
+The rate is unchanged: 48 kHz, then 44.1, then the alternate's highest.
+REC_RING_BYTES is sized for two seconds at AUDIO_CAPTURE_RATE, so a
+microphone that offers only 96 kHz would get about one.
+
+Host-tested: run-i18n (the new string in all four locales),
+run-flacenc and run-levelhist pass. recorder.c is not host-built. Not
+built with ESP-IDF, not run with a 24-bit microphone. What a board run
+with one should show: "microphone streaming: ... 24-bit in 3 bytes" (or
+4), then "recording to ... 24-bit"; with the Snowball, 16-bit as before.

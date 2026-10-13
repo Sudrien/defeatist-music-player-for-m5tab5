@@ -501,7 +501,7 @@ zh-CN:
     # recorder.c
     "The USB microphone did not start.": "USB 麦克风未能启动。"
     # recorder.c
-    "The USB microphone has no 16-bit format.": "USB 麦克风\n不支持 16 位格式。"
+    "The USB microphone has no 16- or 24-bit format.": "USB 麦克风\n不支持 16 或 24 位格式。"
     # recorder.c
     "The USB microphone is not there any more.": "USB 麦克风已不在。"
     # recorder.c

@@ -501,7 +501,7 @@ en:
     # recorder.c
     "The USB microphone did not start.": "The USB microphone\ndid not start."
     # recorder.c
-    "The USB microphone has no 16-bit format.": "The USB microphone has\nno 16-bit format."
+    "The USB microphone has no 16- or 24-bit format.": "The USB microphone has\nno 16- or 24-bit format."
     # recorder.c
     "The USB microphone is not there any more.": "The USB microphone is\nnot there any more."
     # recorder.c

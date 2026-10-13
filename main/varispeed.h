@@ -56,7 +56,7 @@ extern "C" {
  */
 #define VARISPEED_RPMS   4
 extern const uint16_t varispeed_rpm_thirds[VARISPEED_RPMS];  /* 50 100 135 234 */
-extern const char *const varispeed_rpm_label[VARISPEED_RPMS]; /* "16" "33" "45" "78" */
+extern const char *const varispeed_rpm_label[VARISPEED_RPMS]; /* "16⅔" "33⅓" "45" "78" */
 
 /* played/cut as a step. Indexes out of range read as ×1.00. */
 uint32_t varispeed_step(unsigned played, unsigned cut);

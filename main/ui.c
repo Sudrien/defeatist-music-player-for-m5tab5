@@ -961,9 +961,9 @@ static void draw_star_btn(int state)
 }
 
 /*
- * 6076: turntable speed, PLAYED over CUT, in the moon's old row. Ark12
- * has no ⅓ or ⅔, so the numbers are the ones a turntable's switch has
- * printed on it. Equal is ×1.00, outlined; anything else is filled
+ * 6076: turntable speed, PLAYED over CUT, in the moon's old row. 6081:
+ * 16⅔ and 33⅓ with their thirds, which are wide glyphs: "33⅓" is 48 px
+ * at SPEED_SCALE, inside the box's 72. Equal is ×1.00, outlined; anything else is filled
  * yellow, C_RG's, like the remaining clock it changes. 6078: a tap
  * opens the popup (draw_speed_pop()); it is no longer dragged.
  */

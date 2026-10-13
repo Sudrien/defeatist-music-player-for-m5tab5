@@ -22973,3 +22973,20 @@ something else, this line is the one to change.
 
 A manifest change: the next build re-resolves dependencies.lock, and its
 diff is to be read before it is committed (CLAUDE.md).
+
+### 6081 -- 16⅔ and 33⅓
+
+With 6080's font, varispeed_rpm_label[] says 16⅔ and 33⅓ again, as
+6073 first had it, and the row-8 fraction and the popup draw them
+through the same gfx_draw_text() as everything else -- no special
+drawing. ⅓ and ⅔ are wide glyphs in Ark12: "33⅓" is 48 px at the
+button's scale 2 (the box's interior is 72) and 144 px at the popup's
+scale 6 (its column is 216). Rendered on the host with the player's
+own gfx.c and the new table before this was written; the stack reads
+as a turntable label does.
+
+Needs 6080 (and so feckless-graphics-handler v0.2.2) applied first:
+without it the thirds are missing glyphs. Logs carry the UTF-8 too.
+
+ABBREVIATIONS, all four: the "the font has no thirds" aside is gone.
+Not compiled with ESP-IDF here. Not on the board.

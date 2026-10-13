@@ -20,7 +20,7 @@ the screen is newer -- fix this file.
 | `RG` | Under the speaker: ReplayGain is adjusting this track. The yellow mark on the volume slider is where the volume effectively sits. |
 | `UAC` | In place of the speaker icon: a USB Audio Class device has the output. |
 | `FILE` | On the format card, for a file with no extension. Otherwise the card shows the extension (`MP3`, `FLAC`, ...). |
-| `45`/`33` | Between the star and the moon: turntable speed, PLAYED over CUT, from 16, 33, 45 and 78 (16⅔ and 33⅓ -- the font has no thirds). Tap it for + and − on each number; tap outside the box to close. Equal numbers are normal speed and outlined; anything else is yellow, and so is the remaining clock, which then counts real time left at that speed. How long it lasts is Speed holds on the AUDIO tab. |
+| `45`/`33⅓` | Between the star and the moon: turntable speed, PLAYED over CUT, from 16⅔, 33⅓, 45 and 78. Tap it for + and − on each number; tap outside the box to close. Equal numbers are normal speed and outlined; anything else is yellow, and so is the remaining clock, which then counts real time left at that speed. How long it lasts is Speed holds on the AUDIO tab. |
 
 ### The status line, under volume
 

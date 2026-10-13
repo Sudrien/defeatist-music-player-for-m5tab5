@@ -294,7 +294,7 @@ dependencies:
       type: git
     version: b56e1f092bf4b37ca5de72bbde1c45453c71e174
   feckless_graphics_handler:
-    component_hash: 885597639f75450ea8e34c9b1c31b3222fb83d029bc30136eaa3723ba6795366
+    component_hash: a8105c3b20708180d1acf84eb957651b6cf3a053826c877eefa49fba8a2d46d7
     dependencies:
     - name: idf
       version: '>=5.4.2'
@@ -304,9 +304,9 @@ dependencies:
       git: https://github.com/Sudrien/feckless-graphics-handler-for-m5tab5.git
       path: .
       type: git
-    version: b6522f27adf63b02a8f30573ce7967b3f3670922
+    version: 5bbf9d4d1504474ae2646c8f5b7b10f0173bdfa2
   feckless_network_handler:
-    component_hash: 6659a7242271d17040b10e77fd7b937827601a6f2b14ad5e6d0731e7b05d03a6
+    component_hash: 50b0968a51bcbad057652a4603a689a8d326c2c91e8bc812e597b51f696a3226
     dependencies:
     - name: idf
       version: '>=5.4.2'
@@ -323,7 +323,7 @@ dependencies:
       git: https://github.com/Sudrien/feckless-network-handler-for-m5tab5.git
       path: .
       type: git
-    version: 919473373b4a1c598bbee58403602f41d9a48947
+    version: c08e63960e1607ae7d0823e964d1584719d72bef
   feckless_storage_handler:
     component_hash: 146a764c800770e7d79c2c16a6d38f29334fef302bf4a28a003fdc70a87beb9e
     dependencies:

@@ -151,6 +151,7 @@ MEDIASYNC_BIN := mediasynctest
 # stops before the optimiser that the -O2-only warnings come out of.
 FADE_BIN := fadetest
 VARISPEED_BIN := varispeedtest
+SPEEDRING_BIN := speedringtest
 
 # The track-boundary rules. Header-only, so this compiles tailplan.h
 # itself and there is nothing to drift from.
@@ -300,7 +301,7 @@ LEVELHIST_BIN := levelhisttest
 # ../test_audio_files so the bytes under test are the bytes on the card.
 CUE_BIN := cuesheettest
 
-all: run-remote run-ctrl run-clock run-rotate run-cardtime run-mediaindex run-medialist run-mediasearch run-mpdqueue run-mpdproto run-mpduri run-mpdfilter run-mpdmode run-mpdidle run-uireq run-m3uline run-urlclean run-playlist run-screendim run-artplace run-mediawalk run-mediasync run-menuscroll run-fade run-tail run-portal run-old check-ui check-netbudget run-sleep run-sniff run-icy run-netplan run-stations run-pcmfold run-bufplan run-stbjpeg run-addrpin run-codec run-hlsplay run-hlsseg run-tsdemux run-folderart run-mp3 run-framewin run-streamplan run-stationnav run-radiobrowser run-levelhist run-favmatch run-cue run-tagextra run-flacenc run-beam run-i18n run-varispeed
+all: run-remote run-ctrl run-clock run-rotate run-cardtime run-mediaindex run-medialist run-mediasearch run-mpdqueue run-mpdproto run-mpduri run-mpdfilter run-mpdmode run-mpdidle run-uireq run-m3uline run-urlclean run-playlist run-screendim run-artplace run-mediawalk run-mediasync run-menuscroll run-fade run-tail run-portal run-old check-ui check-netbudget run-sleep run-sniff run-icy run-netplan run-stations run-pcmfold run-bufplan run-stbjpeg run-addrpin run-codec run-hlsplay run-hlsseg run-tsdemux run-folderart run-mp3 run-framewin run-streamplan run-stationnav run-radiobrowser run-levelhist run-favmatch run-cue run-tagextra run-flacenc run-beam run-i18n run-varispeed run-speedring
 
 $(CTRL_BIN): ctrltest.c
 	$(CC) $(CFLAGS) -D_GNU_SOURCE -pthread -o $@ ctrltest.c $(LDFLAGS) -pthread
@@ -491,6 +492,16 @@ $(VARISPEED_BIN): varispeedtest.c ../main/varispeed.c ../main/varispeed.h
 run-varispeed: $(VARISPEED_BIN)
 	ASAN_OPTIONS=detect_leaks=1:abort_on_error=0 ./$(VARISPEED_BIN)
 
+# The writer's speed stage against a ring (6075). TRANSCRIBED from
+# player.c's ring_dry() and vs_read(), like xfadetest -- an edit to
+# either is an edit to both.
+$(SPEEDRING_BIN): speedringtest.c ../main/varispeed.c ../main/varispeed.h
+	$(CC) $(WARNCFLAGS) -c speedringtest.c -o /dev/null
+	$(CC) $(CFLAGS) -D_GNU_SOURCE -I../main -o $@ speedringtest.c ../main/varispeed.c $(LDFLAGS)
+
+run-speedring: $(SPEEDRING_BIN)
+	ASAN_OPTIONS=detect_leaks=1:abort_on_error=0 ./$(SPEEDRING_BIN)
+
 # The stream levelling carrier, its gate and its slew. Links the real
 # main/streamgain.c, and builds it once more at -O2 -Werror for the
 # reason FADE_BIN does.
@@ -595,7 +606,7 @@ run-old: $(OLD_BINS)
 	done
 
 clean:
-	rm -f netbudget_probe.c $(CTRL_BIN) $(I18N_BIN) $(I18N_BIN)-fixture $(CLOCK_BIN) $(FADE_BIN) $(VARISPEED_BIN) $(TAIL_BIN) $(PORTAL_BIN) $(REMOTE_BIN) $(OLD_BINS) $(SLEEP_BIN) $(SNIFF_BIN) $(ICY_BIN) $(NETPLAN_BIN) $(STATION_BIN) $(BUFPLAN_BIN) $(CODEC_BIN) $(HLSPLAY_BIN) $(HLSSEG_BIN) $(TSDEMUX_BIN) $(FOLDERART_BIN) $(MP3_BIN) $(FRAMEWIN_BIN) $(STREAMPLAN_BIN) $(STATIONNAV_BIN) $(RADIOBROWSER_BIN) $(LEVELHIST_BIN) $(SGAIN_BIN) $(JSONPICK_BIN) $(FAVMATCH_BIN) $(FLACENC_BIN) $(BEAM_BIN) $(CUE_BIN) $(TAGEXTRA_BIN) $(ROTATE_BIN) $(CARDTIME_BIN) $(MEDIAINDEX_BIN) $(MEDIALIST_BIN) $(MEDIASEARCH_BIN) $(MPDQUEUE_BIN) $(MPDPROTO_BIN) $(MPDURI_BIN) $(MPDFILTER_BIN) $(MPDMODE_BIN) $(MPDIDLE_BIN) $(UIREQ_BIN) $(M3ULINE_BIN) $(URLCLEAN_BIN) $(PLAYLIST_BIN) $(SCREENDIM_BIN) $(ARTPLACE_BIN) $(MEDIAWALK_BIN) $(MEDIASYNC_BIN) $(MENUSCROLL_BIN) $(STBJPEG_BIN) $(ADDRPIN_BIN)
+	rm -f netbudget_probe.c $(CTRL_BIN) $(I18N_BIN) $(I18N_BIN)-fixture $(CLOCK_BIN) $(FADE_BIN) $(VARISPEED_BIN) $(SPEEDRING_BIN) $(TAIL_BIN) $(PORTAL_BIN) $(REMOTE_BIN) $(OLD_BINS) $(SLEEP_BIN) $(SNIFF_BIN) $(ICY_BIN) $(NETPLAN_BIN) $(STATION_BIN) $(BUFPLAN_BIN) $(CODEC_BIN) $(HLSPLAY_BIN) $(HLSSEG_BIN) $(TSDEMUX_BIN) $(FOLDERART_BIN) $(MP3_BIN) $(FRAMEWIN_BIN) $(STREAMPLAN_BIN) $(STATIONNAV_BIN) $(RADIOBROWSER_BIN) $(LEVELHIST_BIN) $(SGAIN_BIN) $(JSONPICK_BIN) $(FAVMATCH_BIN) $(FLACENC_BIN) $(BEAM_BIN) $(CUE_BIN) $(TAGEXTRA_BIN) $(ROTATE_BIN) $(CARDTIME_BIN) $(MEDIAINDEX_BIN) $(MEDIALIST_BIN) $(MEDIASEARCH_BIN) $(MPDQUEUE_BIN) $(MPDPROTO_BIN) $(MPDURI_BIN) $(MPDFILTER_BIN) $(MPDMODE_BIN) $(MPDIDLE_BIN) $(UIREQ_BIN) $(M3ULINE_BIN) $(URLCLEAN_BIN) $(PLAYLIST_BIN) $(SCREENDIM_BIN) $(ARTPLACE_BIN) $(MEDIAWALK_BIN) $(MEDIASYNC_BIN) $(MENUSCROLL_BIN) $(STBJPEG_BIN) $(ADDRPIN_BIN)
 	rm -rf $(CTRL_BIN).dSYM $(CLOCK_BIN).dSYM $(FADE_BIN).dSYM $(TAIL_BIN).dSYM $(PORTAL_BIN).dSYM
 	rm -rf $(addsuffix .dSYM,$(OLD_BINS))
 

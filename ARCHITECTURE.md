@@ -22770,3 +22770,70 @@ first kanji is not in Ark12 -- i18ntest refused it.
 Nothing reads the fraction yet: the row is live and saved, and does
 nothing until 6075. texttest run-i18n passes. Not compiled with ESP-IDF
 here. Not on the board.
+
+### 6075 -- the writer plays at the fraction
+
+6073's stage, wired in where 6073 said: in i2s_writer_task, after the
+ring, before every gain and ramp, one state per ring.
+
+THE RING'S STEP IS CHOSEN ONCE, AT ITS FIRST READ. The decode loop
+marks a ring FRESH when a track starts in it (the `cur_rate == 0`
+branch, beside s_frames_out's reset) and NEW when the path is not the
+previous track's -- FNV-1a of the path, since only "the same as last
+time" is asked. RPT1 decodes the same path, so it is not new and keeps
+its speed. The writer, reading a fresh ring, takes ×1.00 for a new
+track under Speed holds TRACK and the setting's fraction otherwise.
+After that the step is the ring's, which is what lets two rings play
+at two speeds during an overlap.
+
+A change of the setting goes to the ring being heard -- the incoming
+one during an overlap -- and a ring not read yet takes it when it is.
+The writer notices by comparing the setting's step with the last one it
+saw, once a pass; no request queue, because the setting is the state.
+
+THE SCREEN'S RESET IS track_commit()'s. Under TRACK the fraction goes
+back to matching at the commit of a different path -- the moment the
+title changes. The audio got there first: the new ring started at
+×1.00, and with a crossfade the outgoing track slid there.
+
+THE SLIDE. At overlap start, under TRACK, with a new incoming track
+and the outgoing ring not at ×1.00, the outgoing step slides linearly
+to ×1.00 across s_xfade_frames (varispeed_slide()). The commit's
+settings change lands at the midpoint and goes to the incoming ring,
+which is already at ×1.00, so the slide is not cut. Under BOOT both
+tracks play at the fraction and nothing slides. The overlap's length
+is still planned in outgoing RING frames, so an outgoing track faster
+than ×1.00 runs out early: the mix pads it with silence for the rest
+of the chunk, and the handoff's cut-short exit ends the overlap as it
+does any outgoing ring that empties first.
+
+THE STAGE. StreamBuffers cannot be peeked or pushed back, so each
+ring has a 4 KB stage of received, not-yet-read audio. ring_dry()
+counts it, and replaces xStreamBufferIsEmpty() at the three places an
+empty ring decides something: the tail release, the handoff, and the
+decode loop's "is the old rate still queued" before a clock change --
+otherwise a track's last 23 ms could be left in the stage, or played
+at the next track's rate. The flush empties the stages with the
+rings; the position counts them as still queued. Allocated once at
+writer start, 12 KB of internal RAM; if they cannot be, speed is off
+and every track plays as before.
+
+UNTOUCHED AT ×1.00. A ring whose step is ×1.00 and whose stage has
+never run (vs_engaged() false) takes exactly the receive it took
+before this patch. Streams are always that: a live stream played
+faster than real time runs dry.
+
+NOT TOUCHED: ReplayGain, the waveform and the loudness pass. All three
+are measured in play_file() on decoded track samples, before any ring,
+so a first listen at 45/33⅓ measures exactly what one at ×1.00 would.
+The "provisional" ReplayGain entry that was planned for listens at
+another speed would mark a measurement no different from a final one;
+it is not built.
+
+texttest run-speedring (new): ring_dry() and vs_read() transcribed
+over a byte FIFO that cannot be peeked; all sixteen fractions, decode
+writes of 1-700 frames, 4 KB reads -- output identical to one
+varispeed_run() over the whole track, every frame consumed, no pass
+that neither writes nor finds both ring and stage empty, never dry
+while audio is staged. Not compiled with ESP-IDF here. Not on the
+board: what a crossfade at 78/16⅔ sounds like is a board question.

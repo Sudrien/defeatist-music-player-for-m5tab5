@@ -87,6 +87,7 @@
 #include "panel.h"
 #include "playlist.h"
 #include "rateconv.h"
+#include "varispeed.h"         /* 6075 */
 #include "settings.h"
 #include "storage.h"
 #include "storage_io.h"
@@ -1414,6 +1415,48 @@ static volatile uint8_t  s_ring_tail[PCM_RINGS];
 static volatile uint32_t s_ring_fade_ms[PCM_RINGS];
 static volatile uint32_t s_ring_after_ms[PCM_RINGS];
 
+/*
+ * 6075: turntable speed, per ring -- varispeed.h, settings.h, and
+ * ARCHITECTURE.md 6073-6075 for why it is the writer's.
+ *
+ * The decode loop marks a ring FRESH when a track starts in it, and NEW
+ * when that track is not the one before it (a different path: RPT1's
+ * repeat is the same track, and keeps its speed). The writer takes the
+ * mark the first time it reads the ring, and picks the ring's step
+ * then: ×1.00 for a new track under Speed holds TRACK, the setting's
+ * fraction otherwise. From then on the step belongs to the ring, so a
+ * crossfade can slide the outgoing one to ×1.00 while the incoming one
+ * plays at its own.
+ *
+ * StreamBuffers cannot be peeked or pushed back, and a step can want
+ * more input than one output chunk's worth, so each ring has a stage:
+ * what was received and not yet read through the stage. It counts as
+ * audio still in the ring wherever "is the ring empty" decides
+ * something (ring_dry()).
+ *
+ * The stages are only allocated when the writer starts; without them
+ * speed is off this boot and everything plays at ×1.00, as before.
+ */
+static varispeed_t       s_vs[PCM_RINGS];          /* writer only */
+static uint32_t          s_vs_step[PCM_RINGS];     /* writer only */
+static uint8_t          *s_vs_stage[PCM_RINGS];    /* writer only */
+static volatile size_t   s_vs_stage_n[PCM_RINGS];  /* bytes; read by decode */
+static volatile bool     s_vs_fresh[PCM_RINGS];    /* decode -> writer */
+static volatile bool     s_vs_new_track[PCM_RINGS];/* decode -> writer */
+static uint32_t          s_vs_last_id;             /* decode only */
+static uint32_t          s_vs_seen = VARISPEED_UNITY;  /* writer only */
+/* The outgoing step a crossfade is sliding from, or 0 for no slide. */
+static uint32_t          s_vs_slide_from;          /* writer only */
+static bool              s_vs_ok;
+
+/* Whether ring r still has audio the writer has not played: in the ring
+ * itself, or received into its stage. */
+static bool ring_dry(int r)
+{
+    return xStreamBufferIsEmpty(s_ring[r]) &&
+           s_vs_stage_n[r] < PCM_BYTES_PER_FRAME;
+}
+
 /* Never trim by more than this. A 12 dB gap between two tracks is a
  * mastering difference the listener can hear across the whole song, not
  * something a three-second overlap should hide -- and pulling one track
@@ -2172,6 +2215,77 @@ static void xfade_stall_check(void)
 
 /* Drains the ring into I2S and nothing else, so the only thing it ever
  * blocks on is DMA. */
+/*
+ * 6075: the writer's half of turntable speed.
+ *
+ * s_streaming is defined with play_stream()'s state further down; a
+ * live stream is always ×1.00 -- faster than real time would run it dry
+ * and slower would overrun it.
+ */
+static volatile bool s_streaming;
+
+static uint32_t speed_setting(void)
+{
+    return varispeed_step(settings_speed_played(), settings_speed_cut());
+}
+
+/* The ring's first read of a new track: its state, and its step. */
+static void vs_take_fresh(int r)
+{
+    if (!s_vs_fresh[r]) return;
+    s_vs_fresh[r] = false;
+    varispeed_reset(&s_vs[r]);
+    s_vs_stage_n[r] = 0;
+    s_vs_step[r] = (s_vs_new_track[r] && !settings_speed_boot())
+                 ? VARISPEED_UNITY : speed_setting();
+}
+
+/*
+ * Whether ring r goes through the stage. A track that has never left
+ * ×1.00 does not, and takes the receive it always took.
+ */
+static bool vs_engaged(int r)
+{
+    if (!s_vs_ok || s_streaming) return false;
+    vs_take_fresh(r);
+    return s_vs_step[r] != VARISPEED_UNITY || varispeed_active(&s_vs[r]) ||
+           s_vs_stage_n[r] >= PCM_BYTES_PER_FRAME;
+}
+
+/*
+ * Up to `cap` bytes of ring r at `step` into dst. Tops the stage up from
+ * the ring first -- waiting up to `wait` only when the stage is nearly
+ * empty, so a chunk of staged audio is never held behind a timeout.
+ */
+static size_t vs_read(int r, uint32_t step, uint8_t *dst, size_t cap,
+                      TickType_t wait)
+{
+    uint8_t *st = s_vs_stage[r];
+    size_t have = s_vs_stage_n[r];
+    if (have < PCM_CHUNK_BYTES) {
+        have += xStreamBufferReceive(s_ring[r], st + have,
+                                     PCM_CHUNK_BYTES - have,
+                                     have >= 4 * PCM_BYTES_PER_FRAME ? 0 : wait);
+    }
+    size_t used = 0;
+    const size_t out = varispeed_run(&s_vs[r], step, (const int16_t *)st,
+                                     have / PCM_BYTES_PER_FRAME, &used,
+                                     (int16_t *)dst, cap / PCM_BYTES_PER_FRAME);
+    const size_t ub = used * PCM_BYTES_PER_FRAME;
+    memmove(st, st + ub, have - ub);
+    s_vs_stage_n[r] = have - ub;
+    return out * PCM_BYTES_PER_FRAME;
+}
+
+/* The step the outgoing ring of an overlap plays at now. */
+static uint32_t vs_out_step(int play)
+{
+    return s_vs_slide_from
+         ? varispeed_slide(s_vs_slide_from, VARISPEED_UNITY,
+                           s_xfade_pos, s_xfade_frames)
+         : s_vs_step[play];
+}
+
 static void i2s_writer_task(void *arg)
 {
     uint8_t *buf = heap_caps_malloc(PCM_CHUNK_BYTES, MALLOC_CAP_DMA | MALLOC_CAP_8BIT);
@@ -2195,6 +2309,17 @@ static void i2s_writer_task(void *arg)
      * refusing to play music because a nicety could not be allocated. */
     if (!mixbuf) {
         ESP_LOGW(TAG, "no mix buffer; crossfade disabled this boot");
+    }
+    /* 6075: the stages, internal RAM, for the life of the task -- same
+     * argument as mixbuf. Without all three, speed is off this boot. */
+    s_vs_ok = true;
+    for (int r = 0; r < PCM_RINGS; r++) {
+        s_vs_stage[r] = heap_caps_malloc(PCM_CHUNK_BYTES, MALLOC_CAP_8BIT);
+        if (!s_vs_stage[r]) s_vs_ok = false;
+        s_vs_step[r] = VARISPEED_UNITY;
+    }
+    if (!s_vs_ok) {
+        ESP_LOGW(TAG, "no speed stage; turntable speed is off this boot");
     }
 
     while (1) {
@@ -2232,6 +2357,14 @@ static void i2s_writer_task(void *arg)
              * sound like a new station.
              */
             if (s_sgain) streamgain_drain(s_sgain);
+
+            /* 6075: the stages hold the old position too; the steps are
+             * the rings' and stay. */
+            for (int r = 0; r < PCM_RINGS; r++) {
+                dropped += s_vs_stage_n[r];
+                s_vs_stage_n[r] = 0;
+                varispeed_reset(&s_vs[r]);
+            }
 
             s_pcm_flush = false;
             ring_publish();
@@ -2299,6 +2432,22 @@ static void i2s_writer_task(void *arg)
         }
 
         /*
+         * 6075: the fraction was changed -- by a drag, or by a new track
+         * under TRACK putting it back. It goes to the track being heard:
+         * during an overlap that is the incoming one, and the outgoing
+         * keeps its slide. A ring not read yet takes it when it is.
+         */
+        if (s_vs_ok) {
+            const uint32_t now = speed_setting();
+            if (now != s_vs_seen) {
+                s_vs_seen = now;
+                const int r = s_xfade_active ? (s_ring_play + 1) % PCM_RINGS
+                                             : s_ring_play;
+                if (!s_vs_fresh[r]) s_vs_step[r] = now;
+            }
+        }
+
+        /*
          * The last sample of the finished track has gone to I2S.
          *
          * This is the event the screen has been waiting for, and it is
@@ -2318,7 +2467,7 @@ static void i2s_writer_task(void *arg)
         tail_stall_check();
         xfade_stall_check();
 
-        if (s_tail_pending && xStreamBufferIsEmpty(s_ring[s_tail_ring])) {
+        if (s_tail_pending && ring_dry(s_tail_ring)) {
             s_tail_pending = false;
             s_xexit[XEXIT_TAIL_DRY]++;
             /*
@@ -2349,7 +2498,7 @@ static void i2s_writer_task(void *arg)
          * right sample rather than at the right moment.
          */
         const int play = s_ring_play;
-        if (play != s_ring_fill && xStreamBufferIsEmpty(s_ring[play])) {
+        if (play != s_ring_fill && ring_dry(play)) {
             ring_advance_play();
             /* An overlap cannot outlive the ring it was fading out of.
              * Reaching here mid-crossfade means the outgoing track ran
@@ -2357,6 +2506,7 @@ static void i2s_writer_task(void *arg)
             if (s_xfade_active) {
                 s_xfade_active = false;
                 s_xfade_armed = false;
+                s_vs_slide_from = 0;        /* 6075 */
                 s_xexit[XEXIT_CUT_SHORT]++;
                 /*
                  * An overlap that ends before its midpoint still ends,
@@ -2447,6 +2597,15 @@ static void i2s_writer_task(void *arg)
                         s_xfade_warned = false;
                         s_xexit[XEXIT_START]++;
                         xfade_match(play, fill);
+                        /* 6075: under TRACK a new incoming track starts
+                         * at ×1.00, and the outgoing one slides there
+                         * over the overlap rather than jumping. */
+                        s_vs_slide_from = 0;
+                        if (vs_engaged(play) && s_vs_new_track[in] &&
+                            !settings_speed_boot() &&
+                            s_vs_step[play] != VARISPEED_UNITY) {
+                            s_vs_slide_from = s_vs_step[play];
+                        }
                         s_xfade_in_only = plan.out_unity;
                         if (s_xfade_in_only) s_xfade_gain_a = 32768;
                         ESP_LOGI(TAG, "crossfade: %" PRIu32 " ms"
@@ -2469,9 +2628,29 @@ static void i2s_writer_task(void *arg)
                 if (avail_b < n) n = avail_b;
                 n &= ~(size_t)(PCM_BYTES_PER_FRAME - 1);
 
+                /*
+                 * 6075: either side at a speed. The incoming side sets
+                 * the length -- it is the one with the track ahead of
+                 * it -- and an outgoing side that runs short is silence
+                 * for the rest of the chunk: it is the end of a track
+                 * that is fading out anyway.
+                 */
+                const bool vs = s_vs_slide_from || vs_engaged(play) ||
+                                vs_engaged(in);
+                const uint32_t step_a = vs ? vs_out_step(play) : VARISPEED_UNITY;
+                if (vs) {
+                    n = vs_read(in, s_vs_step[in], mixbuf, PCM_CHUNK_BYTES, 0);
+                    if (n) {
+                        const size_t na = vs_read(play, step_a, buf, n, 0);
+                        if (na < n) memset(buf + na, 0, n - na);
+                    }
+                }
+
                 if (n) {
-                    xStreamBufferReceive(s_ring[play], buf, n, 0);
-                    xStreamBufferReceive(s_ring[in], mixbuf, n, 0);
+                    if (!vs) {
+                        xStreamBufferReceive(s_ring[play], buf, n, 0);
+                        xStreamBufferReceive(s_ring[in], mixbuf, n, 0);
+                    }
                     xfade_mix((int16_t *)buf, (const int16_t *)mixbuf,
                               n / PCM_BYTES_PER_FRAME);
                     audio_out_write(buf, n);
@@ -2495,8 +2674,11 @@ static void i2s_writer_task(void *arg)
                          * exist. */
                         s_visuals_released = true;
                         const size_t left =
-                            xStreamBufferBytesAvailable(s_ring[play]);
+                            xStreamBufferBytesAvailable(s_ring[play]) +
+                            s_vs_stage_n[play];
                         xStreamBufferReset(s_ring[play]);
+                        s_vs_stage_n[play] = 0;     /* 6075 */
+                        s_vs_slide_from = 0;
                         /* Sequential, like every other handoff. During an
                          * overlap the incoming ring is the next one, so
                          * this is `fill` in practice -- but saying it the
@@ -2528,11 +2710,12 @@ static void i2s_writer_task(void *arg)
                  * decode catches up, and if the outgoing ring empties
                  * first the handoff at the top of the loop ends it.
                  */
-                const size_t solo = (avail_a < PCM_CHUNK_BYTES)
-                                  ? (avail_a & ~(size_t)(PCM_BYTES_PER_FRAME - 1))
-                                  : PCM_CHUNK_BYTES;
+                size_t solo = (avail_a < PCM_CHUNK_BYTES)
+                            ? (avail_a & ~(size_t)(PCM_BYTES_PER_FRAME - 1))
+                            : PCM_CHUNK_BYTES;
+                if (vs) solo = vs_read(play, step_a, buf, PCM_CHUNK_BYTES, 0);
                 if (solo) {
-                    xStreamBufferReceive(s_ring[play], buf, solo, 0);
+                    if (!vs) xStreamBufferReceive(s_ring[play], buf, solo, 0);
 
                     const uint32_t t = (uint32_t)
                         (((uint64_t)s_xfade_pos << 16) / s_xfade_frames);
@@ -2589,9 +2772,12 @@ static void i2s_writer_task(void *arg)
             }
         }
 
-        const size_t got = xStreamBufferReceive(s_ring[s_ring_play], buf,
-                                                PCM_CHUNK_BYTES,
-                                                pdMS_TO_TICKS(100));
+        /* 6075: through the stage at a speed, or the receive as ever. */
+        const int pr = s_ring_play;
+        const size_t got = vs_engaged(pr)
+            ? vs_read(pr, s_vs_step[pr], buf, PCM_CHUNK_BYTES, pdMS_TO_TICKS(100))
+            : xStreamBufferReceive(s_ring[pr], buf, PCM_CHUNK_BYTES,
+                                   pdMS_TO_TICKS(100));
         ring_publish();
 
         if (got) {
@@ -4214,6 +4400,18 @@ static void track_commit(const track_commit_t *tc)
     s_rg_measuring = tc->rg_measuring;
     s_rg_gain_db   = tc->rg_gain_db;
 
+    /*
+     * 6075: under Speed holds TRACK the fraction goes back to matching
+     * when the title changes -- this moment, the one the screen changes
+     * at, not when the audio does (a crossfade slides the audio there
+     * over the overlap). The writer has already started the new track
+     * at ×1.00; this is the numbers catching up. A repeat of the same
+     * path is not a new track.
+     */
+    if (!settings_speed_boot() && strcmp(tc->path, s_shown_path) != 0) {
+        settings_set_speed(settings_speed_cut(), settings_speed_cut());
+    }
+
     settings_set_track(tc->path);
     browser_set_playing(tc->path);
     snprintf(s_shown_path, sizeof(s_shown_path), "%s", tc->path);
@@ -5207,7 +5405,9 @@ static void ring_publish(void)
          * fill ring is a track nobody is hearing yet. */
         pos_ring = (s_ring_play + 1) % PCM_RINGS;
     }
-    pos_publish(pos_ring, xStreamBufferBytesAvailable(s_ring[pos_ring]));
+    /* 6075: the speed stage is still to be heard, in track frames. */
+    pos_publish(pos_ring, xStreamBufferBytesAvailable(s_ring[pos_ring]) +
+                          s_vs_stage_n[pos_ring]);
 
     /* And act on it. Nothing else was: s_prefetch_abort was set on a
      * track change and nowhere else, so the low-water threshold the
@@ -10332,9 +10532,9 @@ static track_end_t play_file(const char *path)
                 {
                     const uint32_t out_now = audio_out_rate();
                     const uint32_t in_rate = (uint32_t)info.sample_rate;
-                    const bool queued =
-                        s_pcm &&
-                        xStreamBufferBytesAvailable(s_ring[s_ring_play]) > 0;
+                    /* 6075: ring_dry() counts the speed stage too, which
+                     * is still at the old rate. */
+                    const bool queued = s_pcm && !ring_dry(s_ring_play);
                     const bool xfade = s_xfade_armed || s_xfade_active;
                     const bool continuing = rateconv_active() &&
                         rateconv_in_rate() == in_rate &&
@@ -10794,6 +10994,23 @@ static track_end_t play_file(const char *path)
                  * before any frame count of this track is. */
                 s_frames_rate[s_ring_fill] = 0;
                 s_frames_out[s_ring_fill] = 0;
+
+                /*
+                 * 6075: a new track for turntable speed is a different
+                 * path. RPT1 decodes the same one again and keeps its
+                 * speed; so does a one-track folder on RPT, which is the
+                 * same track again in every way a listener can hear.
+                 * FNV-1a, because only "same as the last one" is asked.
+                 */
+                {
+                    uint32_t id = 2166136261u;
+                    for (const char *c = path; *c; c++) {
+                        id = (id ^ (uint8_t)*c) * 16777619u;
+                    }
+                    s_vs_new_track[s_ring_fill] = (id != s_vs_last_id);
+                    s_vs_last_id = id;
+                    s_vs_fresh[s_ring_fill] = true;
+                }
 
                 s_ring_pct = 0;
                 s_writer_stop = false;

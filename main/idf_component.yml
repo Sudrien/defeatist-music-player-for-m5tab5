@@ -93,9 +93,12 @@ dependencies:
   # v0.5.2: latest drivers tag.
   # 6091: v0.5.3 -- usbhost logs what the host library still holds
   # after each VBUS change, and when every device is freed (its 0012).
+  # 6092: v0.5.4 -- hid lets go of a device that left with a claim held
+  # (0013), and a custom FIFO split fits both the Synaptics headset's
+  # 768-byte isochronous OUT and a drive's 512-byte bulk (0014).
   feckless_drivers:
     git: https://github.com/Sudrien/feckless-drivers-for-m5tab5.git
-    version: "v0.5.3"
+    version: "v0.5.4"
 
   # 6055: the panel, the backlight and gfx, with the Ark12 and Arabixel
   # fonts, are feckless-graphics-handler-for-m5tab5. esp_lcd_st7121 moved

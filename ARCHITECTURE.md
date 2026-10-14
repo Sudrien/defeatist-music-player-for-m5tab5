@@ -23134,3 +23134,30 @@ will still count one device -- which is the reading this is for.
 A manifest change: the next build re-resolves dependencies.lock.idf6;
 its diff should move feckless_drivers from 718b1d5 (v0.5.2) to
 13f17ce (v0.5.3) and nothing else (CLAUDE.md).
+
+### 6092 -- feckless-drivers to v0.5.4: the port comes back, and the drive fits
+
+6091's census answered on the next board run. The drive's removal
+reached "all devices freed"; the headset's drop did not, and no "remote
+gone" followed it either: the HID polling task's interrupt URB on the
+headset's itf 3 never completed, so the interface stayed claimed and
+the device was never closed. Its 0013 halts and flushes a gone device's
+claimed endpoints, so the URB comes back CANCELED and the existing
+teardown runs.
+
+The same log's boot had the other fault: a SanDisk drive refused with
+"EP MPS (512) exceeds supported limit (256)". That is b5319f8's FIFO
+bias for the Synaptics headset's 768-byte isochronous OUT, which left
+non-periodic TX 256 bytes -- the risk b5319f8 named and left unproven.
+Its 0014 sets usb_host_config_t.fifo_settings_custom instead: NPTX 128,
+PTX 384, RX 512 lines, the P4's 1024. sdkconfig.defaults'
+CONFIG_USB_HOST_HW_BUFFER_BIAS_PERIODIC_OUT is ignored while the custom
+split is set and is left as it is.
+
+What the board should show: the drive mounting at boot; the headset
+playing; after a headset drop, "device gone with EP 0x84 claimed",
+"remote gone (itf 3)" and "all devices freed", and then a re-plugged
+drive enumerating.
+
+A manifest change: the next build re-resolves dependencies.lock.idf6;
+feckless_drivers should move to d7b8b26 (v0.5.4) and nothing else.

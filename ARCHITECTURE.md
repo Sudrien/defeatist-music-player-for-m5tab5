@@ -23046,3 +23046,14 @@ what the board draws; the BUILD tab's Language row lists all seven; the
 table's introduction names the new languages. The language bars at the
 top of each file wait for 6088, when the files they would link to
 exist.
+
+### 6085 -- README.fr.md and ABBREVIATIONS.fr.md
+
+The French docs, laid out as the Spanish ones are and translated from
+the English, which stays canonical. Written by Claude; not yet read by
+a native speaker. The ABBREVIATIONS table of other languages is copied
+from ABBREVIATIONS.md (6084) with only its first column translated, so
+it cannot drift from the English one. The settings rows use the names
+the French screen shows -- "Enreg. depuis", not the longer form 6069
+had to shorten. The language bar links to the Portuguese and Italian
+files 6086 and 6087 add.

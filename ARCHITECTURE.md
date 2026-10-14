@@ -23066,3 +23066,11 @@ canonical. Written by Claude; not yet read by a native speaker. The
 table of other languages is copied from ABBREVIATIONS.md with its first
 column translated, as in 6085; the settings rows use the names the
 Portuguese screen shows.
+
+### 6087 -- README.it.md and ABBREVIATIONS.it.md
+
+The Italian docs, laid out as the Spanish ones are and translated from
+the English, which stays canonical. Written by Claude; not yet read by
+a native speaker. The table of other languages is copied from
+ABBREVIATIONS.md with its first column translated; the settings rows
+use the names the Italian screen shows.

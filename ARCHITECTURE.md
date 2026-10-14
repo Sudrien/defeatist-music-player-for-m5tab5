@@ -23074,3 +23074,11 @@ the English, which stays canonical. Written by Claude; not yet read by
 a native speaker. The table of other languages is copied from
 ABBREVIATIONS.md with its first column translated; the settings rows
 use the names the Italian screen shows.
+
+### 6088 -- the language bars, seven wide
+
+The bar at the top of README.md, ABBREVIATIONS.md and their zh-CN, ja
+and es translations links Português, Français and Italiano now that
+6085-6087 have put the files there, in LOCALES order. README.md's bar
+only, as allowed; its own list of interface languages is the author's
+to change. Every relative .md link in the fourteen files resolves.

@@ -1,6 +1,6 @@
 # Defeatist ミュージックプレーヤー *for M5Tab5*
 
-[English](README.md) · [简体中文](README.zh-CN.md) · **日本語** · [Español](README.es.md)
+[English](README.md) · [简体中文](README.zh-CN.md) · **日本語** · [Español](README.es.md) · [Português](README.pt.md) · [Français](README.fr.md) · [Italiano](README.it.md)
 
 たいていの M5Tab5 用メディアプレーヤーは、まずファイルを*変換*しろと言ってくる。これは違う。
 

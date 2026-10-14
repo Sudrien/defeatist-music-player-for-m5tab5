@@ -1,6 +1,6 @@
 # Defeatist Music Player *for M5Tab5*
 
-**English** · [简体中文](README.zh-CN.md) · [日本語](README.ja.md) · [Español](README.es.md)
+**English** · [简体中文](README.zh-CN.md) · [日本語](README.ja.md) · [Español](README.es.md) · [Português](README.pt.md) · [Français](README.fr.md) · [Italiano](README.it.md)
 
 Most M5stack Tab5 Media players tell you to *convert* your files first. Not this one.
 

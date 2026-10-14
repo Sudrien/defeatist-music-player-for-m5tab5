@@ -1,6 +1,6 @@
 # 略語とトグル
 
-[English](ABBREVIATIONS.md) · [简体中文](ABBREVIATIONS.zh-CN.md) · **日本語** · [Español](ABBREVIATIONS.es.md)
+[English](ABBREVIATIONS.md) · [简体中文](ABBREVIATIONS.zh-CN.md) · **日本語** · [Español](ABBREVIATIONS.es.md) · [Português](ABBREVIATIONS.pt.md) · [Français](ABBREVIATIONS.fr.md) · [Italiano](ABBREVIATIONS.it.md)
 
 画面上の短い語の意味と、プレーヤーが持つすべての設定を、置かれている場所ごとにまとめたもの。パネルは幅 720 px で、その多くは 5 分の 1 ほどの幅のボタンに収まるため、意図的に短くしてある。
 

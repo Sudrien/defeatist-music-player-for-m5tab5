@@ -1,6 +1,6 @@
 # Defeatist Music Player *para M5Tab5*
 
-[English](README.md) · [简体中文](README.zh-CN.md) · [日本語](README.ja.md) · **Español**
+[English](README.md) · [简体中文](README.zh-CN.md) · [日本語](README.ja.md) · **Español** · [Português](README.pt.md) · [Français](README.fr.md) · [Italiano](README.it.md)
 
 La mayoría de los reproductores multimedia para M5Tab5 te dicen que primero *conviertas* tus archivos. Este no.
 

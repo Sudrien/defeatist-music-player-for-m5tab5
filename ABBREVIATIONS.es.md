@@ -1,6 +1,6 @@
 # Abreviaturas y conmutadores
 
-[English](ABBREVIATIONS.md) · [简体中文](ABBREVIATIONS.zh-CN.md) · [日本語](ABBREVIATIONS.ja.md) · **Español**
+[English](ABBREVIATIONS.md) · [简体中文](ABBREVIATIONS.zh-CN.md) · [日本語](ABBREVIATIONS.ja.md) · **Español** · [Português](ABBREVIATIONS.pt.md) · [Français](ABBREVIATIONS.fr.md) · [Italiano](ABBREVIATIONS.it.md)
 
 Qué significan las palabras cortas de la pantalla, y todos los ajustes que tiene el reproductor, por el lugar donde viven. El panel mide 720 px de ancho y la mayoría caben en un botón de una quinta parte de eso, así que son cortos a propósito.
 

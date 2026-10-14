@@ -1,6 +1,6 @@
 # Abbreviations and toggles
 
-**English** · [简体中文](ABBREVIATIONS.zh-CN.md) · [日本語](ABBREVIATIONS.ja.md) · [Español](ABBREVIATIONS.es.md)
+**English** · [简体中文](ABBREVIATIONS.zh-CN.md) · [日本語](ABBREVIATIONS.ja.md) · [Español](ABBREVIATIONS.es.md) · [Português](ABBREVIATIONS.pt.md) · [Français](ABBREVIATIONS.fr.md) · [Italiano](ABBREVIATIONS.it.md)
 
 What the short words on the screen mean, and every setting the player
 has, by where it lives. The panel is 720 px wide and most of these sit

@@ -1,6 +1,6 @@
 # 缩写与开关
 
-[English](ABBREVIATIONS.md) · **简体中文** · [日本語](ABBREVIATIONS.ja.md) · [Español](ABBREVIATIONS.es.md)
+[English](ABBREVIATIONS.md) · **简体中文** · [日本語](ABBREVIATIONS.ja.md) · [Español](ABBREVIATIONS.es.md) · [Português](ABBREVIATIONS.pt.md) · [Français](ABBREVIATIONS.fr.md) · [Italiano](ABBREVIATIONS.it.md)
 
 屏幕上那些短词的含义，以及播放器的每一项设置，按其所在位置排列。面板宽 720 px，其中大多数挤在约五分之一宽的按钮里，所以它们是有意做短的。
 

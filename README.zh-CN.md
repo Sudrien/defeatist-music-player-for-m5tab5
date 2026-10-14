@@ -1,6 +1,6 @@
 # Defeatist 音乐播放器 *for M5Tab5*
 
-[English](README.md) · **简体中文** · [日本語](README.ja.md) · [Español](README.es.md)
+[English](README.md) · **简体中文** · [日本語](README.ja.md) · [Español](README.es.md) · [Português](README.pt.md) · [Français](README.fr.md) · [Italiano](README.it.md)
 
 大多数 M5Tab5 媒体播放器要求你先*转换*文件。这一个不用。
 

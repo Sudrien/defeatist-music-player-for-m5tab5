@@ -603,6 +603,11 @@ bool radiobrowser_art_fetch(const char *url, uint8_t **out, size_t *out_len)
     if (strncmp(url, "http://", 7) != 0 && strncmp(url, "https://", 8) != 0) {
         return false;
     }
+    /* 6083: not asked. Logged as the 400 it would have been. */
+    if (radiobrowser_art_refused_host(url)) {
+        ESP_LOGI(TAG, "artwork: HTTP 400; no picture (host not asked)");
+        return false;
+    }
 
     uint8_t *buf = heap_caps_malloc(RB_ART_MAX, MALLOC_CAP_SPIRAM);
     if (!buf) return false;
@@ -644,6 +649,12 @@ bool radiobrowser_art_fetch(const char *url, uint8_t **out, size_t *out_len)
         char to[160];
         if (esp_http_client_get_url(c, to, sizeof(to)) == ESP_OK) {
             ESP_LOGI(TAG, "artwork: %d to %.120s", status, to);
+            /* 6083: and not asked at the far end of a redirect either. */
+            if (radiobrowser_art_refused_host(to)) {
+                ESP_LOGI(TAG, "artwork: HTTP 400; no picture (host not asked)");
+                status = 400;
+                goto close;
+            }
         }
         esp_http_client_close(c);
     }

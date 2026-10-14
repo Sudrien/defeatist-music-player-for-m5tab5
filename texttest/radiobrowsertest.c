@@ -490,6 +490,33 @@ int main(void)
               "and no label past the end");
     }
 
+    /* 6083: artwork hosts not asked. */
+    {
+        static const struct { const char *url; bool refused; } k[] = {
+            { "https://upload.wikimedia.org/wikipedia/commons/thumb/a/a0/x.png", true },
+            { "https://UPLOAD.WIKIMEDIA.ORG/x.png", true },
+            { "http://wikimedia.org/x.png", true },
+            { "https://en.wikipedia.org/wiki/File:x.png", true },
+            { "https://upload.wikimedia.org:443/x.png", true },
+            { "https://user@upload.wikimedia.org/x.png", true },
+            { "https://upload.wikimedia.org./x.png", true },
+            { "https://upload.wikimedia.org?x", true },
+            { "https://www.rfi.fr/apple-touch-icon.png", false },
+            { "https://notwikimedia.org/x.png", false },
+            { "https://wikimedia.org.example.com/x.png", false },
+            { "https://example.com/upload.wikimedia.org/x.png", false },
+            { "https://example.com/?u=https://upload.wikimedia.org/x", false },
+            { "https://wikimedia.org@example.com/x.png", false },
+            { "no scheme at all", false },
+            { "", false },
+        };
+        for (size_t i = 0; i < sizeof k / sizeof *k; i++) {
+            CHECK(radiobrowser_art_refused_host(k[i].url) == k[i].refused,
+                  "%s %s", k[i].refused ? "refuses" : "allows", k[i].url);
+        }
+        CHECK(!radiobrowser_art_refused_host(NULL), "NULL is not a host");
+    }
+
     printf("%d checks, %d failures\n", checks, failures);
     return failures ? 1 : 0;
 }

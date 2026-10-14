@@ -23009,3 +23009,30 @@ equal pair says ×1.00.
 ABBREVIATIONS, all four: the fraction's row says so (es, ja, zh-CN by
 Claude, not yet read by a native speaker). Syntax-checked on the host
 at -O2 -Werror. Not compiled with ESP-IDF here. Not on the board.
+
+### 6083 -- station artwork: Wikimedia is not asked
+
+radio-browser hands out Wikimedia thumbnail URLs as station favicons --
+France Inter's is a 1200 px PNG render of an SVG logo on
+upload.wikimedia.org. On the board it cost a TLS handshake while the
+station was starting, with DMA-capable RAM at 479 bytes free, and came
+back 400 anyway:
+
+    artwork (from radio-browser): https://upload.wikimedia.org/...
+    artwork: HTTP 400; no picture
+
+radiobrowser_art_refused_host() (radiobrowser.h, so texttest can reach
+it) names the hosts not asked: wikimedia.org and wikipedia.org, and any
+name under either. radiobrowser_art_fetch() checks the first URL before
+it allocates or connects, and every redirect hop before it follows it,
+and in both cases logs and returns exactly what a 400 would --
+"artwork: HTTP 400; no picture", with "(host not asked)" after it so
+the log says which. The station gets the blank square it got before,
+minus the request.
+
+The host is taken from the URL properly -- after "://", past any
+userinfo, before a port, path, query or fragment, trailing dot dropped,
+case ignored -- because a substring test would refuse
+example.com/upload.wikimedia.org and allow wikimedia.org.example.com's
+opposite. texttest run-radiobrowser: 17 new checks, both ways round.
+Not compiled with ESP-IDF here. Not on the board.

@@ -122,6 +122,7 @@
 #include <stddef.h>
 #include <stdint.h>
 #include <string.h>
+#include <strings.h>      /* 6083: strncasecmp() */
 
 #ifdef __cplusplus
 extern "C" {
@@ -639,6 +640,45 @@ void radiobrowser_click(const char *uuid);
  * have a dead link, and a blank square is not a fault.
  */
 bool radiobrowser_art_fetch(const char *url, uint8_t **out, size_t *out_len);
+
+/*
+ * 6083: artwork hosts that are not asked at all, and answered as though
+ * they had said 400. Wikimedia: a 1200 px PNG thumbnail of an SVG logo,
+ * fetched over TLS while a station is starting, for a request the board
+ * saw refused anyway --
+ *
+ *   artwork (from radio-browser): https://upload.wikimedia.org/...
+ *   artwork: HTTP 400; no picture
+ *
+ * -- with DMA-capable RAM at 479 bytes free beside it. The host is the
+ * URL's, after the scheme and any userinfo, up to a port, path, query
+ * or fragment, compared without case; a name ending ".wikimedia.org" or
+ * ".wikipedia.org", or either itself. Applied to every redirect hop as
+ * well as the first URL, so a station's own link that bounces there is
+ * refused at the bounce.
+ */
+static inline bool radiobrowser_art_refused_host(const char *url)
+{
+    static const char *const k_refused[] = { "wikimedia.org", "wikipedia.org" };
+    if (!url) return false;
+    const char *h = strstr(url, "://");
+    if (!h) return false;
+    h += 3;
+    size_t n = strcspn(h, "/?#");
+    const char *at = memchr(h, '@', n);          /* userinfo@host */
+    if (at) { n -= (size_t)(at + 1 - h); h = at + 1; }
+    const char *colon = memchr(h, ':', n);       /* host:port */
+    if (colon) n = (size_t)(colon - h);
+    while (n && h[n - 1] == '.') n--;            /* "host." is the host */
+    for (size_t i = 0; i < sizeof k_refused / sizeof *k_refused; i++) {
+        const size_t m = strlen(k_refused[i]);
+        if (n < m) continue;
+        const char *tail = h + n - m;
+        if (strncasecmp(tail, k_refused[i], m) != 0) continue;
+        if (n == m || tail[-1] == '.') return true;
+    }
+    return false;
+}
 
 /*
  * Drop everything held.

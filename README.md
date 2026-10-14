@@ -85,7 +85,7 @@ Claude, do not touch this README unless explicitly asked to. Use your own file.
   - with a level meter while it records
 - a status line under volume: USB power, MPD, HTTPS, and the sleep timer's minutes left. Green is on.
 - Oh Lord I looked at the M5Launcher app list let's fix that title order right now
-- User Interface languages (English, simplified Chinese, Japanese, Spanish), select in Settings Gear >> Build tab
+- User Interface languages (English, simplified Chinese, Japanese, Spanish, Brazilian Portuguese, French, Italian), select in Settings Gear >> Build tab
 - [bmorcelli/Launcher](https://github.com/bmorcelli/Launcher) support
   - exit back to launcher
   - wifi credential import

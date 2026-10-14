@@ -98,7 +98,7 @@ Qué está en marcha, y el idioma de la pantalla.
 
 | Ajuste | Valores | Notas |
 |---|---|---|
-| Idioma | `English` / `简体中文` / `日本語` / `Español` | Toca para rotar. Cada idioma se nombra en sí mismo, y la etiqueta de la fila y los nombres de pestaña nunca se traducen, así que el camino de vuelta se encuentra desde cualquiera. Se guarda en el dispositivo, no en la tarjeta. Por ahora solo hay algunas pantallas traducidas; el resto queda en inglés. |
+| Idioma | `English` / `简体中文` / `日本語` / `Español` / `Português` / `Français` / `Italiano` | Toca para rotar. Cada idioma se nombra en sí mismo, y la etiqueta de la fila y los nombres de pestaña nunca se traducen, así que el camino de vuelta se encuentra desde cualquiera. Se guarda en el dispositivo, no en la tarjeta. Por ahora solo hay algunas pantallas traducidas; el resto queda en inglés. |
 
 - `app`, `version`, `built`, `idf`, y `heap`, `psram` y `uptime` libres.
 - **Source (código)**: el repositorio, github.com/Sudrien/defeatist-music-player-for-m5tab5.
@@ -153,57 +153,57 @@ Todas las grabaciones son FLAC, en `Recordings/` de la tarjeta SD (la unidad USB
 
 ## En otros idiomas (6019)
 
-Las etiquetas de arriba en mandarín, japonés y español, elegidas en la pestaña BUILD. Cada una traduce la palabra completa que la etiqueta representa, reacortada donde un botón es más estrecho que la palabra: los botones del selector miden 112 px (8 caracteres latinos o 4 CJK), las pastillas de ajustes 124 px (5 o 3). Las palabras del orden de reproducción siguen el vocabulario MPD de Cantata donde lo tiene — 重复/随机/单曲 y 播完删除 (de 播放后删除), リピート/ランダム, Repetir — y ON/OFF siguen el 开/关 que la pestaña Audio usa desde 6013.
+Las etiquetas de arriba en mandarín, japonés, español, portugués (Brasil), francés e italiano, elegidas en la pestaña BUILD. Cada una traduce la palabra completa que la etiqueta representa, reacortada donde un botón es más estrecho que la palabra: los botones del selector miden 112 px (8 caracteres latinos o 4 CJK), las pastillas de ajustes 124 px (5 o 3). Las palabras del orden de reproducción siguen el vocabulario MPD de Cantata donde lo tiene — 重复/随机/单曲 y 播完删除 (de 播放后删除), リピート/ランダム, Repetir — y ON/OFF siguen el 开/关 que la pestaña Audio usa desde 6013.
 
 En todos los idiomas se mantienen en inglés, mediante `same()`: los nombres de pestaña (SD, USB, BUILD, AUDIO, NET, RADIO), USB, WIFI, MPD, HTTPS, UAC, RG, y las unidades.
 
-| Dónde | English | 简体中文 | 日本語 | Español |
-|---|---|---|---|---|
-| Línea de estado | `SLEEP` | 睡眠 | 睡眠 | SUEÑO |
-| Línea de estado | `SLEEP %dM` | 睡眠%d分 | 睡眠%d分 | SUEÑO %dM |
-| Línea de estado | `IDLE` | 空闲 | 待機 | INAC |
-| Línea de estado | `BATT` | 电池 | 電池 | BAT |
-| Línea de estado | `BATT %d%%` | 电池 %d%% | 電池 %d%% | BAT %d%% |
-| Línea de estado | `CHRG %d%%` | 充电 %d%% | 充電 %d%% | CARG %d%% |
-| Línea de estado | `CHARGED` | 已充满 | 満充電 | CARGADA |
-| Línea de estado | `NO BATT` | 无电池 | 電池なし | SIN BAT |
-| Reproduciendo | `LIVE` | 直播 | ライブ | VIVO |
-| Reproduciendo | `REC` | 录音 | 録音 | GRAB |
-| Reproduciendo | `MUTED` | 静音 | 無音 | MUDO |
-| Pie del selector | `UP` | 上级 | 上へ | SUBIR |
-| Pie del selector | `RLOD` | 重新加载 | 再読込 | RECARGAR |
-| Pie del selector | `FLDR` | 播放目录 | フォルダ | CARPETA |
-| Pie del selector | `UP^` | 上页 | 前頁 | RE PÁG |
-| Pie del selector | `DN` | 下页 | 次頁 | AV PÁG |
-| Orden | `ONE` | 单曲 | 単曲 | ÚNICA |
-| Orden | `ALL` | 顺序 | 全曲 | TODAS |
-| Orden | `RPT` | 重复 | リピート | REPETIR |
-| Orden | `EAT` | 播完删除 | 消費 | BORRAR |
-| Orden | `RND` | 随机 | ランダム | AZAR |
-| Orden | `RPT1` | 单曲重复 | 1曲反復 | REPITE 1 |
-| Orden | `ONE1` | 单曲1 | 単曲1 | ÚNICA1 |
-| Orden | `EAT1` | 删除1 | 消費1 | BORRAR1 |
-| Ajustes | `ON` | 开 | オン | SÍ |
-| Ajustes | `OFF` | 关 | オフ | NO |
-| Ajustes | `IN USE` | 使用中 | 使用中 | EN USO |
-| Ajustes | `REINDEX` | 重新索引 | 再索引 | REINDEXAR |
-| Ajustes | `INDEXING` | 索引中 | 索引中 | INDEXANDO |
-| Ajustes | `BUSY` | 进行中 | 作業中 | OCUP. |
-| Ajustes | `START` | 开始 | 開始 | ABRIR |
-| Ajustes | `STOP` | 停止 | 停止 | PARAR |
-| Ajustes | `RUN` | 运行 | 実行 | MEDIR |
-| Ajustes | `RESET` | 重置 | 戻す | VOLVER |
-| Ajustes | `CLOSE` | 关闭 | 閉じる | CERRAR |
-| Ajustes | `IMPORT` | 导入 | 取込 | IMPORTAR |
-| Ajustes | `DONE` | 完成 | 完了 | HECHO |
-| Ajustes | `RETRY` | 重试 | 再試行 | REPETIR |
-| Ajustes | `TRACK` | 每曲 | 曲ごと | PISTA |
-| Ajustes | `BOOT` | 保持 | 保持 | SIEMPRE |
-| Grabar desde | `MONO` | 单声道 | モノラル | MONO |
-| Grabar desde | `STEREO` | 立体声 | ステレオ | ESTÉREO |
-| Grabar desde | `FOCUSED` | 定向 | フォーカス | ENFOCADO |
-| Grabar desde | `HEADSET` | 耳麦 | ヘッドセット | AURICULAR |
-| Grabar desde | `AUTO` | 自动 | 自動 | AUTO |
+| Dónde | English | 简体中文 | 日本語 | Español | Português | Français | Italiano |
+|---|---|---|---|---|---|---|---|
+| Línea de estado | `SLEEP` | 睡眠 | 睡眠 | SUEÑO | SONO | VEILLE | SONNO |
+| Línea de estado | `SLEEP %dM` | 睡眠%d分 | 睡眠%d分 | SUEÑO %dM | SONO %dM | VEILLE %dM | SONNO %dM |
+| Línea de estado | `IDLE` | 空闲 | 待機 | INAC | OCIO | INACT | INATT |
+| Línea de estado | `BATT` | 电池 | 電池 | BAT | BAT | BATT | BATT |
+| Línea de estado | `BATT %d%%` | 电池 %d%% | 電池 %d%% | BAT %d%% | BAT %d%% | BATT %d%% | BATT %d%% |
+| Línea de estado | `CHRG %d%%` | 充电 %d%% | 充電 %d%% | CARG %d%% | CARR %d%% | CHRG %d%% | CARIC %d%% |
+| Línea de estado | `CHARGED` | 已充满 | 満充電 | CARGADA | CARREGADA | CHARGÉE | CARICA |
+| Línea de estado | `NO BATT` | 无电池 | 電池なし | SIN BAT | SEM BAT | SANS BATT | NO BATT |
+| Reproduciendo | `LIVE` | 直播 | ライブ | VIVO | AO VIVO | DIRECT | LIVE |
+| Reproduciendo | `REC` | 录音 | 録音 | GRAB | GRAV | ENR | REG |
+| Reproduciendo | `MUTED` | 静音 | 無音 | MUDO | MUDO | MUET | MUTO |
+| Pie del selector | `UP` | 上级 | 上へ | SUBIR | SUBIR | MONTER | SU |
+| Pie del selector | `RLOD` | 重新加载 | 再読込 | RECARGAR | RECARR. | RECHARG. | RICARICA |
+| Pie del selector | `FLDR` | 播放目录 | フォルダ | CARPETA | PASTA | DOSSIER | CARTELLA |
+| Pie del selector | `UP^` | 上页 | 前頁 | RE PÁG | PG CIMA | PG HAUT | PAG SU |
+| Pie del selector | `DN` | 下页 | 次頁 | AV PÁG | PG BAIXO | PG BAS | PAG GIÙ |
+| Orden | `ONE` | 单曲 | 単曲 | ÚNICA | UMA | UNE | UNO |
+| Orden | `ALL` | 顺序 | 全曲 | TODAS | TODAS | TOUT | TUTTI |
+| Orden | `RPT` | 重复 | リピート | REPETIR | REPETIR | RÉPÉTER | RIPETI |
+| Orden | `EAT` | 播完删除 | 消費 | BORRAR | COMER | MANGER | MANGIA |
+| Orden | `RND` | 随机 | ランダム | AZAR | ALEAT | ALÉA | CASUALE |
+| Orden | `RPT1` | 单曲重复 | 1曲反復 | REPITE 1 | REPETE 1 | RÉPÉTER1 | RIPETI1 |
+| Orden | `ONE1` | 单曲1 | 単曲1 | ÚNICA1 | UMA1 | UNE1 | UNO1 |
+| Orden | `EAT1` | 删除1 | 消費1 | BORRAR1 | COMER1 | MANGER1 | MANGIA1 |
+| Ajustes | `ON` | 开 | オン | SÍ | SIM | OUI | SÌ |
+| Ajustes | `OFF` | 关 | オフ | NO | NÃO | NON | NO |
+| Ajustes | `IN USE` | 使用中 | 使用中 | EN USO | EM USO | UTILISÉ | IN USO |
+| Ajustes | `REINDEX` | 重新索引 | 再索引 | REINDEXAR | REINDEXAR | RÉINDEXER | REINDICIZZA |
+| Ajustes | `INDEXING` | 索引中 | 索引中 | INDEXANDO | INDEXANDO | INDEXATION | INDICIZZA |
+| Ajustes | `BUSY` | 进行中 | 作業中 | OCUP. | OCUP. | OCCUPÉ | OCCUP. |
+| Ajustes | `START` | 开始 | 開始 | ABRIR | ABRIR | OUVRIR | APRI |
+| Ajustes | `STOP` | 停止 | 停止 | PARAR | PARAR | ARRÊT | STOP |
+| Ajustes | `RUN` | 运行 | 実行 | MEDIR | MEDIR | LANCER | MISURA |
+| Ajustes | `RESET` | 重置 | 戻す | VOLVER | VOLTAR | RÉTABLIR | AZZERA |
+| Ajustes | `CLOSE` | 关闭 | 閉じる | CERRAR | FECHAR | FERMER | CHIUDI |
+| Ajustes | `IMPORT` | 导入 | 取込 | IMPORTAR | IMPORTAR | IMPORTER | IMPORTA |
+| Ajustes | `DONE` | 完成 | 完了 | HECHO | OK | OK | FATTO |
+| Ajustes | `RETRY` | 重试 | 再試行 | REPETIR | REPETIR | RÉESSAYER | RIPROVA |
+| Ajustes | `TRACK` | 每曲 | 曲ごと | PISTA | FAIXA | PISTE | BRANO |
+| Ajustes | `BOOT` | 保持 | 保持 | SIEMPRE | SEMPRE | TOUJOURS | SEMPRE |
+| Grabar desde | `MONO` | 单声道 | モノラル | MONO | MONO | MONO | MONO |
+| Grabar desde | `STEREO` | 立体声 | ステレオ | ESTÉREO | ESTÉREO | STÉRÉO | STEREO |
+| Grabar desde | `FOCUSED` | 定向 | フォーカス | ENFOCADO | FOCADO | DIRIGÉ | DIRETTO |
+| Grabar desde | `HEADSET` | 耳麦 | ヘッドセット | AURICULAR | HEADSET | CASQUE | CUFFIA |
+| Grabar desde | `AUTO` | 自动 | 自動 | AUTO | AUTO | AUTO | AUTO |
 
 ## Conmutadores de compilación
 

@@ -98,7 +98,7 @@
 
 | 设置 | 取值 | 说明 |
 |---|---|---|
-| 语言 | `English` / `简体中文` / `日本語` / `Español` | 点按循环。每种语言以其自身文字命名，而该行的标签与标签页名称从不翻译，因此从任一语言都能找回。保存在设备中，不在卡上。目前仅部分界面已翻译，其余保持英文。 |
+| 语言 | `English` / `简体中文` / `日本語` / `Español` / `Português` / `Français` / `Italiano` | 点按循环。每种语言以其自身文字命名，而该行的标签与标签页名称从不翻译，因此从任一语言都能找回。保存在设备中，不在卡上。目前仅部分界面已翻译，其余保持英文。 |
 
 - `app`、`version`、`built`、`idf`，以及空闲的 `heap`、`psram` 和 `uptime`。
 - **Source（源码）**：仓库，github.com/Sudrien/defeatist-music-player-for-m5tab5。
@@ -153,57 +153,57 @@
 
 ## 其它语言（6019）
 
-以上标签的普通话、日语与西班牙语版本，在 BUILD 标签页选择。每一项都翻译标签所代表的完整词语，并在按钮比词更窄时重新缩短：选择器按钮为 112 px（8 个拉丁字符或 4 个中日韩字符），设置胶囊为 124 px（5 个或 3 个）。播放顺序词在 Cantata 有对应 MPD 词汇处沿用之——重复/随机/单曲 与 播完删除（取自 播放后删除）、リピート/ランダム、Repetir——而 ON/OFF 沿用自 6013 起 Audio 标签页一直使用的 开/关。
+以上标签的普通话、日语、西班牙语、葡萄牙语（巴西）、法语与意大利语版本，在 BUILD 标签页选择。每一项都翻译标签所代表的完整词语，并在按钮比词更窄时重新缩短：选择器按钮为 112 px（8 个拉丁字符或 4 个中日韩字符），设置胶囊为 124 px（5 个或 3 个）。播放顺序词在 Cantata 有对应 MPD 词汇处沿用之——重复/随机/单曲 与 播完删除（取自 播放后删除）、リピート/ランダム、Repetir——而 ON/OFF 沿用自 6013 起 Audio 标签页一直使用的 开/关。
 
 在每种语言中都由 `same()` 保持英文：标签页名称（SD、USB、BUILD、AUDIO、NET、RADIO）、USB、WIFI、MPD、HTTPS、UAC、RG，以及各单位。
 
-| 位置 | English | 简体中文 | 日本語 | Español |
-|---|---|---|---|---|
-| 状态行 | `SLEEP` | 睡眠 | 睡眠 | SUEÑO |
-| 状态行 | `SLEEP %dM` | 睡眠%d分 | 睡眠%d分 | SUEÑO %dM |
-| 状态行 | `IDLE` | 空闲 | 待機 | INAC |
-| 状态行 | `BATT` | 电池 | 電池 | BAT |
-| 状态行 | `BATT %d%%` | 电池 %d%% | 電池 %d%% | BAT %d%% |
-| 状态行 | `CHRG %d%%` | 充电 %d%% | 充電 %d%% | CARG %d%% |
-| 状态行 | `CHARGED` | 已充满 | 満充電 | CARGADA |
-| 状态行 | `NO BATT` | 无电池 | 電池なし | SIN BAT |
-| 正在播放 | `LIVE` | 直播 | ライブ | VIVO |
-| 正在播放 | `REC` | 录音 | 録音 | GRAB |
-| 正在播放 | `MUTED` | 静音 | 無音 | MUDO |
-| 选择器底栏 | `UP` | 上级 | 上へ | SUBIR |
-| 选择器底栏 | `RLOD` | 重新加载 | 再読込 | RECARGAR |
-| 选择器底栏 | `FLDR` | 播放目录 | フォルダ | CARPETA |
-| 选择器底栏 | `UP^` | 上页 | 前頁 | RE PÁG |
-| 选择器底栏 | `DN` | 下页 | 次頁 | AV PÁG |
-| 播放顺序 | `ONE` | 单曲 | 単曲 | ÚNICA |
-| 播放顺序 | `ALL` | 顺序 | 全曲 | TODAS |
-| 播放顺序 | `RPT` | 重复 | リピート | REPETIR |
-| 播放顺序 | `EAT` | 播完删除 | 消費 | BORRAR |
-| 播放顺序 | `RND` | 随机 | ランダム | AZAR |
-| 播放顺序 | `RPT1` | 单曲重复 | 1曲反復 | REPITE 1 |
-| 播放顺序 | `ONE1` | 单曲1 | 単曲1 | ÚNICA1 |
-| 播放顺序 | `EAT1` | 删除1 | 消費1 | BORRAR1 |
-| 设置 | `ON` | 开 | オン | SÍ |
-| 设置 | `OFF` | 关 | オフ | NO |
-| 设置 | `IN USE` | 使用中 | 使用中 | EN USO |
-| 设置 | `REINDEX` | 重新索引 | 再索引 | REINDEXAR |
-| 设置 | `INDEXING` | 索引中 | 索引中 | INDEXANDO |
-| 设置 | `BUSY` | 进行中 | 作業中 | OCUP. |
-| 设置 | `START` | 开始 | 開始 | ABRIR |
-| 设置 | `STOP` | 停止 | 停止 | PARAR |
-| 设置 | `RUN` | 运行 | 実行 | MEDIR |
-| 设置 | `RESET` | 重置 | 戻す | VOLVER |
-| 设置 | `CLOSE` | 关闭 | 閉じる | CERRAR |
-| 设置 | `IMPORT` | 导入 | 取込 | IMPORTAR |
-| 设置 | `DONE` | 完成 | 完了 | HECHO |
-| 设置 | `RETRY` | 重试 | 再試行 | REPETIR |
-| 设置 | `TRACK` | 每曲 | 曲ごと | PISTA |
-| 设置 | `BOOT` | 保持 | 保持 | SIEMPRE |
-| 录音来源 | `MONO` | 单声道 | モノラル | MONO |
-| 录音来源 | `STEREO` | 立体声 | ステレオ | ESTÉREO |
-| 录音来源 | `FOCUSED` | 定向 | フォーカス | ENFOCADO |
-| 录音来源 | `HEADSET` | 耳麦 | ヘッドセット | AURICULAR |
-| 录音来源 | `AUTO` | 自动 | 自動 | AUTO |
+| 位置 | English | 简体中文 | 日本語 | Español | Português | Français | Italiano |
+|---|---|---|---|---|---|---|---|
+| 状态行 | `SLEEP` | 睡眠 | 睡眠 | SUEÑO | SONO | VEILLE | SONNO |
+| 状态行 | `SLEEP %dM` | 睡眠%d分 | 睡眠%d分 | SUEÑO %dM | SONO %dM | VEILLE %dM | SONNO %dM |
+| 状态行 | `IDLE` | 空闲 | 待機 | INAC | OCIO | INACT | INATT |
+| 状态行 | `BATT` | 电池 | 電池 | BAT | BAT | BATT | BATT |
+| 状态行 | `BATT %d%%` | 电池 %d%% | 電池 %d%% | BAT %d%% | BAT %d%% | BATT %d%% | BATT %d%% |
+| 状态行 | `CHRG %d%%` | 充电 %d%% | 充電 %d%% | CARG %d%% | CARR %d%% | CHRG %d%% | CARIC %d%% |
+| 状态行 | `CHARGED` | 已充满 | 満充電 | CARGADA | CARREGADA | CHARGÉE | CARICA |
+| 状态行 | `NO BATT` | 无电池 | 電池なし | SIN BAT | SEM BAT | SANS BATT | NO BATT |
+| 正在播放 | `LIVE` | 直播 | ライブ | VIVO | AO VIVO | DIRECT | LIVE |
+| 正在播放 | `REC` | 录音 | 録音 | GRAB | GRAV | ENR | REG |
+| 正在播放 | `MUTED` | 静音 | 無音 | MUDO | MUDO | MUET | MUTO |
+| 选择器底栏 | `UP` | 上级 | 上へ | SUBIR | SUBIR | MONTER | SU |
+| 选择器底栏 | `RLOD` | 重新加载 | 再読込 | RECARGAR | RECARR. | RECHARG. | RICARICA |
+| 选择器底栏 | `FLDR` | 播放目录 | フォルダ | CARPETA | PASTA | DOSSIER | CARTELLA |
+| 选择器底栏 | `UP^` | 上页 | 前頁 | RE PÁG | PG CIMA | PG HAUT | PAG SU |
+| 选择器底栏 | `DN` | 下页 | 次頁 | AV PÁG | PG BAIXO | PG BAS | PAG GIÙ |
+| 播放顺序 | `ONE` | 单曲 | 単曲 | ÚNICA | UMA | UNE | UNO |
+| 播放顺序 | `ALL` | 顺序 | 全曲 | TODAS | TODAS | TOUT | TUTTI |
+| 播放顺序 | `RPT` | 重复 | リピート | REPETIR | REPETIR | RÉPÉTER | RIPETI |
+| 播放顺序 | `EAT` | 播完删除 | 消費 | BORRAR | COMER | MANGER | MANGIA |
+| 播放顺序 | `RND` | 随机 | ランダム | AZAR | ALEAT | ALÉA | CASUALE |
+| 播放顺序 | `RPT1` | 单曲重复 | 1曲反復 | REPITE 1 | REPETE 1 | RÉPÉTER1 | RIPETI1 |
+| 播放顺序 | `ONE1` | 单曲1 | 単曲1 | ÚNICA1 | UMA1 | UNE1 | UNO1 |
+| 播放顺序 | `EAT1` | 删除1 | 消費1 | BORRAR1 | COMER1 | MANGER1 | MANGIA1 |
+| 设置 | `ON` | 开 | オン | SÍ | SIM | OUI | SÌ |
+| 设置 | `OFF` | 关 | オフ | NO | NÃO | NON | NO |
+| 设置 | `IN USE` | 使用中 | 使用中 | EN USO | EM USO | UTILISÉ | IN USO |
+| 设置 | `REINDEX` | 重新索引 | 再索引 | REINDEXAR | REINDEXAR | RÉINDEXER | REINDICIZZA |
+| 设置 | `INDEXING` | 索引中 | 索引中 | INDEXANDO | INDEXANDO | INDEXATION | INDICIZZA |
+| 设置 | `BUSY` | 进行中 | 作業中 | OCUP. | OCUP. | OCCUPÉ | OCCUP. |
+| 设置 | `START` | 开始 | 開始 | ABRIR | ABRIR | OUVRIR | APRI |
+| 设置 | `STOP` | 停止 | 停止 | PARAR | PARAR | ARRÊT | STOP |
+| 设置 | `RUN` | 运行 | 実行 | MEDIR | MEDIR | LANCER | MISURA |
+| 设置 | `RESET` | 重置 | 戻す | VOLVER | VOLTAR | RÉTABLIR | AZZERA |
+| 设置 | `CLOSE` | 关闭 | 閉じる | CERRAR | FECHAR | FERMER | CHIUDI |
+| 设置 | `IMPORT` | 导入 | 取込 | IMPORTAR | IMPORTAR | IMPORTER | IMPORTA |
+| 设置 | `DONE` | 完成 | 完了 | HECHO | OK | OK | FATTO |
+| 设置 | `RETRY` | 重试 | 再試行 | REPETIR | REPETIR | RÉESSAYER | RIPROVA |
+| 设置 | `TRACK` | 每曲 | 曲ごと | PISTA | FAIXA | PISTE | BRANO |
+| 设置 | `BOOT` | 保持 | 保持 | SIEMPRE | SEMPRE | TOUJOURS | SEMPRE |
+| 录音来源 | `MONO` | 单声道 | モノラル | MONO | MONO | MONO | MONO |
+| 录音来源 | `STEREO` | 立体声 | ステレオ | ESTÉREO | ESTÉREO | STÉRÉO | STEREO |
+| 录音来源 | `FOCUSED` | 定向 | フォーカス | ENFOCADO | FOCADO | DIRIGÉ | DIRETTO |
+| 录音来源 | `HEADSET` | 耳麦 | ヘッドセット | AURICULAR | HEADSET | CASQUE | CUFFIA |
+| 录音来源 | `AUTO` | 自动 | 自動 | AUTO | AUTO | AUTO | AUTO |
 
 ## 构建开关
 

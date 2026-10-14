@@ -23036,3 +23036,13 @@ case ignored -- because a substring test would refuse
 example.com/upload.wikimedia.org and allow wikimedia.org.example.com's
 opposite. texttest run-radiobrowser: 17 new checks, both ways round.
 Not compiled with ESP-IDF here. Not on the board.
+
+### 6084 -- the abbreviation tables gain Portuguese, French and Italian
+
+ABBREVIATIONS.md and its three translations: three columns in the "In
+other languages" table (6019), in LOCALES order, every value copied
+from `i18n/{pt,fr,it}.yml` by key rather than retyped, so the table says
+what the board draws; the BUILD tab's Language row lists all seven; the
+table's introduction names the new languages. The language bars at the
+top of each file wait for 6088, when the files they would link to
+exist.

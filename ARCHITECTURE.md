@@ -23326,3 +23326,30 @@ Known and left:
 - A seek still cuts the old position off; only the new one fades in.
 
 Not on the board.
+
+### 6098 -- a USB device's volume, set mid-track (drivers v0.5.8)
+
+On 6097's board run, three volume taps during a track on the 0572:1B08
+reached the device 42 s late, when the track ended
+("button: volume -> 76%" at 111579, "uac-host: Set volume 76%" at
+153494). The device has its own volume control, so no software gain
+stood in: the level did not move at all until then.
+
+The cause was in uac.c. uac_set_volume() only publishes; the event
+task sent the control transfer under s_lock, and uac_write() takes
+s_lock once per block, back to back, for as long as a track plays. The
+event task's wait lasted exactly that long. drivers 0018 sends a
+pending change from uac_write() itself, after its block's lock is
+released -- the one task that cannot be stuck behind the writer is the
+writer. About a millisecond of control transfer per change, against
+~23 ms of audio per block.
+
+Nothing here changed: the volume control on the speaker and jack (an
+ES8388 register write on the UI task, never behind this lock), and the
+software gain for a device with no control (applied per block, read
+fresh each time).
+
+What to look for: "uac-host: Set volume N%" within a few ms of
+"button: volume -> N%" while a track plays on a USB device.
+
+Not on the board.

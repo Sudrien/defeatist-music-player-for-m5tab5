@@ -91,9 +91,11 @@ dependencies:
   # 6056: v0.2.0 adds tab5io (the I2C bus and expanders) and audio_out.
   # 6058: v0.5.0 -- the capture finds the TDM frame's start (0.3.0).
   # v0.5.2: latest drivers tag.
+  # 6091: v0.5.3 -- usbhost logs what the host library still holds
+  # after each VBUS change, and when every device is freed (its 0012).
   feckless_drivers:
     git: https://github.com/Sudrien/feckless-drivers-for-m5tab5.git
-    version: "v0.5.2"
+    version: "v0.5.3"
 
   # 6055: the panel, the backlight and gfx, with the Ark12 and Arabixel
   # fonts, are feckless-graphics-handler-for-m5tab5. esp_lcd_st7121 moved

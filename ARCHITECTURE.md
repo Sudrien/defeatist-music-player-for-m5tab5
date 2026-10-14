@@ -23106,3 +23106,31 @@ in each of the six translations, in the same place: before the last
 section. The issue URL and the two file names are kept as they are.
 The es, ja and zh-CN text, like the pt, fr and it, was written by
 Claude and not yet read by a native speaker.
+
+### 6091 -- feckless-drivers to v0.5.3: a USB census, for a port that stopped
+
+Board: a UAC headset dropped 479 s in -- its last control transfer
+refused with INVALID_STATE, "Suspend Interface 2-0 Failed" -- and after
+that nothing plugged into the USB-A port was enumerated again: not a
+flash drive in its place, not through the USB tab's power off and on.
+No enumeration at all, failed or otherwise, which reads as a root port
+never re-armed rather than a device that could not be handled.
+
+esp-usb's hub recycles a root port only after every client has freed
+the device that left (hub.c, root_port_recycle()). A client still
+holding it keeps the port in recovery, and the USB tab's switch is
+VBUS through the expander, not the port's state. Forcing the port with
+usb_host_lib_set_root_port_power() is not the fix: past an unfreed
+device it skips the recovery root_port_recycle() later expects, and
+that path ends in abort().
+
+v0.5.3 (its 0012) only logs: after each VBUS change, usb_host_lib_info()'s
+device and client counts and the addresses still allocated; and "all
+devices freed" when the library raises ALL_FREE, which it does whenever
+the last device goes. After a clean unplug that line appears. After the
+fault, if a client is holding on, it will not, and "after VBUS off"
+will still count one device -- which is the reading this is for.
+
+A manifest change: the next build re-resolves dependencies.lock.idf6;
+its diff should move feckless_drivers from 718b1d5 (v0.5.2) to
+13f17ce (v0.5.3) and nothing else (CLAUDE.md).

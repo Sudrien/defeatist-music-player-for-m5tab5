@@ -89,6 +89,7 @@ Claude, do not touch this README unless explicitly asked to. Use your own file.
 - [bmorcelli/Launcher](https://github.com/bmorcelli/Launcher) support
   - exit back to launcher
   - wifi credential import
+- Broke out libraries for https://github.com/Sudrien/lothesome-audio-analyzer-for-m5tab5 ... a mistake? maybe
 - A few filters
   - bass adjustment
   - treble adjustment

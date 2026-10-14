@@ -129,6 +129,12 @@ Le but de ce projet est de tirer tout le potentiel de ce matériel sans le modif
 - **Arabixel Basic est sous CC BY 4.0** (ArabianDev, <https://arabiandev.itch.io/arabixel-basic-font>), tout comme le fichier de police et la table générée de `fonts/arabixel` dans feckless-graphics-handler-for-m5tab5 ; son code de mise en forme est sous MIT. CC BY (<https://creativecommons.org/licenses/by/4.0/>) demande une attribution, un lien vers la licence et une mention des modifications — le README du composant et l'en-tête de la table les portent, et une redistribution, image de firmware comprise, garde `fonts/arabixel/LICENSE.txt` avec elle.
 - MurmurHash2 est dans le domaine public.
 
+## Contribuer
+
+Pour commenter les traductions ou les fonctionnalités, ouvrez une issue sur GitHub, à https://github.com/Sudrien/defeatist-music-player-for-m5tab5
+
+Pour contribuer du code, lisez CONTRIBUTING.md et CLAUDE.md pour les règles de mise en forme.
+
 ## Une dernière pique
 
 - waveflow for tab5 music player

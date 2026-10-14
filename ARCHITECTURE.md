@@ -23097,3 +23097,12 @@ Portuguese's Speed holds note called repeat-one "Repetir uma" while the
 button says REPETE 1; it names the button now. The es, ja and zh-CN
 READMEs listed four interface languages and list seven; README.md's own
 list is the author's.
+
+### 6090 -- the README translations gain Contributing
+
+README.md's new Contributing section (where to raise a comment on a
+translation or a feature, and CONTRIBUTING.md and CLAUDE.md for code)
+in each of the six translations, in the same place: before the last
+section. The issue URL and the two file names are kept as they are.
+The es, ja and zh-CN text, like the pt, fr and it, was written by
+Claude and not yet read by a native speaker.

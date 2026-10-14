@@ -129,6 +129,12 @@
 - **Arabixel Basic 为 CC BY 4.0**（ArabianDev，<https://arabiandev.itch.io/arabixel-basic-font>），因此 feckless-graphics-handler-for-m5tab5 中 `fonts/arabixel` 的字体文件与生成的表格亦然；其整形（shaping）代码为 MIT。CC BY（<https://creativecommons.org/licenses/by/4.0/>）要求署名、附许可链接并注明改动——该组件的 README 与表格头部已载明这些信息，再分发（含固件镜像）须随附 `fonts/arabixel/LICENSE.txt`。
 - MurmurHash2 为公有领域。
 
+## 参与贡献
+
+如果想对翻译或功能提出意见，请在 GitHub 上创建 issue：https://github.com/Sudrien/defeatist-music-player-for-m5tab5
+
+如果想贡献代码，请阅读 CONTRIBUTING.md 和 CLAUDE.md 了解格式规范。
+
 ## 最后补一刀
 
 - waveflow for tab5 music player

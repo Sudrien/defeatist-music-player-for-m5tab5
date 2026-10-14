@@ -23057,3 +23057,12 @@ it cannot drift from the English one. The settings rows use the names
 the French screen shows -- "Enreg. depuis", not the longer form 6069
 had to shorten. The language bar links to the Portuguese and Italian
 files 6086 and 6087 add.
+
+### 6086 -- README.pt.md and ABBREVIATIONS.pt.md
+
+The Portuguese docs, in Brazilian Portuguese as 6070 is, laid out as
+the Spanish ones are and translated from the English, which stays
+canonical. Written by Claude; not yet read by a native speaker. The
+table of other languages is copied from ABBREVIATIONS.md with its first
+column translated, as in 6085; the settings rows use the names the
+Portuguese screen shows.

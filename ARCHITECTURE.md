@@ -23161,3 +23161,21 @@ drive enumerating.
 
 A manifest change: the next build re-resolves dependencies.lock.idf6;
 feckless_drivers should move to d7b8b26 (v0.5.4) and nothing else.
+
+### 6093 -- feckless-drivers to v0.5.5: v0.5.4 enumerated nothing
+
+v0.5.4 (6092) refused every root port reset -- "E HCD DWC: Invalid
+FIFO config", "E HUB: Root port reset failed" -- so no USB device of
+any kind attached. Its 0014 sized the custom FIFO split to the 1024
+lines the P4's documentation gives; the HCD checks a split against
+GHWCFG3's dfifodepth, which on the board is less. v0.5.5 (its 0015)
+spends 768: NPTX 128, PTX 384, RX 256 -- the drive's 512-byte bulk
+both ways, the headset's two 768-byte isochronous packets -- and logs
+the hardware's depth once at start:
+
+    tab5_usbhost: USB FIFO: N lines in hardware; split RX 256, NPTX 128, PTX 384
+
+N is the number to size any later change by. v0.5.4 should not be built.
+
+A manifest change: dependencies.lock.idf6 re-resolves; feckless_drivers
+should move to 3f53a46 (v0.5.5) and nothing else.

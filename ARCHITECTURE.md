@@ -23238,3 +23238,22 @@ this, and "all devices freed" is the line to look for if it recurs.
 The "uac-host: Suspend Interface 2-0 Failed" and "EP command error"
 lines at every drop are usb_host_uac's close talking to a device that
 has gone, and are left as they are.
+
+### 6096 -- 8 kHz 16-bit, the floor a USB output may offer (drivers v0.5.7)
+
+A UAC device that offers 8 kHz 16-bit stereo and nothing else is now an
+output. audio_out already asked such a device for its nearest rate
+(uac_nearest_rate(), 5023) and got 8000; polyrsp_open() then refused
+the conversion, because its tap ceiling allowed going down by no more
+than 2:1 and 44.1 -> 8 kHz is 5.5:1. drivers 0017 raises the ceiling
+to cover 192 -> 8 kHz. Converting down costs about 48 x in_rate
+multiply-adds a channel per second at any output rate, so this is no
+dearer than 96 -> 48 kHz already was. Host check: a 1 kHz tone passes
+at unity from every rate 22.05-192 kHz, a 6 kHz tone is 61-74 dB down.
+
+The jack and speaker are untouched; only the USB path converts.
+
+Not covered: a mono device. Channels are matched exactly, so an
+8 kHz one-channel headset is still not taken.
+
+Not on the board: no 8 kHz-only device has been plugged in yet.

@@ -100,9 +100,11 @@ dependencies:
   # v0.5.4 overran (0015).
   # 6094: v0.5.6 -- a refused HID resubmit ends polling, so a dropped
   # headset's remote lets the device go (0016).
+  # 6096: v0.5.7 -- the USB converter goes down to 8 kHz, so a device
+  # offering only 8 kHz 16-bit is an output (0017).
   feckless_drivers:
     git: https://github.com/Sudrien/feckless-drivers-for-m5tab5.git
-    version: "v0.5.6"
+    version: "v0.5.7"
 
   # 6055: the panel, the backlight and gfx, with the Ark12 and Arabixel
   # fonts, are feckless-graphics-handler-for-m5tab5. esp_lcd_st7121 moved

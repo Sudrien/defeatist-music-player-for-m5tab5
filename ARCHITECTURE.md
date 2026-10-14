@@ -23179,3 +23179,23 @@ N is the number to size any later change by. v0.5.4 should not be built.
 
 A manifest change: dependencies.lock.idf6 re-resolves; feckless_drivers
 should move to 3f53a46 (v0.5.5) and nothing else.
+
+### 6094 -- feckless-drivers to v0.5.6: the remote lets the headset go
+
+v0.5.5 on the board: the FIFO is 896 lines in hardware and the 768-line
+split was taken; the headset enumerated and played. After it dropped,
+0013's flush ran and succeeded and nothing was freed, and the log's
+order showed why: the HID interrupt URB had already come back with a
+status that is neither NO_DEVICE nor CANCELED, hid_poll_task()
+resubmitted it, the resubmit was refused with INVALID_STATE, and the
+task went back to waiting for a completion nothing was queued to give
+-- holding itf 3, so the device was never closed. v0.5.6 (its 0016)
+ends polling on any refused resubmit, and logs the status of a
+completion that is neither a report nor a departure.
+
+After a headset drop the board should now show "itf 3 transfer status
+N; resubmitting", "itf 3 polling stopped (ESP_ERR_INVALID_STATE)",
+"all devices freed", and then a plugged drive enumerating.
+
+A manifest change: dependencies.lock.idf6 re-resolves; feckless_drivers
+should move to 860f0ae (v0.5.6) and nothing else.

@@ -290,6 +290,60 @@ int main(void)
         free(line);
     }
 
+    /* 6103: LCUT and HCUT. */
+    {
+        fx_cut_t c;
+        srand(6103);
+        int16_t *a = malloc(sizeof buf), *b = malloc(sizeof buf);
+        for (int k = 0; k < 2 * N; k++) a[k] = (int16_t)(rand() - RAND_MAX / 2);
+        memcpy(b, a, sizeof buf);
+        fx_cut_reset(&c);
+        for (int k = 0; k < N; k += 700) {
+            const int n = (N - k) < 700 ? (N - k) : 700;
+            fx_cut_run(&c, true, a + 2 * k, (size_t)n, 0, RATE);
+            fx_cut_run(&c, false, a + 2 * k, (size_t)n, 0, RATE);
+        }
+        ck("LCUT, HCUT off: bit for bit", memcmp(a, b, sizeof buf) == 0);
+        free(a); free(b);
+
+        struct { bool hp; unsigned idx; double hz, lo, hi; const char *what; } t[] = {
+            { true,  3, 1000, 0.97, 1.03, "LCUT 150: 1 kHz passes" },
+            { true,  3,   40, 0.0,  0.09, "LCUT 150: 40 Hz under -21 dB" },
+            { true,  3,  150, 0.68, 0.74, "LCUT 150: -3 dB at its corner" },
+            { false, 3, 1000, 0.97, 1.03, "HCUT 4k: 1 kHz passes" },
+            { false, 3, 12000, 0.0, 0.15, "HCUT 4k: 12 kHz under -16 dB" },
+            { false, 3, 4000, 0.68, 0.74, "HCUT 4k: -3 dB at its corner" },
+        };
+        for (size_t i = 0; i < sizeof t / sizeof t[0]; i++) {
+            fx_cut_reset(&c);
+            tone(t[i].hz, 8000);
+            const double in = rms();
+            for (int k = 0; k < N; k += 1024) {
+                const int n = (N - k) < 1024 ? (N - k) : 1024;
+                fx_cut_run(&c, t[i].hp, buf + 2 * k, (size_t)n, t[i].idx, RATE);
+            }
+            const double g = rms() / in;
+            snprintf(what, sizeof what, "%s (%.3f)", t[i].what, g);
+            ck(what, g >= t[i].lo && g <= t[i].hi);
+        }
+
+        /* Moving a corner mid-tone is a fade, not a click: no step
+         * bigger than a 1 kHz tone's own. */
+        fx_cut_reset(&c);
+        tone(1000, 8000);
+        int jump = 0;
+        for (int k = 0, n = 0; k < N; k += 1024, n++) {
+            const int m = (N - k) < 1024 ? (N - k) : 1024;
+            fx_cut_run(&c, false, buf + 2 * k, (size_t)m, (unsigned)(n % FX_STEPS), RATE);
+        }
+        for (int k = 1; k < N; k++) {
+            const int d = abs(buf[2 * k] - buf[2 * k - 2]);
+            if (d > jump) jump = d;
+        }
+        snprintf(what, sizeof what, "HCUT stepped every chunk: biggest step %d (1 kHz moves ~1140)", jump);
+        ck(what, jump < 1300);
+    }
+
     printf("%s\n", fails ? "fxtest: FAILED" : "fxtest: all ok");
     return fails != 0;
 }

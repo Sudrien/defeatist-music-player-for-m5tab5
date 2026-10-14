@@ -241,3 +241,86 @@ void fx_echo_run(fx_echo_t *e, int16_t *pcm, size_t frames,
     e->pos = pos;
     e->g = g1;
 }
+
+/* ------------------------------------------------------------------ */
+/* 6103: LCUT and HCUT                                                */
+/* ------------------------------------------------------------------ */
+
+const uint16_t fx_lcut_hz[FX_STEPS] = { 0, 40, 80, 150, 300 };
+const uint16_t fx_hcut_hz[FX_STEPS] = { 0, 12000, 8000, 4000, 3000 };
+
+static fx_bq_t bq_make(bool hp, unsigned hz, uint32_t rate)
+{
+    fx_bq_t k = { 1.0f, 0.0f, 0.0f, 0.0f, 0.0f };     /* off: a wire */
+    if (!hz || !rate || (float)hz >= 0.45f * (float)rate) return k;
+    const double w = 2.0 * M_PI * hz / rate;
+    const double cs = cos(w), al = sin(w) / (2.0 * 0.70710678);
+    const double a0 = 1.0 + al;
+    if (hp) {
+        k.b0 = (float)((1.0 + cs) / 2.0 / a0);
+        k.b1 = (float)(-(1.0 + cs) / a0);
+        k.b2 = k.b0;
+    } else {
+        k.b0 = (float)((1.0 - cs) / 2.0 / a0);
+        k.b1 = (float)((1.0 - cs) / a0);
+        k.b2 = k.b0;
+    }
+    k.a1 = (float)(-2.0 * cs / a0);
+    k.a2 = (float)((1.0 - al) / a0);
+    return k;
+}
+
+static inline float bq_step(const fx_bq_t *k, float z[2], float x)
+{
+    const float y = k->b0 * x + z[0];
+    z[0] = k->b1 * x - k->a1 * y + z[1];
+    z[1] = k->b2 * x - k->a2 * y;
+    return y;
+}
+
+void fx_cut_reset(fx_cut_t *c)
+{
+    memset(c, 0, sizeof *c);
+    c->k.b0 = 1.0f;
+}
+
+void fx_cut_run(fx_cut_t *c, bool hp, int16_t *pcm, size_t frames,
+                unsigned idx, uint32_t rate)
+{
+    if (!frames || !rate) return;
+    if (idx >= FX_STEPS) idx = 0;
+    const uint16_t *tab = hp ? fx_lcut_hz : fx_hcut_hz;
+    if (idx == 0 && c->idx == 0) {
+        c->rate = rate;
+        return;                                     /* off: untouched */
+    }
+    if (idx == c->idx && rate == c->rate) {
+        for (size_t i = 0; i < frames; i++)
+            for (int ch = 0; ch < 2; ch++)
+                pcm[2 * i + (size_t)ch] =
+                    clip16(bq_step(&c->k, c->z[ch], (float)pcm[2 * i + (size_t)ch]));
+        return;
+    }
+    /* A change: the old filter and the new one side by side, faded
+     * from one to the other. The new one starts from the old one's
+     * state, which for a corner moved a step is close; off is a wire
+     * whose state is zero. */
+    const fx_bq_t nk = bq_make(hp, tab[idx], rate);
+    float nz[2][2];
+    memcpy(nz, c->z, sizeof nz);
+    if (c->idx == 0) memset(nz, 0, sizeof nz);
+    const float inv = 1.0f / (float)frames;
+    for (size_t i = 0; i < frames; i++) {
+        const float u = (float)(i + 1) * inv;
+        for (int ch = 0; ch < 2; ch++) {
+            const float x = (float)pcm[2 * i + (size_t)ch];
+            const float yo = bq_step(&c->k, c->z[ch], x);
+            const float yn = bq_step(&nk, nz[ch], x);
+            pcm[2 * i + (size_t)ch] = clip16(yo + (yn - yo) * u);
+        }
+    }
+    c->k = nk;
+    memcpy(c->z, nz, sizeof nz);
+    c->idx = idx;
+    c->rate = rate;
+}

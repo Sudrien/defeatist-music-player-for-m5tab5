@@ -9,7 +9,7 @@
 #include <stddef.h>
 #include "i18n.h"
 
-const unsigned i18n_count = 375;
+const unsigned i18n_count = 377;
 const char *const i18n_keys[] = {
     "%.32s did not work. Try again.",
     "%d h",
@@ -115,6 +115,7 @@ const char *const i18n_keys[] = {
     "Focused: those two aimed out of it.",
     "For backlight life and battery. This panel cannot burn in.",
     "Greyed while Wi-Fi is off; the setting is kept.",
+    "HCUT",
     "HEADSET",
     "Headset, UAC: the jack, a USB mic.",
     "IDLE",
@@ -131,6 +132,7 @@ const char *const i18n_keys[] = {
     "Join %s on a phone.",
     "Joined and saved %s.",
     "Joined and saved %s. The setup network is closing; you can leave it.",
+    "LCUT",
     "LIVE",
     "Levels are still measured while off.",
     "Libraries",
@@ -495,6 +497,7 @@ const unsigned char i18n_on_screen[] = {
     1,  /* 'Focused: those two aimed out of it.' */
     1,  /* 'For backlight life and battery. This pan' */
     1,  /* 'Greyed while Wi-Fi is off; the setting i' */
+    1,  /* 'HCUT' */
     1,  /* 'HEADSET' */
     1,  /* 'Headset, UAC: the jack, a USB mic.' */
     1,  /* 'IDLE' */
@@ -511,6 +514,7 @@ const unsigned char i18n_on_screen[] = {
     1,  /* 'Join %s on a phone.' */
     0,  /* 'Joined and saved %s.' */
     0,  /* 'Joined and saved %s. The setup network i' */
+    1,  /* 'LCUT' */
     1,  /* 'LIVE' */
     1,  /* 'Levels are still measured while off.' */
     1,  /* 'Libraries' */
@@ -894,9 +898,11 @@ const char *const i18n_vals[] = {
     NULL,
     NULL,
     NULL,
+    NULL,
     "Insert a card or a USB\012drive to record to.",
     NULL,
     "It reached 4 GB, the\012most one file can hold.",
+    NULL,
     NULL,
     NULL,
     NULL,
@@ -1261,6 +1267,7 @@ const char *const i18n_vals[] = {
     "定向：这两个麦克风朝屏幕外。",
     "为延长背光寿命并省电。此屏幕不会烧屏。",
     "Wi-Fi 关闭时变灰；设置会保留。",
+    "高切",
     "耳麦",
     "耳麦、UAC：插孔、USB 麦克风。",
     "空闲",
@@ -1277,6 +1284,7 @@ const char *const i18n_vals[] = {
     "用手机连接 %s。",
     "已连接并保存 %s。",
     "已连接并保存 %s。设置网络正在关闭，你可以离开它了。",
+    "低切",
     "直播",
     "关闭时仍会测量电平。",
     "库",
@@ -1637,6 +1645,7 @@ const char *const i18n_vals[] = {
     "フォーカス：その2つを画面の外へ向ける。",
     "バックライト寿命と電池のため。この画面は焼き付かない。",
     "Wi-Fiがオフの間は灰色。設定は残る。",
+    "HCUT",
     "ヘッドセット",
     "ヘッドセット、UAC：端子、USBマイク。",
     "待機",
@@ -1653,6 +1662,7 @@ const char *const i18n_vals[] = {
     "スマホで %s に接続。",
     "%s に接続して保存しました。",
     "%s に接続して保存しました。設定用ネットワークは閉じます。離れてかまいません。",
+    "LCUT",
     "ライブ",
     "オフでも音量は測定される。",
     "ライブラリ",
@@ -2013,6 +2023,7 @@ const char *const i18n_vals[] = {
     "Enfocado: esos dos, apuntando hacia fuera.",
     "Por la vida de la retroiluminación y la batería. Esta pantalla no se quema.",
     "En gris con la Wi-Fi apagada; el ajuste se guarda.",
+    "CAGUD",
     "AURICULAR",
     "Auricular, UAC: la toma, un micro USB.",
     "INAC",
@@ -2029,6 +2040,7 @@ const char *const i18n_vals[] = {
     "Únete a %s con el móvil.",
     "Conectado a %s y guardada.",
     "Conectado a %s y guardada. La red de configuración se cierra; ya puedes salir de ella.",
+    "CGRAV",
     "VIVO",
     "Los niveles se miden aunque esté apagado.",
     "Bibliotecas",
@@ -2389,6 +2401,7 @@ const char *const i18n_vals[] = {
     "Focado: esses dois, virados para fora.",
     "Pela vida útil da luz de fundo e pela bateria. Esta tela não marca.",
     "Cinza com o Wi-Fi desligado; o ajuste é mantido.",
+    "CAGUD",
     "HEADSET",
     "Headset, UAC: o P2, um microfone USB.",
     "OCIO",
@@ -2405,6 +2418,7 @@ const char *const i18n_vals[] = {
     "Entre em %s pelo celular.",
     "Conectado a %s e salva.",
     "Conectado a %s e salva. A rede de configuração está fechando; você já pode sair dela.",
+    "CGRAV",
     "AO VIVO",
     "Os níveis são medidos mesmo desligado.",
     "Bibliotecas",
@@ -2765,6 +2779,7 @@ const char *const i18n_vals[] = {
     "Dirigé : ces deux-là, tournés vers l'extérieur.",
     "Pour la durée du rétroéclairage et la batterie. Cet écran ne marque pas.",
     "Grisé quand le Wi-Fi est coupé ; le réglage est conservé.",
+    "CHAUT",
     "CASQUE",
     "Casque, UAC : la prise, un micro USB.",
     "INACT",
@@ -2781,6 +2796,7 @@ const char *const i18n_vals[] = {
     "Rejoignez %s avec un téléphone.",
     "%s rejoint et enregistré.",
     "%s rejoint et enregistré. Le réseau de configuration se ferme ; vous pouvez le quitter.",
+    "CBAS",
     "DIRECT",
     "Les niveaux sont mesurés même désactivé.",
     "Bibliothèques",
@@ -3141,6 +3157,7 @@ const char *const i18n_vals[] = {
     "Diretto: quei due, rivolti verso l'esterno.",
     "Per la durata della retroilluminazione e della batteria. Questo schermo non si segna.",
     "In grigio col Wi-Fi spento; l'impostazione resta.",
+    "TALTI",
     "CUFFIA",
     "Cuffia, UAC: il jack, un microfono USB.",
     "INATT",
@@ -3157,6 +3174,7 @@ const char *const i18n_vals[] = {
     "Collegati a %s col telefono.",
     "Collegato a %s e salvata.",
     "Collegato a %s e salvata. La rete di configurazione si sta chiudendo; puoi lasciarla.",
+    "TBASS",
     "LIVE",
     "I livelli si misurano anche da spento.",
     "Librerie",

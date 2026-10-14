@@ -214,6 +214,8 @@ pt:
     "For backlight life and battery. This panel cannot burn in.": "Pela vida útil da luz de fundo e pela bateria. Esta tela não marca."
     # panel.c
     "Greyed while Wi-Fi is off; the setting is kept.": "Cinza com o Wi-Fi desligado; o ajuste é mantido."
+    # ui.c
+    "HCUT": "CAGUD"
     # panel.c
     "HEADSET": "HEADSET"
     # panel.c
@@ -246,6 +248,8 @@ pt:
     "Joined and saved %s.": "Conectado a %s e salva."
     # portal.c
     "Joined and saved %s. The setup network is closing; you can leave it.": "Conectado a %s e salva. A rede de configuração está fechando; você já pode sair dela."
+    # ui.c
+    "LCUT": "CGRAV"
     # ui.c
     "LIVE": "AO VIVO"
     # panel.c
@@ -676,7 +680,7 @@ pt:
     "not run this session": "não rodou nesta sessão"
     # player.c
     "nothing starred yet - tap a star to keep one": "nenhum favorito - toque numa estrela"
-    # panel.c, sleeppage.c, remote.html
+    # panel.c, sleeppage.c, ui.c
     "off": "não"
     # panel.c
     "on": "sim"

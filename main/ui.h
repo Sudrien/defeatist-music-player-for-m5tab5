@@ -267,8 +267,8 @@ typedef struct {
     uint8_t speed_played, speed_cut;
     /* 6097: the Fx sheet -- settings_fx()'s indexes (fx.h), in its
      * order: bass, treble, attack, decay, release, 6101's voice, and
-     * 6102's echo and its time. */
-    uint8_t fx[8];
+     * 6102's echo and its time, 6103's low and high cuts. */
+    uint8_t fx[10];
 } ui_state_t;
 
 /* What a touch produced. The player acts on these; the UI never acts. */

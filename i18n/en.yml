@@ -214,6 +214,8 @@ en:
     "For backlight life and battery. This panel cannot burn in.": ~
     # panel.c
     "Greyed while Wi-Fi is off; the setting is kept.": ~
+    # ui.c
+    "HCUT": ~
     # panel.c
     "HEADSET": ~
     # panel.c
@@ -246,6 +248,8 @@ en:
     "Joined and saved %s.": ~
     # portal.c
     "Joined and saved %s. The setup network is closing; you can leave it.": ~
+    # ui.c
+    "LCUT": ~
     # ui.c
     "LIVE": ~
     # panel.c
@@ -676,7 +680,7 @@ en:
     "not run this session": ~
     # player.c
     "nothing starred yet - tap a star to keep one": ~
-    # panel.c, sleeppage.c, remote.html
+    # panel.c, sleeppage.c, ui.c
     "off": ~
     # panel.c
     "on": ~

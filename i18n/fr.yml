@@ -214,6 +214,8 @@ fr:
     "For backlight life and battery. This panel cannot burn in.": "Pour la durée du rétroéclairage et la batterie. Cet écran ne marque pas."
     # panel.c
     "Greyed while Wi-Fi is off; the setting is kept.": "Grisé quand le Wi-Fi est coupé ; le réglage est conservé."
+    # ui.c
+    "HCUT": "CHAUT"
     # panel.c
     "HEADSET": "CASQUE"
     # panel.c
@@ -246,6 +248,8 @@ fr:
     "Joined and saved %s.": "%s rejoint et enregistré."
     # portal.c
     "Joined and saved %s. The setup network is closing; you can leave it.": "%s rejoint et enregistré. Le réseau de configuration se ferme ; vous pouvez le quitter."
+    # ui.c
+    "LCUT": "CBAS"
     # ui.c
     "LIVE": "DIRECT"
     # panel.c
@@ -676,7 +680,7 @@ fr:
     "not run this session": "pas lancé cette session"
     # player.c
     "nothing starred yet - tap a star to keep one": "aucun favori - touchez une étoile"
-    # panel.c, sleeppage.c, remote.html
+    # panel.c, sleeppage.c, ui.c
     "off": "non"
     # panel.c
     "on": "oui"

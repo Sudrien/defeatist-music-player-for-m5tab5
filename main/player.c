@@ -2301,6 +2301,7 @@ static uint32_t vs_out_step(int play)
 static fx_tone_t s_fx_tone;
 static fx_vox_t  s_fx_vox;                  /* 6101 */
 static fx_echo_t s_fx_echo;                 /* 6102 */
+static fx_cut_t  s_fx_lcut, s_fx_hcut;      /* 6103 */
 static fx_edge_t s_fx_edge;
 static bool      s_fx_gap = true;
 
@@ -2333,6 +2334,12 @@ static void fx_out(uint8_t *buf, size_t n)
     fx_tone_run(&s_fx_tone, (int16_t *)buf, frames,
                 settings_fx(SETTINGS_FX_BASS), settings_fx(SETTINGS_FX_TREBLE),
                 fx_rate());
+    /* 6103: the cuts after tone, so a boost cannot put back what they
+     * take out, and before the echo, which repeats the band they left. */
+    fx_cut_run(&s_fx_lcut, true, (int16_t *)buf, frames,
+               settings_fx(SETTINGS_FX_LCUT), fx_rate());
+    fx_cut_run(&s_fx_hcut, false, (int16_t *)buf, frames,
+               settings_fx(SETTINGS_FX_HCUT), fx_rate());
     /* 6102: echo the sound as toned, and before the edge, so a pause's
      * release takes the trail down with the rest. */
     fx_echo_run(&s_fx_echo, (int16_t *)buf, frames,
@@ -2392,6 +2399,8 @@ static void i2s_writer_task(void *arg)
     /* 6097: flat, and the edge down so the first sound gets ATTACK. */
     fx_tone_reset(&s_fx_tone);
     fx_vox_reset(&s_fx_vox);
+    fx_cut_reset(&s_fx_lcut);                       /* 6103 */
+    fx_cut_reset(&s_fx_hcut);
     /* 6102: the echo's line, one second at 192 kHz, float stereo --
      * 1.5 MB, so PSRAM, and once here rather than when ECHO is turned
      * on: a malloc does not belong on the path with the DMA deadline.
@@ -9106,7 +9115,7 @@ static void ui_task(void *arg)
                 settings_set_fx(col, v);
                 static const char *const nm[SETTINGS_FX_COUNT] = {
                     "bass", "treble", "attack", "decay", "release", "voice",
-                    "echo", "time"
+                    "echo", "time", "low cut", "high cut"
                 };
                 if (col <= SETTINGS_FX_TREBLE || col == SETTINGS_FX_VOICE) {
                     /* 6100: as a number -- the labels include U+E000,
@@ -9119,6 +9128,11 @@ static void ui_task(void *arg)
                 } else if (col == SETTINGS_FX_ECHO) {                /* 6102 */
                     const float g = fx_echo_gain[settings_fx(col)];
                     ESP_LOGI(TAG, "fx: echo %d%%", (int)(g * 100.0f + 0.5f));
+                } else if (col == SETTINGS_FX_LCUT || col == SETTINGS_FX_HCUT) {
+                    const unsigned hz = (col == SETTINGS_FX_LCUT ? fx_lcut_hz
+                                                                 : fx_hcut_hz)[settings_fx(col)];
+                    if (hz) ESP_LOGI(TAG, "fx: %s %u Hz", nm[col], hz);
+                    else    ESP_LOGI(TAG, "fx: %s off", nm[col]);
                 } else if (col == SETTINGS_FX_TIME) {
                     ESP_LOGI(TAG, "fx: echo time %u ms",
                              (unsigned)fx_echo_ms[settings_fx(col)]);

@@ -135,6 +135,40 @@ void fx_echo_init(fx_echo_t *e, float *line);
 void fx_echo_run(fx_echo_t *e, int16_t *pcm, size_t frames,
                  unsigned echo, unsigned time, uint32_t rate);
 
+/*
+ * 6103: LCUT and HCUT, Audacity's High-Pass and Low-Pass Filter -- cuts,
+ * where BASS and TREB are shelves: past the corner the sound falls away
+ * at 12 dB an octave (second-order Butterworth, RBJ's cookbook) instead
+ * of being tilted. Index 0 is off, bit for bit, on both.
+ *
+ *   LCUT (a high-pass): off, 40, 80, 150, 300 Hz -- rumble, boom.
+ *   HCUT (a low-pass):  off, 12k, 8k, 4k, 3k     -- hiss, harshness.
+ *
+ * Both at once is a band: 150 Hz - 8 kHz an AM radio, 300 Hz - 3 kHz a
+ * telephone. A cut takes nothing away from the ceiling, so no headroom
+ * is spent. A change of corner crossfades old filter into new across
+ * one chunk, so neither turning one on nor moving it clicks.
+ */
+extern const uint16_t fx_lcut_hz[FX_STEPS];     /* 0 = off */
+extern const uint16_t fx_hcut_hz[FX_STEPS];     /* 0 = off */
+
+typedef struct {
+    float b0, b1, b2, a1, a2;
+} fx_bq_t;
+
+typedef struct {
+    fx_bq_t  k;                 /* the coefficients in use */
+    float    z[2][2];           /* direct form II transposed, per channel */
+    unsigned idx;               /* the index k was made for */
+    uint32_t rate;
+} fx_cut_t;
+
+void fx_cut_reset(fx_cut_t *c);
+
+/* `hp` true for LCUT, false for HCUT; `idx` into its table. */
+void fx_cut_run(fx_cut_t *c, bool hp, int16_t *pcm, size_t frames,
+                unsigned idx, uint32_t rate);
+
 /* ------------------------------------------------------------------ */
 
 typedef struct {

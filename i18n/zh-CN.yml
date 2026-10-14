@@ -214,6 +214,8 @@ zh-CN:
     "For backlight life and battery. This panel cannot burn in.": "为延长背光寿命并省电。此屏幕不会烧屏。"
     # panel.c
     "Greyed while Wi-Fi is off; the setting is kept.": "Wi-Fi 关闭时变灰；设置会保留。"
+    # ui.c
+    "HCUT": "高切"
     # panel.c
     "HEADSET": "耳麦"
     # panel.c
@@ -246,6 +248,8 @@ zh-CN:
     "Joined and saved %s.": "已连接并保存 %s。"
     # portal.c
     "Joined and saved %s. The setup network is closing; you can leave it.": "已连接并保存 %s。设置网络正在关闭，你可以离开它了。"
+    # ui.c
+    "LCUT": "低切"
     # ui.c
     "LIVE": "直播"
     # panel.c
@@ -676,7 +680,7 @@ zh-CN:
     "not run this session": "本次启动未运行"
     # player.c
     "nothing starred yet - tap a star to keep one": "还没有收藏 - 点星标就能保存"
-    # panel.c, sleeppage.c, remote.html
+    # panel.c, sleeppage.c, ui.c
     "off": "关"
     # panel.c
     "on": "开"

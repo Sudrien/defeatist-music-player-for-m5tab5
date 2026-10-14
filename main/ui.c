@@ -386,15 +386,19 @@ static int  s_pop_btn[4][4];    /* PLAYED -, PLAYED +, CUT -, CUT +: x y w h */
  * last asked for -- until ui_state_t has caught up. Six columns of
  * minus over value over plus; s_fx_btn[col][0] is the minus.
  */
-#define FX_COLS      (8)                /* settings_fx()'s, all of them */
+#define FX_COLS      (10)               /* settings_fx()'s, all of them */
 #define FX_VOX       (5)                /* 6101: SETTINGS_FX_VOICE */
 #define FX_ECHO      (6)                /* 6102: SETTINGS_FX_ECHO */
 #define FX_TIME      (7)                /* 6102: SETTINGS_FX_TIME */
+#define FX_LCUT      (8)                /* 6103: SETTINGS_FX_LCUT */
+#define FX_HCUT      (9)                /* 6103: SETTINGS_FX_HCUT */
 /* 6101: the columns shown, in order. ATK, DEC and REL are kept, and
  * still act at whatever they were left at, but off the sheet for now;
  * SUS (the crossfade) is gone from it, back to the AUDIO tab alone. */
-#define FX_SHOWN     (5)
-static const int k_fx_shown[FX_SHOWN] = { 0, 1, FX_VOX, FX_ECHO, FX_TIME };
+#define FX_SHOWN     (7)
+static const int k_fx_shown[FX_SHOWN] = {
+    0, 1, FX_LCUT, FX_HCUT, FX_VOX, FX_ECHO, FX_TIME        /* 6103 */
+};
 static bool s_fx_pop, s_fx_wait;
 static int  s_fx_v[FX_COLS];
 static int  s_fx_x, s_fx_y, s_fx_w, s_fx_h;
@@ -1047,7 +1051,8 @@ static void draw_fx(const ui_state_t *st)
     fx_centre(&cx, &cy);
     const bool on = st->fx[0] != FX_TONE_FLAT || st->fx[1] != FX_TONE_FLAT ||
                     st->fx[FX_VOX] != FX_VOX_FLAT ||         /* 6101 */
-                    st->fx[FX_ECHO] != 0;                     /* 6102 */
+                    st->fx[FX_ECHO] != 0 ||                   /* 6102 */
+                    st->fx[FX_LCUT] != 0 || st->fx[FX_HCUT] != 0; /* 6103 */
     const int w = 2 * ICON_HALF, h = 2 * ICON_HALF + 8;
     const int x = cx - w / 2, y = cy - h / 2;
     if (on) {
@@ -2181,6 +2186,8 @@ static void draw_speed_pop(void)
  * three columns, BASS TREB | VOX, with a gap between tone and voice;
  * the edges are off the sheet (k_fx_shown[]) and SUS is gone. 6102:
  * five, BASS TREB | VOX | ECHO TIME; ECHO has eight steps, 0 to ⅞.
+ * 6103: seven in one row, evenly spaced -- BASS TREB LCUT HCUT VOX
+ * ECHO TIME, what shapes frequency first.
  */
 #define FX_BTN       (88)
 #define FX_VAL_SC    (3)
@@ -2206,19 +2213,18 @@ static void draw_fx_pop(void)
      * back: same() -- a synth's abbreviations in every language. */
     const char *name[FX_COLS] = {
         _("BASS"), _("TREB"), same("ATK"), same("DEC"), same("REL"), _("VOX"),
-        _("ECHO"), _("TIME")
+        _("ECHO"), _("TIME"), _("LCUT"), _("HCUT")
     };
-    /* 6102: BASS TREB | VOX | ECHO TIME -- a gap before each group. */
-    const int split = 24;
-    const int colw = (w - 2 * pad - 2 * split) / FX_SHOWN;
+    /* 6103: seven, one row, evenly spaced -- no gaps between groups
+     * any more; 96 px a column holds the 88 px signs. */
+    const int colw = (w - 2 * pad) / FX_SHOWN;
     const int lbl_h = GFX_GLYPH_H(FX_LBL_SC), val_h = GFX_GLYPH_H(FX_VAL_SC);
     const int block = lbl_h + gap + FX_BTN + gap + val_h + 8 + lbl_h + gap + FX_BTN;
     const int top = y + (h - block) / 2;
 
     for (int i = 0; i < FX_SHOWN; i++) {
         const int c = k_fx_shown[i];
-        const int cx = x + pad + colw * i + colw / 2 +
-                       (i >= 2 ? split : 0) + (i >= 3 ? split : 0);
+        const int cx = x + pad + colw * i + colw / 2;
         const int v = s_fx_v[c];
         int yy = top;
 
@@ -2243,6 +2249,13 @@ static void draw_fx_pop(void)
         } else if (c == FX_ECHO) {                              /* 6102 */
             snprintf(val, sizeof val, "%s", fx_echo_label[v]);
             plain = v == 0;
+        } else if (c == FX_LCUT || c == FX_HCUT) {               /* 6103 */
+            const unsigned hz = (c == FX_LCUT ? fx_lcut_hz : fx_hcut_hz)[v];
+            plain = hz == 0;
+            if (!hz) snprintf(val, sizeof val, "%s", _("off"));
+            else if (hz >= 1000) snprintf(val, sizeof val, "%uk", hz / 1000);
+            else snprintf(val, sizeof val, "%u", hz);
+            if (hz) unit = same("Hz");
         } else if (c == FX_TIME) {
             snprintf(val, sizeof val, "%u", (unsigned)fx_echo_ms[v]);
             unit = same("ms");

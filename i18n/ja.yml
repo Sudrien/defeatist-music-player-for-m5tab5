@@ -214,6 +214,8 @@ ja:
     "For backlight life and battery. This panel cannot burn in.": "バックライト寿命と電池のため。この画面は焼き付かない。"
     # panel.c
     "Greyed while Wi-Fi is off; the setting is kept.": "Wi-Fiがオフの間は灰色。設定は残る。"
+    # ui.c
+    "HCUT": "HCUT"
     # panel.c
     "HEADSET": "ヘッドセット"
     # panel.c
@@ -246,6 +248,8 @@ ja:
     "Joined and saved %s.": "%s に接続して保存しました。"
     # portal.c
     "Joined and saved %s. The setup network is closing; you can leave it.": "%s に接続して保存しました。設定用ネットワークは閉じます。離れてかまいません。"
+    # ui.c
+    "LCUT": "LCUT"
     # ui.c
     "LIVE": "ライブ"
     # panel.c
@@ -676,7 +680,7 @@ ja:
     "not run this session": "この起動では未実行"
     # player.c
     "nothing starred yet - tap a star to keep one": "まだお気に入りなし - 星をタップで保存"
-    # panel.c, sleeppage.c, remote.html
+    # panel.c, sleeppage.c, ui.c
     "off": "オフ"
     # panel.c
     "on": "オン"

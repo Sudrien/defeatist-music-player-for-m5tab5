@@ -246,9 +246,9 @@ void settings_set_speed_boot(bool boot);
  *
  * Kept whatever "Speed holds" says: speed is per record, and nobody
  * sets their bass per track. Saved on the card only, like speed, as one
- * key -- "fx":"22112202", the digits in this order (6101 added VOX,
- * the sixth; 6102 ECHO and TIME, the last two -- a shorter record from
- * before reads with what it lacks at the default).
+ * key -- "fx":"2211220200", the digits in this order (6101 added VOX,
+ * the sixth; 6102 ECHO and TIME; 6103 LCUT and HCUT, the last two -- a
+ * shorter record from before reads with what it lacks at the default).
  */
 enum {
     SETTINGS_FX_BASS = 0,
@@ -259,6 +259,8 @@ enum {
     SETTINGS_FX_VOICE,          /* 6101: into fx_vox_gain[], 2 is ×1 */
     SETTINGS_FX_ECHO,           /* 6102: into fx_echo_gain[], 0 is off */
     SETTINGS_FX_TIME,           /* 6102: into fx_echo_ms[], 2 is 250 ms */
+    SETTINGS_FX_LCUT,           /* 6103: into fx_lcut_hz[], 0 is off */
+    SETTINGS_FX_HCUT,           /* 6103: into fx_hcut_hz[], 0 is off */
     SETTINGS_FX_COUNT
 };
 unsigned settings_fx(unsigned which);

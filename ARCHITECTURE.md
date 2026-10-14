@@ -23456,3 +23456,45 @@ defaults, and the parser checks ECHO's digit against its eight steps.
 SETTINGS_MAX_LINE 619. The Fx box is yellow when ECHO is not 0.
 
 Not on the board.
+
+### 6103 -- LCUT and HCUT; the Fx sheet in one row, and done for now
+
+The last of the filters for this release: Audacity's High-Pass and
+Low-Pass. Where BASS and TREB are shelves -- a tilt, with the sound
+still under them at ½ -- these are cuts: past the corner it falls away
+at 12 dB an octave. Second-order Butterworth from RBJ's cookbook,
+transposed direct form II, per channel.
+
+    LCUT (high-pass): off, 40, 80, 150, 300 Hz    rumble, boom
+    HCUT (low-pass):  off, 12k, 8k, 4k, 3k        hiss, harshness
+
+Together they are a band: 150 Hz - 8k an AM radio, 300 Hz - 3k a
+telephone -- what Aurora's "Retro" was reaching for with two one-poles
+and no low end. Off is bit for bit (tested). A cut spends no headroom.
+A change of corner runs the old filter and the new side by side for
+one chunk and fades between them, so turning a cut on, off, or moving
+it does not click; fxtest steps HCUT through all five every chunk of a
+1 kHz tone and the biggest sample-to-sample step is the tone's own.
+fxtest also: -3 dB at each corner (0.707 at 150 Hz and at 4 kHz), 40 Hz
+at 0.071 under LCUT 150, 12 kHz at 0.065 under HCUT 4k.
+
+Order in fx_out(): VOX, tone, LCUT, HCUT, ECHO, the edge. After tone so
+a boost cannot put back what a cut took; before ECHO so the repeats are
+of the band that is left.
+
+The sheet is one row of seven, evenly spaced, no gaps between groups:
+
+    BASS  TREB  LCUT  HCUT  VOX  ECHO  TIME
+
+96 px a column, the 88 px signs inside it. Frequency shaping first.
+"fx" grows to ten digits ("2211220200"); five-, six- and eight-digit
+records read with what they lack at the default. SETTINGS_MAX_LINE
+621. The Fx box is yellow when either cut is on.
+
+This is where the sheet stops for the release. Still in the player but
+off the sheet: ATK, DEC, REL (6101). Not done, and written down so it
+is not rediscovered: VOX on a mono track is not greyed; ECHO's trail is
+not cleared by a seek; the first-order shelves reach ½ and 2 only far
+from their corners.
+
+Not on the board.

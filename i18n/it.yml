@@ -214,6 +214,8 @@ it:
     "For backlight life and battery. This panel cannot burn in.": "Per la durata della retroilluminazione e della batteria. Questo schermo non si segna."
     # panel.c
     "Greyed while Wi-Fi is off; the setting is kept.": "In grigio col Wi-Fi spento; l'impostazione resta."
+    # ui.c
+    "HCUT": "TALTI"
     # panel.c
     "HEADSET": "CUFFIA"
     # panel.c
@@ -246,6 +248,8 @@ it:
     "Joined and saved %s.": "Collegato a %s e salvata."
     # portal.c
     "Joined and saved %s. The setup network is closing; you can leave it.": "Collegato a %s e salvata. La rete di configurazione si sta chiudendo; puoi lasciarla."
+    # ui.c
+    "LCUT": "TBASS"
     # ui.c
     "LIVE": "LIVE"
     # panel.c
@@ -676,7 +680,7 @@ it:
     "not run this session": "non eseguito in questa sessione"
     # player.c
     "nothing starred yet - tap a star to keep one": "nessun preferito - tocca una stella"
-    # panel.c, sleeppage.c, remote.html
+    # panel.c, sleeppage.c, ui.c
     "off": "no"
     # panel.c
     "on": "sì"

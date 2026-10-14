@@ -66,6 +66,40 @@ extern const float       fx_tone_gain[FX_STEPS];
 /* 0 10 50 250 1000 ms. */
 extern const uint16_t    fx_edge_ms[FX_STEPS];
 
+/*
+ * 6101: VOX, Audacity's Vocal Reduction, as a gain on the centre --
+ * what left and right have in common, where a lead vocal sits -- over
+ * FX_VOX_LO_HZ..FX_VOX_HI_HZ only, so the bass, kick and the top of
+ * the cymbals (centred too) are left alone:
+ *
+ *     c = band((L + R) / 2);   L' = L + (v - 1) c;   R' = R + (v - 1) c
+ *
+ * 0 is the centre gone (karaoke), ½ is the voice 6 dB back, 1 is the
+ * track bit for bit, 3/2 and 2 bring it forward with the same headroom
+ * rule as tone -- divided by v. On a mono track left and right are all
+ * centre, so 0 thins the voice band out of everything rather than
+ * finding a voice in it.
+ */
+#define FX_VOX_FLAT     2
+#define FX_VOX_LO_HZ    (150.0f)
+#define FX_VOX_HI_HZ    (8000.0f)
+extern const char *const fx_vox_label[FX_STEPS];     /* "0" "½" "1" U+E000 "2" */
+extern const float       fx_vox_gain[FX_STEPS];
+
+typedef struct {
+    float    lo, hi;            /* the centre's two one-poles */
+    float    alo, ahi;
+    float    gv;                /* the gain the last chunk ended on */
+    uint32_t rate;
+} fx_vox_t;
+
+void fx_vox_reset(fx_vox_t *v);
+
+/* As fx_tone_run(): filters always listening, samples written only off
+ * 1, a change ramped across the chunk. */
+void fx_vox_run(fx_vox_t *v, int16_t *pcm, size_t frames,
+                unsigned idx, uint32_t rate);
+
 /* ------------------------------------------------------------------ */
 
 typedef struct {

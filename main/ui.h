@@ -265,15 +265,10 @@ typedef struct {
     /* 6076: turntable speed, PLAYED over CUT, as indexes into
      * varispeed.h's table. Equal is ×1.00. */
     uint8_t speed_played, speed_cut;
-    /* 6097: the Fx sheet -- settings_fx()'s five indexes (fx.h), and
-     * its SUSTAIN column, the crossfade length in seconds. */
-    uint8_t fx[5];
-    uint8_t xfade_sec;
+    /* 6097: the Fx sheet -- settings_fx()'s indexes (fx.h), in its
+     * order: bass, treble, attack, decay, release, and 6101's voice. */
+    uint8_t fx[6];
 } ui_state_t;
-
-/* 6097: SUSTAIN's top step, SETTINGS_CROSSFADE_MAX; player.c checks the
- * two agree, so ui.c need not include settings.h for one number. */
-#define UI_XFADE_MAX    (12)
 
 /* What a touch produced. The player acts on these; the UI never acts. */
 typedef enum {
@@ -362,8 +357,8 @@ typedef enum {
     UI_ACTION_SPEED,
     /*
      * 6097: a sign on the Fx sheet. `value` is COLUMN << 4 | VALUE:
-     * columns 0-4 are settings_fx()'s (VALUE an fx.h index), column 5
-     * is SUSTAIN (VALUE the crossfade in seconds). One action per tap.
+     * COLUMN is settings_fx()'s index, VALUE an fx.h index. (6101: the
+     * SUSTAIN column, which sent the crossfade, is gone.) One per tap.
      */
     UI_ACTION_FX,
 } ui_action_kind_t;

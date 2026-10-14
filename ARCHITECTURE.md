@@ -23373,3 +23373,48 @@ unchanged.
 
 6099 was a "1½" relabel instead, handed over and not applied: the
 number is used and the patch is not in the history.
+
+### 6101 -- VOX on the Fx sheet; the edges off it, SUS gone
+
+On the board BASS and TREB were heard to work. SUS was not a sustain:
+a crossfade is two tracks overlapping, which no envelope stage means,
+and the name did the setting no favours. And the question from 6097
+came back the other way: Audacity's filters after all, starting with
+one -- Vocal Reduction.
+
+The sheet is three columns now, BASS TREB | VOX.
+
+VOX (fx_vox_t). A gain on the centre, what left and right share:
+
+    c = band((L + R) / 2);   L' = L + (v-1)c;   R' = R + (v-1)c
+
+with band() between one-poles at 150 Hz and 8 kHz, so the bass, the
+kick and the top of the cymbals -- centred too -- stay where they are;
+that band is why Audacity's version asks for one. Steps 0, ½, 1, 3/2, 2
+(the fourth is U+E000, as on TREB): 0 is karaoke, ½ the voice 6 dB
+back, 1 bit for bit (tested), and above 1 the voice forward with tone's
+headroom rule, everything divided by v. fxtest: a centred 1 kHz tone at
+VOX 0 comes out at 0.089 (-21 dB -- first-order band edges, not a
+brick wall), the same tone side-only at 1.000, a centred 50 Hz at
+0.948; VOX 2 on a full-scale centre peaks at 32113. Isolate (sides at
+zero) was offered as a sixth step and not taken.
+
+It runs before tone in fx_out(): it reads left against right, and
+tone filters both. On a mono track there is no side to keep, so VOX 0
+thins the 150 Hz - 8 kHz band out of everything rather than finding a
+voice; the column is not greyed for it.
+
+ATK, DEC and REL are off the sheet (ui.c's k_fx_shown[]) but not out
+of the player: the writer still applies them at whatever they were
+left at, and they keep their place in the "fx" key. A sheet built with
+REL at 1000 ms still pauses over a second. SUS is gone from the sheet
+altogether; the crossfade is the AUDIO tab's slider alone, as before
+6097.
+
+"fx" grows a sixth digit, VOX: "221122". A five-digit record from 6097
+reads with VOX at 1. SETTINGS_MAX_LINE 616 -> 617. UI_ACTION_FX's
+column is the settings_fx() index; column 5, which was SUSTAIN's
+crossfade, is VOX's. ui_state_t's xfade_sec and UI_XFADE_MAX go with
+SUS. The Fx box is yellow when BASS, TREB or VOX is not 1.
+
+Not on the board.

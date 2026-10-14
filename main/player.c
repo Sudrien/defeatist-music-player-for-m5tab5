@@ -2297,10 +2297,9 @@ static uint32_t vs_out_step(int play)
  * and gets ATTACK -- unless a ramp is already running, which is a
  * seek's DECAY and is left to finish.
  */
-_Static_assert(UI_XFADE_MAX == SETTINGS_CROSSFADE_MAX,
-               "the Fx sheet's SUSTAIN column tops out at the crossfade's maximum");
 
 static fx_tone_t s_fx_tone;
+static fx_vox_t  s_fx_vox;                  /* 6101 */
 static fx_edge_t s_fx_edge;
 static bool      s_fx_gap = true;
 
@@ -2326,6 +2325,10 @@ static void fx_out(uint8_t *buf, size_t n)
             fx_edge_from_zero(&s_fx_edge, fx_ms(SETTINGS_FX_ATTACK), fx_rate());
         }
     }
+    /* 6101: the voice first -- it reads left against right, which tone
+     * does not change but would filter both of. */
+    fx_vox_run(&s_fx_vox, (int16_t *)buf, frames,
+               settings_fx(SETTINGS_FX_VOICE), fx_rate());
     fx_tone_run(&s_fx_tone, (int16_t *)buf, frames,
                 settings_fx(SETTINGS_FX_BASS), settings_fx(SETTINGS_FX_TREBLE),
                 fx_rate());
@@ -2382,6 +2385,7 @@ static void i2s_writer_task(void *arg)
 
     /* 6097: flat, and the edge down so the first sound gets ATTACK. */
     fx_tone_reset(&s_fx_tone);
+    fx_vox_reset(&s_fx_vox);
     fx_edge_reset(&s_fx_edge);
     fx_edge_go(&s_fx_edge, false, 0, 44100);
 
@@ -9077,24 +9081,22 @@ static void ui_task(void *arg)
                      varispeed_rpm_label[settings_speed_cut()]);
             break;
         case UI_ACTION_FX: {
-            /* 6097: the writer reads the settings on its next chunk;
-             * SUSTAIN is the crossfade, taken at the next boundary as
-             * it always was. */
+            /* 6097: the writer reads the settings on its next chunk.
+             * 6101: the column is the settings_fx() index; SUSTAIN is
+             * gone from the sheet, the crossfade back on AUDIO alone. */
             const unsigned col = (unsigned)act.value >> 4;
             const unsigned v = (unsigned)act.value & 15u;
-            if (col == 5) {
-                settings_set_crossfade_sec((uint8_t)(v > SETTINGS_CROSSFADE_MAX
-                                                     ? SETTINGS_CROSSFADE_MAX : v));
-                ESP_LOGI(TAG, "fx: crossfade %u s", (unsigned)settings_crossfade_sec());
-            } else if (col < SETTINGS_FX_COUNT) {
+            if (col < SETTINGS_FX_COUNT) {
                 settings_set_fx(col, v);
                 static const char *const nm[SETTINGS_FX_COUNT] = {
-                    "bass", "treble", "attack", "decay", "release"
+                    "bass", "treble", "attack", "decay", "release", "voice"
                 };
-                if (col <= SETTINGS_FX_TREBLE) {
+                if (col <= SETTINGS_FX_TREBLE || col == SETTINGS_FX_VOICE) {
                     /* 6100: as a number -- the labels include U+E000,
                      * which only Ark12 can draw. */
-                    const float g = fx_tone_gain[settings_fx(col)];
+                    const float g = col == SETTINGS_FX_VOICE
+                                  ? fx_vox_gain[settings_fx(col)]
+                                  : fx_tone_gain[settings_fx(col)];
                     ESP_LOGI(TAG, "fx: %s x%d.%02d", nm[col], (int)g,
                              (int)(g * 100.0f + 0.5f) % 100);
                 } else {
@@ -9155,7 +9157,6 @@ static void ui_task(void *arg)
         for (unsigned i = 0; i < SETTINGS_FX_COUNT; i++) {
             st.fx[i] = (uint8_t)settings_fx(i);
         }
-        st.xfade_sec = settings_crossfade_sec();
         /* 5117: what the panel is about to draw is what the browser is
          * told, so the two cannot disagree. Before ui_draw(), which
          * returns early with the screen off -- a remote is most useful

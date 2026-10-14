@@ -586,6 +586,8 @@ en:
     "USB port coming up": ~
     # browser.c
     "USB port on - waiting for a drive": ~
+    # ui.c
+    "VOX": ~
     # remote.html
     "Volume": ~
     # remote.html
@@ -670,7 +672,7 @@ en:
     "not run this session": ~
     # player.c
     "nothing starred yet - tap a star to keep one": ~
-    # panel.c, sleeppage.c, ui.c
+    # panel.c, sleeppage.c, remote.html
     "off": ~
     # panel.c
     "on": ~

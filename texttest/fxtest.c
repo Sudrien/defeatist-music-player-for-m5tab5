@@ -189,6 +189,61 @@ int main(void)
         ck("release 0 ms: straight to 0", fx_edge_silent(&e));
     }
 
+    /* 6101: VOX. */
+    {
+        fx_vox_t v;
+        srand(6101);
+        int16_t *a = malloc(sizeof buf), *c = malloc(sizeof buf);
+        for (int k = 0; k < 2 * N; k++) a[k] = (int16_t)(rand() - RAND_MAX / 2);
+        memcpy(c, a, sizeof buf);
+        fx_vox_reset(&v);
+        for (int k = 0; k < N; k += 700) {
+            const int n = (N - k) < 700 ? (N - k) : 700;
+            fx_vox_run(&v, a + 2 * k, (size_t)n, FX_VOX_FLAT, RATE);
+        }
+        ck("VOX 1: bit for bit", memcmp(a, c, sizeof buf) == 0);
+        free(a); free(c);
+
+        /* A centred 1 kHz "voice", a side-only 1 kHz "guitar", a
+         * centred 50 Hz "kick", each through VOX 0. */
+        const double hz[3] = { 1000, 1000, 50 };
+        const int sgn[3] = { 1, -1, 1 };
+        double out[3];
+        for (int t = 0; t < 3; t++) {
+            for (int k = 0; k < N; k++) {
+                const int16_t s1 = (int16_t)lrint(8000 * sin(2 * M_PI * hz[t] * k / RATE));
+                buf[2 * k] = s1;
+                buf[2 * k + 1] = (int16_t)(sgn[t] * s1);
+            }
+            const double in = rms();
+            fx_vox_reset(&v);
+            for (int k = 0; k < N; k += 1024) {
+                const int n = (N - k) < 1024 ? (N - k) : 1024;
+                fx_vox_run(&v, buf + 2 * k, (size_t)n, 0, RATE);
+            }
+            out[t] = rms() / in;
+        }
+        snprintf(what, sizeof what, "VOX 0: centre 1 kHz at %.3f (want ~0)", out[0]);
+        ck(what, out[0] < 0.1);
+        snprintf(what, sizeof what, "VOX 0: side 1 kHz at %.3f (want 1)", out[1]);
+        ck(what, out[1] > 0.99 && out[1] < 1.01);
+        snprintf(what, sizeof what, "VOX 0: centre 50 Hz kept at %.3f", out[2]);
+        ck(what, out[2] > 0.8);
+
+        /* VOX 2: a full-scale centred 1 kHz tone comes out under full
+         * scale -- the headroom. */
+        tone(1000, 32767);
+        fx_vox_reset(&v);
+        for (int k = 0; k < N; k += 1024) {
+            const int n = (N - k) < 1024 ? (N - k) : 1024;
+            fx_vox_run(&v, buf + 2 * k, (size_t)n, 4, RATE);
+        }
+        int pk = 0;
+        for (int k = N / 2; k < N; k++) if (abs(buf[2 * k]) > pk) pk = abs(buf[2 * k]);
+        snprintf(what, sizeof what, "VOX 2: full-scale centre peaks at %d", pk);
+        ck(what, pk < 32767);
+    }
+
     printf("%s\n", fails ? "fxtest: FAILED" : "fxtest: all ok");
     return fails != 0;
 }

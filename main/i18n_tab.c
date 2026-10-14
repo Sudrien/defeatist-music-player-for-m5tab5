@@ -9,7 +9,7 @@
 #include <stddef.h>
 #include "i18n.h"
 
-const unsigned i18n_count = 372;
+const unsigned i18n_count = 373;
 const char *const i18n_keys[] = {
     "%.32s did not work. Try again.",
     "%d h",
@@ -301,6 +301,7 @@ const char *const i18n_keys[] = {
     "USB audio",
     "USB port coming up",
     "USB port on - waiting for a drive",
+    "VOX",
     "Volume",
     "Volumes",
     "Waiting for a network address.",
@@ -678,6 +679,7 @@ const unsigned char i18n_on_screen[] = {
     1,  /* 'USB audio' */
     1,  /* 'USB port coming up' */
     1,  /* 'USB port on - waiting for a drive' */
+    1,  /* 'VOX' */
     0,  /* 'Volume' */
     0,  /* 'Volumes' */
     1,  /* 'Waiting for a network address.' */
@@ -1090,6 +1092,7 @@ const char *const i18n_vals[] = {
     NULL,
     NULL,
     NULL,
+    NULL,
     "it played, then ran\012out of buffer",
     NULL,
     NULL,
@@ -1438,6 +1441,7 @@ const char *const i18n_vals[] = {
     "USB 音频",
     "USB 端口启动中",
     "USB 端口已开 - 等待驱动器",
+    "人声",
     "音量",
     "存储卷",
     "正在等待网络地址。",
@@ -1811,6 +1815,7 @@ const char *const i18n_vals[] = {
     "USBオーディオ",
     "USBポート起動中",
     "USBポートオン - ドライブ待ち",
+    "声",
     "音量",
     "ボリューム",
     "ネットのアドレス待ち。",
@@ -2184,6 +2189,7 @@ const char *const i18n_vals[] = {
     "audio USB",
     "Puerto USB arrancando",
     "Puerto USB encendido - esperando una unidad",
+    "VOZ",
     "Volumen",
     "Volúmenes",
     "Esperando una dirección de red.",
@@ -2557,6 +2563,7 @@ const char *const i18n_vals[] = {
     "áudio USB",
     "Porta USB iniciando",
     "Porta USB ligada - esperando um pendrive",
+    "VOZ",
     "Volume",
     "Volumes",
     "Esperando um endereço de rede.",
@@ -2930,6 +2937,7 @@ const char *const i18n_vals[] = {
     "audio USB",
     "Port USB en démarrage",
     "Port USB actif - en attente d'une clé",
+    "VOIX",
     "Volume",
     "Volumes",
     "En attente d'une adresse réseau.",
@@ -3303,6 +3311,7 @@ const char *const i18n_vals[] = {
     "audio USB",
     "Porta USB in avvio",
     "Porta USB accesa - in attesa di una chiavetta",
+    "VOCE",
     "Volume",
     "Volumi",
     "In attesa di un indirizzo di rete.",

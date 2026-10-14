@@ -586,6 +586,8 @@ it:
     "USB port coming up": "Porta USB in avvio"
     # browser.c
     "USB port on - waiting for a drive": "Porta USB accesa - in attesa di una chiavetta"
+    # ui.c
+    "VOX": "VOCE"
     # remote.html
     "Volume": "Volume"
     # remote.html
@@ -670,7 +672,7 @@ it:
     "not run this session": "non eseguito in questa sessione"
     # player.c
     "nothing starred yet - tap a star to keep one": "nessun preferito - tocca una stella"
-    # panel.c, sleeppage.c, ui.c
+    # panel.c, sleeppage.c, remote.html
     "off": "no"
     # panel.c
     "on": "sì"

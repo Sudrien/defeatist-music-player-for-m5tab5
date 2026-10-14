@@ -586,6 +586,8 @@ zh-CN:
     "USB port coming up": "USB 端口启动中"
     # browser.c
     "USB port on - waiting for a drive": "USB 端口已开 - 等待驱动器"
+    # ui.c
+    "VOX": "人声"
     # remote.html
     "Volume": "音量"
     # remote.html
@@ -670,7 +672,7 @@ zh-CN:
     "not run this session": "本次启动未运行"
     # player.c
     "nothing starred yet - tap a star to keep one": "还没有收藏 - 点星标就能保存"
-    # panel.c, sleeppage.c, ui.c
+    # panel.c, sleeppage.c, remote.html
     "off": "关"
     # panel.c
     "on": "开"

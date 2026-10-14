@@ -586,6 +586,8 @@ ja:
     "USB port coming up": "USBポート起動中"
     # browser.c
     "USB port on - waiting for a drive": "USBポートオン - ドライブ待ち"
+    # ui.c
+    "VOX": "声"
     # remote.html
     "Volume": "音量"
     # remote.html
@@ -670,7 +672,7 @@ ja:
     "not run this session": "この起動では未実行"
     # player.c
     "nothing starred yet - tap a star to keep one": "まだお気に入りなし - 星をタップで保存"
-    # panel.c, sleeppage.c, ui.c
+    # panel.c, sleeppage.c, remote.html
     "off": "オフ"
     # panel.c
     "on": "オン"

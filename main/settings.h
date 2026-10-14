@@ -246,7 +246,8 @@ void settings_set_speed_boot(bool boot);
  *
  * Kept whatever "Speed holds" says: speed is per record, and nobody
  * sets their bass per track. Saved on the card only, like speed, as one
- * key -- "fx":"22112", the five digits in this order.
+ * key -- "fx":"221122", the digits in this order (6101 added VOX, the
+ * sixth; a five-digit record from 6097 reads with VOX at 1).
  */
 enum {
     SETTINGS_FX_BASS = 0,
@@ -254,6 +255,7 @@ enum {
     SETTINGS_FX_ATTACK,
     SETTINGS_FX_DECAY,
     SETTINGS_FX_RELEASE,
+    SETTINGS_FX_VOICE,          /* 6101: into fx_vox_gain[], 2 is ×1 */
     SETTINGS_FX_COUNT
 };
 unsigned settings_fx(unsigned which);

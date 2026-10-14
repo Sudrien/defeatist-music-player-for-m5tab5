@@ -386,8 +386,13 @@ static int  s_pop_btn[4][4];    /* PLAYED -, PLAYED +, CUT -, CUT +: x y w h */
  * last asked for -- until ui_state_t has caught up. Six columns of
  * minus over value over plus; s_fx_btn[col][0] is the minus.
  */
-#define FX_COLS      (6)
-#define FX_SUSTAIN   (5)                /* the column that is crossfade */
+#define FX_COLS      (6)                /* settings_fx()'s, all of them */
+#define FX_VOX       (5)                /* 6101: SETTINGS_FX_VOICE */
+/* 6101: the columns shown, in order. ATK, DEC and REL are kept, and
+ * still act at whatever they were left at, but off the sheet for now;
+ * SUS (the crossfade) is gone from it, back to the AUDIO tab alone. */
+#define FX_SHOWN     (3)
+static const int k_fx_shown[FX_SHOWN] = { 0, 1, FX_VOX };
 static bool s_fx_pop, s_fx_wait;
 static int  s_fx_v[FX_COLS];
 static int  s_fx_x, s_fx_y, s_fx_w, s_fx_h;
@@ -1038,7 +1043,8 @@ static void draw_fx(const ui_state_t *st)
 {
     int cx, cy;
     fx_centre(&cx, &cy);
-    const bool on = st->fx[0] != FX_TONE_FLAT || st->fx[1] != FX_TONE_FLAT;
+    const bool on = st->fx[0] != FX_TONE_FLAT || st->fx[1] != FX_TONE_FLAT ||
+                    st->fx[FX_VOX] != FX_VOX_FLAT;           /* 6101 */
     const int w = 2 * ICON_HALF, h = 2 * ICON_HALF + 8;
     const int x = cx - w / 2, y = cy - h / 2;
     if (on) {
@@ -2167,11 +2173,10 @@ static void draw_speed_pop(void)
 
 /*
  * 6097: the Fx sheet. Over the whole square, inset like the notice card
- * -- six columns need the room, and the controls under it are not in
- * use while it is up. Each column: its name, a plus, the value with its
- * unit under it, a minus. Tone on the left, the edges on the right,
- * with a gap between the two groups. SUSTAIN is the crossfade, 0..12 s
- * a second at a time, "off" at 0 as Settings says it.
+ * -- the controls under it are not in use while it is up. Each column:
+ * its name, a plus, the value with its unit under it, a minus. 6101:
+ * three columns, BASS TREB | VOX, with a gap between tone and voice;
+ * the edges are off the sheet (k_fx_shown[]) and SUS is gone.
  */
 #define FX_BTN       (88)
 #define FX_VAL_SC    (3)
@@ -2179,7 +2184,8 @@ static void draw_speed_pop(void)
 
 static int fx_col_max(int c)
 {
-    return c == FX_SUSTAIN ? UI_XFADE_MAX : FX_STEPS - 1;
+    (void)c;
+    return FX_STEPS - 1;
 }
 
 static void draw_fx_pop(void)
@@ -2193,22 +2199,19 @@ static void draw_fx_pop(void)
     gfx_fill_rect(x, y, w, h, C_NOTICE_EDGE);
     gfx_fill_rect(x + 2, y + 2, w - 4, h - 4, C_NOTICE_BG);
 
-    /* Order on screen: BASS TREBLE | ATTACK DECAY SUSTAIN RELEASE. */
-    static const int order[FX_COLS] = { 0, 1, 2, 3, FX_SUSTAIN, 4 };
-    /* Short, to fit a 108 px column at a readable size (ABBREVIATIONS.md).
-     * The four edges keep a synth's abbreviations in every language, as
-     * synths themselves do -- same(), a decision. */
+    /* 6101: BASS TREB | VOX. The edges' names stay for when they come
+     * back: same() -- a synth's abbreviations in every language. */
     const char *name[FX_COLS] = {
-        _("BASS"), _("TREB"), same("ATK"), same("DEC"), same("REL"), same("SUS")
+        _("BASS"), _("TREB"), same("ATK"), same("DEC"), same("REL"), _("VOX")
     };
-    const int split = 24;                       /* between tone and edges */
-    const int colw = (w - 2 * pad - split) / FX_COLS;
+    const int split = 24;                       /* between tone and voice */
+    const int colw = (w - 2 * pad - split) / FX_SHOWN;
     const int lbl_h = GFX_GLYPH_H(FX_LBL_SC), val_h = GFX_GLYPH_H(FX_VAL_SC);
     const int block = lbl_h + gap + FX_BTN + gap + val_h + 8 + lbl_h + gap + FX_BTN;
     const int top = y + (h - block) / 2;
 
-    for (int i = 0; i < FX_COLS; i++) {
-        const int c = order[i];
+    for (int i = 0; i < FX_SHOWN; i++) {
+        const int c = k_fx_shown[i];
         const int cx = x + pad + colw * i + colw / 2 + (i >= 2 ? split : 0);
         const int v = s_fx_v[c];
         int yy = top;
@@ -2224,18 +2227,19 @@ static void draw_fx_pop(void)
 
         char val[16];
         const char *unit = "";
+        bool plain = true;
         if (c <= 1) {
             snprintf(val, sizeof val, "%s", fx_tone_label[v]);
-        } else if (c == FX_SUSTAIN) {
-            if (v == 0) snprintf(val, sizeof val, "%s", _("off"));
-            else { snprintf(val, sizeof val, "%d", v); unit = same("s"); }
+            plain = v == FX_TONE_FLAT;
+        } else if (c == FX_VOX) {
+            snprintf(val, sizeof val, "%s", fx_vox_label[v]);
+            plain = v == FX_VOX_FLAT;
         } else {
             snprintf(val, sizeof val, "%u", (unsigned)fx_edge_ms[v]);
             unit = same("ms");
         }
-        const bool plain = (c <= 1) ? v == FX_TONE_FLAT : false;
         gfx_draw_text(cx - gfx_text_w(val, FX_VAL_SC) / 2, yy, val, FX_VAL_SC,
-                      colw, (c <= 1 && !plain) ? C_RG : C_THUMB);
+                      colw, plain ? C_THUMB : C_RG);
         yy += val_h + 8;
         gfx_draw_text(cx - gfx_text_w(unit, FX_LBL_SC) / 2, yy, unit,
                       FX_LBL_SC, colw, C_ICON_OFF);
@@ -2634,12 +2638,10 @@ void ui_draw(const ui_state_t *st)
     }
     if (s_fx_pop) {                                     /* 6097 */
         bool same_v = true;
-        for (int i = 0; i < 5; i++) if (st->fx[i] != s_fx_v[i]) same_v = false;
-        if (st->xfade_sec != s_fx_v[FX_SUSTAIN]) same_v = false;
+        for (int i = 0; i < FX_COLS; i++) if (st->fx[i] != s_fx_v[i]) same_v = false;
         if (!s_fx_wait || same_v) {
             s_fx_wait = false;
-            for (int i = 0; i < 5; i++) s_fx_v[i] = st->fx[i];
-            s_fx_v[FX_SUSTAIN] = st->xfade_sec;
+            for (int i = 0; i < FX_COLS; i++) s_fx_v[i] = st->fx[i];
         }
         draw_fx_pop();
     }
@@ -2719,7 +2721,8 @@ ui_action_t ui_touch(const ui_state_t *st, bool down, int x, int y)
             if (!in) {
                 s_fx_pop = false;
             } else {
-                for (int c = 0; c < FX_COLS && act.kind == UI_ACTION_NONE; c++) {
+                for (int i = 0; i < FX_SHOWN && act.kind == UI_ACTION_NONE; i++) {
+                    const int c = k_fx_shown[i];
                     for (int k = 0; k < 2; k++) {
                         const int *b = s_fx_btn[c][k];
                         if (x < b[0] || x >= b[0] + b[2] ||

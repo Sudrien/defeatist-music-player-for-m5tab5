@@ -19,9 +19,9 @@ Tiré du code source (`browser.c`, `panel.c`, `sleeppage.c`, `ui.c`, `settings.h
 | `UAC` | À la place de l'icône du haut-parleur : un appareil USB Audio Class a la sortie. |
 | `FILE` | Sur la vignette de format, pour un fichier sans extension. Sinon la vignette montre l'extension (`MP3`, `FLAC`…). |
 | `45`/`33⅓` | Entre l'étoile et `Fx` : vitesse de tourne-disque, celle de LECTURE sur celle de GRAVURE, parmi 16⅔, 33⅓, 45 et 78. Touchez pour avoir + et − sur chaque nombre ; touchez hors du cadre pour fermer. Deux nombres égaux, c'est la vitesse normale, entourée ; sinon c'est jaune, comme l'horloge du temps restant, qui compte alors le temps réel restant à cette vitesse. Combien de temps ça dure : « La vitesse dure » dans l'onglet AUDIO. Sur un flux radio, c'est gris à 45/45 et sans effet : un direct joue toujours à vitesse normale. |
-| `Fx` | Entre la vitesse et la lune : ouvre la feuille Fx sur tout le carré. Jaune quand GRAV ou AIGU n'est pas à 1. Touchez hors de la feuille pour la fermer. |
+| `Fx` | Entre la vitesse et la lune : ouvre la feuille Fx sur tout le carré. Jaune quand GRAV, AIGU ou VOIX n'est pas à 1. Touchez hors de la feuille pour la fermer. |
 | `GRAV` `AIGU` | Sur la feuille Fx : les graves et les aigus, chacun un gain de ½ à 2 -- ½, ⅔, 1, 3/2, 2. 1, c'est la piste telle quelle. En monter un baisse tout le reste pour faire de la place, donc rien ne sature. |
-| `ATK` `DEC` `SUS` `REL` | Sur la feuille Fx, les noms d'un synthétiseur pour la façon dont le son arrive et s'en va. ATK (attaque) : la montée quand on lance la lecture ou qu'une pause finit. DEC (déclin) : la montée après un saut. SUS (maintien) : le fondu enchaîné entre pistes, le même réglage que dans l'onglet AUDIO. REL (relâchement) : la descente quand on met en pause. En ms, de 0 à 1000 ; SUS en secondes. |
+| `VOIX` | Sur la feuille Fx : la voix, comme la Réduction vocale d'Audacity -- ce qu'on garde de ce que gauche et droite ont en commun (là où se trouve d'ordinaire la voix principale), entre 150 Hz et 8 kHz pour que la basse et la grosse caisse restent. 0 l'enlève (karaoké), ½ la recule, 1, c'est la piste telle quelle, 3/2 et 2 l'avancent et baissent le reste pour faire de la place. Sur une piste mono, cela amincit cette plage de tout. |
 
 ### La ligne d'état, sous le volume
 

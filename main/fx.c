@@ -142,3 +142,50 @@ void fx_edge_run(fx_edge_t *e, int16_t *pcm, size_t frames)
         pcm[2 * i + 1] = (int16_t)(((int64_t)pcm[2 * i + 1] * g) >> 30);
     }
 }
+
+/* ------------------------------------------------------------------ */
+/* 6101: VOX                                                          */
+/* ------------------------------------------------------------------ */
+
+const char *const fx_vox_label[FX_STEPS] = { "0", "\u00bd", "1", "\uE000", "2" };
+const float fx_vox_gain[FX_STEPS] = { 0.0f, 0.5f, 1.0f, 1.5f, 2.0f };
+
+void fx_vox_reset(fx_vox_t *v)
+{
+    memset(v, 0, sizeof *v);
+    v->gv = 1.0f;
+}
+
+void fx_vox_run(fx_vox_t *v, int16_t *pcm, size_t frames,
+                unsigned idx, uint32_t rate)
+{
+    if (!frames || !rate) return;
+    if (rate != v->rate) {
+        v->rate = rate;
+        v->alo = onepole(FX_VOX_LO_HZ, rate);
+        v->ahi = onepole(FX_VOX_HI_HZ, rate);
+    }
+    const float g1 = fx_vox_gain[idx < FX_STEPS ? idx : FX_VOX_FLAT];
+    const float g0 = v->gv;
+    const bool touch = !(g0 == 1.0f && g1 == 1.0f);
+    const float h0 = 1.0f / (g0 > 1.0f ? g0 : 1.0f);
+    const float h1 = 1.0f / (g1 > 1.0f ? g1 : 1.0f);
+    const float inv = 1.0f / (float)frames;
+    for (size_t i = 0; i < frames; i++) {
+        const float u = (float)(i + 1) * inv;
+        const float g = g0 + (g1 - g0) * u;
+        const float h = h0 + (h1 - h0) * u;
+        const float l = (float)pcm[2 * i], r = (float)pcm[2 * i + 1];
+        const float c = 0.5f * (l + r);
+        v->hi += v->ahi * (c - v->hi);          /* below 8 kHz */
+        v->lo += v->alo * (c - v->lo);          /* below 150 Hz */
+        if (touch) {
+            const float band = v->hi - v->lo;   /* between the two */
+            pcm[2 * i]     = clip16((l + (g - 1.0f) * band) * h);
+            pcm[2 * i + 1] = clip16((r + (g - 1.0f) * band) * h);
+        }
+    }
+    if (fabsf(v->lo) < 1e-20f) v->lo = 0.0f;
+    if (fabsf(v->hi) < 1e-20f) v->hi = 0.0f;
+    v->gv = g1;
+}

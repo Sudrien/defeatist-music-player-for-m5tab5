@@ -84,7 +84,7 @@
   - 録音中はレベルメーター付き。
 - 音量の下の 1 行のステータス：USB 給電、MPD、HTTPS、そしてスリープタイマーの残り分。緑がオン。
 - ああ、M5Launcher のアプリ一覧を見てしまった。今すぐタイトルの並びを直そう。
-- 画面の言語（English、简体中文、日本語、Español）、設定の歯車 >> BUILD タブで選択。
+- 画面の言語（English、简体中文、日本語、Español、Português、Français、Italiano）、設定の歯車 >> BUILD タブで選択。
 - [bmorcelli/Launcher](https://github.com/bmorcelli/Launcher) 対応
   - Launcher へ戻る
   - Wi-Fi 認証情報のインポート

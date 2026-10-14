@@ -84,7 +84,7 @@ El objetivo de este proyecto es exprimir al máximo el potencial de este hardwar
   - con un medidor de nivel mientras graba.
 - una línea de estado bajo el volumen: alimentación USB, MPD, HTTPS y los minutos que quedan del temporizador. Verde es encendido.
 - Ay, Dios, miré la lista de apps de M5Launcher; arreglemos ya el orden del título.
-- Idiomas de la interfaz (English, 简体中文, 日本語, Español), se eligen en el engranaje de Ajustes >> pestaña BUILD.
+- Idiomas de la interfaz (English, 简体中文, 日本語, Español, Português, Français, Italiano), se eligen en el engranaje de Ajustes >> pestaña BUILD.
 - Compatibilidad con [bmorcelli/Launcher](https://github.com/bmorcelli/Launcher)
   - salir de vuelta al launcher
   - importación de credenciales Wi-Fi

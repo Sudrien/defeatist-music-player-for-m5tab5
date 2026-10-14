@@ -561,7 +561,7 @@ pt:
     # sleeppage.c
     "Touch anywhere to wake it.": "Toque em qualquer lugar para acordá-la."
     # panel.c
-    "Track: back to matching when a new track starts. Repeat one is not a new track.": "Faixa: volta ao normal quando começa uma nova faixa. Repetir uma não é uma nova faixa."
+    "Track: back to matching when a new track starts. Repeat one is not a new track.": "Faixa: volta ao normal quando começa uma nova faixa. REPETE 1 não é uma nova faixa."
     # remote.html
     "Tried before it is saved. Only over this encrypted page — never in the clear.": "É testada antes de ser salva. Só por esta página criptografada, nunca às claras."
     # panel.c

@@ -84,7 +84,7 @@
   - 录制时带电平表。
 - 音量下方的一行状态：USB 供电、MPD、HTTPS，以及睡眠定时剩余分钟。绿色表示开启。
 - 哦天，我看了一眼 M5Launcher 的应用列表，赶紧把标题顺序修一下。
-- 界面语言（English、简体中文、日本語、Español），在 设置齿轮 >> BUILD 标签页中选择。
+- 界面语言（English、简体中文、日本語、Español、Português、Français、Italiano），在 设置齿轮 >> BUILD 标签页中选择。
 - [bmorcelli/Launcher](https://github.com/bmorcelli/Launcher) 支持
   - 退回 Launcher
   - Wi-Fi 凭据导入

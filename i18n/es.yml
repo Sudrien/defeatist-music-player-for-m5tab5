@@ -509,7 +509,7 @@ es:
     # recorder.c
     "The USB microphone did not start.": "El micrófono USB\nno arrancó."
     # recorder.c
-    "The USB microphone has no 16- or 24-bit format.": "El micrófono USB no tiene\nformato de 16 ni de 24 bits."
+    "The USB microphone has no 16- or 24-bit format.": "El micrófono USB no tiene\nformato de 16 ni 24 bits."
     # recorder.c
     "The USB microphone is not there any more.": "El micrófono USB\nya no está."
     # recorder.c

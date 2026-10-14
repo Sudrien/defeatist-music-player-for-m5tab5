@@ -23082,3 +23082,18 @@ and es translations links Português, Français and Italiano now that
 6085-6087 have put the files there, in LOCALES order. README.md's bar
 only, as allowed; its own list of interface languages is the author's
 to change. Every relative .md link in the fourteen files resolves.
+
+### 6089 -- a language review: one Spanish line, a Portuguese label, three lists
+
+A pass over all seven languages after the board cycled through them
+(the log shows each one selected and English back). The checks of
+6069-6072 -- glyphs, NET notes, headings at 528 px, notice bodies at
+176 px a line, status lines at 688 -- were run over every language, not
+only the new three, and found one older line: Spanish "formato de 16 ni
+de 24 bits." is 196 px of 176, so the second line of that notice
+clipped. It is "formato de 16 ni 24 bits.", 175.
+
+Portuguese's Speed holds note called repeat-one "Repetir uma" while the
+button says REPETE 1; it names the button now. The es, ja and zh-CN
+READMEs listed four interface languages and list seven; README.md's own
+list is the author's.

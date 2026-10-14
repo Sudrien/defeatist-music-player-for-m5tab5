@@ -113,9 +113,10 @@ dependencies:
   # into its manifest, pinned as it was, and arrives through it.
   # 6059: v0.2.0 -- the shadow buffer 128-byte aligned, for the PPA.
   # 6080: v0.2.2 -- Ark12's Number Forms, for 16⅔ and 33⅓ (its 0006).
+  # 6100: v0.2.3 -- U+E000, a stacked 3/2, for the Fx sheet (its 0007).
   feckless_graphics_handler:
     git: https://github.com/Sudrien/feckless-graphics-handler-for-m5tab5.git
-    version: "v0.2.2"
+    version: "v0.2.3"
 
 # minimp3 is NOT here. It is two headers with no component manifest
 # upstream, so cmake/vendored.cmake fetches them into components/minimp3/

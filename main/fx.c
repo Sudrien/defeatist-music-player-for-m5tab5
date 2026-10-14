@@ -9,8 +9,13 @@
 #include <string.h>
 
 const char *const fx_tone_label[FX_STEPS] = {
-    "½", "⅔", "1", "3⁄2", "2"
+    "½", "⅔", "1", "\uE000", "2"
 };
+/* 6100: three halves is U+E000, a glyph feckless-graphics-handler
+ * v0.2.3 draws into Ark12 (its fonts/ark12/README.md notes) -- stacked
+ * like ½ and ⅔. "3⁄2" with U+2044 drew 3, a missing-glyph box, 2. A
+ * Private Use codepoint means nothing outside this font, so the log
+ * prints the gain as a number instead (player.c). */
 const float fx_tone_gain[FX_STEPS] = { 0.5f, 2.0f / 3.0f, 1.0f, 1.5f, 2.0f };
 
 const uint16_t fx_edge_ms[FX_STEPS] = { 0, 10, 50, 250, 1000 };

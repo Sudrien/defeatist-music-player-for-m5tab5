@@ -22,7 +22,7 @@ the screen is newer -- fix this file.
 | `FILE` | On the format card, for a file with no extension. Otherwise the card shows the extension (`MP3`, `FLAC`, ...). |
 | `45`/`33⅓` | Between the star and `Fx`: turntable speed, PLAYED over CUT, from 16⅔, 33⅓, 45 and 78. Tap it for + and − on each number; tap outside the box to close. Equal numbers are normal speed and outlined; anything else is yellow, and so is the remaining clock, which then counts real time left at that speed. How long it lasts is Speed holds on the AUDIO tab. On a radio stream it is grey at 45/45 and does nothing: a live stream always plays at normal speed. |
 | `Fx` | Between the speed and the moon: opens the Fx sheet over the whole square. Yellow when BASS or TREB is not 1. Tap outside the sheet to close. |
-| `BASS` `TREB` | On the Fx sheet: the bass and the treble, each a gain from ½ to 2 -- ½, ⅔, 1, 3⁄2, 2. 1 is the track as it was. Turning one up turns everything else down to make room, so nothing clips. |
+| `BASS` `TREB` | On the Fx sheet: the bass and the treble, each a gain from ½ to 2 -- ½, ⅔, 1, 3/2, 2. 1 is the track as it was. Turning one up turns everything else down to make room, so nothing clips. |
 | `ATK` `DEC` `SUS` `REL` | On the Fx sheet, a synth's names for how sound arrives and leaves. ATK (attack): the fade up when play is pressed or a pause ends. DEC (decay): the fade up after a seek. SUS (sustain): the crossfade between tracks, the same setting as Crossfade on the AUDIO tab. REL (release): the fade down when pause is pressed. In ms, from 0 to 1000; SUS in seconds. |
 
 ### The status line, under volume

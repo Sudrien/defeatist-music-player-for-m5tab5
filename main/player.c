@@ -9092,7 +9092,11 @@ static void ui_task(void *arg)
                     "bass", "treble", "attack", "decay", "release"
                 };
                 if (col <= SETTINGS_FX_TREBLE) {
-                    ESP_LOGI(TAG, "fx: %s x%s", nm[col], fx_tone_label[settings_fx(col)]);
+                    /* 6100: as a number -- the labels include U+E000,
+                     * which only Ark12 can draw. */
+                    const float g = fx_tone_gain[settings_fx(col)];
+                    ESP_LOGI(TAG, "fx: %s x%d.%02d", nm[col], (int)g,
+                             (int)(g * 100.0f + 0.5f) % 100);
                 } else {
                     ESP_LOGI(TAG, "fx: %s %u ms", nm[col],
                              (unsigned)fx_edge_ms[settings_fx(col)]);

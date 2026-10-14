@@ -4,10 +4,10 @@
  * Six numbers, two kinds.
  *
  * TONE: BASS and TREBLE, each a gain on its band as a fraction --
- * ½, ⅔, 1, 3⁄2, 2 -- read the way the speed fraction is read: 1 is the
+ * ½, ⅔, 1, 3/2, 2 -- read the way the speed fraction is read: 1 is the
  * track as decoded, bit for bit, and anything else changes it. A
  * multiplied fraction rather than an added one so the steps are even in
- * level: ½ and 2 are -6 and +6 dB, ⅔ and 3⁄2 are -3.5 and +3.5.
+ * level: ½ and 2 are -6 and +6 dB, ⅔ and 3/2 are -3.5 and +3.5.
  *
  * Built the way an FM patch stacks carriers side by side: the track AND
  * a low-passed copy of it AND a high-passed one,
@@ -59,7 +59,7 @@ extern "C" {
 #define FX_BASS_HZ      (150.0f)
 #define FX_TREBLE_HZ    (3500.0f)
 
-/* "½" "⅔" "1" "3⁄2" "2", and the gains they stand for. */
+/* "½" "⅔" "1" U+E000 (3/2, 6100) "2", and the gains they stand for. */
 extern const char *const fx_tone_label[FX_STEPS];
 extern const float       fx_tone_gain[FX_STEPS];
 

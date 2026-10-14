@@ -23353,3 +23353,23 @@ What to look for: "uac-host: Set volume N%" within a few ms of
 "button: volume -> N%" while a track plays on a USB device.
 
 Not on the board.
+
+### 6100 -- 3/2 on the Fx sheet (graphics v0.2.3)
+
+On the board the Fx sheet's fourth tone step drew as 3, a box, 2. Its
+label was "3⁄2" with U+2044 FRACTION SLASH, which Ark12 does not have.
+Unicode has no single character for three halves -- it encodes ½ ⅔ ¼
+and a few others, and leaves the rest to the fraction slash between
+full-size digits -- so feckless-graphics-handler 0007 (v0.2.3) draws
+one into Ark12 at U+E000, in the Private Use Area: ⅔'s small 3 moved
+up, ½'s small 2 set below, ⅔'s slash. Its fonts/ark12/README.md has a
+notes section for glyphs drawn there rather than by Ark, and this is
+the first.
+
+fx_tone_label[3] is "\uE000". The "fx:" log line prints the gain as a
+number (x1.50) instead of the label, since a terminal has no glyph for
+a Private Use codepoint. fx_tone_gain[] and the stored indexes are
+unchanged.
+
+6099 was a "1½" relabel instead, handed over and not applied: the
+number is used and the patch is not in the history.

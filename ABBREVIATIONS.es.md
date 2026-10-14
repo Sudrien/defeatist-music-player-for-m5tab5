@@ -20,7 +20,7 @@ Tomado del código fuente (`browser.c`, `panel.c`, `sleeppage.c`, `ui.c`, `setti
 | `FILE` | En la tarjeta de formato, para un archivo sin extensión. Si no, la tarjeta muestra la extensión (`MP3`, `FLAC`…). |
 | `45`/`33⅓` | Entre la estrella y `Fx`: velocidad de tocadiscos, la de REPRODUCCIÓN sobre la de GRABACIÓN, entre 16⅔, 33⅓, 45 y 78. Tócalo para tener + y − en cada número; toca fuera del cuadro para cerrarlo. Iguales es velocidad normal, con borde; si no, amarillo, igual que el reloj de tiempo restante, que entonces cuenta el tiempo real que queda a esa velocidad. Cuánto dura: «La velocidad dura» en la pestaña AUDIO. Con una emisora de radio aparece en gris a 45/45 y no hace nada: un directo siempre suena a velocidad normal. |
 | `Fx` | Entre la velocidad y la luna: abre la hoja Fx sobre todo el cuadrado. Amarillo cuando GRAV o AGUD no está en 1. Toca fuera de la hoja para cerrarla. |
-| `GRAV` `AGUD` | En la hoja Fx: graves y agudos, cada uno una ganancia de ½ a 2 -- ½, ⅔, 1, 3⁄2, 2. 1 es la pista tal cual. Subir uno baja todo lo demás para dejar sitio, así que nada satura. |
+| `GRAV` `AGUD` | En la hoja Fx: graves y agudos, cada uno una ganancia de ½ a 2 -- ½, ⅔, 1, 3/2, 2. 1 es la pista tal cual. Subir uno baja todo lo demás para dejar sitio, así que nada satura. |
 | `ATK` `DEC` `SUS` `REL` | En la hoja Fx, los nombres de un sintetizador para cómo llega y se va el sonido. ATK (ataque): la subida al pulsar reproducir o al acabar una pausa. DEC (decaimiento): la subida tras un salto. SUS (sostenido): el fundido cruzado entre pistas, el mismo ajuste que Fundido en la pestaña AUDIO. REL (relajación): la bajada al pulsar pausa. En ms, de 0 a 1000; SUS en segundos. |
 
 ### La línea de estado, bajo el volumen

@@ -23199,3 +23199,42 @@ N; resubmitting", "itf 3 polling stopped (ESP_ERR_INVALID_STATE)",
 
 A manifest change: dependencies.lock.idf6 re-resolves; feckless_drivers
 should move to 860f0ae (v0.5.6) and nothing else.
+
+### 6095 -- on the board: turntable speed, and the USB port after a drop
+
+What the board runs since 6073 established, recorded here because each
+entry above ends "Not on the board" and these now are.
+
+TURNTABLE SPEED (6073-6082). Every value the popup's signs step through
+reaches the player (`speed: 33⅓/45` and the like), playing and paused,
+and the thirds draw from Ark12 (graphics v0.2.2). Under Speed holds
+TRACK a different track starts at ×1.00 and the fraction goes back to
+matching at the title change; RPT1 keeps the speed, fast followed by
+fast; with crossfade on, the outgoing track slides back to ×1.00 over
+the overlap and the incoming plays at ×1.00. Under BOOT the fraction is
+kept across track changes and a power-off. On a stream the fraction is
+grey at 45/45 and the tap does nothing. Two faults found on the way and
+fixed: 6077 (below ×1.00 the ring-send warning fired once a block, and
+the stages were 12 KB of internal RAM) and 6079 (the decode loop and
+track_commit() disagreed about "a new track" on the restored track, so
+the audio ran at ×1.00 under a 78/33⅓ display).
+
+Still unmeasured: the crossfade cut short by a fast outgoing track (the
+pad-with-silence path), and anything above ×1.00 against an
+anti-aliasing ear -- 6073 says it folds and does not filter.
+
+THE USB PORT (6091-6094, drivers v0.5.3-v0.5.6). The hardware FIFO is
+896 lines (GHWCFG3, logged at start), not the 1024 the documentation
+gives; the 768-line split (NPTX 128, PTX 384, RX 256) carries the
+SanDisk drive's 512-byte bulk and the Synaptics headset's 768-byte
+isochronous OUT in the same session. A dropped headset is now freed by
+either route, and both were seen in one log: its HID resubmit refused
+("itf 3 polling stopped (ESP_ERR_INVALID_STATE)", v0.5.6) and its
+in-flight URB flushed ("remote gone (itf 3)", v0.5.4) -- each followed
+by "all devices freed" and the drive mounting on the next plug, three
+swaps in a row. The census lines of v0.5.3 stay: they are what found
+this, and "all devices freed" is the line to look for if it recurs.
+
+The "uac-host: Suspend Interface 2-0 Failed" and "EP command error"
+lines at every drop are usb_host_uac's close talking to a device that
+has gone, and are left as they are.

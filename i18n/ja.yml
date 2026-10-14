@@ -93,6 +93,8 @@ ja:
     # panel.c
     "Auto: USB, jack, mono. Off: no record.": "自動：USB、端子、モノラル。オフ：録音しない。"
     # ui.c
+    "BASS": "低音"
+    # ui.c
     "BATT": "電池"
     # ui.c
     "BATT %d%%": "電池 %d%%"
@@ -492,6 +494,8 @@ ja:
     "Stream too slow here": "回線が遅すぎる"
     # panel.c
     "TRACK": "曲ごと"
+    # ui.c
+    "TREB": "高音"
     # remote.c
     "That folder could not be opened.": "そのフォルダを開けませんでした。"
     # portal.c, remote.c
@@ -666,7 +670,7 @@ ja:
     "not run this session": "この起動では未実行"
     # player.c
     "nothing starred yet - tap a star to keep one": "まだお気に入りなし - 星をタップで保存"
-    # panel.c, sleeppage.c, remote.html
+    # panel.c, sleeppage.c, ui.c
     "off": "オフ"
     # panel.c
     "on": "オン"

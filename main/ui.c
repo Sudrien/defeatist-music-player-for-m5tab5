@@ -21,6 +21,7 @@
 #include "launcher_import.h"   /* launcher_present(), launcher_exit_to_launcher() */
 #include "waveform.h"
 #include "varispeed.h"       /* 6076 */
+#include "fx.h"              /* 6097 */
 
 static const char *TAG = "tab5_ui";
 
@@ -155,7 +156,7 @@ static const char *TAG = "tab5_ui";
  *   5  album
  *   6  artist
  *   7  prev, the record/pause/play switch, next
- *   8  folder, gear, star, speed, sleep -- five on one pitch (6076)
+ *   8  folder, gear, star, speed, Fx, sleep -- six on one pitch (6097)
  *   9  output icon, volume, battery
  */
 #define BAR_PAD     (24)    /* square edge to content, both sides */
@@ -166,7 +167,7 @@ static const char *TAG = "tab5_ui";
 #define ARTIST_Y    (278)   /* row 6 */
 #define ROW_Y       (392)   /* row 7, transport centres */
 #define AUX_Y       (500)   /* row 8, the five icons' centres */
-#define AUX_COUNT   (5)     /* record moved onto the transport switch; 6076: speed */
+#define AUX_COUNT   (6)     /* record moved onto the transport switch; 6076: speed; 6097: Fx */
 #define VOL_Y       (623)   /* row 9 */
 /*
  * The art overlay's inset. NOT the bar's -- the bar's text starts at
@@ -379,6 +380,18 @@ static bool s_spd_pop, s_pop_wait;
 static int  s_pop_p, s_pop_c;
 static int  s_pop_x, s_pop_y, s_pop_w, s_pop_h;
 static int  s_pop_btn[4][4];    /* PLAYED -, PLAYED +, CUT -, CUT +: x y w h */
+/*
+ * 6097: the Fx sheet, the same arrangement as the speed popup: up while
+ * s_fx_pop, captures all input, shows s_fx_v[] -- the six columns as
+ * last asked for -- until ui_state_t has caught up. Six columns of
+ * minus over value over plus; s_fx_btn[col][0] is the minus.
+ */
+#define FX_COLS      (6)
+#define FX_SUSTAIN   (5)                /* the column that is crossfade */
+static bool s_fx_pop, s_fx_wait;
+static int  s_fx_v[FX_COLS];
+static int  s_fx_x, s_fx_y, s_fx_w, s_fx_h;
+static int  s_fx_btn[FX_COLS][2][4];
 /* The switch drag: where the finger went down, and the detent the knob
  * was on then (-1 record, 0 pause, 1 play). */
 static int s_sw_x0, s_sw_from;
@@ -426,6 +439,7 @@ const char *ui_action_name(ui_action_kind_t k)
     case UI_ACTION_SLEEP:       return same("sleep timer");
     case UI_ACTION_POWER_OFF:   return same("power off");
     case UI_ACTION_SPEED:       return same("speed");
+    case UI_ACTION_FX:          return same("fx");
     }
     return "?";
 }
@@ -628,6 +642,11 @@ static void next_centre(int *cx, int *cy)
  * The pitch is (672 + 52 + 3) / 6 = 121. The fraction's box is wider
  * than an icon's -- SPEED_HALF + HIT_PAD_X = 52 each side, 104 -- and
  * still 17 px clear of its neighbours' padded boxes.
+ *
+ * 6097: six, with Fx between the fraction and the moon. The pitch is
+ * (672 + 52 + 3) / 7 = 103; the fraction's 104 against an icon's 80 is
+ * 92 of it, so 11 px clear on each side of the fraction and 23 between
+ * any two icons.
  */
 static void aux_centre(int idx, int *cx, int *cy)
 {
@@ -657,7 +676,8 @@ static void folder_centre(int *cx, int *cy) { aux_centre(0, cx, cy); }
 static void gear_centre(int *cx, int *cy)   { aux_centre(1, cx, cy); }
 static void star_centre(int *cx, int *cy)   { aux_centre(2, cx, cy); }
 static void speed_centre(int *cx, int *cy)  { aux_centre(3, cx, cy); }
-static void moon_centre(int *cx, int *cy)   { aux_centre(4, cx, cy); }
+static void fx_centre(int *cx, int *cy)     { aux_centre(4, cx, cy); }    /* 6097 */
+static void moon_centre(int *cx, int *cy)   { aux_centre(5, cx, cy); }
 
 /*
  * Row 3, both clocks, in one place because they are laid out against
@@ -1005,6 +1025,32 @@ static void draw_speed(const ui_state_t *st)
     gfx_fill_rect(cx - 24, cy - 1, 48, 2, fg);
     gfx_draw_text(cx - gfx_text_w(bot, SPEED_SCALE) / 2, cy + 3,
                   bot, SPEED_SCALE, w, fg);
+}
+
+/*
+ * 6097: Fx, between the fraction and the moon. A box the size of an
+ * icon with "Fx" in it, outlined while the tone is 1/1 and filled
+ * yellow -- the fraction's colour for "not as cut" -- when it is not.
+ * The edges do not light it: they change how sound starts and stops,
+ * not what it is.
+ */
+static void draw_fx(const ui_state_t *st)
+{
+    int cx, cy;
+    fx_centre(&cx, &cy);
+    const bool on = st->fx[0] != FX_TONE_FLAT || st->fx[1] != FX_TONE_FLAT;
+    const int w = 2 * ICON_HALF, h = 2 * ICON_HALF + 8;
+    const int x = cx - w / 2, y = cy - h / 2;
+    if (on) {
+        fill_rrect(x, y, w, h, 10, C_RG);
+    } else {
+        fill_rrect(x, y, w, h, 10, C_ICON_OFF);
+        fill_rrect(x + 2, y + 2, w - 4, h - 4, 8, C_BG);
+    }
+    const char *t = same("Fx");
+    gfx_draw_text(cx - gfx_text_w(t, SPEED_SCALE) / 2,
+                  cy - GFX_GLYPH_H(SPEED_SCALE) / 2, t, SPEED_SCALE, w,
+                  on ? C_BG : C_ICON);
 }
 
 static void draw_moon(void)
@@ -2119,6 +2165,95 @@ static void draw_speed_pop(void)
                   st == VARISPEED_UNITY ? C_ICON : C_RG);
 }
 
+/*
+ * 6097: the Fx sheet. Over the whole square, inset like the notice card
+ * -- six columns need the room, and the controls under it are not in
+ * use while it is up. Each column: its name, a plus, the value with its
+ * unit under it, a minus. Tone on the left, the edges on the right,
+ * with a gap between the two groups. SUSTAIN is the crossfade, 0..12 s
+ * a second at a time, "off" at 0 as Settings says it.
+ */
+#define FX_BTN       (88)
+#define FX_VAL_SC    (3)
+#define FX_LBL_SC    (2)
+
+static int fx_col_max(int c)
+{
+    return c == FX_SUSTAIN ? UI_XFADE_MAX : FX_STEPS - 1;
+}
+
+static void draw_fx_pop(void)
+{
+    const int inset = 12, pad = 12, gap = NOTICE_GAP;
+    s_fx_x = s_bar_x + inset;
+    s_fx_w = UI_SQUARE - 2 * inset;
+    s_fx_y = s_bar_top + inset;
+    s_fx_h = UI_SQUARE - 2 * inset;
+    const int x = s_fx_x, y = s_fx_y, w = s_fx_w, h = s_fx_h;
+    gfx_fill_rect(x, y, w, h, C_NOTICE_EDGE);
+    gfx_fill_rect(x + 2, y + 2, w - 4, h - 4, C_NOTICE_BG);
+
+    /* Order on screen: BASS TREBLE | ATTACK DECAY SUSTAIN RELEASE. */
+    static const int order[FX_COLS] = { 0, 1, 2, 3, FX_SUSTAIN, 4 };
+    /* Short, to fit a 108 px column at a readable size (ABBREVIATIONS.md).
+     * The four edges keep a synth's abbreviations in every language, as
+     * synths themselves do -- same(), a decision. */
+    const char *name[FX_COLS] = {
+        _("BASS"), _("TREB"), same("ATK"), same("DEC"), same("REL"), same("SUS")
+    };
+    const int split = 24;                       /* between tone and edges */
+    const int colw = (w - 2 * pad - split) / FX_COLS;
+    const int lbl_h = GFX_GLYPH_H(FX_LBL_SC), val_h = GFX_GLYPH_H(FX_VAL_SC);
+    const int block = lbl_h + gap + FX_BTN + gap + val_h + 8 + lbl_h + gap + FX_BTN;
+    const int top = y + (h - block) / 2;
+
+    for (int i = 0; i < FX_COLS; i++) {
+        const int c = order[i];
+        const int cx = x + pad + colw * i + colw / 2 + (i >= 2 ? split : 0);
+        const int v = s_fx_v[c];
+        int yy = top;
+
+        gfx_draw_text(cx - gfx_text_w(name[c], FX_LBL_SC) / 2, yy, name[c],
+                      FX_LBL_SC, colw, C_ICON);
+        yy += lbl_h + gap;
+
+        /* Plus over minus: up is more, as on the speed popup's rows. */
+        int *bp = s_fx_btn[c][1], *bm = s_fx_btn[c][0];
+        bp[0] = cx - FX_BTN / 2; bp[1] = yy; bp[2] = FX_BTN; bp[3] = FX_BTN;
+        yy += FX_BTN + gap;
+
+        char val[16];
+        const char *unit = "";
+        if (c <= 1) {
+            snprintf(val, sizeof val, "%s", fx_tone_label[v]);
+        } else if (c == FX_SUSTAIN) {
+            if (v == 0) snprintf(val, sizeof val, "%s", _("off"));
+            else { snprintf(val, sizeof val, "%d", v); unit = same("s"); }
+        } else {
+            snprintf(val, sizeof val, "%u", (unsigned)fx_edge_ms[v]);
+            unit = same("ms");
+        }
+        const bool plain = (c <= 1) ? v == FX_TONE_FLAT : false;
+        gfx_draw_text(cx - gfx_text_w(val, FX_VAL_SC) / 2, yy, val, FX_VAL_SC,
+                      colw, (c <= 1 && !plain) ? C_RG : C_THUMB);
+        yy += val_h + 8;
+        gfx_draw_text(cx - gfx_text_w(unit, FX_LBL_SC) / 2, yy, unit,
+                      FX_LBL_SC, colw, C_ICON_OFF);
+        yy += lbl_h + gap;
+
+        bm[0] = cx - FX_BTN / 2; bm[1] = yy; bm[2] = FX_BTN; bm[3] = FX_BTN;
+
+        /* pop_sign() draws from s_pop_btn; borrow slot 0 for each. */
+        const int keep[4] = { s_pop_btn[0][0], s_pop_btn[0][1],
+                              s_pop_btn[0][2], s_pop_btn[0][3] };
+        memcpy(s_pop_btn[0], bp, sizeof keep);
+        pop_sign(0, true, v < fx_col_max(c));
+        memcpy(s_pop_btn[0], bm, sizeof keep);
+        pop_sign(0, false, v > 0);
+        memcpy(s_pop_btn[0], keep, sizeof keep);
+    }
+}
+
 void ui_draw(const ui_state_t *st)
 {
     if (!s_fb) return;
@@ -2468,6 +2603,7 @@ void ui_draw(const ui_state_t *st)
     draw_gear();
     draw_star_btn(st->fav);
     draw_speed(st);                                     /* 6076 */
+    draw_fx(st);                                        /* 6097 */
     draw_moon();
 
     draw_power(power_cx(), right_cy(), C_ICON);
@@ -2495,6 +2631,17 @@ void ui_draw(const ui_state_t *st)
             s_pop_c = st->speed_cut    < VARISPEED_RPMS ? st->speed_cut    : 1;
         }
         draw_speed_pop();
+    }
+    if (s_fx_pop) {                                     /* 6097 */
+        bool same_v = true;
+        for (int i = 0; i < 5; i++) if (st->fx[i] != s_fx_v[i]) same_v = false;
+        if (st->xfade_sec != s_fx_v[FX_SUSTAIN]) same_v = false;
+        if (!s_fx_wait || same_v) {
+            s_fx_wait = false;
+            for (int i = 0; i < 5; i++) s_fx_v[i] = st->fx[i];
+            s_fx_v[FX_SUSTAIN] = st->xfade_sec;
+        }
+        draw_fx_pop();
     }
 
     ui_blit_bar();
@@ -2560,6 +2707,38 @@ ui_action_t ui_touch(const ui_state_t *st, bool down, int x, int y)
      * fraction; anywhere outside the box closes it; inside the box but
      * off a sign does nothing, so a near miss does not close it.
      */
+    /*
+     * 6097: the Fx sheet, likewise. A sign steps its column and sends
+     * that one column; a sign at the end of its range is dim and does
+     * nothing; outside the sheet closes it.
+     */
+    if (s_fx_pop) {
+        if (tapped) {
+            const bool in = x >= s_fx_x && x < s_fx_x + s_fx_w &&
+                            y >= s_fx_y && y < s_fx_y + s_fx_h;
+            if (!in) {
+                s_fx_pop = false;
+            } else {
+                for (int c = 0; c < FX_COLS && act.kind == UI_ACTION_NONE; c++) {
+                    for (int k = 0; k < 2; k++) {
+                        const int *b = s_fx_btn[c][k];
+                        if (x < b[0] || x >= b[0] + b[2] ||
+                            y < b[1] || y >= b[1] + b[3]) continue;
+                        const int to = s_fx_v[c] + (k ? 1 : -1);
+                        if (to < 0 || to > fx_col_max(c)) break;
+                        s_fx_v[c] = to;
+                        s_fx_wait = true;
+                        act.kind = UI_ACTION_FX;
+                        act.value = (c << 4) | to;
+                        break;
+                    }
+                }
+            }
+            ui_draw(st);
+        }
+        return act;
+    }
+
     if (s_spd_pop) {
         if (tapped) {
             const bool in = x >= s_pop_x && x < s_pop_x + s_pop_w &&
@@ -2751,6 +2930,16 @@ ui_action_t ui_touch(const ui_state_t *st, bool down, int x, int y)
         if (st->live) return act;
         s_spd_pop = true;
         s_pop_wait = false;
+        ui_draw(st);
+        return act;
+    }
+
+    /* 6097: Fx opens its sheet, on a stream as well -- tone and the
+     * edges have no reason to stop at a live source the way speed has. */
+    fx_centre(&cx, &cy);
+    if (in_box(x, y, cx, cy, ICON_HALF)) {
+        s_fx_pop = true;
+        s_fx_wait = false;
         ui_draw(st);
         return act;
     }

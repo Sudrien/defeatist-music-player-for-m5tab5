@@ -88,6 +88,7 @@
 #include "playlist.h"
 #include "rateconv.h"
 #include "varispeed.h"         /* 6075 */
+#include "fx.h"                /* 6097 */
 #include "settings.h"
 #include "storage.h"
 #include "storage_io.h"
@@ -2285,6 +2286,58 @@ static uint32_t vs_out_step(int play)
          : s_vs_step[play];
 }
 
+/*
+ * 6097: the Fx sheet, the writer's half -- see fx.h. Tone and the one
+ * edge gain, applied to every chunk on its way to audio_out_write(),
+ * after the stream's levelling gain and the existing ramps, so they are
+ * the last thing done to a sample. Writer only, like s_vs.
+ *
+ * s_fx_gap: the last pass wrote nothing (a ring that ran dry, a stream
+ * holding, nothing playing yet), so the next sound arrives from silence
+ * and gets ATTACK -- unless a ramp is already running, which is a
+ * seek's DECAY and is left to finish.
+ */
+_Static_assert(UI_XFADE_MAX == SETTINGS_CROSSFADE_MAX,
+               "the Fx sheet's SUSTAIN column tops out at the crossfade's maximum");
+
+static fx_tone_t s_fx_tone;
+static fx_edge_t s_fx_edge;
+static bool      s_fx_gap = true;
+
+static uint32_t fx_rate(void)
+{
+    const uint32_t r = s_frames_rate[s_ring_play];
+    return r ? r : audio_out_rate();
+}
+
+static uint32_t fx_ms(unsigned which)
+{
+    const unsigned i = settings_fx(which);
+    return fx_edge_ms[i < FX_STEPS ? i : 0];
+}
+
+static void fx_out(uint8_t *buf, size_t n)
+{
+    const size_t frames = n / PCM_BYTES_PER_FRAME;
+    if (!frames) return;
+    if (s_fx_gap) {
+        s_fx_gap = false;
+        if (fx_edge_unity(&s_fx_edge)) {
+            fx_edge_from_zero(&s_fx_edge, fx_ms(SETTINGS_FX_ATTACK), fx_rate());
+        }
+    }
+    fx_tone_run(&s_fx_tone, (int16_t *)buf, frames,
+                settings_fx(SETTINGS_FX_BASS), settings_fx(SETTINGS_FX_TREBLE),
+                fx_rate());
+    fx_edge_run(&s_fx_edge, (int16_t *)buf, frames);
+}
+
+/* Whether a pause is still fading out: the writer runs on until it has. */
+static bool fx_releasing(void)
+{
+    return !s_fx_edge.up && !fx_edge_silent(&s_fx_edge);
+}
+
 static void i2s_writer_task(void *arg)
 {
     uint8_t *buf = heap_caps_malloc(PCM_CHUNK_BYTES, MALLOC_CAP_DMA | MALLOC_CAP_8BIT);
@@ -2327,6 +2380,11 @@ static void i2s_writer_task(void *arg)
         ESP_LOGW(TAG, "no speed stage; turntable speed is off this boot");
     }
 
+    /* 6097: flat, and the edge down so the first sound gets ATTACK. */
+    fx_tone_reset(&s_fx_tone);
+    fx_edge_reset(&s_fx_edge);
+    fx_edge_go(&s_fx_edge, false, 0, 44100);
+
     while (1) {
         /*
          * The seek discard. See s_pcm_flush.
@@ -2340,7 +2398,11 @@ static void i2s_writer_task(void *arg)
          * DMA deadline. Both rings, because a seek during a decode-ahead
          * has a tail in one and the new position filling the other.
          */
-        if (s_pcm_flush) {
+        /* 6097: not while a pause is still fading out -- a stream's
+         * pause flushes, and dropping the ring under the release would
+         * be the click the release is there to remove. It waits the
+         * release out, at most fx_edge_ms[]'s last second. */
+        if (s_pcm_flush && !fx_releasing()) {
             size_t dropped = 0, got;
             for (int r = 0; r < PCM_RINGS; r++) {
                 if (!s_ring[r]) continue;
@@ -2370,6 +2432,19 @@ static void i2s_writer_task(void *arg)
                 s_vs_stage_n[r] = 0;
                 varispeed_reset(&s_vs[r]);
             }
+
+            /* 6097: what comes next arrives from silence -- a seek's
+             * after DECAY, anything else after ATTACK. Paused, it stays
+             * silent and the resume brings it up. */
+            if (s_playing) {
+                const bool seek = strcmp(s_flush_why, "seek") == 0;
+                fx_edge_from_zero(&s_fx_edge,
+                                  fx_ms(seek ? SETTINGS_FX_DECAY : SETTINGS_FX_ATTACK),
+                                  fx_rate());
+            } else {
+                fx_edge_go(&s_fx_edge, false, 0, fx_rate());
+            }
+            s_fx_gap = false;
 
             s_pcm_flush = false;
             ring_publish();
@@ -2406,9 +2481,30 @@ static void i2s_writer_task(void *arg)
          * a ring; this is the latency of the first sample after one, and
          * 50 ms of it is audible as a lag on the button.
          */
+        /*
+         * 6097: RELEASE. The first pass after the press turns the edge
+         * down, and the writer carries on until it reaches silence --
+         * that is the pause, arriving fx_edge_ms[] late on purpose. A
+         * ring with nothing in it has nothing to fade, and silence is
+         * immediate. A resume (the else) turns it back up over ATTACK
+         * from wherever it got to, so a quick pause-play is a dip, not
+         * a cut and a fade-in.
+         */
         if (!s_playing && !s_writer_stop) {
-            vTaskDelay(pdMS_TO_TICKS(20));
-            continue;
+            if (s_fx_edge.up) {
+                fx_edge_go(&s_fx_edge, false,
+                           ring_dry(s_ring_play) ? 0 : fx_ms(SETTINGS_FX_RELEASE),
+                           fx_rate());
+            } else if (!fx_edge_silent(&s_fx_edge) && ring_dry(s_ring_play)) {
+                fx_edge_go(&s_fx_edge, false, 0, fx_rate());
+            }
+            if (fx_edge_silent(&s_fx_edge)) {
+                vTaskDelay(pdMS_TO_TICKS(20));
+                continue;
+            }
+        } else if (!s_fx_edge.up) {
+            fx_edge_go(&s_fx_edge, true, fx_ms(SETTINGS_FX_ATTACK), fx_rate());
+            s_fx_gap = false;
         }
 
         /*
@@ -2432,6 +2528,7 @@ static void i2s_writer_task(void *arg)
          * out what was decoded rather than discarding it.
          */
         if (s_stream_hold) {
+            s_fx_gap = true;                /* 6097 */
             vTaskDelay(pdMS_TO_TICKS(20));
             continue;
         }
@@ -2658,6 +2755,7 @@ static void i2s_writer_task(void *arg)
                     }
                     xfade_mix((int16_t *)buf, (const int16_t *)mixbuf,
                               n / PCM_BYTES_PER_FRAME);
+                    fx_out(buf, n);                         /* 6097 */
                     audio_out_write(buf, n);
                     ring_publish();
 
@@ -2733,6 +2831,7 @@ static void i2s_writer_task(void *arg)
                         pcm[i] = (int16_t)(((int32_t)pcm[i] * g) >> 15);
                     }
 
+                    fx_out(buf, solo);                      /* 6097 */
                     audio_out_write(buf, solo);
                     ring_publish();
                     continue;
@@ -2893,6 +2992,7 @@ static void i2s_writer_task(void *arg)
                 if (s_dip_pos >= s_dip_frames) s_dip_dir = 0;
             }
 
+            fx_out(buf, got);                               /* 6097 */
             audio_out_write(buf, got);
             levelhist_note(peak_of(buf, got));
 
@@ -2954,6 +3054,7 @@ static void i2s_writer_task(void *arg)
          * exists to report.
          */
         if (!got) levelhist_note_silence();
+        if (!got) s_fx_gap = true;                          /* 6097 */
 
         /*
          * No exit, and no s_decode_done test any more.
@@ -8975,6 +9076,30 @@ static void ui_task(void *arg)
                      varispeed_rpm_label[settings_speed_played()],
                      varispeed_rpm_label[settings_speed_cut()]);
             break;
+        case UI_ACTION_FX: {
+            /* 6097: the writer reads the settings on its next chunk;
+             * SUSTAIN is the crossfade, taken at the next boundary as
+             * it always was. */
+            const unsigned col = (unsigned)act.value >> 4;
+            const unsigned v = (unsigned)act.value & 15u;
+            if (col == 5) {
+                settings_set_crossfade_sec((uint8_t)(v > SETTINGS_CROSSFADE_MAX
+                                                     ? SETTINGS_CROSSFADE_MAX : v));
+                ESP_LOGI(TAG, "fx: crossfade %u s", (unsigned)settings_crossfade_sec());
+            } else if (col < SETTINGS_FX_COUNT) {
+                settings_set_fx(col, v);
+                static const char *const nm[SETTINGS_FX_COUNT] = {
+                    "bass", "treble", "attack", "decay", "release"
+                };
+                if (col <= SETTINGS_FX_TREBLE) {
+                    ESP_LOGI(TAG, "fx: %s x%s", nm[col], fx_tone_label[settings_fx(col)]);
+                } else {
+                    ESP_LOGI(TAG, "fx: %s %u ms", nm[col],
+                             (unsigned)fx_edge_ms[settings_fx(col)]);
+                }
+            }
+            break;
+        }
         case UI_ACTION_POWER_OFF:
             /* The power icon, already confirmed on the modal. Finish any
              * recording first, as the low-battery guard does, so a WAV in
@@ -9022,6 +9147,11 @@ static void ui_task(void *arg)
         /* 6076 */
         st.speed_played = (uint8_t)settings_speed_played();
         st.speed_cut    = (uint8_t)settings_speed_cut();
+        /* 6097 */
+        for (unsigned i = 0; i < SETTINGS_FX_COUNT; i++) {
+            st.fx[i] = (uint8_t)settings_fx(i);
+        }
+        st.xfade_sec = settings_crossfade_sec();
         /* 5117: what the panel is about to draw is what the browser is
          * told, so the two cannot disagree. Before ui_draw(), which
          * returns early with the screen off -- a remote is most useful

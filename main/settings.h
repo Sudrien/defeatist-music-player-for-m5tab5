@@ -239,6 +239,27 @@ bool settings_speed_boot(void);
 void settings_set_speed_boot(bool boot);
 
 /*
+ * 6097: the Fx sheet (fx.h), five indexes 0..FX_STEPS-1 -- BASS and
+ * TREBLE into fx_tone_gain[] (2 is ×1, the default), ATTACK, DECAY and
+ * RELEASE into fx_edge_ms[] (defaults 10, 10 and 50 ms). The sheet's
+ * fourth column, SUSTAIN, is settings_crossfade_sec(), not one of these.
+ *
+ * Kept whatever "Speed holds" says: speed is per record, and nobody
+ * sets their bass per track. Saved on the card only, like speed, as one
+ * key -- "fx":"22112", the five digits in this order.
+ */
+enum {
+    SETTINGS_FX_BASS = 0,
+    SETTINGS_FX_TREBLE,
+    SETTINGS_FX_ATTACK,
+    SETTINGS_FX_DECAY,
+    SETTINGS_FX_RELEASE,
+    SETTINGS_FX_COUNT
+};
+unsigned settings_fx(unsigned which);
+void settings_set_fx(unsigned which, unsigned idx);
+
+/*
  * 6000: write any change that is still settling, now, and wait for it --
  * for a power-off, which would otherwise lose the last SETTINGS_SETTLE_MS
  * of changes. The write is still done by the settings task, so the file

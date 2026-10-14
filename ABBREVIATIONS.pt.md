@@ -18,7 +18,10 @@ Tirado do código-fonte (`browser.c`, `panel.c`, `sleeppage.c`, `ui.c`, `setting
 | `RG` | Embaixo do alto-falante: o ReplayGain está ajustando esta faixa. A marca amarela no controle de volume é onde o volume fica de fato. |
 | `UAC` | No lugar do ícone do alto-falante: um dispositivo USB Audio Class tem a saída. |
 | `FILE` | No cartão de formato, para um arquivo sem extensão. Senão o cartão mostra a extensão (`MP3`, `FLAC`…). |
-| `45`/`33⅓` | Entre a estrela e a lua: velocidade de toca-discos, a de REPRODUÇÃO sobre a de GRAVAÇÃO, entre 16⅔, 33⅓, 45 e 78. Toque para ter + e − em cada número; toque fora da caixa para fechar. Números iguais são a velocidade normal, com contorno; qualquer outra coisa fica amarela, assim como o relógio de tempo restante, que então conta o tempo real que falta nessa velocidade. Quanto tempo dura: "A velocidade dura" na aba AUDIO. Num stream de rádio fica cinza em 45/45 e não faz nada: uma transmissão ao vivo sempre toca na velocidade normal. |
+| `45`/`33⅓` | Entre a estrela e `Fx`: velocidade de toca-discos, a de REPRODUÇÃO sobre a de GRAVAÇÃO, entre 16⅔, 33⅓, 45 e 78. Toque para ter + e − em cada número; toque fora da caixa para fechar. Números iguais são a velocidade normal, com contorno; qualquer outra coisa fica amarela, assim como o relógio de tempo restante, que então conta o tempo real que falta nessa velocidade. Quanto tempo dura: "A velocidade dura" na aba AUDIO. Num stream de rádio fica cinza em 45/45 e não faz nada: uma transmissão ao vivo sempre toca na velocidade normal. |
+| `Fx` | Entre a velocidade e a lua: abre a folha Fx sobre todo o quadrado. Amarelo quando GRAV ou AGUD não está em 1. Toque fora da folha para fechar. |
+| `GRAV` `AGUD` | Na folha Fx: graves e agudos, cada um um ganho de ½ a 2 -- ½, ⅔, 1, 3⁄2, 2. 1 é a faixa como era. Subir um baixa todo o resto para dar espaço, então nada satura. |
+| `ATK` `DEC` `SUS` `REL` | Na folha Fx, os nomes de um sintetizador para como o som chega e sai. ATK (ataque): a subida ao tocar em reproduzir ou ao fim de uma pausa. DEC (decaimento): a subida depois de um salto. SUS (sustentação): a transição cruzada entre faixas, o mesmo ajuste da aba AUDIO. REL (liberação): a descida ao tocar em pausa. Em ms, de 0 a 1000; SUS em segundos. |
 
 ### A linha de status, abaixo do volume
 

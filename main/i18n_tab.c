@@ -9,7 +9,7 @@
 #include <stddef.h>
 #include "i18n.h"
 
-const unsigned i18n_count = 370;
+const unsigned i18n_count = 372;
 const char *const i18n_keys[] = {
     "%.32s did not work. Try again.",
     "%d h",
@@ -54,6 +54,7 @@ const char *const i18n_keys[] = {
     "Already on the card (%d):",
     "Already recording.",
     "Auto: USB, jack, mono. Off: no record.",
+    "BASS",
     "BATT",
     "BATT %d%%",
     "BOOT",
@@ -254,6 +255,7 @@ const char *const i18n_keys[] = {
     "Stream address",
     "Stream too slow here",
     "TRACK",
+    "TREB",
     "That folder could not be opened.",
     "That form was too large to be a name and a stream address.",
     "That form was too large to be a network name and a password.",
@@ -429,6 +431,7 @@ const unsigned char i18n_on_screen[] = {
     0,  /* 'Already on the card (%d):' */
     1,  /* 'Already recording.' */
     1,  /* 'Auto: USB, jack, mono. Off: no record.' */
+    1,  /* 'BASS' */
     1,  /* 'BATT' */
     1,  /* 'BATT %d%%' */
     1,  /* 'BOOT' */
@@ -629,6 +632,7 @@ const unsigned char i18n_on_screen[] = {
     0,  /* 'Stream address' */
     1,  /* 'Stream too slow here' */
     1,  /* 'TRACK' */
+    1,  /* 'TREB' */
     0,  /* 'That folder could not be opened.' */
     0,  /* 'That form was too large to be a name and' */
     0,  /* 'That form was too large to be a network ' */
@@ -771,6 +775,7 @@ const unsigned char i18n_pon_screen[] = {
 /* [lang * i18n_count + key] */
 const char *const i18n_vals[] = {
     /* en */
+    NULL,
     NULL,
     NULL,
     NULL,
@@ -1021,6 +1026,7 @@ const char *const i18n_vals[] = {
     NULL,
     NULL,
     NULL,
+    NULL,
     "The USB microphone\012did not start.",
     "The USB microphone has\012no 16- or 24-bit format.",
     "The USB microphone is\012not there any more.",
@@ -1185,6 +1191,7 @@ const char *const i18n_vals[] = {
     "卡上已有（%d）：",
     "正在录音。",
     "自动：USB、插孔、单声道。关：不录音。",
+    "低音",
     "电池",
     "电池 %d%%",
     "保持",
@@ -1385,6 +1392,7 @@ const char *const i18n_vals[] = {
     "流地址",
     "网络太慢",
     "每曲",
+    "高音",
     "无法打开该文件夹。",
     "表单内容过大，不像是名称和流地址。",
     "表单内容过大，不像是网络名称和密码。",
@@ -1556,6 +1564,7 @@ const char *const i18n_vals[] = {
     "カードに登録済み（%d）：",
     "録音中です。",
     "自動：USB、端子、モノラル。オフ：録音しない。",
+    "低音",
     "電池",
     "電池 %d%%",
     "保持",
@@ -1756,6 +1765,7 @@ const char *const i18n_vals[] = {
     "ストリームのアドレス",
     "回線が遅すぎる",
     "曲ごと",
+    "高音",
     "そのフォルダを開けませんでした。",
     "名前とストリームのアドレスにしては大きすぎるフォームです。",
     "ネットワーク名とパスワードにしては大きすぎるフォームです。",
@@ -1927,6 +1937,7 @@ const char *const i18n_vals[] = {
     "Ya en la tarjeta (%d):",
     "Ya se está grabando.",
     "Auto: USB, toma, mono. No: sin grabar.",
+    "GRAV",
     "BAT",
     "BAT %d%%",
     "SIEMPRE",
@@ -2127,6 +2138,7 @@ const char *const i18n_vals[] = {
     "Dirección del flujo",
     "Red muy lenta",
     "PISTA",
+    "AGUD",
     "No se pudo abrir esa carpeta.",
     "El formulario es demasiado grande para ser un nombre y una dirección.",
     "El formulario es demasiado grande para ser un nombre de red y una contraseña.",
@@ -2298,6 +2310,7 @@ const char *const i18n_vals[] = {
     "Já no cartão (%d):",
     "Já está gravando.",
     "Auto: USB, P2, mono. Não: sem gravar.",
+    "GRAV",
     "BAT",
     "BAT %d%%",
     "SEMPRE",
@@ -2498,6 +2511,7 @@ const char *const i18n_vals[] = {
     "Endereço do stream",
     "Stream lento",
     "FAIXA",
+    "AGUD",
     "Não foi possível abrir essa pasta.",
     "O formulário é grande demais para um nome e um endereço de stream.",
     "O formulário é grande demais para um nome de rede e uma senha.",
@@ -2669,6 +2683,7 @@ const char *const i18n_vals[] = {
     "Déjà sur la carte (%d) :",
     "Déjà en cours.",
     "Auto : USB, prise, mono. Non : pas d'enregistrement.",
+    "GRAV",
     "BATT",
     "BATT %d%%",
     "TOUJOURS",
@@ -2869,6 +2884,7 @@ const char *const i18n_vals[] = {
     "Adresse du flux",
     "Flux trop lent",
     "PISTE",
+    "AIGU",
     "Impossible d'ouvrir ce dossier.",
     "Ce formulaire est trop gros pour un nom et une adresse de flux.",
     "Ce formulaire est trop gros pour un nom de réseau et un mot de passe.",
@@ -3040,6 +3056,7 @@ const char *const i18n_vals[] = {
     "Già sulla scheda (%d):",
     "Già in corso.",
     "Auto: USB, jack, mono. No: non registra.",
+    "BASSI",
     "BATT",
     "BATT %d%%",
     "SEMPRE",
@@ -3240,6 +3257,7 @@ const char *const i18n_vals[] = {
     "Indirizzo dello stream",
     "Stream lento",
     "BRANO",
+    "ALTI",
     "Impossibile aprire quella cartella.",
     "Il modulo è troppo grande per un nome e un indirizzo di stream.",
     "Il modulo è troppo grande per un nome di rete e una password.",

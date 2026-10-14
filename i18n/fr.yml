@@ -93,6 +93,8 @@ fr:
     # panel.c
     "Auto: USB, jack, mono. Off: no record.": "Auto : USB, prise, mono. Non : pas d'enregistrement."
     # ui.c
+    "BASS": "GRAV"
+    # ui.c
     "BATT": "BATT"
     # ui.c
     "BATT %d%%": "BATT %d%%"
@@ -492,6 +494,8 @@ fr:
     "Stream too slow here": "Flux trop lent"
     # panel.c
     "TRACK": "PISTE"
+    # ui.c
+    "TREB": "AIGU"
     # remote.c
     "That folder could not be opened.": "Impossible d'ouvrir ce dossier."
     # portal.c, remote.c
@@ -666,7 +670,7 @@ fr:
     "not run this session": "pas lancé cette session"
     # player.c
     "nothing starred yet - tap a star to keep one": "aucun favori - touchez une étoile"
-    # panel.c, sleeppage.c, remote.html
+    # panel.c, sleeppage.c, ui.c
     "off": "non"
     # panel.c
     "on": "oui"

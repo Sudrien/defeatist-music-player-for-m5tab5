@@ -29,6 +29,7 @@
 #include "nvs.h"
 #include "screendim.h"
 #include "varispeed.h"          /* 6074 */
+#include "fx.h"                 /* 6097 */
 #include "powerdown.h"           /* 6000 */
 #include "rtc8130.h"             /* 6003 */
 #include "rtctask.h"          /* 5183 */
@@ -193,7 +194,8 @@ static bool        s_prefs_nvs_known;
 /* And from 568 for turntable speed (6074): "speed_played", "speed_cut"
  * and "speed_boot" with their values are 52 more, less the 20 5216 left
  * spare. */
-#define SETTINGS_MAX_LINE       (600)
+/* And from 600 for the Fx sheet (6097): ",\"fx\":\"22112\"" is 13. */
+#define SETTINGS_MAX_LINE       (616)
 
 /*
  * The file is append-only, and this is where it stops growing.
@@ -238,6 +240,8 @@ static uint8_t    s_rec_from = SETTINGS_REC_AUTO;
 static uint8_t    s_speed_played = 1;
 static uint8_t    s_speed_cut = 1;
 static bool       s_speed_boot;
+/* 6097: flat, 10 ms up, 10 ms after a seek, 50 ms down. See settings.h. */
+static uint8_t    s_fx[SETTINGS_FX_COUNT] = { 2, 2, 1, 1, 2 };
 static bool       s_remote;           /* 5117: see settings.h */
 static bool       s_mpd;              /* 5158: see settings.h */
 static uint8_t    s_brightness = SETTINGS_BRIGHTNESS_DEFAULT;
@@ -532,6 +536,20 @@ void settings_set_speed(unsigned played, unsigned cut)
     if (played == s_speed_played && cut == s_speed_cut) return;
     s_speed_played = (uint8_t)played;
     s_speed_cut = (uint8_t)cut;
+    s_dirty = true;
+    s_dirty_since = xTaskGetTickCount();
+}
+
+unsigned settings_fx(unsigned which)
+{
+    return which < SETTINGS_FX_COUNT ? s_fx[which] : 0;
+}
+
+void settings_set_fx(unsigned which, unsigned idx)
+{
+    if (which >= SETTINGS_FX_COUNT || idx >= FX_STEPS) return;
+    if (s_fx[which] == idx) return;
+    s_fx[which] = (uint8_t)idx;
     s_dirty = true;
     s_dirty_since = xTaskGetTickCount();
 }
@@ -1055,6 +1073,24 @@ static bool parse_line(char *line, storage_id_t id, bool take_settings,
             any = true;
         }
 
+        /* 6097: all five or none, like speed's three -- a digit out of
+         * range spoils the record's fx, not the record. */
+        const cJSON *fx = cJSON_GetObjectItemCaseSensitive(root, "fx");
+        if (take_settings && cJSON_IsString(fx) && fx->valuestring &&
+            strlen(fx->valuestring) == SETTINGS_FX_COUNT) {
+            uint8_t v[SETTINGS_FX_COUNT];
+            bool okfx = true;
+            for (int i = 0; i < SETTINGS_FX_COUNT; i++) {
+                const int d = fx->valuestring[i] - '0';
+                if (d < 0 || d >= FX_STEPS) okfx = false;
+                v[i] = (uint8_t)d;
+            }
+            if (okfx) {
+                memcpy(s_fx, v, sizeof s_fx);
+                any = true;
+            }
+        }
+
         const cJSON *rm = cJSON_GetObjectItemCaseSensitive(root, "remote");
         if (take_settings && cJSON_IsBool(rm)) {
             s_remote = cJSON_IsTrue(rm);
@@ -1372,7 +1408,7 @@ static int record_line(storage_id_t id, char *out, size_t out_len)
                             "\"remote\":%s," \
                             "\"mpd\":%s,\"rec_from\":%u," \
                             "\"speed_played\":%u,\"speed_cut\":%u," \
-                            "\"speed_boot\":%s"
+                            "\"speed_boot\":%s,\"fx\":\"%u%u%u%u%u\""
 #define SETTINGS_FIELDS_ARGS s_volume, rg, (unsigned)s_crossfade_sec, xa, \
                              (unsigned)s_brightness, \
                              (unsigned)s_dim_step, \
@@ -1383,7 +1419,10 @@ static int record_line(storage_id_t id, char *out, size_t out_len)
                              (unsigned)s_rec_from, \
                              (unsigned)s_speed_played, \
                              (unsigned)s_speed_cut, \
-                             s_speed_boot ? "true" : "false"
+                             s_speed_boot ? "true" : "false", \
+                             (unsigned)s_fx[0], (unsigned)s_fx[1], \
+                             (unsigned)s_fx[2], (unsigned)s_fx[3], \
+                             (unsigned)s_fx[4]
 
     if (id >= STORAGE_COUNT || !s_track[id][0]) {
         return snprintf(out, out_len, "{" SETTINGS_FIELDS_FMT "}\n",

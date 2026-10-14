@@ -93,6 +93,8 @@ en:
     # panel.c
     "Auto: USB, jack, mono. Off: no record.": ~
     # ui.c
+    "BASS": ~
+    # ui.c
     "BATT": ~
     # ui.c
     "BATT %d%%": ~
@@ -492,6 +494,8 @@ en:
     "Stream too slow here": "Stream too slow"
     # panel.c
     "TRACK": ~
+    # ui.c
+    "TREB": ~
     # remote.c
     "That folder could not be opened.": ~
     # portal.c, remote.c
@@ -666,7 +670,7 @@ en:
     "not run this session": ~
     # player.c
     "nothing starred yet - tap a star to keep one": ~
-    # panel.c, sleeppage.c, remote.html
+    # panel.c, sleeppage.c, ui.c
     "off": ~
     # panel.c
     "on": ~

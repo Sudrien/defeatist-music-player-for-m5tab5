@@ -18,7 +18,10 @@ Preso dal codice sorgente (`browser.c`, `panel.c`, `sleeppage.c`, `ui.c`, `setti
 | `RG` | Sotto l'altoparlante: ReplayGain sta regolando questo brano. Il segno giallo sul cursore del volume è dove il volume si trova davvero. |
 | `UAC` | Al posto dell'icona dell'altoparlante: un dispositivo USB Audio Class ha l'uscita. |
 | `FILE` | Sulla scheda del formato, per un file senza estensione. Altrimenti la scheda mostra l'estensione (`MP3`, `FLAC`…). |
-| `45`/`33⅓` | Tra la stella e la luna: velocità del giradischi, quella di RIPRODUZIONE su quella di INCISIONE, fra 16⅔, 33⅓, 45 e 78. Toccalo per avere + e − su ogni numero; tocca fuori dal riquadro per chiudere. Numeri uguali sono la velocità normale, contornata; altrimenti è giallo, come l'orologio del tempo rimanente, che allora conta il tempo reale rimasto a quella velocità. Quanto dura: "La velocità dura" nella scheda AUDIO. Su uno stream radio è grigio a 45/45 e non fa niente: una diretta suona sempre a velocità normale. |
+| `45`/`33⅓` | Tra la stella e `Fx`: velocità del giradischi, quella di RIPRODUZIONE su quella di INCISIONE, fra 16⅔, 33⅓, 45 e 78. Toccalo per avere + e − su ogni numero; tocca fuori dal riquadro per chiudere. Numeri uguali sono la velocità normale, contornata; altrimenti è giallo, come l'orologio del tempo rimanente, che allora conta il tempo reale rimasto a quella velocità. Quanto dura: "La velocità dura" nella scheda AUDIO. Su uno stream radio è grigio a 45/45 e non fa niente: una diretta suona sempre a velocità normale. |
+| `Fx` | Tra la velocità e la luna: apre il foglio Fx su tutto il quadrato. Giallo quando BASSI o ALTI non è a 1. Tocca fuori dal foglio per chiuderlo. |
+| `BASSI` `ALTI` | Sul foglio Fx: bassi e alti, ciascuno un guadagno da ½ a 2 -- ½, ⅔, 1, 3⁄2, 2. 1 è la traccia com'era. Alzarne uno abbassa tutto il resto per fare spazio, quindi niente distorce. |
+| `ATK` `DEC` `SUS` `REL` | Sul foglio Fx, i nomi di un sintetizzatore per come il suono arriva e se ne va. ATK (attacco): la salita quando si preme play o finisce una pausa. DEC (decadimento): la salita dopo un salto. SUS (sostegno): la dissolvenza incrociata fra tracce, la stessa impostazione della scheda AUDIO. REL (rilascio): la discesa quando si preme pausa. In ms, da 0 a 1000; SUS in secondi. |
 
 ### La riga di stato, sotto il volume
 

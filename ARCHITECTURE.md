@@ -23257,3 +23257,72 @@ Not covered: a mono device. Channels are matched exactly, so an
 8 kHz one-channel headset is still not taken.
 
 Not on the board: no 8 kHz-only device has been plugged in yet.
+
+### 6097 -- the Fx sheet: bass, treble, and the edges of the sound
+
+A sixth button on row 8, `Fx`, between the speed fraction and the moon,
+opens a sheet over the whole square: six columns of plus, value, minus.
+
+    BASS  TREB  |  ATK  DEC  SUS  REL
+
+Where it came from. Aurora Player 1.3.9 has a Bass+ (decompiled for
+this: an RBJ low shelf, +6 dB at 120 Hz, S = 1) that boosts and then
+catches the overs with a zero-lookahead peak limiter -- gain cut to
+32700/peak on the sample that would clip, held 50 ms, released over
+about 250 ms. That pumps. The question was whether FM synthesis had a
+better shape, and it had two: a carrier stacked beside another is
+summed, which is a tone control, and a DX7 envelope is a set of
+stepped numbers, which is the speed popup's control.
+
+TONE (main/fx.c). y = x + (gb-1)·low(x) + (gt-1)·high(x): the track AND
+a one-pole low-passed copy at 150 Hz AND a high-passed one (x minus a
+one-pole at 3.5 kHz), each band at a gain from ½, ⅔, 1, 3⁄2, 2 --
+multiplied, not added, so the steps are even in level, ±3.5 and ±6 dB.
+The headroom is the DX7's answer and not Aurora's: the whole result is
+divided by the largest gain chosen, so a boost comes out of the rest of
+the mix and there is nothing to catch. fxtest: full-scale tones at every
+setting peak at 32766. First order on purpose -- no resonance, nothing
+that rings, no coefficient that misbehaves at 8 or 192 kHz -- and the
+price is that a band reaches its fraction slowly: TREB ½ is 0.64 at
+12 kHz against 300 Hz, BASS 2 is 1.87 at 40 Hz against 1 kHz. At 1/1
+the filters still run (so switching on mid-track starts from a filter
+that has been listening) and the samples are not written: bit for bit,
+tested. A change of gain ramps across one chunk.
+
+THE EDGES (fx_edge_t, one gain moving towards 0 or 1). ATK is the fade
+up from silence: a play, a resume, the first sound after the ring ran
+dry or a stream held. DEC is the fade up after a seek's flush. REL is
+the fade down on pause: the writer's pause gate no longer stops at the
+press, it turns the gain down and keeps writing until it reaches zero,
+then gates as before. A resume during a release turns round from where
+it got to -- a quick pause-play is a dip. Steps 0, 10, 50, 250, 1000 ms;
+defaults 10, 10 and 50. A flush (a stream's pause disconnects and
+drops the ring) waits for a running release rather than cutting it.
+The amplifier's idle hold (1500 ms, audio_out.c) is longer than the
+longest release, so the amp is not cut under one.
+
+SUS is the crossfade length, settings_crossfade_sec(), a second at a
+time to 12. Its slider on the AUDIO tab STAYS -- the plan was to move it
+here, but the AUDIO tab's boxes are laid out one under another and the
+Same album switch beside it is greyed by its value; two views of one
+setting was the smaller change. A sign on SUS is UI_ACTION_FX column 5
+and sets the same number the slider does.
+
+Order in the writer: the stream's levelling gain, the existing ramps
+(fade, fade-in, dip), the crossfade mix where there is one, then tone,
+then the edge, then audio_out_write(). ReplayGain for a file is folded
+in by the decode loop and measured on the plain track, so tone sits on
+top of it as the speed does.
+
+Persistence: one key, "fx":"22112" (BASS TREB ATK DEC REL), card only,
+kept whatever Speed holds says. SETTINGS_MAX_LINE 600 -> 616.
+
+The `Fx` box is yellow when BASS or TREB is not 1; the edges do not
+light it. It works on a stream, unlike the speed fraction.
+
+Known and left:
+- The release's last chunk is consumed from the ring past the point it
+  reaches silence -- up to 23 ms of the track a resume will not play.
+- A seek still cuts the old position off; only the new one fades in.
+
+Not on the board.

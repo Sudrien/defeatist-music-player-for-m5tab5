@@ -93,6 +93,8 @@ zh-CN:
     # panel.c
     "Auto: USB, jack, mono. Off: no record.": "自动：USB、插孔、单声道。关：不录音。"
     # ui.c
+    "BASS": "低音"
+    # ui.c
     "BATT": "电池"
     # ui.c
     "BATT %d%%": "电池 %d%%"
@@ -492,6 +494,8 @@ zh-CN:
     "Stream too slow here": "网络太慢"
     # panel.c
     "TRACK": "每曲"
+    # ui.c
+    "TREB": "高音"
     # remote.c
     "That folder could not be opened.": "无法打开该文件夹。"
     # portal.c, remote.c
@@ -666,7 +670,7 @@ zh-CN:
     "not run this session": "本次启动未运行"
     # player.c
     "nothing starred yet - tap a star to keep one": "还没有收藏 - 点星标就能保存"
-    # panel.c, sleeppage.c, remote.html
+    # panel.c, sleeppage.c, ui.c
     "off": "关"
     # panel.c
     "on": "开"

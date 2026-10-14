@@ -974,19 +974,29 @@ static void draw_speed(const ui_state_t *st)
 {
     int cx, cy;
     speed_centre(&cx, &cy);
-    const unsigned p = st->speed_played < VARISPEED_RPMS ? st->speed_played : 1;
-    const unsigned c = st->speed_cut    < VARISPEED_RPMS ? st->speed_cut    : 1;
+    /*
+     * 6082: a live stream is always ×1.00 (6075 -- faster than real time
+     * runs it dry), so while one plays the fraction says so: 45/45, grey,
+     * and not tappable. The setting is untouched and comes back with the
+     * next file.
+     */
+    const bool live = st->live;
+    const unsigned p = live ? 2 : st->speed_played < VARISPEED_RPMS ? st->speed_played : 1;
+    const unsigned c = live ? 2 : st->speed_cut    < VARISPEED_RPMS ? st->speed_cut    : 1;
     const bool off = p != c;
     const int w = 2 * SPEED_HALF, h = 2 * ICON_HALF + 8;
     const int x = cx - SPEED_HALF, y = cy - h / 2;
 
-    if (off) {
+    if (live) {
+        fill_rrect(x, y, w, h, 10, C_ICON_OFF);
+        fill_rrect(x + 2, y + 2, w - 4, h - 4, 8, C_BG);
+    } else if (off) {
         fill_rrect(x, y, w, h, 10, C_RG);
     } else {
         fill_rrect(x, y, w, h, 10, C_ICON_OFF);
         fill_rrect(x + 2, y + 2, w - 4, h - 4, 8, C_BG);
     }
-    const uint16_t fg = off ? C_BG : C_ICON;
+    const uint16_t fg = live ? C_ICON_OFF : off ? C_BG : C_ICON;
     const char *top = varispeed_rpm_label[p];
     const char *bot = varispeed_rpm_label[c];
     const int gh = GFX_GLYPH_H(SPEED_SCALE);
@@ -2476,6 +2486,7 @@ void ui_draw(const ui_state_t *st)
     draw_play_pause(st->playing, st->recording, st->rec_ok);
 
     if (s_confirm) draw_confirm();                      /* over everything */
+    if (s_spd_pop && st->live) s_spd_pop = false;      /* 6082 */
     if (s_spd_pop) {                                    /* 6078 */
         if (!s_pop_wait ||
             (st->speed_played == s_pop_p && st->speed_cut == s_pop_c)) {
@@ -2732,9 +2743,12 @@ ui_action_t ui_touch(const ui_state_t *st, bool down, int x, int y)
         }
     }
 
-    /* 6076: the speed fraction. 6078: a tap opens the popup. */
+    /* 6076: the speed fraction. 6078: a tap opens the popup. 6082: not
+     * on a stream, where it is greyed at 45/45 -- the tap is swallowed,
+     * so it does not fall through to whatever is under its padding. */
     speed_centre(&cx, &cy);
     if (in_box(x, y, cx, cy, SPEED_HALF)) {
+        if (st->live) return act;
         s_spd_pop = true;
         s_pop_wait = false;
         ui_draw(st);

@@ -22990,3 +22990,22 @@ without it the thirds are missing glyphs. Logs carry the UTF-8 too.
 
 ABBREVIATIONS, all four: the "the font has no thirds" aside is gone.
 Not compiled with ESP-IDF here. Not on the board.
+
+### 6082 -- the fraction on a stream: grey, 45/45
+
+A live stream has always played at ×1.00 (6075's vs_engaged() returns
+false while s_streaming), but the fraction kept showing the setting and
+the popup kept opening -- the board log has 16⅔/45 being set on a
+paused station, to no effect anyone could hear. While ui_state_t's
+`live` is set the row-8 fraction now draws 45/45 in C_ICON_OFF, a tap
+on it is swallowed rather than opening the popup (and rather than
+falling through to what its padding overlaps), and an open popup
+closes. The setting itself is untouched, so the next file plays at it
+-- or, under TRACK, as a new track does.
+
+45/45 rather than 33⅓/33⅓ because that is what was asked for; any
+equal pair says ×1.00.
+
+ABBREVIATIONS, all four: the fraction's row says so (es, ja, zh-CN by
+Claude, not yet read by a native speaker). Syntax-checked on the host
+at -O2 -Werror. Not compiled with ESP-IDF here. Not on the board.

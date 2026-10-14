@@ -18,7 +18,7 @@ Tomado del código fuente (`browser.c`, `panel.c`, `sleeppage.c`, `ui.c`, `setti
 | `RG` | Bajo el altavoz: ReplayGain está ajustando esta pista. La marca amarilla del control de volumen es donde el volumen queda en efecto. |
 | `UAC` | En lugar del icono de altavoz: un dispositivo USB Audio Class tiene la salida. |
 | `FILE` | En la tarjeta de formato, para un archivo sin extensión. Si no, la tarjeta muestra la extensión (`MP3`, `FLAC`…). |
-| `45`/`33⅓` | Entre la estrella y la luna: velocidad de tocadiscos, la de REPRODUCCIÓN sobre la de GRABACIÓN, entre 16⅔, 33⅓, 45 y 78. Tócalo para tener + y − en cada número; toca fuera del cuadro para cerrarlo. Iguales es velocidad normal, con borde; si no, amarillo, igual que el reloj de tiempo restante, que entonces cuenta el tiempo real que queda a esa velocidad. Cuánto dura: «La velocidad dura» en la pestaña AUDIO. |
+| `45`/`33⅓` | Entre la estrella y la luna: velocidad de tocadiscos, la de REPRODUCCIÓN sobre la de GRABACIÓN, entre 16⅔, 33⅓, 45 y 78. Tócalo para tener + y − en cada número; toca fuera del cuadro para cerrarlo. Iguales es velocidad normal, con borde; si no, amarillo, igual que el reloj de tiempo restante, que entonces cuenta el tiempo real que queda a esa velocidad. Cuánto dura: «La velocidad dura» en la pestaña AUDIO. Con una emisora de radio aparece en gris a 45/45 y no hace nada: un directo siempre suena a velocidad normal. |
 
 ### La línea de estado, bajo el volumen
 

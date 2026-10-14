@@ -186,6 +186,8 @@ zh-CN:
     "EAT": "播完删除"
     # browser.c
     "EAT1": "删除1"
+    # ui.c
+    "ECHO": "回声"
     # remote.html
     "Empty the queue? What is playing carries on.": "清空队列？正在播放的会继续。"
     # remote.html
@@ -492,6 +494,8 @@ zh-CN:
     "Stream address": "流地址"
     # player.c
     "Stream too slow here": "网络太慢"
+    # ui.c
+    "TIME": "间隔"
     # panel.c
     "TRACK": "每曲"
     # ui.c

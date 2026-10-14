@@ -186,6 +186,8 @@ es:
     "EAT": "BORRAR"
     # browser.c
     "EAT1": "BORRAR1"
+    # ui.c
+    "ECHO": "ECO"
     # remote.html
     "Empty the queue? What is playing carries on.": "¿Vaciar la cola? Lo que suena sigue sonando."
     # remote.html
@@ -492,6 +494,8 @@ es:
     "Stream address": "Dirección del flujo"
     # player.c
     "Stream too slow here": "Red muy lenta"
+    # ui.c
+    "TIME": "TIEMPO"
     # panel.c
     "TRACK": "PISTA"
     # ui.c

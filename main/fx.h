@@ -100,6 +100,41 @@ void fx_vox_reset(fx_vox_t *v);
 void fx_vox_run(fx_vox_t *v, int16_t *pcm, size_t frames,
                 unsigned idx, uint32_t rate);
 
+/*
+ * 6102: ECHO and TIME, Audacity's Echo -- repeats that fade:
+ *
+ *     y[n] = x[n] + g y[n - d]          out = (1 - g) y
+ *
+ * g is ECHO, the level of each repeat against the one before: 0 is off
+ * and bit for bit, ⅛ a single faint repeat, ⅞ a long trail. Below 1
+ * only -- at 1 the repeats never die, above it they grow. The (1 - g)
+ * is the headroom: 1/(1 - g) is the most the repeats can sum to, so a
+ * long trail costs level (⅞ is -18 dB) and never clips.
+ *
+ * d is TIME, fx_echo_ms[]. The line is float, stereo, sized for one
+ * second at FX_ECHO_MAX_RATE by the caller -- 1.5 MB, PSRAM -- and
+ * cleared when ECHO comes on from 0, so a repeat is never of audio
+ * from before it was switched on.
+ */
+#define FX_ECHO_STEPS    8
+#define FX_ECHO_MAX_RATE 192000u
+#define FX_ECHO_FRAMES   (FX_ECHO_MAX_RATE)   /* one second at the top rate */
+extern const char *const fx_echo_label[FX_ECHO_STEPS]; /* 0 ⅛ ¼ ⅓ ½ ⅔ ¾ ⅞ */
+extern const float       fx_echo_gain[FX_ECHO_STEPS];
+extern const uint16_t    fx_echo_ms[FX_STEPS];          /* 60 125 250 500 1000 */
+
+typedef struct {
+    float   *line;              /* FX_ECHO_FRAMES stereo frames, or NULL */
+    uint32_t pos;
+    float    g;                 /* the gain the last chunk ended on */
+} fx_echo_t;
+
+/* `line` is the caller's, FX_ECHO_FRAMES * 2 floats; NULL leaves echo
+ * off for good (there was no memory for it). */
+void fx_echo_init(fx_echo_t *e, float *line);
+void fx_echo_run(fx_echo_t *e, int16_t *pcm, size_t frames,
+                 unsigned echo, unsigned time, uint32_t rate);
+
 /* ------------------------------------------------------------------ */
 
 typedef struct {

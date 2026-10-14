@@ -9,7 +9,7 @@
 #include <stddef.h>
 #include "i18n.h"
 
-const unsigned i18n_count = 373;
+const unsigned i18n_count = 375;
 const char *const i18n_keys[] = {
     "%.32s did not work. Try again.",
     "%d h",
@@ -101,6 +101,7 @@ const char *const i18n_keys[] = {
     "Dim screen",
     "EAT",
     "EAT1",
+    "ECHO",
     "Empty the queue? What is playing carries on.",
     "Empty.",
     "Evens out loudness between tracks.",
@@ -254,6 +255,7 @@ const char *const i18n_keys[] = {
     "Stop playback first.",
     "Stream address",
     "Stream too slow here",
+    "TIME",
     "TRACK",
     "TREB",
     "That folder could not be opened.",
@@ -479,6 +481,7 @@ const unsigned char i18n_on_screen[] = {
     1,  /* 'Dim screen' */
     1,  /* 'EAT' */
     1,  /* 'EAT1' */
+    1,  /* 'ECHO' */
     0,  /* 'Empty the queue? What is playing carries' */
     0,  /* 'Empty.' */
     1,  /* 'Evens out loudness between tracks.' */
@@ -632,6 +635,7 @@ const unsigned char i18n_on_screen[] = {
     1,  /* 'Stop playback first.' */
     0,  /* 'Stream address' */
     1,  /* 'Stream too slow here' */
+    1,  /* 'TIME' */
     1,  /* 'TRACK' */
     1,  /* 'TREB' */
     0,  /* 'That folder could not be opened.' */
@@ -889,6 +893,7 @@ const char *const i18n_vals[] = {
     NULL,
     NULL,
     NULL,
+    NULL,
     "Insert a card or a USB\012drive to record to.",
     NULL,
     "It reached 4 GB, the\012most one file can hold.",
@@ -1020,6 +1025,7 @@ const char *const i18n_vals[] = {
     NULL,
     NULL,
     "Stream too slow",
+    NULL,
     NULL,
     NULL,
     NULL,
@@ -1241,6 +1247,7 @@ const char *const i18n_vals[] = {
     "屏幕变暗",
     "播完删除",
     "删除1",
+    "回声",
     "清空队列？正在播放的会继续。",
     "空。",
     "平衡曲目之间的响度。",
@@ -1394,6 +1401,7 @@ const char *const i18n_vals[] = {
     "请先停止播放。",
     "流地址",
     "网络太慢",
+    "间隔",
     "每曲",
     "高音",
     "无法打开该文件夹。",
@@ -1615,6 +1623,7 @@ const char *const i18n_vals[] = {
     "画面を暗く",
     "消費",
     "消費1",
+    "エコー",
     "キューを空にしますか？再生中の曲は続きます。",
     "空です。",
     "曲ごとの音量差をならす。",
@@ -1768,6 +1777,7 @@ const char *const i18n_vals[] = {
     "先に再生を止める。",
     "ストリームのアドレス",
     "回線が遅すぎる",
+    "間隔",
     "曲ごと",
     "高音",
     "そのフォルダを開けませんでした。",
@@ -1989,6 +1999,7 @@ const char *const i18n_vals[] = {
     "Atenuar pantalla",
     "BORRAR",
     "BORRAR1",
+    "ECO",
     "¿Vaciar la cola? Lo que suena sigue sonando.",
     "Vacía.",
     "Iguala el volumen entre pistas.",
@@ -2142,6 +2153,7 @@ const char *const i18n_vals[] = {
     "Detén primero la reproducción.",
     "Dirección del flujo",
     "Red muy lenta",
+    "TIEMPO",
     "PISTA",
     "AGUD",
     "No se pudo abrir esa carpeta.",
@@ -2363,6 +2375,7 @@ const char *const i18n_vals[] = {
     "Escurecer tela",
     "COMER",
     "COMER1",
+    "ECO",
     "Esvaziar a fila? O que está tocando continua.",
     "Vazia.",
     "Iguala o volume entre as faixas.",
@@ -2516,6 +2529,7 @@ const char *const i18n_vals[] = {
     "Pare a reprodução antes.",
     "Endereço do stream",
     "Stream lento",
+    "TEMPO",
     "FAIXA",
     "AGUD",
     "Não foi possível abrir essa pasta.",
@@ -2737,6 +2751,7 @@ const char *const i18n_vals[] = {
     "Assombrir l'écran",
     "MANGER",
     "MANGER1",
+    "ÉCHO",
     "Vider la file? Ce qui joue continue.",
     "Vide.",
     "Égalise le volume entre les pistes.",
@@ -2890,6 +2905,7 @@ const char *const i18n_vals[] = {
     "Arrêtez d'abord la lecture.",
     "Adresse du flux",
     "Flux trop lent",
+    "DÉLAI",
     "PISTE",
     "AIGU",
     "Impossible d'ouvrir ce dossier.",
@@ -3111,6 +3127,7 @@ const char *const i18n_vals[] = {
     "Attenua schermo",
     "MANGIA",
     "MANGIA1",
+    "ECO",
     "Svuotare la coda? Ciò che suona continua.",
     "Vuota.",
     "Uniforma il volume tra i brani.",
@@ -3264,6 +3281,7 @@ const char *const i18n_vals[] = {
     "Ferma prima la riproduzione.",
     "Indirizzo dello stream",
     "Stream lento",
+    "TEMPO",
     "BRANO",
     "ALTI",
     "Impossibile aprire quella cartella.",

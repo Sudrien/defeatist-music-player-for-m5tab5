@@ -2300,6 +2300,7 @@ static uint32_t vs_out_step(int play)
 
 static fx_tone_t s_fx_tone;
 static fx_vox_t  s_fx_vox;                  /* 6101 */
+static fx_echo_t s_fx_echo;                 /* 6102 */
 static fx_edge_t s_fx_edge;
 static bool      s_fx_gap = true;
 
@@ -2331,6 +2332,11 @@ static void fx_out(uint8_t *buf, size_t n)
                settings_fx(SETTINGS_FX_VOICE), fx_rate());
     fx_tone_run(&s_fx_tone, (int16_t *)buf, frames,
                 settings_fx(SETTINGS_FX_BASS), settings_fx(SETTINGS_FX_TREBLE),
+                fx_rate());
+    /* 6102: echo the sound as toned, and before the edge, so a pause's
+     * release takes the trail down with the rest. */
+    fx_echo_run(&s_fx_echo, (int16_t *)buf, frames,
+                settings_fx(SETTINGS_FX_ECHO), settings_fx(SETTINGS_FX_TIME),
                 fx_rate());
     fx_edge_run(&s_fx_edge, (int16_t *)buf, frames);
 }
@@ -2386,6 +2392,16 @@ static void i2s_writer_task(void *arg)
     /* 6097: flat, and the edge down so the first sound gets ATTACK. */
     fx_tone_reset(&s_fx_tone);
     fx_vox_reset(&s_fx_vox);
+    /* 6102: the echo's line, one second at 192 kHz, float stereo --
+     * 1.5 MB, so PSRAM, and once here rather than when ECHO is turned
+     * on: a malloc does not belong on the path with the DMA deadline.
+     * Without it ECHO does nothing, and says so once. */
+    {
+        float *line = heap_caps_malloc(sizeof(float) * 2 * FX_ECHO_FRAMES,
+                                       MALLOC_CAP_SPIRAM | MALLOC_CAP_8BIT);
+        if (!line) ESP_LOGW(TAG, "fx: no PSRAM for the echo line; ECHO is off");
+        fx_echo_init(&s_fx_echo, line);
+    }
     fx_edge_reset(&s_fx_edge);
     fx_edge_go(&s_fx_edge, false, 0, 44100);
 
@@ -9089,7 +9105,8 @@ static void ui_task(void *arg)
             if (col < SETTINGS_FX_COUNT) {
                 settings_set_fx(col, v);
                 static const char *const nm[SETTINGS_FX_COUNT] = {
-                    "bass", "treble", "attack", "decay", "release", "voice"
+                    "bass", "treble", "attack", "decay", "release", "voice",
+                    "echo", "time"
                 };
                 if (col <= SETTINGS_FX_TREBLE || col == SETTINGS_FX_VOICE) {
                     /* 6100: as a number -- the labels include U+E000,
@@ -9099,6 +9116,12 @@ static void ui_task(void *arg)
                                   : fx_tone_gain[settings_fx(col)];
                     ESP_LOGI(TAG, "fx: %s x%d.%02d", nm[col], (int)g,
                              (int)(g * 100.0f + 0.5f) % 100);
+                } else if (col == SETTINGS_FX_ECHO) {                /* 6102 */
+                    const float g = fx_echo_gain[settings_fx(col)];
+                    ESP_LOGI(TAG, "fx: echo %d%%", (int)(g * 100.0f + 0.5f));
+                } else if (col == SETTINGS_FX_TIME) {
+                    ESP_LOGI(TAG, "fx: echo time %u ms",
+                             (unsigned)fx_echo_ms[settings_fx(col)]);
                 } else {
                     ESP_LOGI(TAG, "fx: %s %u ms", nm[col],
                              (unsigned)fx_edge_ms[settings_fx(col)]);

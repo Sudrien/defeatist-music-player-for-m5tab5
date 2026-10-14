@@ -23418,3 +23418,41 @@ crossfade, is VOX's. ui_state_t's xfade_sec and UI_XFADE_MAX go with
 SUS. The Fx box is yellow when BASS, TREB or VOX is not 1.
 
 Not on the board.
+
+### 6102 -- ECHO and TIME on the Fx sheet
+
+The second of Audacity's filters, Echo, with repeats that fade -- the
+choice over a single repeat, which would have kept tone's 0..2 range
+but is a slapback rather than an echo. The sheet is five columns:
+BASS TREB | VOX | ECHO TIME.
+
+    y[n] = x[n] + g·y[n - d]          out = (1 - g)·y
+
+ECHO is g, the level of each repeat against the one before, in eight
+steps -- 0 ⅛ ¼ ⅓ ½ ⅔ ¾ ⅞, all glyphs Ark12 has (Latin-1 and Number
+Forms). Below 1 only: at 1 the repeats never die. 0 is off and the
+samples untouched (tested). The headroom is the same rule as tone and
+VOX, done exactly: 1/(1 - g) is the most a train of repeats can sum
+to, so the output is scaled by (1 - g) and cannot clip -- fxtest runs
+full-scale tones at ⅞ through every TIME. The price is level: ½ is
+6 dB down, ⅞ about 18. TIME is d, 60, 125, 250, 500 or 1000 ms.
+fxtest: an impulse at ½ and 125 ms comes out 8000, then 4000 and 2000
+at one and two delays, nothing in between.
+
+The line is float stereo, one second at 192 kHz, 1.5 MB of PSRAM,
+allocated once when the writer starts -- not when ECHO is turned on,
+which would put a malloc on the path with the DMA deadline. Without
+the memory ECHO does nothing and the log says so. It is cleared when
+ECHO comes on from 0, so a first repeat is never of audio from before
+the switch; it is not cleared by a seek, so the old position's trail
+rings into the new one, as a real delay's would.
+
+Order in fx_out(): VOX, tone, ECHO, then the edge -- echo of the sound
+as toned, and a pause's release takes the trail down with the rest.
+
+"fx" grows to eight digits ("22112202": ECHO 0, TIME 250 ms by
+default); five- and six-digit records read with the new two at their
+defaults, and the parser checks ECHO's digit against its eight steps.
+SETTINGS_MAX_LINE 619. The Fx box is yellow when ECHO is not 0.
+
+Not on the board.

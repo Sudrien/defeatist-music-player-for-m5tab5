@@ -266,8 +266,9 @@ typedef struct {
      * varispeed.h's table. Equal is ×1.00. */
     uint8_t speed_played, speed_cut;
     /* 6097: the Fx sheet -- settings_fx()'s indexes (fx.h), in its
-     * order: bass, treble, attack, decay, release, and 6101's voice. */
-    uint8_t fx[6];
+     * order: bass, treble, attack, decay, release, 6101's voice, and
+     * 6102's echo and its time. */
+    uint8_t fx[8];
 } ui_state_t;
 
 /* What a touch produced. The player acts on these; the UI never acts. */

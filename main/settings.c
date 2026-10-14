@@ -195,8 +195,8 @@ static bool        s_prefs_nvs_known;
  * and "speed_boot" with their values are 52 more, less the 20 5216 left
  * spare. */
 /* And from 600 for the Fx sheet (6097): ",\"fx\":\"22112\"" is 13;
- * 6101's sixth digit is one more. */
-#define SETTINGS_MAX_LINE       (617)
+ * 6101's sixth digit is one more, 6102's two more again. */
+#define SETTINGS_MAX_LINE       (619)
 
 /*
  * The file is append-only, and this is where it stops growing.
@@ -242,7 +242,7 @@ static uint8_t    s_speed_played = 1;
 static uint8_t    s_speed_cut = 1;
 static bool       s_speed_boot;
 /* 6097: flat, 10 ms up, 10 ms after a seek, 50 ms down. See settings.h. */
-static uint8_t    s_fx[SETTINGS_FX_COUNT] = { 2, 2, 1, 1, 2, 2 };
+static uint8_t    s_fx[SETTINGS_FX_COUNT] = { 2, 2, 1, 1, 2, 2, 0, 2 };
 static bool       s_remote;           /* 5117: see settings.h */
 static bool       s_mpd;              /* 5158: see settings.h */
 static uint8_t    s_brightness = SETTINGS_BRIGHTNESS_DEFAULT;
@@ -541,6 +541,12 @@ void settings_set_speed(unsigned played, unsigned cut)
     s_dirty_since = xTaskGetTickCount();
 }
 
+/* 6102: ECHO has more steps than the rest. */
+static unsigned fx_steps(unsigned which)
+{
+    return which == SETTINGS_FX_ECHO ? FX_ECHO_STEPS : FX_STEPS;
+}
+
 unsigned settings_fx(unsigned which)
 {
     return which < SETTINGS_FX_COUNT ? s_fx[which] : 0;
@@ -548,7 +554,7 @@ unsigned settings_fx(unsigned which)
 
 void settings_set_fx(unsigned which, unsigned idx)
 {
-    if (which >= SETTINGS_FX_COUNT || idx >= FX_STEPS) return;
+    if (which >= SETTINGS_FX_COUNT || idx >= fx_steps(which)) return;
     if (s_fx[which] == idx) return;
     s_fx[which] = (uint8_t)idx;
     s_dirty = true;
@@ -1077,16 +1083,17 @@ static bool parse_line(char *line, storage_id_t id, bool take_settings,
         /* 6097: all five or none, like speed's three -- a digit out of
          * range spoils the record's fx, not the record. */
         const cJSON *fx = cJSON_GetObjectItemCaseSensitive(root, "fx");
-        /* 6101: five digits is 6097's record, before VOX; it reads with
-         * VOX at 1. */
+        /* Shorter records are older ones: five digits is 6097's, six
+         * 6101's (VOX), eight 6102's (ECHO, TIME). What a record lacks
+         * reads at the default. */
         const size_t fxn = (cJSON_IsString(fx) && fx->valuestring)
                          ? strlen(fx->valuestring) : 0;
-        if (take_settings && (fxn == SETTINGS_FX_COUNT || fxn == SETTINGS_FX_COUNT - 1)) {
-            uint8_t v[SETTINGS_FX_COUNT] = { 2, 2, 1, 1, 2, 2 };
+        if (take_settings && (fxn == 5 || fxn == 6 || fxn == SETTINGS_FX_COUNT)) {
+            uint8_t v[SETTINGS_FX_COUNT] = { 2, 2, 1, 1, 2, 2, 0, 2 };
             bool okfx = true;
             for (size_t i = 0; i < fxn; i++) {
                 const int d = fx->valuestring[i] - '0';
-                if (d < 0 || d >= FX_STEPS) okfx = false;
+                if (d < 0 || d >= (int)fx_steps((unsigned)i)) okfx = false;
                 v[i] = (uint8_t)d;
             }
             if (okfx) {
@@ -1412,7 +1419,7 @@ static int record_line(storage_id_t id, char *out, size_t out_len)
                             "\"remote\":%s," \
                             "\"mpd\":%s,\"rec_from\":%u," \
                             "\"speed_played\":%u,\"speed_cut\":%u," \
-                            "\"speed_boot\":%s,\"fx\":\"%u%u%u%u%u%u\""
+                            "\"speed_boot\":%s,\"fx\":\"%u%u%u%u%u%u%u%u\""
 #define SETTINGS_FIELDS_ARGS s_volume, rg, (unsigned)s_crossfade_sec, xa, \
                              (unsigned)s_brightness, \
                              (unsigned)s_dim_step, \
@@ -1426,7 +1433,8 @@ static int record_line(storage_id_t id, char *out, size_t out_len)
                              s_speed_boot ? "true" : "false", \
                              (unsigned)s_fx[0], (unsigned)s_fx[1], \
                              (unsigned)s_fx[2], (unsigned)s_fx[3], \
-                             (unsigned)s_fx[4], (unsigned)s_fx[5]
+                             (unsigned)s_fx[4], (unsigned)s_fx[5], \
+                             (unsigned)s_fx[6], (unsigned)s_fx[7]
 
     if (id >= STORAGE_COUNT || !s_track[id][0]) {
         return snprintf(out, out_len, "{" SETTINGS_FIELDS_FMT "}\n",

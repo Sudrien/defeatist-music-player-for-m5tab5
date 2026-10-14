@@ -19,9 +19,10 @@ Tomado del código fuente (`browser.c`, `panel.c`, `sleeppage.c`, `ui.c`, `setti
 | `UAC` | En lugar del icono de altavoz: un dispositivo USB Audio Class tiene la salida. |
 | `FILE` | En la tarjeta de formato, para un archivo sin extensión. Si no, la tarjeta muestra la extensión (`MP3`, `FLAC`…). |
 | `45`/`33⅓` | Entre la estrella y `Fx`: velocidad de tocadiscos, la de REPRODUCCIÓN sobre la de GRABACIÓN, entre 16⅔, 33⅓, 45 y 78. Tócalo para tener + y − en cada número; toca fuera del cuadro para cerrarlo. Iguales es velocidad normal, con borde; si no, amarillo, igual que el reloj de tiempo restante, que entonces cuenta el tiempo real que queda a esa velocidad. Cuánto dura: «La velocidad dura» en la pestaña AUDIO. Con una emisora de radio aparece en gris a 45/45 y no hace nada: un directo siempre suena a velocidad normal. |
-| `Fx` | Entre la velocidad y la luna: abre la hoja Fx sobre todo el cuadrado. Amarillo cuando GRAV, AGUD o VOZ no está en 1. Toca fuera de la hoja para cerrarla. |
+| `Fx` | Entre la velocidad y la luna: abre la hoja Fx sobre todo el cuadrado. Amarillo cuando GRAV, AGUD o VOZ no está en 1, o ECO no está en 0. Toca fuera de la hoja para cerrarla. |
 | `GRAV` `AGUD` | En la hoja Fx: graves y agudos, cada uno una ganancia de ½ a 2 -- ½, ⅔, 1, 3/2, 2. 1 es la pista tal cual. Subir uno baja todo lo demás para dejar sitio, así que nada satura. |
 | `VOZ` | En la hoja Fx: la voz, como la Reducción vocal de Audacity -- cuánto se conserva de lo que comparten izquierda y derecha (donde suele estar la voz principal), entre 150 Hz y 8 kHz para que el bajo y el bombo se queden. 0 la quita (karaoke), ½ la retrasa, 1 es la pista tal cual, 3/2 y 2 la adelantan y bajan el resto para dejar sitio. En una pista mono adelgaza ese rango de todo. |
+| `ECO` `TIEMPO` | En la hoja Fx: el Eco de Audacity, repeticiones que se apagan. ECO es el volumen de cada repetición frente a la anterior: 0 es apagado, luego ⅛ ¼ ⅓ ½ ⅔ ¾ ⅞ -- ⅛ es una repetición tenue, ⅞ una estela larga. Cuanto más larga la estela, más se baja todo para que las repeticiones nunca saturen (⅞ queda unos 18 dB más bajo). TIEMPO es el intervalo entre repeticiones: 60, 125, 250, 500 o 1000 ms. |
 
 ### La línea de estado, bajo el volumen
 

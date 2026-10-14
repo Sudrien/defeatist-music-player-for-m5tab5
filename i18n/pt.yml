@@ -186,6 +186,8 @@ pt:
     "EAT": "COMER"
     # browser.c
     "EAT1": "COMER1"
+    # ui.c
+    "ECHO": "ECO"
     # remote.html
     "Empty the queue? What is playing carries on.": "Esvaziar a fila? O que está tocando continua."
     # remote.html
@@ -492,6 +494,8 @@ pt:
     "Stream address": "Endereço do stream"
     # player.c
     "Stream too slow here": "Stream lento"
+    # ui.c
+    "TIME": "TEMPO"
     # panel.c
     "TRACK": "FAIXA"
     # ui.c

@@ -21,9 +21,10 @@ the screen is newer -- fix this file.
 | `UAC` | In place of the speaker icon: a USB Audio Class device has the output. |
 | `FILE` | On the format card, for a file with no extension. Otherwise the card shows the extension (`MP3`, `FLAC`, ...). |
 | `45`/`33⅓` | Between the star and `Fx`: turntable speed, PLAYED over CUT, from 16⅔, 33⅓, 45 and 78. Tap it for + and − on each number; tap outside the box to close. Equal numbers are normal speed and outlined; anything else is yellow, and so is the remaining clock, which then counts real time left at that speed. How long it lasts is Speed holds on the AUDIO tab. On a radio stream it is grey at 45/45 and does nothing: a live stream always plays at normal speed. |
-| `Fx` | Between the speed and the moon: opens the Fx sheet over the whole square. Yellow when BASS, TREB or VOX is not 1. Tap outside the sheet to close. |
+| `Fx` | Between the speed and the moon: opens the Fx sheet over the whole square. Yellow when BASS, TREB or VOX is not 1, or ECHO is not 0. Tap outside the sheet to close. |
 | `BASS` `TREB` | On the Fx sheet: the bass and the treble, each a gain from ½ to 2 -- ½, ⅔, 1, 3/2, 2. 1 is the track as it was. Turning one up turns everything else down to make room, so nothing clips. |
 | `VOX` | On the Fx sheet: the voice, as Audacity's Vocal Reduction -- how much of what left and right share (where a lead vocal usually sits) is kept, between 150 Hz and 8 kHz so the bass and kick stay. 0 removes it (karaoke), ½ sets it back, 1 is the track as it was, 3/2 and 2 bring it forward and turn the rest down to make room. On a mono track it thins that range of everything instead. |
+| `ECHO` `TIME` | On the Fx sheet: Audacity's Echo, repeats that fade. ECHO is how loud each repeat is against the one before: 0 is off, then ⅛ ¼ ⅓ ½ ⅔ ¾ ⅞ -- ⅛ is one faint repeat, ⅞ a long trail. The longer the trail, the more everything is turned down so the repeats never clip (⅞ is about 18 dB quieter). TIME is the gap between repeats: 60, 125, 250, 500 or 1000 ms. |
 
 ### The status line, under volume
 

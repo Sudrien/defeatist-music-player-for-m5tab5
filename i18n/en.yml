@@ -186,6 +186,8 @@ en:
     "EAT": ~
     # browser.c
     "EAT1": ~
+    # ui.c
+    "ECHO": ~
     # remote.html
     "Empty the queue? What is playing carries on.": ~
     # remote.html
@@ -492,6 +494,8 @@ en:
     "Stream address": ~
     # player.c
     "Stream too slow here": "Stream too slow"
+    # ui.c
+    "TIME": ~
     # panel.c
     "TRACK": ~
     # ui.c

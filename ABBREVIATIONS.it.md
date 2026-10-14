@@ -19,9 +19,10 @@ Preso dal codice sorgente (`browser.c`, `panel.c`, `sleeppage.c`, `ui.c`, `setti
 | `UAC` | Al posto dell'icona dell'altoparlante: un dispositivo USB Audio Class ha l'uscita. |
 | `FILE` | Sulla scheda del formato, per un file senza estensione. Altrimenti la scheda mostra l'estensione (`MP3`, `FLAC`…). |
 | `45`/`33⅓` | Tra la stella e `Fx`: velocità del giradischi, quella di RIPRODUZIONE su quella di INCISIONE, fra 16⅔, 33⅓, 45 e 78. Toccalo per avere + e − su ogni numero; tocca fuori dal riquadro per chiudere. Numeri uguali sono la velocità normale, contornata; altrimenti è giallo, come l'orologio del tempo rimanente, che allora conta il tempo reale rimasto a quella velocità. Quanto dura: "La velocità dura" nella scheda AUDIO. Su uno stream radio è grigio a 45/45 e non fa niente: una diretta suona sempre a velocità normale. |
-| `Fx` | Tra la velocità e la luna: apre il foglio Fx su tutto il quadrato. Giallo quando BASSI, ALTI o VOCE non è a 1. Tocca fuori dal foglio per chiuderlo. |
+| `Fx` | Tra la velocità e la luna: apre il foglio Fx su tutto il quadrato. Giallo quando BASSI, ALTI o VOCE non è a 1, o ECO non è a 0. Tocca fuori dal foglio per chiuderlo. |
 | `BASSI` `ALTI` | Sul foglio Fx: bassi e alti, ciascuno un guadagno da ½ a 2 -- ½, ⅔, 1, 3/2, 2. 1 è la traccia com'era. Alzarne uno abbassa tutto il resto per fare spazio, quindi niente distorce. |
 | `VOCE` | Sul foglio Fx: la voce, come la Riduzione vocale di Audacity -- quanto si tiene di ciò che sinistra e destra hanno in comune (dove di solito sta la voce principale), fra 150 Hz e 8 kHz perché basso e cassa restino. 0 la toglie (karaoke), ½ la arretra, 1 è la traccia com'era, 3/2 e 2 la portano avanti e abbassano il resto per fare spazio. Su una traccia mono assottiglia quella banda di tutto. |
+| `ECO` `TEMPO` | Sul foglio Fx: l'Eco di Audacity, ripetizioni che si spengono. ECO è il volume di ogni ripetizione rispetto alla precedente: 0 è spento, poi ⅛ ¼ ⅓ ½ ⅔ ¾ ⅞ -- ⅛ è una ripetizione debole, ⅞ una lunga coda. Più lunga la coda, più tutto viene abbassato perché le ripetizioni non distorcano mai (⅞ è circa 18 dB più basso). TEMPO è l'intervallo fra le ripetizioni: 60, 125, 250, 500 o 1000 ms. |
 
 ### La riga di stato, sotto il volume
 

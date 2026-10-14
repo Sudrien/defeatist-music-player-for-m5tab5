@@ -186,6 +186,8 @@ ja:
     "EAT": "消費"
     # browser.c
     "EAT1": "消費1"
+    # ui.c
+    "ECHO": "エコー"
     # remote.html
     "Empty the queue? What is playing carries on.": "キューを空にしますか？再生中の曲は続きます。"
     # remote.html
@@ -492,6 +494,8 @@ ja:
     "Stream address": "ストリームのアドレス"
     # player.c
     "Stream too slow here": "回線が遅すぎる"
+    # ui.c
+    "TIME": "間隔"
     # panel.c
     "TRACK": "曲ごと"
     # ui.c

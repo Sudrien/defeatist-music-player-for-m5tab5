@@ -19,9 +19,10 @@ Tiré du code source (`browser.c`, `panel.c`, `sleeppage.c`, `ui.c`, `settings.h
 | `UAC` | À la place de l'icône du haut-parleur : un appareil USB Audio Class a la sortie. |
 | `FILE` | Sur la vignette de format, pour un fichier sans extension. Sinon la vignette montre l'extension (`MP3`, `FLAC`…). |
 | `45`/`33⅓` | Entre l'étoile et `Fx` : vitesse de tourne-disque, celle de LECTURE sur celle de GRAVURE, parmi 16⅔, 33⅓, 45 et 78. Touchez pour avoir + et − sur chaque nombre ; touchez hors du cadre pour fermer. Deux nombres égaux, c'est la vitesse normale, entourée ; sinon c'est jaune, comme l'horloge du temps restant, qui compte alors le temps réel restant à cette vitesse. Combien de temps ça dure : « La vitesse dure » dans l'onglet AUDIO. Sur un flux radio, c'est gris à 45/45 et sans effet : un direct joue toujours à vitesse normale. |
-| `Fx` | Entre la vitesse et la lune : ouvre la feuille Fx sur tout le carré. Jaune quand GRAV, AIGU ou VOIX n'est pas à 1. Touchez hors de la feuille pour la fermer. |
+| `Fx` | Entre la vitesse et la lune : ouvre la feuille Fx sur tout le carré. Jaune quand GRAV, AIGU ou VOIX n'est pas à 1, ou ÉCHO pas à 0. Touchez hors de la feuille pour la fermer. |
 | `GRAV` `AIGU` | Sur la feuille Fx : les graves et les aigus, chacun un gain de ½ à 2 -- ½, ⅔, 1, 3/2, 2. 1, c'est la piste telle quelle. En monter un baisse tout le reste pour faire de la place, donc rien ne sature. |
 | `VOIX` | Sur la feuille Fx : la voix, comme la Réduction vocale d'Audacity -- ce qu'on garde de ce que gauche et droite ont en commun (là où se trouve d'ordinaire la voix principale), entre 150 Hz et 8 kHz pour que la basse et la grosse caisse restent. 0 l'enlève (karaoké), ½ la recule, 1, c'est la piste telle quelle, 3/2 et 2 l'avancent et baissent le reste pour faire de la place. Sur une piste mono, cela amincit cette plage de tout. |
+| `ÉCHO` `DÉLAI` | Sur la feuille Fx : l'Écho d'Audacity, des répétitions qui s'éteignent. ÉCHO est le volume de chaque répétition par rapport à la précédente : 0 est éteint, puis ⅛ ¼ ⅓ ½ ⅔ ¾ ⅞ -- ⅛ est une répétition faible, ⅞ une longue traîne. Plus la traîne est longue, plus tout est baissé pour que les répétitions ne saturent jamais (⅞ est environ 18 dB plus bas). DÉLAI est l'écart entre les répétitions : 60, 125, 250, 500 ou 1000 ms. |
 
 ### La ligne d'état, sous le volume
 

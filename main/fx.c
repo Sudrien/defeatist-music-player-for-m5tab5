@@ -189,3 +189,55 @@ void fx_vox_run(fx_vox_t *v, int16_t *pcm, size_t frames,
     if (fabsf(v->hi) < 1e-20f) v->hi = 0.0f;
     v->gv = g1;
 }
+
+/* ------------------------------------------------------------------ */
+/* 6102: ECHO                                                         */
+/* ------------------------------------------------------------------ */
+
+const char *const fx_echo_label[FX_ECHO_STEPS] = {
+    "0", "\u215b", "\u00bc", "\u2153", "\u00bd", "\u2154", "\u00be", "\u215e"
+};
+const float fx_echo_gain[FX_ECHO_STEPS] = {
+    0.0f, 0.125f, 0.25f, 1.0f / 3.0f, 0.5f, 2.0f / 3.0f, 0.75f, 0.875f
+};
+const uint16_t fx_echo_ms[FX_STEPS] = { 60, 125, 250, 500, 1000 };
+
+void fx_echo_init(fx_echo_t *e, float *line)
+{
+    memset(e, 0, sizeof *e);
+    e->line = line;
+}
+
+void fx_echo_run(fx_echo_t *e, int16_t *pcm, size_t frames,
+                 unsigned echo, unsigned time, uint32_t rate)
+{
+    if (!frames || !rate || !e->line) return;
+    const float g1 = fx_echo_gain[echo < FX_ECHO_STEPS ? echo : 0];
+    const float g0 = e->g;
+    if (g0 == 0.0f && g1 == 0.0f) return;           /* off: untouched */
+    if (g0 == 0.0f) {
+        /* On from off: nothing in the line is wanted. */
+        memset(e->line, 0, sizeof(float) * 2 * FX_ECHO_FRAMES);
+        e->pos = 0;
+    }
+    uint32_t d = (uint32_t)((uint64_t)rate *
+                            fx_echo_ms[time < FX_STEPS ? time : 2] / 1000u);
+    if (d < 1) d = 1;
+    if (d > FX_ECHO_FRAMES - 1) d = FX_ECHO_FRAMES - 1;
+    float *L = e->line;
+    uint32_t pos = e->pos;
+    const float inv = 1.0f / (float)frames;
+    for (size_t i = 0; i < frames; i++) {
+        const float u = (float)(i + 1) * inv;
+        const float g = g0 + (g1 - g0) * u;
+        const uint32_t rd = (pos + FX_ECHO_FRAMES - d) % FX_ECHO_FRAMES;
+        for (int c = 0; c < 2; c++) {
+            const float y = (float)pcm[2 * i + (size_t)c] + g * L[2 * rd + (uint32_t)c];
+            L[2 * pos + (uint32_t)c] = y;
+            pcm[2 * i + (size_t)c] = clip16(y * (1.0f - g));
+        }
+        if (++pos == FX_ECHO_FRAMES) pos = 0;
+    }
+    e->pos = pos;
+    e->g = g1;
+}

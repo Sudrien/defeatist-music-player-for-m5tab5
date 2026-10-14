@@ -244,6 +244,52 @@ int main(void)
         ck(what, pk < 32767);
     }
 
+    /* 6102: ECHO. */
+    {
+        float *line = calloc((size_t)FX_ECHO_FRAMES * 2, sizeof(float));
+        fx_echo_t e;
+        fx_echo_init(&e, line);
+        srand(6102);
+        int16_t *a = malloc(sizeof buf), *c = malloc(sizeof buf);
+        for (int k = 0; k < 2 * N; k++) a[k] = (int16_t)(rand() - RAND_MAX / 2);
+        memcpy(c, a, sizeof buf);
+        for (int k = 0; k < N; k += 700) {
+            const int n = (N - k) < 700 ? (N - k) : 700;
+            fx_echo_run(&e, a + 2 * k, (size_t)n, 0, 2, RATE);
+        }
+        ck("ECHO 0: bit for bit", memcmp(a, c, sizeof buf) == 0);
+        free(a); free(c);
+
+        /* An impulse at ½ and 125 ms: repeats at 125, 250, 375 ms, each
+         * half the one before, all scaled by (1 - ½). Settled first so
+         * the ramp from 0 is not in it. */
+        fx_echo_init(&e, line);
+        memset(buf, 0, sizeof buf);
+        fx_echo_run(&e, buf, 1024, 4, 1, RATE);       /* reaches ½ */
+        memset(buf, 0, sizeof buf);
+        buf[0] = buf[1] = 16000;
+        const int d = RATE * 125 / 1000;
+        fx_echo_run(&e, buf, N, 4, 1, RATE);
+        snprintf(what, sizeof what, "ECHO ½ 125 ms: %d, then %d %d at d, 2d (want 8000 4000 2000)",
+                 buf[0], buf[2 * d], buf[4 * d]);
+        ck(what, buf[0] == 8000 && buf[2 * d] == 4000 && buf[4 * d] == 2000 &&
+                 buf[2 * (d - 1)] == 0 && buf[2 * (d + 1)] == 0);
+
+        /* Headroom: full-scale tones at ⅞, every TIME -- nothing clips. */
+        bool clipped = false;
+        for (unsigned t = 0; t < FX_STEPS; t++) {
+            fx_echo_init(&e, line);
+            tone(441.0 * (t + 1), 32767);
+            for (int k = 0; k < N; k += 1024) {
+                const int n = (N - k) < 1024 ? (N - k) : 1024;
+                fx_echo_run(&e, buf + 2 * k, (size_t)n, 7, t, RATE);
+            }
+            for (int k = 0; k < 2 * N; k++) if (abs(buf[k]) >= 32767) clipped = true;
+        }
+        ck("ECHO ⅞: full-scale tones never clip", !clipped);
+        free(line);
+    }
+
     printf("%s\n", fails ? "fxtest: FAILED" : "fxtest: all ok");
     return fails != 0;
 }

@@ -173,6 +173,12 @@ Claude, do not touch this README unless explicitly asked to. Use your own file.
   `fonts/arabixel/LICENSE.txt` with it.
 - MurmurHash2 is public domain.
 
+## Contributing
+
+Please create a github issue if you wish to comment on translations or features, at https://github.com/Sudrien/defeatist-music-player-for-m5tab5 
+
+If you wish to contribute code, please reas CONTRIBUTING.md and CLAUDE.md for formatting standards.
+
 ## One last insult
 
 - waveflow for tab5 music player

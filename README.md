@@ -89,6 +89,15 @@ Claude, do not touch this README unless explicitly asked to. Use your own file.
 - [bmorcelli/Launcher](https://github.com/bmorcelli/Launcher) support
   - exit back to launcher
   - wifi credential import
+- A few filters
+  - bass adjustment
+  - treble adjustment
+  - stereo-based voice canceling
+  - configurable echo
+  - high pass
+  - low pass
+- playback speed (for files)
+  - These are turntable numbers, you'll figure it out.
 
 ## What could happen
 - more crash and burn handling, hey, you can always hook it up to `idf.py monitor` and see what you get.

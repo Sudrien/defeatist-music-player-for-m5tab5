@@ -556,6 +556,8 @@ fr:
     "The player is on its cable only.": "Le lecteur n'est que sur son câble."
     # remote.c
     "The player is out of memory for that.": "Le lecteur manque de mémoire pour cela."
+    # remote.html
+    "The player tests the network and password before saving them. The password is only ever sent over this encrypted connection.": "Le lecteur essaie le réseau et le mot de passe avant de les enregistrer. Le mot de passe n'est envoyé que par cette connexion chiffrée."
     # portal.c, remote.c
     "The station could not be saved. The card may be full, absent, or write-protected, or the list may already be full.": "La radio n'a pas pu être enregistrée. La carte est peut-être pleine, absente ou protégée en écriture, ou la liste déjà pleine."
     # bench.c
@@ -578,8 +580,6 @@ fr:
     "Touch anywhere to wake it.": "Touchez n'importe où pour la réveiller."
     # panel.c
     "Track: back to matching when a new track starts. Repeat one is not a new track.": "Piste : revient à la normale au début d'une nouvelle piste. Répéter une n'est pas une nouvelle piste."
-    # remote.html
-    "Tried before it is saved. Only over this encrypted page — never in the clear.": "Essayé avant d'être enregistré. Uniquement par cette page chiffrée, jamais en clair."
     # panel.c
     "Trying %.32s…": "Essai de %.32s…"
     # portal.c

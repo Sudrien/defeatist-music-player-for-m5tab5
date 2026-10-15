@@ -286,6 +286,7 @@ const char *const i18n_keys[] = {
     "The player is on %s.",
     "The player is on its cable only.",
     "The player is out of memory for that.",
+    "The player tests the network and password before saving them. The password is only ever sent over this encrypted connection.",
     "The station could not be saved. The card may be full, absent, or write-protected, or the list may already be full.",
     "The station did not answer.",
     "The station does not say what it needs.",
@@ -297,7 +298,6 @@ const char *const i18n_keys[] = {
     "To change Wi-Fi networks instead, use Network setup on the player's screen. This page closes itself after %d minutes.",
     "Touch anywhere to wake it.",
     "Track: back to matching when a new track starts. Repeat one is not a new track.",
-    "Tried before it is saved. Only over this encrypted page — never in the clear.",
     "Trying %.32s…",
     "Trying %s… This can take fifteen seconds, and this phone may lose the setup network for a moment. The player's screen shows the result either way.",
     "Turn Wi-Fi on first.",
@@ -672,6 +672,7 @@ const unsigned char i18n_on_screen[] = {
     0,  /* 'The player is on %s.' */
     0,  /* 'The player is on its cable only.' */
     0,  /* 'The player is out of memory for that.' */
+    0,  /* 'The player tests the network and passwor' */
     0,  /* 'The station could not be saved. The card' */
     1,  /* 'The station did not answer.' */
     1,  /* 'The station does not say what it needs.' */
@@ -683,7 +684,6 @@ const unsigned char i18n_on_screen[] = {
     0,  /* 'To change Wi-Fi networks instead, use Ne' */
     1,  /* 'Touch anywhere to wake it.' */
     1,  /* 'Track: back to matching when a new track' */
-    0,  /* 'Tried before it is saved. Only over this' */
     1,  /* 'Trying %.32s…' */
     0,  /* 'Trying %s… This can take fifteen seconds' */
     1,  /* 'Turn Wi-Fi on first.' */
@@ -1450,6 +1450,7 @@ const char *const i18n_vals[] = {
     "播放器连接在 %s。",
     "播放器仅通过网线连接。",
     "播放器内存不足，无法完成。",
+    "播放器会在保存前先测试网络和密码。密码只通过这个加密连接发送。",
     "无法保存电台。卡可能已满、未插入或写保护，或者列表已满。",
     "电台无响应。",
     "电台未说明所需码率。",
@@ -1461,7 +1462,6 @@ const char *const i18n_vals[] = {
     "如需改用其他 Wi-Fi 网络，请在本机屏幕上使用“添加网络”。此页面会在 %d 分钟后自动关闭。",
     "触摸任意处就能唤醒。",
     "每曲：新曲目开始时恢复原速。单曲重复不算新曲目。",
-    "保存前会先尝试。仅通过这个加密页面传送——绝不以明文发送。",
     "正在尝试 %.32s…",
     "正在尝试 %s… 这可能需要十五秒，手机可能会暂时断开设置网络。无论结果如何，本机屏幕都会显示。",
     "请先打开 Wi-Fi。",
@@ -1832,6 +1832,7 @@ const char *const i18n_vals[] = {
     "プレーヤーは %s に接続中です。",
     "プレーヤーはケーブルだけで接続しています。",
     "プレーヤーのメモリが足りません。",
+    "プレーヤーは保存する前にネットワークとパスワードを試します。パスワードはこの暗号化された接続でのみ送られます。",
     "局を保存できませんでした。カードがいっぱい、未挿入、書き込み禁止か、リストがすでにいっぱいの可能性があります。",
     "局が応答しない。",
     "局は必要量を示していない。",
@@ -1843,7 +1844,6 @@ const char *const i18n_vals[] = {
     "Wi-Fiネットワークを変える場合は、機器の画面の「ネットワーク追加」を使ってください。このページは %d 分後に閉じます。",
     "どこかに触れると戻る。",
     "曲ごと：新しい曲が始まると元に戻ります。1曲リピートは新しい曲ではありません。",
-    "保存する前に試します。この暗号化されたページだけを通り、平文では送られません。",
     "%.32s を試行中…",
     "%s を試しています… 15秒ほどかかり、このスマホは一時的に設定用ネットワークから外れることがあります。結果はどちらにしても機器の画面に表示されます。",
     "先にWi-Fiをオン。",
@@ -2214,6 +2214,7 @@ const char *const i18n_vals[] = {
     "El reproductor está en %s.",
     "El reproductor solo está en su cable.",
     "Al reproductor no le queda memoria para eso.",
+    "El reproductor prueba la red y la contraseña antes de guardarlas. La contraseña solo se envía por esta conexión cifrada.",
     "No se pudo guardar la emisora. La tarjeta puede estar llena, ausente o protegida, o la lista ya llena.",
     "La emisora no respondió.",
     "La emisora no dice qué necesita.",
@@ -2225,7 +2226,6 @@ const char *const i18n_vals[] = {
     "Para cambiar de red Wi-Fi, usa «Añadir red» en la pantalla del reproductor. Esta página se cierra sola tras %d minutos.",
     "Toca en cualquier sitio para despertarla.",
     "Pista: vuelve a la normal al empezar una pista nueva. Repetir una no es una pista nueva.",
-    "Se prueba antes de guardarla. Solo por esta página cifrada; nunca en claro.",
     "Probando %.32s…",
     "Probando %s… Puede tardar quince segundos, y este teléfono puede perder la red de configuración un momento. La pantalla del reproductor muestra el resultado en cualquier caso.",
     "Activa primero la Wi-Fi.",
@@ -2596,6 +2596,7 @@ const char *const i18n_vals[] = {
     "O player está em %s.",
     "O player está só no cabo.",
     "O player está sem memória para isso.",
+    "O player testa a rede e a senha antes de salvá-las. A senha só é enviada por esta conexão criptografada.",
     "Não foi possível salvar a rádio. O cartão pode estar cheio, ausente ou protegido contra gravação, ou a lista já cheia.",
     "A rádio não respondeu.",
     "A rádio não diz do que precisa.",
@@ -2607,7 +2608,6 @@ const char *const i18n_vals[] = {
     "Para trocar de rede Wi-Fi, use \"Adicionar rede\" na tela do player. Esta página fecha sozinha após %d minutos.",
     "Toque em qualquer lugar para acordá-la.",
     "Faixa: volta ao normal quando começa uma nova faixa. REPETE 1 não é uma nova faixa.",
-    "É testada antes de ser salva. Só por esta página criptografada, nunca às claras.",
     "Testando %.32s…",
     "Testando %s… Pode levar quinze segundos, e este celular pode perder a rede de configuração por um momento. A tela do player mostra o resultado de qualquer jeito.",
     "Ligue o Wi-Fi antes.",
@@ -2978,6 +2978,7 @@ const char *const i18n_vals[] = {
     "Le lecteur est sur %s.",
     "Le lecteur n'est que sur son câble.",
     "Le lecteur manque de mémoire pour cela.",
+    "Le lecteur essaie le réseau et le mot de passe avant de les enregistrer. Le mot de passe n'est envoyé que par cette connexion chiffrée.",
     "La radio n'a pas pu être enregistrée. La carte est peut-être pleine, absente ou protégée en écriture, ou la liste déjà pleine.",
     "La radio n'a pas répondu.",
     "La radio n'indique pas ce qu'il lui faut.",
@@ -2989,7 +2990,6 @@ const char *const i18n_vals[] = {
     "Pour changer plutôt de réseau Wi-Fi, utilisez « Ajouter un réseau » sur l'écran du lecteur. Cette page se ferme d'elle-même après %d minutes.",
     "Touchez n'importe où pour la réveiller.",
     "Piste : revient à la normale au début d'une nouvelle piste. Répéter une n'est pas une nouvelle piste.",
-    "Essayé avant d'être enregistré. Uniquement par cette page chiffrée, jamais en clair.",
     "Essai de %.32s…",
     "Essai de %s… Cela peut prendre quinze secondes, et ce téléphone peut perdre un moment le réseau de configuration. L'écran du lecteur affiche le résultat dans tous les cas.",
     "Activez d'abord le Wi-Fi.",
@@ -3360,6 +3360,7 @@ const char *const i18n_vals[] = {
     "Il lettore è su %s.",
     "Il lettore è solo sul cavo.",
     "Il lettore non ha memoria per questo.",
+    "Il lettore prova la rete e la password prima di salvarle. La password viene inviata solo tramite questa connessione cifrata.",
     "Impossibile salvare la radio. La scheda può essere piena, assente o protetta da scrittura, o l'elenco già pieno.",
     "La radio non ha risposto.",
     "La radio non dice di cosa ha bisogno.",
@@ -3371,7 +3372,6 @@ const char *const i18n_vals[] = {
     "Per cambiare rete Wi-Fi, usa \"Aggiungi rete\" sullo schermo del lettore. Questa pagina si chiude da sola dopo %d minuti.",
     "Tocca ovunque per risvegliarla.",
     "Brano: torna normale quando inizia un nuovo brano. Ripeti uno non è un nuovo brano.",
-    "Viene provata prima di salvarla. Solo tramite questa pagina cifrata, mai in chiaro.",
     "Provo %.32s…",
     "Provo %s… Può richiedere quindici secondi, e questo telefono può perdere per un attimo la rete di configurazione. Lo schermo del lettore mostra comunque il risultato.",
     "Prima accendi il Wi-Fi.",

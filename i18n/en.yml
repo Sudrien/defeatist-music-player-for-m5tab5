@@ -556,6 +556,8 @@ en:
     "The player is on its cable only.": ~
     # remote.c
     "The player is out of memory for that.": ~
+    # remote.html
+    "The player tests the network and password before saving them. The password is only ever sent over this encrypted connection.": ~
     # portal.c, remote.c
     "The station could not be saved. The card may be full, absent, or write-protected, or the list may already be full.": ~
     # bench.c
@@ -578,8 +580,6 @@ en:
     "Touch anywhere to wake it.": ~
     # panel.c
     "Track: back to matching when a new track starts. Repeat one is not a new track.": ~
-    # remote.html
-    "Tried before it is saved. Only over this encrypted page — never in the clear.": ~
     # panel.c
     "Trying %.32s…": ~
     # portal.c

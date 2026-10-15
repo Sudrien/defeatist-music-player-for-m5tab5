@@ -556,6 +556,8 @@ ja:
     "The player is on its cable only.": "プレーヤーはケーブルだけで接続しています。"
     # remote.c
     "The player is out of memory for that.": "プレーヤーのメモリが足りません。"
+    # remote.html
+    "The player tests the network and password before saving them. The password is only ever sent over this encrypted connection.": "プレーヤーは保存する前にネットワークとパスワードを試します。パスワードはこの暗号化された接続でのみ送られます。"
     # portal.c, remote.c
     "The station could not be saved. The card may be full, absent, or write-protected, or the list may already be full.": "局を保存できませんでした。カードがいっぱい、未挿入、書き込み禁止か、リストがすでにいっぱいの可能性があります。"
     # bench.c
@@ -578,8 +580,6 @@ ja:
     "Touch anywhere to wake it.": "どこかに触れると戻る。"
     # panel.c
     "Track: back to matching when a new track starts. Repeat one is not a new track.": "曲ごと：新しい曲が始まると元に戻ります。1曲リピートは新しい曲ではありません。"
-    # remote.html
-    "Tried before it is saved. Only over this encrypted page — never in the clear.": "保存する前に試します。この暗号化されたページだけを通り、平文では送られません。"
     # panel.c
     "Trying %.32s…": "%.32s を試行中…"
     # portal.c

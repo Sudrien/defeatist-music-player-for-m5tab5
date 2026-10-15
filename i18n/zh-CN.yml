@@ -556,6 +556,8 @@ zh-CN:
     "The player is on its cable only.": "播放器仅通过网线连接。"
     # remote.c
     "The player is out of memory for that.": "播放器内存不足，无法完成。"
+    # remote.html
+    "The player tests the network and password before saving them. The password is only ever sent over this encrypted connection.": "播放器会在保存前先测试网络和密码。密码只通过这个加密连接发送。"
     # portal.c, remote.c
     "The station could not be saved. The card may be full, absent, or write-protected, or the list may already be full.": "无法保存电台。卡可能已满、未插入或写保护，或者列表已满。"
     # bench.c
@@ -578,8 +580,6 @@ zh-CN:
     "Touch anywhere to wake it.": "触摸任意处就能唤醒。"
     # panel.c
     "Track: back to matching when a new track starts. Repeat one is not a new track.": "每曲：新曲目开始时恢复原速。单曲重复不算新曲目。"
-    # remote.html
-    "Tried before it is saved. Only over this encrypted page — never in the clear.": "保存前会先尝试。仅通过这个加密页面传送——绝不以明文发送。"
     # panel.c
     "Trying %.32s…": "正在尝试 %.32s…"
     # portal.c

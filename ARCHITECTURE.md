@@ -24388,3 +24388,7 @@ What the board should show: the remote's page loading as before; in a
 browser's network panel, `content-encoding: gzip` and about 22 KB
 transferred for `/`. Syntax-checked against stubs; texttest all passes;
 not built with ESP-IDF here. No manifest or sdkconfig change.
+
+### 6128 -- the web remote's Wi-Fi note reworded
+
+The note under the Wi-Fi password field read "Tried before it is saved. Only over this encrypted page -- never in the clear." "Tried" had no subject, "in the clear" is jargon, and the self-signed certificate's browser warning makes a bare "encrypted page" read oddly. It now says who does what: "The player tests the network and password before saving them. The password is only ever sent over this encrypted connection." All six translations were redone to match, and the page and its gzip were regenerated.

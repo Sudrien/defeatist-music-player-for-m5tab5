@@ -79,7 +79,7 @@ L'obiettivo di questo progetto è spremere tutto il potenziale di questo hardwar
 - File cue.
 - m3u/m3u8 — almeno tramite MPD.
 - Ah già, il supporto a [Music Player Daemon](https://mpd.readthedocs.io/en/stable/user.html) — sì, dovrebbe voler dire anche controllo da Home Assistant.
-- Interfaccia web in HTTPS.
+- Interfaccia web in HTTPS (il certificato è autofirmato, dovrai accettarlo).
 - Registrazione audio, visto che l'hardware è lì, in FLAC.
   - con un indicatore di livello mentre registra.
 - Una riga di stato sotto il volume: alimentazione USB, MPD, HTTPS e i minuti rimasti del timer. Verde è acceso.

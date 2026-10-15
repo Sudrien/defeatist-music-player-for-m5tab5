@@ -79,7 +79,7 @@
 - Cue 表单。
 - m3u/m3u8——至少通过 MPD 可用。
 - 对了，还有 [Music Player Daemon](https://mpd.readthedocs.io/en/stable/user.html) 支持——也就是说应该能用 Home Assistant 控制。
-- 基于 HTTPS 的网页界面。
+- 基于 HTTPS 的网页界面（证书是自签名的，需要在浏览器中接受它）。
 - 音频录制，既然硬件就在那儿，录成 FLAC。
   - 录制时带电平表。
 - 音量下方的一行状态：USB 供电、MPD、HTTPS，以及睡眠定时剩余分钟。绿色表示开启。

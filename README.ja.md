@@ -79,7 +79,7 @@
 - Cue シート。
 - m3u/m3u8——少なくとも MPD 経由で。
 - そうだ、[Music Player Daemon](https://mpd.readthedocs.io/en/stable/user.html) 対応——つまり Home Assistant からの制御もできるはず。
-- HTTPS のウェブ UI。
+- HTTPS のウェブ UI（証明書は自己署名なので、ブラウザで受け入れる必要があります）。
 - 音声録音。ハードがそこにあるので、FLAC で。
   - 録音中はレベルメーター付き。
 - 音量の下の 1 行のステータス：USB 給電、MPD、HTTPS、そしてスリープタイマーの残り分。緑がオン。

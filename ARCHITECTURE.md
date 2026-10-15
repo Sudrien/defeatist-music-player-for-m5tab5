@@ -23945,3 +23945,39 @@ THE SAME LOG'S OTHER FINDINGS, recorded, not acted on here:
 
 Syntax-checked against stubs; texttest all passes; not built with
 ESP-IDF here. No manifest or sdkconfig change.
+
+### 6118 -- ECHO comes on without clearing its line
+
+(Sent first as 6116, and 6117 after it, both built on c0ba566 rather
+than on 6115, which was applied but not yet pushed: neither applied
+after 6115, and neither is in the history. Their numbers are retired
+rather than reused -- 6114 -- and their changes are 6118 and 6119.
+The session had reset to origin/main between 6115 and 6116, dropping
+6115 from its own base: the base is everything handed over, pushed or
+not.)
+
+The second FXBENCH run (v0.6.0-88, -O2, 44.1 kHz, every column on)
+timed one chunk at **113% of its own length** -- a missed deadline,
+which the ring absorbed -- in the period where play was pressed with
+ECHO already set. 6102 cleared the whole echo line when ECHO came on
+from 0, so that no repeat was of audio from before: 1.5 MB of PSRAM
+memset inside one fx_out() call. It happens on every start of
+playback with ECHO set, and on every turn-on; at 192 kHz a chunk is
+about a quarter as long and the overrun four times worse.
+
+Now nothing is cleared. fx_echo_t counts the frames written since ECHO
+came on (`fill`, up to the line's length), and a read further back than
+that is a read of silence. Same guarantee, no memset: the first chunk
+costs what any other does. A TIME moved further back than this run has
+written reads silence too, where a cleared line also gave silence --
+the behaviour is unchanged, only the cost.
+
+fxtest: ECHO ⅞ switched on over a line filled with 30000s gives 0 out of
+silence in, and again with TIME moved to 1000 ms; the existing echo
+checks (½ at 125 ms gives 8000, 4000, 2000; ⅞ never clips) pass as
+they were.
+
+What the board should show: the first FXBENCH period after pressing
+play with ECHO on no longer far above the others' worst chunk.
+Syntax-checked against stubs; texttest all passes; not built with
+ESP-IDF here.

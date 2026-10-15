@@ -113,9 +113,11 @@ void fx_vox_run(fx_vox_t *v, int16_t *pcm, size_t frames,
  * long trail costs level (⅞ is -18 dB) and never clips.
  *
  * d is TIME, fx_echo_ms[]. The line is float, stereo, sized for one
- * second at FX_ECHO_MAX_RATE by the caller -- 1.5 MB, PSRAM -- and
- * cleared when ECHO comes on from 0, so a repeat is never of audio
- * from before it was switched on.
+ * second at FX_ECHO_MAX_RATE by the caller -- 1.5 MB, PSRAM. A repeat
+ * is never of audio from before ECHO was switched on: 6118 counts the
+ * frames written since (`fill`) and reads nothing older, where 6102
+ * cleared the whole line -- 1.5 MB inside one chunk, which the board
+ * timed at 113% of that chunk's length.
  */
 #define FX_ECHO_STEPS    8
 #define FX_ECHO_MAX_RATE 192000u
@@ -127,6 +129,8 @@ extern const uint16_t    fx_echo_ms[FX_STEPS];          /* 60 125 250 500 1000 *
 typedef struct {
     float   *line;              /* FX_ECHO_FRAMES stereo frames, or NULL */
     uint32_t pos;
+    uint32_t fill;              /* 6118: frames written since ECHO came on,
+                                 * up to FX_ECHO_FRAMES */
     float    g;                 /* the gain the last chunk ended on */
 } fx_echo_t;
 

@@ -215,9 +215,10 @@ void fx_echo_run(fx_echo_t *e, int16_t *pcm, size_t frames,
     const float g0 = e->g;
     if (g0 == 0.0f && g1 == 0.0f) return;           /* off: untouched */
     if (g0 == 0.0f) {
-        /* On from off: nothing in the line is wanted. */
-        memset(e->line, 0, sizeof(float) * 2 * FX_ECHO_FRAMES);
-        e->pos = 0;
+        /* On from off: nothing in the line is wanted. 6118: not cleared
+         * -- that was 1.5 MB in one chunk -- but counted: a read further
+         * back than this run has written is a read of silence. */
+        e->fill = 0;
     }
     uint32_t d = (uint32_t)((uint64_t)rate *
                             fx_echo_ms[time < FX_STEPS ? time : 2] / 1000u);
@@ -230,12 +231,15 @@ void fx_echo_run(fx_echo_t *e, int16_t *pcm, size_t frames,
         const float u = (float)(i + 1) * inv;
         const float g = g0 + (g1 - g0) * u;
         const uint32_t rd = (pos + FX_ECHO_FRAMES - d) % FX_ECHO_FRAMES;
+        const bool old = d <= e->fill;              /* 6118: written this run */
         for (int c = 0; c < 2; c++) {
-            const float y = (float)pcm[2 * i + (size_t)c] + g * L[2 * rd + (uint32_t)c];
+            const float back = old ? L[2 * rd + (uint32_t)c] : 0.0f;
+            const float y = (float)pcm[2 * i + (size_t)c] + g * back;
             L[2 * pos + (uint32_t)c] = y;
             pcm[2 * i + (size_t)c] = clip16(y * (1.0f - g));
         }
         if (++pos == FX_ECHO_FRAMES) pos = 0;
+        if (e->fill < FX_ECHO_FRAMES) e->fill++;
     }
     e->pos = pos;
     e->g = g1;

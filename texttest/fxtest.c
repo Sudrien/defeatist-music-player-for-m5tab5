@@ -565,6 +565,31 @@ int main(void)
         ck("WOW without a line: every sample as it was", memcmp(a, buf, sizeof a) == 0);
     }
 
+    /* 6118: ECHO on over a line full of old audio repeats none of it,
+     * and costs no more on its first chunk than on any other. */
+    {
+        float *line = malloc(sizeof(float) * 2 * FX_ECHO_FRAMES);
+        for (size_t i = 0; i < (size_t)2 * FX_ECHO_FRAMES; i++) line[i] = 30000.0f;
+        fx_echo_t e;
+        fx_echo_init(&e, line);
+        static int16_t z[2 * 8192];
+        memset(z, 0, sizeof z);
+        fx_echo_run(&e, z, 8192, 7, 0, RATE);       /* ⅞, 60 ms: 2646 frames back */
+        int worst = 0;
+        for (int k = 0; k < 2 * 8192; k++) if (abs(z[k]) > worst) worst = abs(z[k]);
+        snprintf(what, sizeof what, "ECHO on over an uncleared line: silence in, %d out", worst);
+        ck(what, worst == 0);
+
+        /* TIME moved further back than this run has written: still silence. */
+        memset(z, 0, sizeof z);
+        fx_echo_run(&e, z, 4096, 7, 4, RATE);       /* 1000 ms, 44100 back */
+        worst = 0;
+        for (int k = 0; k < 2 * 4096; k++) if (abs(z[k]) > worst) worst = abs(z[k]);
+        snprintf(what, sizeof what, "ECHO TIME past what was written: %d out", worst);
+        ck(what, worst == 0);
+        free(line);
+    }
+
     printf("%s\n", fails ? "fxtest: FAILED" : "fxtest: all ok");
     return fails != 0;
 }

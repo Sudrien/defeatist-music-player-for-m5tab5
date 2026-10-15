@@ -2955,8 +2955,20 @@ static void i2s_writer_task(void *arg)
                  * for the rest of the chunk: it is the end of a track
                  * that is fading out anyway.
                  */
-                const bool vs = s_vs_slide_from || vs_engaged(play) ||
-                                vs_engaged(in);
+                /*
+                 * 6119: both rings asked, every chunk, before either
+                 * answer is used. vs_engaged() is also what applies a
+                 * ring's new-track speed (vs_take_fresh), and as one
+                 * `||` chain the incoming ring was never asked while the
+                 * outgoing was at a speed: under BOOT the incoming track
+                 * played the whole overlap at its ring's stale step
+                 * (×1.00), then jumped to the fraction when it became
+                 * the playing ring -- and lost its staged audio to the
+                 * late varispeed_reset() on the way.
+                 */
+                const bool eng_play = vs_engaged(play);
+                const bool eng_in   = vs_engaged(in);
+                const bool vs = s_vs_slide_from || eng_play || eng_in;
                 const uint32_t step_a = vs ? vs_out_step(play) : VARISPEED_UNITY;
                 if (vs) {
                     n = vs_read(in, s_vs_step[in], mixbuf, PCM_CHUNK_BYTES, 0);

@@ -23981,3 +23981,42 @@ What the board should show: the first FXBENCH period after pressing
 play with ECHO on no longer far above the others' worst chunk.
 Syntax-checked against stubs; texttest all passes; not built with
 ESP-IDF here.
+
+### 6119 -- a crossfade asks both rings for their speed (sent first as 6117)
+
+Seen on the board (v0.6.0-88, FXBENCH on): with the fraction at 78/45,
+a track that came in by crossfade "played normally at the beginning
+of a track before going high speed".
+
+The crossfade read its rings' speed with
+
+    const bool vs = s_vs_slide_from || vs_engaged(play) || vs_engaged(in);
+
+and vs_engaged() is not only a question. It is where a ring takes its
+new track's speed (vs_take_fresh(): ×1.00 under Speed holds TRACK, the
+fraction under BOOT). With the outgoing track at a speed,
+vs_engaged(play) was true, C stopped there, and the incoming ring was
+never asked: the new track played the whole overlap at its ring's stale
+step -- ×1.00 -- then, when the crossfade ended and it became the
+playing ring, took its fresh step and jumped to the fraction. The
+varispeed_reset() that came with it, mid-track, also dropped whatever
+the ring had in its stage.
+
+Under TRACK the stale step and the right one are both ×1.00, which is
+why 6095's board checks of TRACK with crossfade did not see it. The run
+was under BOOT -- inferred, not logged: varispeed ran on every chunk of
+the first period after play (1634 of 1634), so the first track started
+at the 33⅓/45 set while paused, which only BOOT does; and the fraction
+was still 78/45 in FXBENCH's lines after two title changes, which TRACK
+would have put back.
+
+Both rings are now asked first, every chunk, and the answers combined
+after. The pattern was 5988's: a term with a side effect in an `||`
+chain runs only when the terms before it are false. The other two
+callers (the slide decision, the solo read) call vs_engaged() first or
+alone.
+
+What the board should show: under BOOT at a fraction with crossfade on,
+the incoming track at the fraction from its first sound. Under TRACK,
+unchanged: the incoming at ×1.00, the outgoing sliding there. Syntax-
+checked against stubs; texttest all passes; not built with ESP-IDF here.

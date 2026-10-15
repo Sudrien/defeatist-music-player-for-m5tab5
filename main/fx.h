@@ -254,6 +254,10 @@ void fx_wide_run(fx_wide_t *w, int16_t *pcm, size_t frames,
  * bends pitch by no more than 2 * FX_WOW_SLEW (0.2 %), and WOW 1 at
  * 16⅔ takes about 6 s to reach full depth. The line is int16 stereo,
  * FX_WOW_FRAMES -- 21 ms at 192 kHz, the deepest setting needs 12.
+ *
+ * 6115: the line is the caller's, as ECHO's is -- 16 KB that was inside
+ * this struct, and so internal .bss as a static, where it took the
+ * radio's DMA memory (5178, 6027). NULL leaves WOW and FLTR off.
  */
 #define FX_WOW_FRAMES   4096
 #define FX_FLTR_PER_REV 18
@@ -264,13 +268,15 @@ extern const char *const fx_fltr_label[FX_STEPS];
 extern const float       fx_fltr_dev[FX_STEPS];
 
 typedef struct {
-    int16_t  line[FX_WOW_FRAMES][2];
+    int16_t (*line)[2];         /* FX_WOW_FRAMES of them, the caller's; or NULL */
     uint32_t pos;
     float    aw, af;            /* the two amplitudes now, seconds */
     float    cw, sw, cf, sf;    /* the two phases, as unit phasors */
     bool     live;              /* the line holds this run's audio */
 } fx_wow_t;
 
+/* `line` is FX_WOW_FRAMES * 2 int16s of the caller's (PSRAM), or NULL. */
+void fx_wow_init(fx_wow_t *w, int16_t (*line)[2]);
 void fx_wow_reset(fx_wow_t *w);
 
 /* `rpm_thirds` is varispeed_rpm_thirds[PLAYED]: 100 for 33⅓. */

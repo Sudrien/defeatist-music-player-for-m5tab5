@@ -446,6 +446,12 @@ const float       fx_wow_dev[FX_STEPS]    = { 0.0f, 0.001f, 0.0025f, 0.005f, 0.0
 const char *const fx_fltr_label[FX_STEPS] = { "0", "0.05", "0.1", "0.2", "0.5" };
 const float       fx_fltr_dev[FX_STEPS]   = { 0.0f, 0.0005f, 0.001f, 0.002f, 0.005f };
 
+void fx_wow_init(fx_wow_t *w, int16_t (*line)[2])
+{
+    w->line = line;
+    fx_wow_reset(w);
+}
+
 void fx_wow_reset(fx_wow_t *w)
 {
     w->pos = 0;
@@ -466,7 +472,7 @@ void fx_wow_run(fx_wow_t *w, int16_t *pcm, size_t frames,
                 unsigned wow, unsigned fltr, unsigned rpm_thirds,
                 uint32_t rate)
 {
-    if (!frames || !rate) return;
+    if (!frames || !rate || !w->line) return;
     if (wow >= FX_STEPS) wow = 0;
     if (fltr >= FX_STEPS) fltr = 0;
     if (!rpm_thirds) rpm_thirds = 100;
@@ -481,7 +487,7 @@ void fx_wow_run(fx_wow_t *w, int16_t *pcm, size_t frames,
     if (!w->live) {
         /* On from off: the delay starts at 0 and grows slower than time
          * passes, so it only ever reads what this run wrote. */
-        memset(w->line, 0, sizeof w->line);
+        memset(w->line, 0, sizeof(int16_t) * 2 * FX_WOW_FRAMES);
         w->pos = 0;
         w->live = true;
     }

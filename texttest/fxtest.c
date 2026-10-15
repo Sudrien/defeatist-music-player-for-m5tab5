@@ -478,9 +478,10 @@ int main(void)
     /* 6105: WOW and FLTR. */
     {
         static fx_wow_t w;
+        static int16_t wl[FX_WOW_FRAMES][2];      /* 6115: the caller's */
         static int16_t a[2 * N];
         tone(1000, 12000);
-        fx_wow_reset(&w);
+        fx_wow_init(&w, wl);
         memcpy(a, buf, sizeof a);
         for (int k = 0; k < N; k += 1024) {
             const int n = (N - k) < 1024 ? (N - k) : 1024;
@@ -551,6 +552,17 @@ int main(void)
         }
         snprintf(what, sizeof what, "WOW and FLTR switched fully on: biggest step %d (~1710)", jump);
         ck(what, jump < 1800);
+    }
+
+    /* 6115: no line, no WOW -- and untouched. */
+    {
+        static fx_wow_t w;
+        static int16_t a[2 * 1024];
+        fx_wow_init(&w, NULL);
+        tone(1000, 12000);
+        memcpy(a, buf, sizeof a);
+        for (int k = 0; k < 50; k++) fx_wow_run(&w, a, 1024, 4, 4, 100, RATE);
+        ck("WOW without a line: every sample as it was", memcmp(a, buf, sizeof a) == 0);
     }
 
     printf("%s\n", fails ? "fxtest: FAILED" : "fxtest: all ok");

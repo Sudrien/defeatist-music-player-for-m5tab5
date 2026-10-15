@@ -2424,7 +2424,8 @@ static fx_echo_t s_fx_echo;                 /* 6102 */
 static fx_cut_t  s_fx_lcut, s_fx_hcut;      /* 6103 */
 static fx_dust_t s_fx_dust;                 /* 6104 */
 static fx_wide_t s_fx_wide;                 /* 6105 */
-/* 6105: 16 KB of line; module scope, never a stack (CLAUDE.md). */
+/* 6105; 6115: its 16 KB line is PSRAM, from the writer's start -- as a
+ * static it was internal .bss and took the radio's DMA memory. */
 static fx_wow_t  s_fx_wow;
 static fx_edge_t s_fx_edge;
 static bool      s_fx_gap = true;
@@ -2579,7 +2580,6 @@ static void i2s_writer_task(void *arg)
     fx_cut_reset(&s_fx_hcut);
     fx_dust_reset(&s_fx_dust, esp_random());        /* 6104 */
     fx_wide_reset(&s_fx_wide);                      /* 6105 */
-    fx_wow_reset(&s_fx_wow);
     /* 6102: the echo's line, one second at 192 kHz, float stereo --
      * 1.5 MB, so PSRAM, and once here rather than when ECHO is turned
      * on: a malloc does not belong on the path with the DMA deadline.
@@ -2589,6 +2589,16 @@ static void i2s_writer_task(void *arg)
                                        MALLOC_CAP_SPIRAM | MALLOC_CAP_8BIT);
         if (!line) ESP_LOGW(TAG, "fx: no PSRAM for the echo line; ECHO is off");
         fx_echo_init(&s_fx_echo, line);
+    }
+    /* 6115: WOW and FLTR's line likewise -- PSRAM, once. 6105 had it
+     * inside fx_wow_t, a static, so 16 KB of internal .bss, and the Wi-Fi
+     * bring-up's 512-byte DMA allocation failed fifteen times (5178 and
+     * 6027 are the same failure for the same reason). */
+    {
+        int16_t (*line)[2] = heap_caps_malloc(sizeof(int16_t) * 2 * FX_WOW_FRAMES,
+                                              MALLOC_CAP_SPIRAM | MALLOC_CAP_8BIT);
+        if (!line) ESP_LOGW(TAG, "fx: no PSRAM for the wow line; WOW and FLTR are off");
+        fx_wow_init(&s_fx_wow, line);
     }
     fx_edge_reset(&s_fx_edge);
     fx_edge_go(&s_fx_edge, false, 0, 44100);

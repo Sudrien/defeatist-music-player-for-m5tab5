@@ -23884,3 +23884,64 @@ says "handed over", with the reason: patches are presented as soon as
 they exist, so a session cannot know whether one has been pushed, and
 two patches under one number cannot be told apart. A correction is a
 follow-up with the next number, always.
+
+### 6115 -- the wow line out of internal RAM: the radio comes back
+
+The first board run of the new Fx sheet (v0.6.0-87-gc0ba566, FXBENCH
+on) never got Wi-Fi:
+
+    W (3868) tab5_heap: allocation failed: 512 bytes, caps 0x00000008, in heap_caps_malloc, task main (#1)
+    --- 0x400b9744: sdmmc_allocate_aligned_buf at .../sdmmc_common.c:414
+    E (3871) eh_host_port_sdio: sdmmc_card_init failed
+    ... (#15)
+    W (5402) eh_reconfigure: bring-up timed out (5000ms); returning -EIO
+
+and the boot heap map had `DMA free 25591`. This is 5178 and 6027
+again, to the line, for the same reason: a static is internal .bss,
+taken from the main internal region before the heap gets it, so every
+byte of it pushes an allocation into RETENT_RAM, the radio's DMA pool.
+6105 put WOW and FLTR's delay line -- int16 stereo, 4096 frames, 16 KB
+-- inside fx_wow_t, and fx_wow_t in a static in player.c. Its comment
+even cited CLAUDE.md, for the stack rule: right about the stack, and
+wrong about this build's internal RAM, as 5178 said of its own statics.
+
+The line is the caller's now, as ECHO's always was: fx_wow_init(w,
+line), allocated once in PSRAM when the writer starts, NULL leaving WOW
+and FLTR off (logged once; fxtest checks the samples are untouched).
+fx_wow_t is 48 bytes. The other Fx statics are tens of bytes each.
+
+What the board should show: `DMA free` at boot back up by about 16 KB,
+no `caps 0x00000008` failure before eh_sdio, and tab5_wifi joining.
+
+**5178 asked for this rule in CLAUDE.md "so the user can decide the
+wording", and it never went in; 6027 and 6105 are the two times since.**
+
+THE SAME LOG'S OTHER FINDINGS, recorded, not acted on here:
+
+- FXBENCH works. fx_sheet 33311111311 (BASS, TREB, VOX and WIDE at
+  3/2, ECHO ⅛ at 125 ms, LCUT 40, HCUT 12k, DUST 1, WOW 0.1, FLTR
+  0.05), 44.1 kHz stereo MP3, -O2 or FXO3 not stated: 1.22 M cycles per
+  1024 frames, **14.6% of one core** on average, steady across four
+  periods; worst chunk 27-29%.
+- **The first period's worst chunk was 83.4%.** That period includes
+  every column being turned on, and ECHO's turn-on clears its whole
+  1.5 MB line (6102) inside one fx_out() call. At 44.1 kHz a chunk is
+  ~23 ms; at 192 kHz it is ~5 ms, and the same memset would overrun it.
+  Turning ECHO on at 192 kHz is the case to try for a glitch.
+- **At 192 kHz the steady cost scales by 4.35**: about 64% of a core on
+  average, and the 28% worst chunk becomes over 100%. Everything on at
+  192 kHz may not keep up. Not measured: the run was 44.1 kHz.
+- 1,190 cycles a stereo frame is more than these loops' arithmetic
+  suggests. Every stage rounds with lrintf() through clip16(), twice a
+  frame, about ten times over; if lrintf is a libm call on this target
+  that alone could be most of it. To check before blaming -O2.
+- varispeed: 0 chunks, because the speed was 45/45 (×1.00, idle).
+  PLAYED and CUT must differ to measure it.
+- `output peak 32768/32768 (0.00 dBFS) -- at the rail` with every
+  boost at 3/2. The headroom rules should keep a full-scale input off
+  the rail; first-order filters can overshoot a few per cent (fx.h
+  says so) and clip16() catches that. Whether the track itself is at
+  the rail with Fx off is the comparison to make.
+
+Syntax-checked against stubs; texttest all passes; not built with
+ESP-IDF here. No manifest or sdkconfig change.

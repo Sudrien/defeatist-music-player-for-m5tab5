@@ -2293,9 +2293,9 @@ static fxbench_t     s_fb_pub_fx, s_fb_pub_vs;
 /* 6120: fx_out_run() stage by stage. FXB_MARK(k) reads the cycle
  * counter after stage k (0 is before the first); a call's differences
  * are added only if the whole call stayed on one core. */
-#define FXB_STAGES 9
-static const char *const k_fb_stage[FXB_STAGES] = {
-    "vox", "dust", "wow", "wide", "tone", "lcut", "hcut", "echo", "edge"
+#define FXB_STAGES 11
+static const char *const k_fb_stage[FXB_STAGES] = {   /* 6123: in, out */
+    "in", "vox", "dust", "wow", "wide", "tone", "lcut", "hcut", "echo", "out", "edge"
 };
 static uint32_t      s_fb_mark[FXB_STAGES + 1];
 static uint64_t      s_fb_stage[FXB_STAGES], s_fb_pub_stage[FXB_STAGES];
@@ -2454,6 +2454,9 @@ static fx_wide_t s_fx_wide;                 /* 6105 */
 /* 6105; 6115: its 16 KB line is PSRAM, from the writer's start -- as a
  * static it was internal .bss and took the radio's DMA memory. */
 static fx_wow_t  s_fx_wow;
+/* 6123: the chunk as float, for the whole chain -- PSRAM, from the
+ * writer's start; NULL leaves VOX to ECHO out (logged once). */
+static float    *s_fx_pb;
 static fx_edge_t s_fx_edge;
 static bool      s_fx_gap = true;
 
@@ -2496,18 +2499,31 @@ static void fx_out_run(uint8_t *buf, size_t n)
         }
     }
     FXB_MARK(0);                                    /* 6120 */
+    /*
+     * 6123: VOX to ECHO on float, converted in once here and out once
+     * after ECHO; the edge stays int16, last. Each stage converting,
+     * clamping and rounding for itself was most of the sheet's cost.
+     */
+    int16_t *const pcm = (int16_t *)buf;
+    float *const pb = s_fx_pb;
+    if (!pb) {
+        fx_edge_run(&s_fx_edge, pcm, frames);
+        return;
+    }
+    fx_to_float(pcm, pb, frames);
+    FXB_MARK(1);
     /* 6101: the voice first -- it reads left against right, which tone
      * does not change but would filter both of. */
-    fx_vox_run(&s_fx_vox, (int16_t *)buf, frames,
+    fx_vox_runf(&s_fx_vox, pb, frames,
                fx_mono() ? FX_VOX_FLAT : settings_fx(SETTINGS_FX_VOICE),
                fx_rate());                                    /* 6109 */
-    FXB_MARK(1);
+    FXB_MARK(2);
     /* 6104: the dust after the voice, which would take a centred tick
      * out with the singer, and before tone and the cuts, so it is
      * shaped as the record is -- an AM radio band thins it too. */
-    fx_dust_run(&s_fx_dust, (int16_t *)buf, frames,
-                settings_fx(SETTINGS_FX_DUST), fx_rate());
-    FXB_MARK(2);
+    fx_dust_runf(&s_fx_dust, pb, frames,
+                 settings_fx(SETTINGS_FX_DUST), fx_rate());
+    FXB_MARK(3);
     /* 6105: the turntable's wobble after the dust, which is on the
      * record and wobbles with it; at the PLAYED speed's revolutions,
      * so it follows the speed selector. Then the width, on the sound as
@@ -2517,35 +2533,37 @@ static void fx_out_run(uint8_t *buf, size_t n)
          * 45: the depth is the listener's, the speed the stream's. */
         unsigned sp = s_streaming ? 2u : settings_speed_played();
         if (sp >= VARISPEED_RPMS) sp = 1;
-        fx_wow_run(&s_fx_wow, (int16_t *)buf, frames,
+        fx_wow_runf(&s_fx_wow, pb, frames,
                    settings_fx(SETTINGS_FX_WOW), settings_fx(SETTINGS_FX_FLTR),
                    varispeed_rpm_thirds[sp], fx_rate());
     }
-    FXB_MARK(3);
-    fx_wide_run(&s_fx_wide, (int16_t *)buf, frames,
+    FXB_MARK(4);
+    fx_wide_runf(&s_fx_wide, pb, frames,
                 fx_mono() ? FX_WIDE_FLAT : settings_fx(SETTINGS_FX_WIDE),
                 fx_rate());                                   /* 6109 */
-    FXB_MARK(4);
-    fx_tone_run(&s_fx_tone, (int16_t *)buf, frames,
+    FXB_MARK(5);
+    fx_tone_runf(&s_fx_tone, pb, frames,
                 settings_fx(SETTINGS_FX_BASS), settings_fx(SETTINGS_FX_TREBLE),
                 fx_rate());
-    FXB_MARK(5);
+    FXB_MARK(6);
     /* 6103: the cuts after tone, so a boost cannot put back what they
      * take out, and before the echo, which repeats the band they left. */
-    fx_cut_run(&s_fx_lcut, true, (int16_t *)buf, frames,
-               settings_fx(SETTINGS_FX_LCUT), fx_rate());
-    FXB_MARK(6);
-    fx_cut_run(&s_fx_hcut, false, (int16_t *)buf, frames,
-               settings_fx(SETTINGS_FX_HCUT), fx_rate());
+    fx_cut_runf(&s_fx_lcut, true, pb, frames,
+                settings_fx(SETTINGS_FX_LCUT), fx_rate());
     FXB_MARK(7);
+    fx_cut_runf(&s_fx_hcut, false, pb, frames,
+                settings_fx(SETTINGS_FX_HCUT), fx_rate());
+    FXB_MARK(8);
     /* 6102: echo the sound as toned, and before the edge, so a pause's
      * release takes the trail down with the rest. */
-    fx_echo_run(&s_fx_echo, (int16_t *)buf, frames,
+    fx_echo_runf(&s_fx_echo, pb, frames,
                 settings_fx(SETTINGS_FX_ECHO), settings_fx(SETTINGS_FX_TIME),
                 fx_rate());
-    FXB_MARK(8);
-    fx_edge_run(&s_fx_edge, (int16_t *)buf, frames);
     FXB_MARK(9);
+    fx_from_float(pb, pcm, frames);
+    FXB_MARK(10);
+    fx_edge_run(&s_fx_edge, pcm, frames);
+    FXB_MARK(11);
 }
 
 /* 6113: fx_out_run(), timed under FXBENCH. */
@@ -2637,11 +2655,17 @@ static void i2s_writer_task(void *arg)
      * bring-up's 512-byte DMA allocation failed fifteen times (5178 and
      * 6027 are the same failure for the same reason). */
     {
-        int16_t (*line)[2] = heap_caps_malloc(sizeof(int16_t) * 2 * FX_WOW_FRAMES,
-                                              MALLOC_CAP_SPIRAM | MALLOC_CAP_8BIT);
+        float (*line)[2] = heap_caps_malloc(sizeof(float) * 2 * FX_WOW_FRAMES,
+                                            MALLOC_CAP_SPIRAM | MALLOC_CAP_8BIT);
         if (!line) ESP_LOGW(TAG, "fx: no PSRAM for the wow line; WOW and FLTR are off");
         fx_wow_init(&s_fx_wow, line);
     }
+    /* 6123: the float chunk the chain runs on: 8 KB, PSRAM, once. It is
+     * read and written nine times a chunk and stays in the cache; in
+     * internal RAM it would come out of the radio's pool (6115). */
+    s_fx_pb = heap_caps_malloc(sizeof(float) * 2 * (PCM_CHUNK_BYTES / PCM_BYTES_PER_FRAME),
+                               MALLOC_CAP_SPIRAM | MALLOC_CAP_8BIT);
+    if (!s_fx_pb) ESP_LOGW(TAG, "fx: no PSRAM for the float chunk; the Fx sheet is off");
     fx_edge_reset(&s_fx_edge);
     fx_edge_go(&s_fx_edge, false, 0, 44100);
 

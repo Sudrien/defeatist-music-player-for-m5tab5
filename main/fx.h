@@ -272,15 +272,15 @@ extern const char *const fx_fltr_label[FX_STEPS];
 extern const float       fx_fltr_dev[FX_STEPS];
 
 typedef struct {
-    int16_t (*line)[2];         /* FX_WOW_FRAMES of them, the caller's; or NULL */
+    float   (*line)[2];         /* FX_WOW_FRAMES of them, the caller's; or NULL (6123: float) */
     uint32_t pos;
     float    aw, af;            /* the two amplitudes now, seconds */
     float    cw, sw, cf, sf;    /* the two phases, as unit phasors */
     bool     live;              /* the line holds this run's audio */
 } fx_wow_t;
 
-/* `line` is FX_WOW_FRAMES * 2 int16s of the caller's (PSRAM), or NULL. */
-void fx_wow_init(fx_wow_t *w, int16_t (*line)[2]);
+/* `line` is FX_WOW_FRAMES * 2 floats of the caller's (PSRAM), or NULL. */
+void fx_wow_init(fx_wow_t *w, float (*line)[2]);
 void fx_wow_reset(fx_wow_t *w);
 
 /* `rpm_thirds` is varispeed_rpm_thirds[PLAYED]: 100 for 33⅓. */
@@ -344,6 +344,39 @@ void fx_edge_run(fx_edge_t *e, int16_t *pcm, size_t frames);
 
 static inline bool fx_edge_silent(const fx_edge_t *e) { return !e->up && e->g == 0; }
 static inline bool fx_edge_unity(const fx_edge_t *e)  { return e->up && e->g == FX_EDGE_ONE; }
+
+/* ------------------------------------------------------------------ */
+
+/*
+ * 6123: THE WRITER'S CHAIN IS FLOAT. Each stage that has a fx_*_run()
+ * also has a fx_*_runf() doing the same work on float stereo samples,
+ * int16 scale, with no rounding and no clamp -- the writer converts a
+ * chunk to float once (fx_to_float), runs VOX to ECHO on it, and rounds
+ * and clamps once (fx_from_float), before the edge, which stays int16.
+ * Every stage converting, clamping and rounding for itself was most of
+ * what the sheet cost on the board (6121's figures).
+ *
+ * So stages no longer clip one another: a boost that a later cut takes
+ * back is not clipped in between. Off is still untouched: a stage that
+ * is off does not write, and an int16 through float and back is itself.
+ *
+ * fx_*_run() are the same stages on int16, each converting for itself:
+ * one stage on its own, as fxtest uses them. The writer does not.
+ */
+void fx_to_float(const int16_t *pcm, float *pb, size_t frames);
+void fx_from_float(const float *pb, int16_t *pcm, size_t frames);
+
+void fx_tone_runf(fx_tone_t *t, float *pb, size_t frames,
+                  unsigned bass, unsigned treble, uint32_t rate);
+void fx_vox_runf(fx_vox_t *v, float *pb, size_t frames, unsigned idx, uint32_t rate);
+void fx_echo_runf(fx_echo_t *e, float *pb, size_t frames,
+                  unsigned echo, unsigned time, uint32_t rate);
+void fx_cut_runf(fx_cut_t *c, bool hp, float *pb, size_t frames,
+                 unsigned idx, uint32_t rate);
+void fx_dust_runf(fx_dust_t *d, float *pb, size_t frames, unsigned idx, uint32_t rate);
+void fx_wide_runf(fx_wide_t *w, float *pb, size_t frames, unsigned idx, uint32_t rate);
+void fx_wow_runf(fx_wow_t *w, float *pb, size_t frames,
+                 unsigned wow, unsigned fltr, unsigned rpm_thirds, uint32_t rate);
 
 #ifdef __cplusplus
 }

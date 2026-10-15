@@ -24128,3 +24128,55 @@ line down a little; WIDE is the cleanest view, as it does nothing else.
 Next run unchanged: `idf.py -DFXBENCH=1 -DFXO3=0 build`, the same tracks,
 Fx and speed. Syntax-checked against stubs; texttest all passes; not
 built with ESP-IDF here.
+
+### 6123 -- the writer's Fx chain is float: one conversion in, one out
+
+6121's stage line put most of the sheet's cost in what every stage did
+to exist: WIDE, four multiplies a frame, cost 84 cycles. Each of eight
+stages loaded int16, converted to float, did its work, clamped, rounded,
+converted back and stored. Now the writer converts the chunk to float
+once (fx_to_float), runs VOX, DUST, WOW, WIDE, tone, LCUT, HCUT and
+ECHO on it with no rounding or clamping between them, and rounds and
+clamps once (fx_from_float). The edge stays int16 and last, as it was:
+it is Q30 integer arithmetic and its behaviour and tests are unchanged.
+
+Each stage is now fx_*_runf() on float. fx_*_run() on int16 remain, each
+converting for itself -- one stage on its own, which is what fxtest
+tests; the writer calls none of them.
+
+Memory: the float chunk is 8 KB (1024 frames, stereo), PSRAM, allocated
+once at the writer's start, NULL leaving VOX to ECHO out and logged; it
+is touched nine times a chunk and stays in the cache. WOW's line is now
+float too, as its samples are: 32 KB of PSRAM where it was 16. No
+internal RAM -- the DMA pool is at min-ever 12 once Wi-Fi is up.
+
+WHAT CHANGES IN THE SOUND:
+
+- Stages no longer clip one another. A boost that a later stage takes
+  back used to be clipped at full scale in between; now only the end
+  clamps. Better, and different only where a stage went past full scale.
+- Seven intermediate roundings are gone. The scratch driver of 6122
+  (every stage, 2000 chunks, settings changing at random), the chain
+  against 6122's stage-by-stage: of 4,096,000 samples, 72.9% equal,
+  26.5% one LSB apart, 0.57% two, 233 three, none more; neither output
+  touched the rail. That is the old version's rounding noise, at -80
+  dBFS and below.
+- Off is still bit for bit: fxtest runs the chain with every stage off
+  over full-scale and rail samples, 0 differ. And stage by stage, the
+  int16 functions give 6122's output byte for byte (the driver again).
+
+FXBENCH's stage line gains `in` and `out`, the two conversions:
+
+    FXBENCH fx stages, cycles/1024 frames: in N, vox N, dust N, wow N, wide N, tone N, lcut N, hcut N, echo N, out N, edge N
+
+THE NEXT RUN, for 6121-6123 together: `idf.py -DFXBENCH=1 -DFXO3=0
+build`, the same tracks (Bôa, Get There 1-3), fx_sheet 33311111311,
+78/45, three periods or more. Against 6121's run (fx 14.7%, wide 86k,
+echo 176k per 1024 frames): the fx average, each stage's figure, and
+what `in` and `out` cost. And by ear, a quick A/B with the sheet at its
+hottest is worth doing, since this is the first patch to change what
+the sheet sounds like rather than what it costs.
+
+Syntax-checked with and without FXBENCH against stubs; texttest all
+passes (fxtest 51 checks); not built with ESP-IDF here. No manifest or
+sdkconfig change.

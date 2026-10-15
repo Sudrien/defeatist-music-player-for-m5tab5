@@ -6,6 +6,7 @@
 #include "fx.h"
 
 #include <math.h>
+#include <stdlib.h>
 #include <string.h>
 
 const char *const fx_tone_label[FX_STEPS] = {
@@ -52,7 +53,7 @@ static inline int16_t clip16(float v)
     return (int16_t)(v < 0.0f ? v - 0.5f : v + 0.5f);
 }
 
-void fx_tone_run(fx_tone_t *t, int16_t *pcm, size_t frames,
+void fx_tone_runf(fx_tone_t *t, float *pb, size_t frames,
                  unsigned bass, unsigned treble, uint32_t rate)
 {
     if (!frames || !rate) return;
@@ -85,13 +86,13 @@ void fx_tone_run(fx_tone_t *t, int16_t *pcm, size_t frames,
         const float gt = ramp ? gt0 + (gt1 - gt0) * u : gt1;
         const float h  = ramp ? h0  + (h1  - h0)  * u : h1;
         for (int c = 0; c < 2; c++) {
-            const float x = (float)pcm[2 * i + (size_t)c];
+            const float x = pb[2 * i + (size_t)c];
             t->lb[c] += ab * (x - t->lb[c]);
             t->lt[c] += at * (x - t->lt[c]);
             if (touch) {
                 const float hi = x - t->lt[c];
                 const float y = x + (gb - 1.0f) * t->lb[c] + (gt - 1.0f) * hi;
-                pcm[2 * i + (size_t)c] = clip16(y * h);
+                pb[2 * i + (size_t)c] = (y * h);
             }
         }
     }
@@ -163,7 +164,7 @@ void fx_vox_reset(fx_vox_t *v)
     v->gv = 1.0f;
 }
 
-void fx_vox_run(fx_vox_t *v, int16_t *pcm, size_t frames,
+void fx_vox_runf(fx_vox_t *v, float *pb, size_t frames,
                 unsigned idx, uint32_t rate)
 {
     if (!frames || !rate) return;
@@ -183,14 +184,14 @@ void fx_vox_run(fx_vox_t *v, int16_t *pcm, size_t frames,
         const float u = ramp ? (float)(i + 1) * inv : 1.0f;
         const float g = ramp ? g0 + (g1 - g0) * u : g1;
         const float h = ramp ? h0 + (h1 - h0) * u : h1;
-        const float l = (float)pcm[2 * i], r = (float)pcm[2 * i + 1];
+        const float l = pb[2 * i], r = pb[2 * i + 1];
         const float c = 0.5f * (l + r);
         v->hi += v->ahi * (c - v->hi);          /* below 8 kHz */
         v->lo += v->alo * (c - v->lo);          /* below 150 Hz */
         if (touch) {
             const float band = v->hi - v->lo;   /* between the two */
-            pcm[2 * i]     = clip16((l + (g - 1.0f) * band) * h);
-            pcm[2 * i + 1] = clip16((r + (g - 1.0f) * band) * h);
+            pb[2 * i] = ((l + (g - 1.0f) * band) * h);
+            pb[2 * i + 1] = ((r + (g - 1.0f) * band) * h);
         }
     }
     if (fabsf(v->lo) < 1e-20f) v->lo = 0.0f;
@@ -216,7 +217,7 @@ void fx_echo_init(fx_echo_t *e, float *line)
     e->line = line;
 }
 
-void fx_echo_run(fx_echo_t *e, int16_t *pcm, size_t frames,
+void fx_echo_runf(fx_echo_t *e, float *pb, size_t frames,
                  unsigned echo, unsigned time, uint32_t rate)
 {
     if (!frames || !rate || !e->line) return;
@@ -248,9 +249,9 @@ void fx_echo_run(fx_echo_t *e, int16_t *pcm, size_t frames,
         const bool old = d <= e->fill;              /* 6118: written this run */
         for (int c = 0; c < 2; c++) {
             const float back = old ? L[2 * rd + (uint32_t)c] : 0.0f;
-            const float y = (float)pcm[2 * i + (size_t)c] + g * back;
+            const float y = pb[2 * i + (size_t)c] + g * back;
             L[2 * pos + (uint32_t)c] = y;
-            pcm[2 * i + (size_t)c] = clip16(y * (1.0f - g));
+            pb[2 * i + (size_t)c] = (y * (1.0f - g));
         }
         if (++pos == FX_ECHO_FRAMES) pos = 0;
         if (++rd == FX_ECHO_FRAMES) rd = 0;
@@ -302,7 +303,7 @@ void fx_cut_reset(fx_cut_t *c)
     c->k.b0 = 1.0f;
 }
 
-void fx_cut_run(fx_cut_t *c, bool hp, int16_t *pcm, size_t frames,
+void fx_cut_runf(fx_cut_t *c, bool hp, float *pb, size_t frames,
                 unsigned idx, uint32_t rate)
 {
     if (!frames || !rate) return;
@@ -315,8 +316,7 @@ void fx_cut_run(fx_cut_t *c, bool hp, int16_t *pcm, size_t frames,
     if (idx == c->idx && rate == c->rate) {
         for (size_t i = 0; i < frames; i++)
             for (int ch = 0; ch < 2; ch++)
-                pcm[2 * i + (size_t)ch] =
-                    clip16(bq_step(&c->k, c->z[ch], (float)pcm[2 * i + (size_t)ch]));
+                pb[2 * i + (size_t)ch] = (bq_step(&c->k, c->z[ch], pb[2 * i + (size_t)ch]));
         return;
     }
     /* A change: the old filter and the new one side by side, faded
@@ -331,10 +331,10 @@ void fx_cut_run(fx_cut_t *c, bool hp, int16_t *pcm, size_t frames,
     for (size_t i = 0; i < frames; i++) {
         const float u = (float)(i + 1) * inv;
         for (int ch = 0; ch < 2; ch++) {
-            const float x = (float)pcm[2 * i + (size_t)ch];
+            const float x = pb[2 * i + (size_t)ch];
             const float yo = bq_step(&c->k, c->z[ch], x);
             const float yn = bq_step(&nk, nz[ch], x);
-            pcm[2 * i + (size_t)ch] = clip16(yo + (yn - yo) * u);
+            pb[2 * i + (size_t)ch] = (yo + (yn - yo) * u);
         }
     }
     c->k = nk;
@@ -373,7 +373,7 @@ void fx_dust_reset(fx_dust_t *d, uint32_t seed)
     d->rng = seed ? seed : 0x9E3779B9u;     /* xorshift's one bad seed */
 }
 
-void fx_dust_run(fx_dust_t *d, int16_t *pcm, size_t frames,
+void fx_dust_runf(fx_dust_t *d, float *pb, size_t frames,
                  unsigned idx, uint32_t rate)
 {
     if (!frames || !rate) return;
@@ -417,7 +417,7 @@ void fx_dust_run(fx_dust_t *d, int16_t *pcm, size_t frames,
         for (int c = 0; c < 2; c++) {
             d->hs[c] += d->ah * (rnd_bi(&d->rng) - d->hs[c]);
             const float n = hl * d->hs[c] * 1.7f + t * (c ? d->pr : d->pl);
-            pcm[2 * i + (size_t)c] = clip16((float)pcm[2 * i + (size_t)c] * h + n);
+            pb[2 * i + (size_t)c] = (pb[2 * i + (size_t)c] * h + n);
         }
     }
     d->hl = hl1;
@@ -436,7 +436,7 @@ void fx_wide_reset(fx_wide_t *w)
     w->g = 1.0f;
 }
 
-void fx_wide_run(fx_wide_t *w, int16_t *pcm, size_t frames,
+void fx_wide_runf(fx_wide_t *w, float *pb, size_t frames,
                  unsigned idx, uint32_t rate)
 {
     if (!frames || !rate) return;
@@ -451,10 +451,10 @@ void fx_wide_run(fx_wide_t *w, int16_t *pcm, size_t frames,
         const float u = ramp ? (float)(i + 1) * inv : 1.0f;
         const float g = ramp ? g0 + (g1 - g0) * u : g1;
         const float h = ramp ? h0 + (h1 - h0) * u : h1;
-        const float l = (float)pcm[2 * i], r = (float)pcm[2 * i + 1];
+        const float l = pb[2 * i], r = pb[2 * i + 1];
         const float m = 0.5f * (l + r), sd = 0.5f * (l - r) * g;
-        pcm[2 * i]     = clip16((m + sd) * h);
-        pcm[2 * i + 1] = clip16((m - sd) * h);
+        pb[2 * i] = ((m + sd) * h);
+        pb[2 * i + 1] = ((m - sd) * h);
     }
     w->g = g1;
 }
@@ -468,7 +468,7 @@ const float       fx_wow_dev[FX_STEPS]    = { 0.0f, 0.001f, 0.0025f, 0.005f, 0.0
 const char *const fx_fltr_label[FX_STEPS] = { "0", "0.05", "0.1", "0.2", "0.5" };
 const float       fx_fltr_dev[FX_STEPS]   = { 0.0f, 0.0005f, 0.001f, 0.002f, 0.005f };
 
-void fx_wow_init(fx_wow_t *w, int16_t (*line)[2])
+void fx_wow_init(fx_wow_t *w, float (*line)[2])
 {
     w->line = line;
     fx_wow_reset(w);
@@ -490,7 +490,7 @@ static inline float slew(float a, float to, float step)
     return a;
 }
 
-void fx_wow_run(fx_wow_t *w, int16_t *pcm, size_t frames,
+void fx_wow_runf(fx_wow_t *w, float *pb, size_t frames,
                 unsigned wow, unsigned fltr, unsigned rpm_thirds,
                 uint32_t rate)
 {
@@ -509,7 +509,7 @@ void fx_wow_run(fx_wow_t *w, int16_t *pcm, size_t frames,
     if (!w->live) {
         /* On from off: the delay starts at 0 and grows slower than time
          * passes, so it only ever reads what this run wrote. */
-        memset(w->line, 0, sizeof(int16_t) * 2 * FX_WOW_FRAMES);
+        memset(w->line, 0, sizeof(float) * 2 * FX_WOW_FRAMES);
         w->pos = 0;
         w->live = true;
     }
@@ -522,8 +522,8 @@ void fx_wow_run(fx_wow_t *w, int16_t *pcm, size_t frames,
     float aw = w->aw, af = w->af;
     uint32_t pos = w->pos;
     for (size_t i = 0; i < frames; i++) {
-        w->line[pos][0] = pcm[2 * i];
-        w->line[pos][1] = pcm[2 * i + 1];
+        w->line[pos][0] = pb[2 * i];
+        w->line[pos][1] = pb[2 * i + 1];
         aw = slew(aw, tw, step);
         af = slew(af, tf, step);
         float d = (aw * (1.0f - cw) + af * (1.0f - cf)) * fr;   /* frames */
@@ -536,7 +536,7 @@ void fx_wow_run(fx_wow_t *w, int16_t *pcm, size_t frames,
             for (int c = 0; c < 2; c++) {
                 const float y = (float)w->line[a][c] +
                                 ((float)w->line[b][c] - (float)w->line[a][c]) * t;
-                pcm[2 * i + (size_t)c] = clip16(y);
+                pb[2 * i + (size_t)c] = (y);
             }
         }
         /* Both phases on a step; a rotation, not a cosf a frame. */
@@ -550,4 +550,72 @@ void fx_wow_run(fx_wow_t *w, int16_t *pcm, size_t frames,
     w->cw = cw; w->sw = sw; w->cf = cf; w->sf = sf;
     w->aw = aw; w->af = af;
     w->pos = pos;
+}
+
+/* ------------------------------------------------------------------ */
+/* 6123: the conversions, and the int16 stages around the float ones  */
+/* ------------------------------------------------------------------ */
+
+void fx_to_float(const int16_t *pcm, float *pb, size_t frames)
+{
+    for (size_t i = 0; i < 2 * frames; i++) pb[i] = (float)pcm[i];
+}
+
+void fx_from_float(const float *pb, int16_t *pcm, size_t frames)
+{
+    for (size_t i = 0; i < 2 * frames; i++) pcm[i] = clip16(pb[i]);
+}
+
+/* One stage on int16: a chunk's worth of float on the heap, converted
+ * in and out. Not the writer's path (the writer converts once for the
+ * whole chain); a stage on its own, as fxtest runs them. No memory
+ * leaves the chunk untouched. */
+#define FX_ON_INT16(call)                                               \
+    do {                                                                \
+        if (!frames) return;                                            \
+        float *pb = malloc(sizeof(float) * 2 * frames);                 \
+        if (!pb) return;                                                \
+        fx_to_float(pcm, pb, frames);                                   \
+        call;                                                           \
+        fx_from_float(pb, pcm, frames);                                 \
+        free(pb);                                                       \
+    } while (0)
+
+void fx_tone_run(fx_tone_t *t, int16_t *pcm, size_t frames,
+                 unsigned bass, unsigned treble, uint32_t rate)
+{
+    FX_ON_INT16(fx_tone_runf(t, pb, frames, bass, treble, rate));
+}
+
+void fx_vox_run(fx_vox_t *v, int16_t *pcm, size_t frames, unsigned idx, uint32_t rate)
+{
+    FX_ON_INT16(fx_vox_runf(v, pb, frames, idx, rate));
+}
+
+void fx_echo_run(fx_echo_t *e, int16_t *pcm, size_t frames,
+                 unsigned echo, unsigned time, uint32_t rate)
+{
+    FX_ON_INT16(fx_echo_runf(e, pb, frames, echo, time, rate));
+}
+
+void fx_cut_run(fx_cut_t *c, bool hp, int16_t *pcm, size_t frames,
+                unsigned idx, uint32_t rate)
+{
+    FX_ON_INT16(fx_cut_runf(c, hp, pb, frames, idx, rate));
+}
+
+void fx_dust_run(fx_dust_t *d, int16_t *pcm, size_t frames, unsigned idx, uint32_t rate)
+{
+    FX_ON_INT16(fx_dust_runf(d, pb, frames, idx, rate));
+}
+
+void fx_wide_run(fx_wide_t *w, int16_t *pcm, size_t frames, unsigned idx, uint32_t rate)
+{
+    FX_ON_INT16(fx_wide_runf(w, pb, frames, idx, rate));
+}
+
+void fx_wow_run(fx_wow_t *w, int16_t *pcm, size_t frames,
+                unsigned wow, unsigned fltr, unsigned rpm_thirds, uint32_t rate)
+{
+    FX_ON_INT16(fx_wow_runf(w, pb, frames, wow, fltr, rpm_thirds, rate));
 }

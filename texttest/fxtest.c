@@ -478,7 +478,7 @@ int main(void)
     /* 6105: WOW and FLTR. */
     {
         static fx_wow_t w;
-        static int16_t wl[FX_WOW_FRAMES][2];      /* 6115: the caller's */
+        static float wl[FX_WOW_FRAMES][2];        /* 6115: the caller's; 6123: float */
         static int16_t a[2 * N];
         tone(1000, 12000);
         fx_wow_init(&w, wl);
@@ -630,6 +630,39 @@ int main(void)
         ck(what, diff == 0);
         free(line);
         free(ref);
+    }
+
+    /* 6123: the writer's chain -- in once, every stage off, out once --
+     * is the track bit for bit, full scale included. */
+    {
+        static fx_tone_t t; static fx_vox_t v; static fx_echo_t e; static fx_cut_t lc, hc;
+        static fx_dust_t d; static fx_wide_t w; static fx_wow_t wo;
+        static float wl2[FX_WOW_FRAMES][2], pb[2 * 1024];
+        float *el = calloc((size_t)FX_ECHO_FRAMES * 2, sizeof(float));
+        fx_tone_reset(&t); fx_vox_reset(&v); fx_echo_init(&e, el); fx_cut_reset(&lc);
+        fx_cut_reset(&hc); fx_dust_reset(&d, 1); fx_wide_reset(&w); fx_wow_init(&wo, wl2);
+        static int16_t a[2 * 1024], o[2 * 1024];
+        long diff = 0;
+        for (int k = 0; k < 40; k++) {
+            for (int i = 0; i < 2 * 1024; i++)
+                a[i] = (int16_t)(i % 7 == 0 ? 32767 : i % 11 == 0 ? -32768
+                               : (int)lrint(20000 * sin(0.01 * (k * 2048 + i))));
+            memcpy(o, a, sizeof a);
+            fx_to_float(o, pb, 1024);
+            fx_vox_runf(&v, pb, 1024, FX_VOX_FLAT, RATE);
+            fx_dust_runf(&d, pb, 1024, 0, RATE);
+            fx_wow_runf(&wo, pb, 1024, 0, 0, 100, RATE);
+            fx_wide_runf(&w, pb, 1024, FX_WIDE_FLAT, RATE);
+            fx_tone_runf(&t, pb, 1024, FX_TONE_FLAT, FX_TONE_FLAT, RATE);
+            fx_cut_runf(&lc, true, pb, 1024, 0, RATE);
+            fx_cut_runf(&hc, false, pb, 1024, 0, RATE);
+            fx_echo_runf(&e, pb, 1024, 0, 2, RATE);
+            fx_from_float(pb, o, 1024);
+            for (int i = 0; i < 2 * 1024; i++) diff += a[i] != o[i];
+        }
+        snprintf(what, sizeof what, "the float chain, all off: %ld samples differ", diff);
+        ck(what, diff == 0);
+        free(el);
     }
 
     printf("%s\n", fails ? "fxtest: FAILED" : "fxtest: all ok");

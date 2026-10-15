@@ -24105,3 +24105,26 @@ What the board should show: echo's figure in the stage line down from
 `idf.py -DFXBENCH=1 -DFXO3=0 build`, the same tracks, Fx and speed.
 Syntax-checked against stubs; texttest all passes; not built with
 ESP-IDF here.
+
+### 6122 -- a held gain is not ramped
+
+Five stages ramp a gain across each chunk so a change never clicks --
+tone (bass, treble, headroom), VOX and WIDE (gain, headroom), ECHO,
+DUST (hiss, headroom) -- and computed the ramp every frame of every
+chunk: u = (i + 1) / frames, an int-to-float conversion and a multiply,
+then g0 + (g1 - g0) u per gain. Almost every chunk holds its gains.
+Now each stage decides once per chunk whether anything moves; held,
+each gain is its settled value. (LCUT and HCUT already had this: they
+crossfade filters only on a change.)
+
+The output is the same bit for bit: a held gain was g0 + 0 * u, which
+is g0, which is g1. Shown off the board with a scratch driver run
+against 6121's fx.c and this one -- every stage, 2000 chunks of a
+two-tone stereo signal, one setting changed at random about every
+sixth chunk: the 8,192,000 bytes of output compare equal. fxtest passes.
+
+What the board should show: each ramping stage's figure in the stage
+line down a little; WIDE is the cleanest view, as it does nothing else.
+Next run unchanged: `idf.py -DFXBENCH=1 -DFXO3=0 build`, the same tracks,
+Fx and speed. Syntax-checked against stubs; texttest all passes; not
+built with ESP-IDF here.

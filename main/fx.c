@@ -76,11 +76,14 @@ void fx_tone_run(fx_tone_t *t, int16_t *pcm, size_t frames,
 
     const float ab = t->ab, at = t->at;
     const float inv = 1.0f / (float)frames;
+    /* 6122: the ramp only when a gain moves; held, the gains are the
+     * settled ones, as the ramp's formula gives when they are equal. */
+    const bool ramp = gb0 != gb1 || gt0 != gt1 || h0 != h1;
     for (size_t i = 0; i < frames; i++) {
-        const float u = (float)(i + 1) * inv;      /* ends exactly on the new gains */
-        const float gb = gb0 + (gb1 - gb0) * u;
-        const float gt = gt0 + (gt1 - gt0) * u;
-        const float h  = h0  + (h1  - h0)  * u;
+        const float u = ramp ? (float)(i + 1) * inv : 1.0f;  /* ends exactly on the new gains */
+        const float gb = ramp ? gb0 + (gb1 - gb0) * u : gb1;
+        const float gt = ramp ? gt0 + (gt1 - gt0) * u : gt1;
+        const float h  = ramp ? h0  + (h1  - h0)  * u : h1;
         for (int c = 0; c < 2; c++) {
             const float x = (float)pcm[2 * i + (size_t)c];
             t->lb[c] += ab * (x - t->lb[c]);
@@ -175,10 +178,11 @@ void fx_vox_run(fx_vox_t *v, int16_t *pcm, size_t frames,
     const float h0 = 1.0f / (g0 > 1.0f ? g0 : 1.0f);
     const float h1 = 1.0f / (g1 > 1.0f ? g1 : 1.0f);
     const float inv = 1.0f / (float)frames;
+    const bool ramp = g0 != g1 || h0 != h1;               /* 6122 */
     for (size_t i = 0; i < frames; i++) {
-        const float u = (float)(i + 1) * inv;
-        const float g = g0 + (g1 - g0) * u;
-        const float h = h0 + (h1 - h0) * u;
+        const float u = ramp ? (float)(i + 1) * inv : 1.0f;
+        const float g = ramp ? g0 + (g1 - g0) * u : g1;
+        const float h = ramp ? h0 + (h1 - h0) * u : h1;
         const float l = (float)pcm[2 * i], r = (float)pcm[2 * i + 1];
         const float c = 0.5f * (l + r);
         v->hi += v->ahi * (c - v->hi);          /* below 8 kHz */
@@ -237,9 +241,10 @@ void fx_echo_run(fx_echo_t *e, int16_t *pcm, size_t frames,
      * a frame, on a core that takes tens of cycles for one. */
     uint32_t rd = pos >= d ? pos - d : pos + FX_ECHO_FRAMES - d;
     const float inv = 1.0f / (float)frames;
+    const bool ramp = g0 != g1;                           /* 6122 */
     for (size_t i = 0; i < frames; i++) {
-        const float u = (float)(i + 1) * inv;
-        const float g = g0 + (g1 - g0) * u;
+        const float u = ramp ? (float)(i + 1) * inv : 1.0f;
+        const float g = ramp ? g0 + (g1 - g0) * u : g1;
         const bool old = d <= e->fill;              /* 6118: written this run */
         for (int c = 0; c < 2; c++) {
             const float back = old ? L[2 * rd + (uint32_t)c] : 0.0f;
@@ -388,10 +393,12 @@ void fx_dust_run(fx_dust_t *d, int16_t *pcm, size_t frames,
     const uint32_t thr = (uint32_t)((double)fx_dust_cps[idx] / rate * 4294967296.0);
     const float tick = k_dust_tick[idx] * 32768.0f;
     const float inv = 1.0f / (float)frames;
+    const bool ramp = hl0 != hl1 || rm0 != rm1;           /* 6122 */
+    const float h1 = 1.0f - rm1;
     for (size_t i = 0; i < frames; i++) {
-        const float u = (float)(i + 1) * inv;
-        const float hl = hl0 + (hl1 - hl0) * u;
-        const float h = 1.0f - (rm0 + (rm1 - rm0) * u);
+        const float u = ramp ? (float)(i + 1) * inv : 1.0f;
+        const float hl = ramp ? hl0 + (hl1 - hl0) * u : hl1;
+        const float h = ramp ? 1.0f - (rm0 + (rm1 - rm0) * u) : h1;
 
         if (thr && xs32(&d->rng) < thr) {
             const float a = rnd_un(&d->rng);
@@ -439,10 +446,11 @@ void fx_wide_run(fx_wide_t *w, int16_t *pcm, size_t frames,
     const float h0 = g0 > 1.0f ? 2.0f / (1.0f + g0) : 1.0f;
     const float h1 = g1 > 1.0f ? 2.0f / (1.0f + g1) : 1.0f;
     const float inv = 1.0f / (float)frames;
+    const bool ramp = g0 != g1 || h0 != h1;               /* 6122 */
     for (size_t i = 0; i < frames; i++) {
-        const float u = (float)(i + 1) * inv;
-        const float g = g0 + (g1 - g0) * u;
-        const float h = h0 + (h1 - h0) * u;
+        const float u = ramp ? (float)(i + 1) * inv : 1.0f;
+        const float g = ramp ? g0 + (g1 - g0) * u : g1;
+        const float h = ramp ? h0 + (h1 - h0) * u : h1;
         const float l = (float)pcm[2 * i], r = (float)pcm[2 * i + 1];
         const float m = 0.5f * (l + r), sd = 0.5f * (l - r) * g;
         pcm[2 * i]     = clip16((m + sd) * h);

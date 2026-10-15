@@ -23733,19 +23733,38 @@ means host-tested or reasoned only.
       BASS  TREB  LCUT  HCUT  VOX   WIDE
       ECHO   TIME   DUST   WOW   FLTR
 
-  Board-checked: BASS and TREB heard (6101), the 3/2 glyph (6100).
-  NOT board-checked: VOX, ECHO and TIME, LCUT and HCUT, DUST, WIDE,
-  WOW and FLTR, the two-row layout and its 12 px of margin, VOX and
+  Board-checked: BASS and TREB heard (6101), the 3/2 glyph (6100); the
+  two-row sheet set column by column (the first 6115 log); every column
+  on at once (fx_sheet 33311111311) running for whole albums under
+  FXBENCH (6115-6124) -- each stage measured doing work, output peaks
+  at -0.22 to -0.63 dBFS with every boost at 3/2.
+  NOT board-checked: each column judged by ear on its own, and VOX and
   WIDE greyed on a mono file. All are host-tested in fxtest, including
   off being bit for bit.
   Saved as "fx_sheet" (6112). No release saved Fx settings before, so
   there is nothing older to read; a dev card's "fx" from this week is
   ignored and its Fx settings start at the defaults once.
-  NOT board-checked: the Fx settings surviving a power-off.
+  Board-checked: the Fx settings surviving a power-off -- the same
+  fx_sheet at every boot of the FXBENCH runs.
 - **Station artwork** (6083): Wikimedia is not asked.
 - **The edges' settings removed** (6111, 6112): ATK, DEC and REL are
   gone, from the record too; the fades on play, seek and pause stay,
   fixed at 10, 10 and 50 ms.
+- **Fixed on the board this cycle:** the radio, which 6105's 16 KB of
+  internal .bss had stopped (6115); under BOOT, a crossfaded track
+  playing its overlap at ×1.00 and then jumping to the fraction (6119);
+  ECHO's turn-on clearing 1.5 MB inside one chunk (6118).
+- **What the sheet costs** (6113's FXBENCH; 6120-6123), every column on,
+  44.1 kHz, as a share of one 360 MHz core:
+
+      build                     Fx     speed (78/45)
+      6115 (as first written)   14.6%  --
+      6119                      14.9%  4.2%
+      6120 (inline rounding)    14.7%  4.4%
+      6123 (float chain)        10.7%  4.4%
+
+  -O3 on fx.c and varispeed.c bought nothing (6120) and is not built.
+  Everything on at 192 kHz projects to about two thirds of a core.
 
 Known and left, so they are not rediscovered:
 
@@ -23754,6 +23773,16 @@ Known and left, so they are not rediscovered:
   from their corners.
 - DUST's ticks do not repeat with the record's revolution, though WOW's
   phase could now drive them; wow follows PLAYED, not CUT.
+- Under BOOT a crossfade out of a fast track is cut short when the
+  outgoing ring empties: the overlap is planned in the track's frames,
+  not in time at its speed. It finishes on silence, as designed (6095's
+  "still unmeasured" path, now seen on every 78/45 crossfade).
+- **The radio's DMA pool is nearly empty once Wi-Fi is up**: DMA
+  `min-ever 12` on every run, and the 6123 run's station-up map had
+  1291 bytes free, largest 512. Any internal allocation added from here
+  can stop the radio, as 5178, 6027 and 6105 did. The rule 5178 wrote
+  -- a task's buffer goes in PSRAM unless something needs it internal --
+  is still not in CLAUDE.md.
 
 Not on the board.
 
@@ -24180,3 +24209,56 @@ the sheet sounds like rather than what it costs.
 Syntax-checked with and without FXBENCH against stubs; texttest all
 passes (fxtest 51 checks); not built with ESP-IDF here. No manifest or
 sdkconfig change.
+
+### 6124 -- the float chain on the board
+
+6123's run (v0.6.0-94: 6121, 6122, 6123 built; FXBENCH=1, FXO3=0), the
+A/B's setup: Bôa, Get There 1-4, MP3 320 kbit/s 44.1 kHz, fx_sheet
+33311111311, 78/45 under BOOT, thirteen periods.
+
+**Fx 10.6-10.9% of a core, from 14.7%: 27% less.** Steady over every
+period and all four tracks. Per stage, cycles per 1024 frames, the 6121
+run against this one:
+
+    stage    6121    6123
+    in         --     28k   (the one conversion in)
+    vox      114k     59k
+    dust     235k    150k
+    wow      231k    175k
+    wide      86k     37k
+    tone     142k     91k
+    lcut     124k     87k
+    hcut     119k     82k
+    echo     176k    125k
+    out        --     57k   (the one round and clamp out)
+    edge       4k      5k
+    total   1232k    900k
+
+The two conversions are 85k together, less than any one stage was;
+every stage lost 24-57%. WIDE, which does almost nothing but exist,
+went from 86k to 37k: the per-stage floor 6121 found was most of it.
+
+6121's and 6122's own savings are inside these figures and not
+separable from 6123's; ECHO's 176k to 125k is all three.
+
+What is left is real work: WOW (two phase rotations, an interpolated
+read from PSRAM), DUST (three random numbers a frame) and ECHO (a PSRAM
+delay line) are 450k of the 900k. Taking more from them is changing
+their algorithms, not their overhead -- for the 8000s if 192 kHz with
+everything on proves short. Projected there: Fx about 47% of a core,
+speed about 19%.
+
+Worst chunks 28-56%, as before: preemption added to the steady cost,
+an upper bound.
+
+By ear: not reported for this run. The sound differs from 6122 by at
+most 3 LSB off the board (6123); a listen with every column on is the
+check that remains.
+
+THE DMA POOL, recorded here because it moved: the station-up heap map
+had DMA 1291 free, largest 512, min-ever 12; the runs before had 2759,
+largest 1344. This run pressed play before Wi-Fi had joined, so
+playback's allocations came first; 6123 allocates only PSRAM. Order, not
+6123, as far as the log can tell -- but a kilobyte is the margin.
+
+Documentation only.

@@ -97,6 +97,10 @@ Claude, do not touch this README unless explicitly asked to. Use your own file.
   - configurable echo
   - high pass
   - low pass
+  - Width adjustment
+  - pop filter
+  - flutter filter
+  - wow filter
 - playback speed (for files)
   - These are turntable numbers, you'll figure it out.
 

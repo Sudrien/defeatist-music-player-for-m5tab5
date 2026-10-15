@@ -386,20 +386,27 @@ static int  s_pop_btn[4][4];    /* PLAYED -, PLAYED +, CUT -, CUT +: x y w h */
  * last asked for -- until ui_state_t has caught up. Six columns of
  * minus over value over plus; s_fx_btn[col][0] is the minus.
  */
-#define FX_COLS      (11)               /* settings_fx()'s, all of them */
+#define FX_COLS      (14)               /* settings_fx()'s, all of them */
 #define FX_VOX       (5)                /* 6101: SETTINGS_FX_VOICE */
 #define FX_ECHO      (6)                /* 6102: SETTINGS_FX_ECHO */
 #define FX_TIME      (7)                /* 6102: SETTINGS_FX_TIME */
 #define FX_LCUT      (8)                /* 6103: SETTINGS_FX_LCUT */
 #define FX_HCUT      (9)                /* 6103: SETTINGS_FX_HCUT */
 #define FX_DUST      (10)               /* 6104: SETTINGS_FX_DUST */
+#define FX_WIDE      (11)               /* 6105: SETTINGS_FX_WIDE */
+#define FX_WOW       (12)               /* 6105: SETTINGS_FX_WOW */
+#define FX_FLTR      (13)               /* 6105: SETTINGS_FX_FLTR */
 /* 6101: the columns shown, in order. ATK, DEC and REL are kept, and
  * still act at whatever they were left at, but off the sheet for now;
  * SUS (the crossfade) is gone from it, back to the AUDIO tab alone. */
-#define FX_SHOWN     (8)
+/* 6105: two rows. The sound as recorded on top -- tone, the cuts, the
+ * voice and the width -- and below it what happens to the record and
+ * the room: the echo, the dust, the turntable's wow and flutter. */
+#define FX_SHOWN     (11)
+#define FX_ROW0      (6)                /* the first FX_ROW0 are the top row */
 static const int k_fx_shown[FX_SHOWN] = {
-    0, 1, FX_LCUT, FX_HCUT, FX_VOX, FX_ECHO, FX_TIME,       /* 6103 */
-    FX_DUST                                                 /* 6104 */
+    0, 1, FX_LCUT, FX_HCUT, FX_VOX, FX_WIDE,
+    FX_ECHO, FX_TIME, FX_DUST, FX_WOW, FX_FLTR
 };
 static bool s_fx_pop, s_fx_wait;
 static int  s_fx_v[FX_COLS];
@@ -1055,7 +1062,9 @@ static void draw_fx(const ui_state_t *st)
                     st->fx[FX_VOX] != FX_VOX_FLAT ||         /* 6101 */
                     st->fx[FX_ECHO] != 0 ||                   /* 6102 */
                     st->fx[FX_LCUT] != 0 || st->fx[FX_HCUT] != 0 || /* 6103 */
-                    st->fx[FX_DUST] != 0;                     /* 6104 */
+                    st->fx[FX_DUST] != 0 ||                   /* 6104 */
+                    st->fx[FX_WIDE] != FX_WIDE_FLAT ||        /* 6105 */
+                    st->fx[FX_WOW] != 0 || st->fx[FX_FLTR] != 0;
     const int w = 2 * ICON_HALF, h = 2 * ICON_HALF + 8;
     const int x = cx - w / 2, y = cy - h / 2;
     if (on) {
@@ -2191,9 +2200,13 @@ static void draw_speed_pop(void)
  * five, BASS TREB | VOX | ECHO TIME; ECHO has eight steps, 0 to ⅞.
  * 6103: seven in one row, evenly spaced -- BASS TREB LCUT HCUT VOX
  * ECHO TIME, what shapes frequency first. 6104: eight, DUST last --
- * 84 px a column, so the signs are 80 px, not 88.
+ * 84 px a column, so the signs were 80 px. 6105: two rows of six and
+ * five, 112 px a column at most, and the signs 88 again; the gaps in a
+ * column close from 20 to 16 so both rows fit the square.
  */
-#define FX_BTN       (80)
+#define FX_BTN       (88)
+#define FX_GAP       (16)
+#define FX_ROW_GAP   (40)
 #define FX_VAL_SC    (3)
 #define FX_LBL_SC    (2)
 
@@ -2204,7 +2217,7 @@ static int fx_col_max(int c)
 
 static void draw_fx_pop(void)
 {
-    const int inset = 12, pad = 12, gap = NOTICE_GAP;
+    const int inset = 12, pad = 12, gap = FX_GAP;
     s_fx_x = s_bar_x + inset;
     s_fx_w = UI_SQUARE - 2 * inset;
     s_fx_y = s_bar_top + inset;
@@ -2217,20 +2230,24 @@ static void draw_fx_pop(void)
      * back: same() -- a synth's abbreviations in every language. */
     const char *name[FX_COLS] = {
         _("BASS"), _("TREB"), same("ATK"), same("DEC"), same("REL"), _("VOX"),
-        _("ECHO"), _("TIME"), _("LCUT"), _("HCUT"), _("DUST")
+        _("ECHO"), _("TIME"), _("LCUT"), _("HCUT"), _("DUST"), _("WIDE"),
+        _("WOW"), _("FLTR")
     };
-    /* 6103: seven, one row, evenly spaced -- no gaps between groups
-     * any more; 96 px a column holds the 88 px signs. */
-    const int colw = (w - 2 * pad) / FX_SHOWN;
+    /* 6105: two rows, each spread evenly across the sheet -- six
+     * columns on top, five below, so their centres do not line up and
+     * are not meant to: a row is a group, not a grid. */
     const int lbl_h = GFX_GLYPH_H(FX_LBL_SC), val_h = GFX_GLYPH_H(FX_VAL_SC);
     const int block = lbl_h + gap + FX_BTN + gap + val_h + 8 + lbl_h + gap + FX_BTN;
-    const int top = y + (h - block) / 2;
+    const int top0 = y + (h - 2 * block - FX_ROW_GAP) / 2;
 
     for (int i = 0; i < FX_SHOWN; i++) {
         const int c = k_fx_shown[i];
-        const int cx = x + pad + colw * i + colw / 2;
+        const int row = i >= FX_ROW0, in_row = row ? FX_SHOWN - FX_ROW0 : FX_ROW0;
+        const int j = row ? i - FX_ROW0 : i;
+        const int colw = (w - 2 * pad) / in_row;
+        const int cx = x + pad + colw * j + colw / 2;
         const int v = s_fx_v[c];
-        int yy = top;
+        int yy = top0 + row * (block + FX_ROW_GAP);
 
         gfx_draw_text(cx - gfx_text_w(name[c], FX_LBL_SC) / 2, yy, name[c],
                       FX_LBL_SC, colw, C_ICON);
@@ -2266,6 +2283,14 @@ static void draw_fx_pop(void)
             if (!n) snprintf(val, sizeof val, "%s", _("off"));
             else snprintf(val, sizeof val, "%u", n);
             if (n) unit = same("/s");
+        } else if (c == FX_WIDE) {                              /* 6105 */
+            snprintf(val, sizeof val, "%s", fx_vox_label[v]);
+            plain = v == FX_WIDE_FLAT;
+        } else if (c == FX_WOW || c == FX_FLTR) {               /* 6105 */
+            plain = v == 0;
+            snprintf(val, sizeof val, "%s",
+                     v ? (c == FX_WOW ? fx_wow_label : fx_fltr_label)[v] : _("off"));
+            if (v) unit = same("%");
         } else if (c == FX_TIME) {
             snprintf(val, sizeof val, "%u", (unsigned)fx_echo_ms[v]);
             unit = same("ms");

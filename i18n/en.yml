@@ -202,6 +202,8 @@ en:
     "Exit to Launcher?": ~
     # browser.c
     "FLDR": ~
+    # ui.c
+    "FLTR": ~
     # panel.c
     "FOCUSED": ~
     # sleeppage.c
@@ -602,6 +604,10 @@ en:
     "Volume": ~
     # remote.html
     "Volumes": ~
+    # ui.c
+    "WIDE": ~
+    # ui.c
+    "WOW": ~
     # panel.c
     "Waiting for a network address.": ~
     # portal.c

@@ -404,3 +404,123 @@ void fx_dust_run(fx_dust_t *d, int16_t *pcm, size_t frames,
     d->room = rm1;
     if (idx == 0) { d->hs[0] = d->hs[1] = 0.0f; }
 }
+
+/* ------------------------------------------------------------------ */
+/* 6105: WIDE                                                         */
+/* ------------------------------------------------------------------ */
+
+const float fx_wide_gain[FX_STEPS] = { 0.0f, 0.5f, 1.0f, 1.5f, 2.0f };
+
+void fx_wide_reset(fx_wide_t *w)
+{
+    w->g = 1.0f;
+}
+
+void fx_wide_run(fx_wide_t *w, int16_t *pcm, size_t frames,
+                 unsigned idx, uint32_t rate)
+{
+    if (!frames || !rate) return;
+    const float g1 = fx_wide_gain[idx < FX_STEPS ? idx : FX_WIDE_FLAT];
+    const float g0 = w->g;
+    if (g0 == 1.0f && g1 == 1.0f) return;           /* flat: untouched */
+    const float h0 = g0 > 1.0f ? 2.0f / (1.0f + g0) : 1.0f;
+    const float h1 = g1 > 1.0f ? 2.0f / (1.0f + g1) : 1.0f;
+    const float inv = 1.0f / (float)frames;
+    for (size_t i = 0; i < frames; i++) {
+        const float u = (float)(i + 1) * inv;
+        const float g = g0 + (g1 - g0) * u;
+        const float h = h0 + (h1 - h0) * u;
+        const float l = (float)pcm[2 * i], r = (float)pcm[2 * i + 1];
+        const float m = 0.5f * (l + r), sd = 0.5f * (l - r) * g;
+        pcm[2 * i]     = clip16((m + sd) * h);
+        pcm[2 * i + 1] = clip16((m - sd) * h);
+    }
+    w->g = g1;
+}
+
+/* ------------------------------------------------------------------ */
+/* 6105: WOW and FLTR                                                 */
+/* ------------------------------------------------------------------ */
+
+const char *const fx_wow_label[FX_STEPS]  = { "0", "0.1", "0.25", "0.5", "1" };
+const float       fx_wow_dev[FX_STEPS]    = { 0.0f, 0.001f, 0.0025f, 0.005f, 0.01f };
+const char *const fx_fltr_label[FX_STEPS] = { "0", "0.05", "0.1", "0.2", "0.5" };
+const float       fx_fltr_dev[FX_STEPS]   = { 0.0f, 0.0005f, 0.001f, 0.002f, 0.005f };
+
+void fx_wow_reset(fx_wow_t *w)
+{
+    w->pos = 0;
+    w->aw = w->af = 0.0f;
+    w->cw = w->cf = 1.0f;       /* phase 0: 1 - cos is 0 */
+    w->sw = w->sf = 0.0f;
+    w->live = false;
+}
+
+static inline float slew(float a, float to, float step)
+{
+    if (a < to) return a + step < to ? a + step : to;
+    if (a > to) return a - step > to ? a - step : to;
+    return a;
+}
+
+void fx_wow_run(fx_wow_t *w, int16_t *pcm, size_t frames,
+                unsigned wow, unsigned fltr, unsigned rpm_thirds,
+                uint32_t rate)
+{
+    if (!frames || !rate) return;
+    if (wow >= FX_STEPS) wow = 0;
+    if (fltr >= FX_STEPS) fltr = 0;
+    if (!rpm_thirds) rpm_thirds = 100;
+    const float fw = (float)rpm_thirds / 180.0f;    /* revolutions a second */
+    const float ff = fw * FX_FLTR_PER_REV;
+    const float tw = fx_wow_dev[wow] / (2.0f * (float)M_PI * fw);
+    const float tf = fx_fltr_dev[fltr] / (2.0f * (float)M_PI * ff);
+    if (tw == 0.0f && tf == 0.0f && w->aw == 0.0f && w->af == 0.0f) {
+        w->live = false;
+        return;                                     /* off: untouched */
+    }
+    if (!w->live) {
+        /* On from off: the delay starts at 0 and grows slower than time
+         * passes, so it only ever reads what this run wrote. */
+        memset(w->line, 0, sizeof w->line);
+        w->pos = 0;
+        w->live = true;
+    }
+    const float step = FX_WOW_SLEW / (float)rate;
+    const float rw = 2.0f * (float)M_PI * fw / (float)rate;
+    const float rf = 2.0f * (float)M_PI * ff / (float)rate;
+    const float kcw = cosf(rw), ksw = sinf(rw), kcf = cosf(rf), ksf = sinf(rf);
+    const float fr = (float)rate, most = (float)(FX_WOW_FRAMES - 2);
+    float cw = w->cw, sw = w->sw, cf = w->cf, sf = w->sf;
+    float aw = w->aw, af = w->af;
+    uint32_t pos = w->pos;
+    for (size_t i = 0; i < frames; i++) {
+        w->line[pos][0] = pcm[2 * i];
+        w->line[pos][1] = pcm[2 * i + 1];
+        aw = slew(aw, tw, step);
+        af = slew(af, tf, step);
+        float d = (aw * (1.0f - cw) + af * (1.0f - cf)) * fr;   /* frames */
+        if (d > most) d = most;
+        if (d > 0.0f) {
+            const uint32_t n = (uint32_t)d;
+            const float t = d - (float)n;
+            const uint32_t a = (pos + FX_WOW_FRAMES - n) % FX_WOW_FRAMES;
+            const uint32_t b = (a + FX_WOW_FRAMES - 1) % FX_WOW_FRAMES;
+            for (int c = 0; c < 2; c++) {
+                const float y = (float)w->line[a][c] +
+                                ((float)w->line[b][c] - (float)w->line[a][c]) * t;
+                pcm[2 * i + (size_t)c] = clip16(y);
+            }
+        }
+        /* Both phases on a step; a rotation, not a cosf a frame. */
+        float x = cw * kcw - sw * ksw; sw = sw * kcw + cw * ksw; cw = x;
+        x = cf * kcf - sf * ksf; sf = sf * kcf + cf * ksf; cf = x;
+        if (++pos == FX_WOW_FRAMES) pos = 0;
+    }
+    /* Back onto the unit circle once a chunk; a rotation drifts. */
+    float m = 1.0f / sqrtf(cw * cw + sw * sw); cw *= m; sw *= m;
+    m = 1.0f / sqrtf(cf * cf + sf * sf); cf *= m; sf *= m;
+    w->cw = cw; w->sw = sw; w->cf = cf; w->sf = sf;
+    w->aw = aw; w->af = af;
+    w->pos = pos;
+}

@@ -2304,6 +2304,9 @@ static fx_vox_t  s_fx_vox;                  /* 6101 */
 static fx_echo_t s_fx_echo;                 /* 6102 */
 static fx_cut_t  s_fx_lcut, s_fx_hcut;      /* 6103 */
 static fx_dust_t s_fx_dust;                 /* 6104 */
+static fx_wide_t s_fx_wide;                 /* 6105 */
+/* 6105: 16 KB of line; module scope, never a stack (CLAUDE.md). */
+static fx_wow_t  s_fx_wow;
 static fx_edge_t s_fx_edge;
 static bool      s_fx_gap = true;
 
@@ -2338,6 +2341,21 @@ static void fx_out(uint8_t *buf, size_t n)
      * shaped as the record is -- an AM radio band thins it too. */
     fx_dust_run(&s_fx_dust, (int16_t *)buf, frames,
                 settings_fx(SETTINGS_FX_DUST), fx_rate());
+    /* 6105: the turntable's wobble after the dust, which is on the
+     * record and wobbles with it; at the PLAYED speed's revolutions,
+     * so it follows the speed selector. Then the width, on the sound as
+     * it comes off the record, before tone shapes it. */
+    {
+        /* A live stream shows 45/45 and plays at 45, so it wobbles at
+         * 45: the depth is the listener's, the speed the stream's. */
+        unsigned sp = s_streaming ? 2u : settings_speed_played();
+        if (sp >= VARISPEED_RPMS) sp = 1;
+        fx_wow_run(&s_fx_wow, (int16_t *)buf, frames,
+                   settings_fx(SETTINGS_FX_WOW), settings_fx(SETTINGS_FX_FLTR),
+                   varispeed_rpm_thirds[sp], fx_rate());
+    }
+    fx_wide_run(&s_fx_wide, (int16_t *)buf, frames,
+                settings_fx(SETTINGS_FX_WIDE), fx_rate());
     fx_tone_run(&s_fx_tone, (int16_t *)buf, frames,
                 settings_fx(SETTINGS_FX_BASS), settings_fx(SETTINGS_FX_TREBLE),
                 fx_rate());
@@ -2409,6 +2427,8 @@ static void i2s_writer_task(void *arg)
     fx_cut_reset(&s_fx_lcut);                       /* 6103 */
     fx_cut_reset(&s_fx_hcut);
     fx_dust_reset(&s_fx_dust, esp_random());        /* 6104 */
+    fx_wide_reset(&s_fx_wide);                      /* 6105 */
+    fx_wow_reset(&s_fx_wow);
     /* 6102: the echo's line, one second at 192 kHz, float stereo --
      * 1.5 MB, so PSRAM, and once here rather than when ECHO is turned
      * on: a malloc does not belong on the path with the DMA deadline.
@@ -9123,9 +9143,20 @@ static void ui_task(void *arg)
                 settings_set_fx(col, v);
                 static const char *const nm[SETTINGS_FX_COUNT] = {
                     "bass", "treble", "attack", "decay", "release", "voice",
-                    "echo", "time", "low cut", "high cut", "dust"
+                    "echo", "time", "low cut", "high cut", "dust", "width", "wow",
+                    "flutter"
                 };
-                if (col <= SETTINGS_FX_TREBLE || col == SETTINGS_FX_VOICE) {
+                if (col == SETTINGS_FX_WIDE) {                       /* 6105 */
+                    const float g = fx_wide_gain[settings_fx(col)];
+                    ESP_LOGI(TAG, "fx: width x%d.%02d", (int)g,
+                             (int)(g * 100.0f + 0.5f) % 100);
+                } else if (col == SETTINGS_FX_WOW || col == SETTINGS_FX_FLTR) {
+                    const unsigned v = settings_fx(col);
+                    if (v) ESP_LOGI(TAG, "fx: %s %s%%", nm[col],
+                                    (col == SETTINGS_FX_WOW ? fx_wow_label
+                                                            : fx_fltr_label)[v]);
+                    else   ESP_LOGI(TAG, "fx: %s off", nm[col]);
+                } else if (col <= SETTINGS_FX_TREBLE || col == SETTINGS_FX_VOICE) {
                     /* 6100: as a number -- the labels include U+E000,
                      * which only Ark12 can draw. */
                     const float g = col == SETTINGS_FX_VOICE

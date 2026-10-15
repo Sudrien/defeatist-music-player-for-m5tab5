@@ -9,7 +9,7 @@
 #include <stddef.h>
 #include "i18n.h"
 
-const unsigned i18n_count = 378;
+const unsigned i18n_count = 381;
 const char *const i18n_keys[] = {
     "%.32s did not work. Try again.",
     "%d h",
@@ -109,6 +109,7 @@ const char *const i18n_keys[] = {
     "Exit",
     "Exit to Launcher?",
     "FLDR",
+    "FLTR",
     "FOCUSED",
     "Fades out, pauses, and turns the screen off.",
     "Favourites are full",
@@ -309,6 +310,8 @@ const char *const i18n_keys[] = {
     "VOX",
     "Volume",
     "Volumes",
+    "WIDE",
+    "WOW",
     "Waiting for a network address.",
     "Waiting for a network.",
     "Waiting for network",
@@ -492,6 +495,7 @@ const unsigned char i18n_on_screen[] = {
     1,  /* 'Exit' */
     1,  /* 'Exit to Launcher?' */
     1,  /* 'FLDR' */
+    1,  /* 'FLTR' */
     1,  /* 'FOCUSED' */
     1,  /* 'Fades out, pauses, and turns the screen ' */
     1,  /* 'Favourites are full' */
@@ -692,6 +696,8 @@ const unsigned char i18n_on_screen[] = {
     1,  /* 'VOX' */
     0,  /* 'Volume' */
     0,  /* 'Volumes' */
+    1,  /* 'WIDE' */
+    1,  /* 'WOW' */
     1,  /* 'Waiting for a network address.' */
     0,  /* 'Waiting for a network.' */
     1,  /* 'Waiting for network' */
@@ -864,6 +870,7 @@ const char *const i18n_vals[] = {
     NULL,
     NULL,
     "Could not start\012the file.",
+    NULL,
     NULL,
     NULL,
     NULL,
@@ -1108,6 +1115,8 @@ const char *const i18n_vals[] = {
     NULL,
     NULL,
     NULL,
+    NULL,
+    NULL,
     "it played, then ran\012out of buffer",
     NULL,
     NULL,
@@ -1264,6 +1273,7 @@ const char *const i18n_vals[] = {
     "退出",
     "退出到 Launcher？",
     "播放目录",
+    "快抖",
     "定向",
     "淡出、暂停并关闭屏幕。",
     "收藏已满",
@@ -1464,6 +1474,8 @@ const char *const i18n_vals[] = {
     "人声",
     "音量",
     "存储卷",
+    "宽度",
+    "慢抖",
     "正在等待网络地址。",
     "正在等待网络。",
     "等待网络",
@@ -1643,6 +1655,7 @@ const char *const i18n_vals[] = {
     "終了",
     "Launcher に戻りますか？",
     "フォルダ",
+    "フラッター",
     "フォーカス",
     "フェードアウトして一時停止し、画面を消す。",
     "お気に入りが満杯",
@@ -1843,6 +1856,8 @@ const char *const i18n_vals[] = {
     "声",
     "音量",
     "ボリューム",
+    "幅",
+    "ワウ",
     "ネットのアドレス待ち。",
     "ネットワークを待っています。",
     "ネット待ち",
@@ -2022,6 +2037,7 @@ const char *const i18n_vals[] = {
     "Salir",
     "¿Salir al Launcher?",
     "CARPETA",
+    "TRÉM",
     "ENFOCADO",
     "Baja el volumen, pausa y apaga la pantalla.",
     "Favoritos llenos",
@@ -2222,6 +2238,8 @@ const char *const i18n_vals[] = {
     "VOZ",
     "Volumen",
     "Volúmenes",
+    "ANCHO",
+    "LLORO",
     "Esperando una dirección de red.",
     "Esperando una red.",
     "Esperando red",
@@ -2401,6 +2419,7 @@ const char *const i18n_vals[] = {
     "Sair",
     "Sair para o Launcher?",
     "PASTA",
+    "FLUT",
     "FOCADO",
     "Abaixa o som, pausa e desliga a tela.",
     "Favoritos cheios",
@@ -2601,6 +2620,8 @@ const char *const i18n_vals[] = {
     "VOZ",
     "Volume",
     "Volumes",
+    "LARG",
+    "WOW",
     "Esperando um endereço de rede.",
     "Esperando uma rede.",
     "Esperando a rede",
@@ -2780,6 +2801,7 @@ const char *const i18n_vals[] = {
     "Quitter",
     "Quitter vers le Launcher?",
     "DOSSIER",
+    "SCINT",
     "DIRIGÉ",
     "Baisse le son, met en pause et éteint l'écran.",
     "Favoris pleins",
@@ -2980,6 +3002,8 @@ const char *const i18n_vals[] = {
     "VOIX",
     "Volume",
     "Volumes",
+    "LARG",
+    "PLEUR",
     "En attente d'une adresse réseau.",
     "En attente d'un réseau.",
     "En attente du réseau",
@@ -3159,6 +3183,7 @@ const char *const i18n_vals[] = {
     "Esci",
     "Uscire al Launcher?",
     "CARTELLA",
+    "FLUT",
     "DIRETTO",
     "Abbassa il suono, mette in pausa e spegne lo schermo.",
     "Preferiti pieni",
@@ -3359,6 +3384,8 @@ const char *const i18n_vals[] = {
     "VOCE",
     "Volume",
     "Volumi",
+    "LARG",
+    "WOW",
     "In attesa di un indirizzo di rete.",
     "In attesa di una rete.",
     "In attesa della rete",

@@ -23560,3 +23560,76 @@ scratch repeats every 1.8 s. That last would be the next thing to try
 if it sounds too even.
 
 Not on the board.
+
+### 6105 -- WIDE, WOW and FLTR; the Fx sheet in two rows
+
+Three more columns, and the sheet out of room in one row: eight had
+already brought the signs down to 80 px. Two rows now, each spread
+evenly across the sheet:
+
+    BASS  TREB  LCUT  HCUT  VOX   WIDE         the sound as recorded
+    ECHO   TIME   DUST   WOW   FLTR            the record and the room
+
+112 px a column on top, 134 below, the signs back to 88. The gaps in a
+column close from 20 to 16 and 40 px separates the rows, so both fit
+the square with 12 to spare. The centres do not line up between rows
+and are not meant to: a row is a group, not a grid.
+
+WIDE is mid and side: M = (L+R)/2, S = (L-R)/2, out M ± wS, w from
+0 ½ 1 3/2 2 (fx_vox_label's labels). 1 is bit for bit; 0 is mono. The
+centre is never touched, so the mono sum is the track's at every step
+-- widening cannot cancel anything on one speaker. Above 1 a hard-
+panned sound puts an upside-down copy on the far side, which is what
+moves it outside the speakers, and the near side reaches (1+w)/2, so
+the headroom rule divides by that: 3.5 dB at w = 2. fxtest: mono at 0,
+nothing at the rail and the mono sum kept to a bit at 2.
+
+WOW and FLTR are one modulated delay, read with linear interpolation:
+
+    delay = Aw (1 - cos 2π fw t) + Af (1 - cos 2π ff t)
+    fw    = PLAYED rpm / 60        ff = 18 fw
+    A     = deviation / (2π f)
+
+Their rate is the speed selector's PLAYED -- wow once a revolution,
+0.28 Hz at 16⅔ to 1.3 Hz at 78; flutter 18 times, a motor's cogging,
+10 Hz at 33⅓. A live stream shows 45/45 and wobbles at 45. The steps
+are peak pitch deviation, so they mean the same at every speed and
+the delay is what changes: WOW 1% is 5.7 ms deep at 16⅔ and 1.2 ms at
+78. fxtest measures the deviation from a 1 kHz tone's zero crossings:
+1.002% at 33⅓ and 1.003% at 78 for WOW 1, 0.503% for WOW 0.5 at 16⅔,
+0.501% for FLTR 0.5.
+
+The delay is A(1 - cos), never below zero, so A = 0 is the input bit
+for bit and off is off (tested, and again after turning it off). A
+moves at most 1 ms a second: a step or a change of speed glides,
+bending pitch by at most 0.2% on the way, and full WOW at 16⅔ takes
+about six seconds to arrive. Switched from off to the deepest of both
+at once, the biggest sample-to-sample step is the tone's own (tested).
+The phases are rotating unit phasors, renormalised each chunk -- no
+cosf per frame at 192 kHz.
+
+The line is int16 stereo, 4096 frames: 16 KB, a module-scope static in
+player.c (CLAUDE.md's rule for anything that size). 21 ms at 192 kHz;
+the deepest setting needs 12.
+
+Order in fx_out(): VOX, DUST, WOW/FLTR, WIDE, tone, LCUT, HCUT, ECHO,
+the edge. The wobble after the dust, which is on the record and
+wobbles with it; the width on the sound coming off the record, before
+tone.
+
+"fx" is fourteen digits ("22112202000200"); eleven-digit records
+(6104's) read with the three at their defaults. SETTINGS_MAX_LINE 625.
+
+i18n: WIDE, WOW, FLTR. Spanish LLORO and TRÉM, French PLEUR and SCINT
+(pleurage, scintillement) are those languages' own words for wow and
+flutter; Italian and Portuguese keep WOW, with FLUT; Japanese 幅,
+ワウ, フラッター; Chinese 宽度 and 慢抖/快抖, slow and fast wobble, from
+抖晃, the one word Chinese uses for both. All by Claude; not yet read
+by a native speaker. All in Ark12 (i18ntest).
+
+Not done: a scratch that repeats each revolution, which WOW's phase
+could now drive for DUST; wow on the CUT speed (a record cut on a bad
+lathe) rather than PLAYED. Not built with ESP-IDF; ui.c and player.c's
+changed lines syntax-checked against stubs.
+
+Not on the board.

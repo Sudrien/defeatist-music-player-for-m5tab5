@@ -202,6 +202,8 @@ it:
     "Exit to Launcher?": "Uscire al Launcher?"
     # browser.c
     "FLDR": "CARTELLA"
+    # ui.c
+    "FLTR": "FLUT"
     # panel.c
     "FOCUSED": "DIRETTO"
     # sleeppage.c
@@ -602,6 +604,10 @@ it:
     "Volume": "Volume"
     # remote.html
     "Volumes": "Volumi"
+    # ui.c
+    "WIDE": "LARG"
+    # ui.c
+    "WOW": "WOW"
     # panel.c
     "Waiting for a network address.": "In attesa di un indirizzo di rete."
     # portal.c

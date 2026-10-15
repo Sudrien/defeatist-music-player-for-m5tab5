@@ -14,7 +14,10 @@
  *     mid-way comes back up from where it got to;
  *   - 6104: DUST off is bit for bit, ticks come as often as it says and
  *     as long in time at any rate, and the headroom keeps a full-scale
- *     tone off the rail.
+ *     tone off the rail;
+ *   - 6105: WIDE 1 is bit for bit, 0 is mono, 2 keeps the mono sum and
+ *     the rail; WOW and FLTR off are bit for bit, give the deviation
+ *     they say at every speed, and glide in rather than jump.
  *
  * SPDX-License-Identifier: MIT
  */
@@ -430,6 +433,124 @@ int main(void)
         snprintf(what, sizeof what, "DUST 12/s: %.1f ticks a second over the hiss, 30 s (faint ones missed)",
                  on / 30.0);
         ck(what, on / 30.0 > 6.0 && on / 30.0 < 14.0);
+    }
+
+
+    /* 6105: WIDE. */
+    {
+        static int16_t a[2 * N];
+        for (int k = 0; k < N; k++) {               /* left only, and a centre */
+            buf[2 * k]     = (int16_t)lrint(16000 * sin(2 * M_PI * 440 * k / RATE) +
+                                            16000 * sin(2 * M_PI * 1000 * k / RATE));
+            buf[2 * k + 1] = (int16_t)lrint(16000 * sin(2 * M_PI * 1000 * k / RATE));
+        }
+        fx_wide_t w;
+        fx_wide_reset(&w);
+        memcpy(a, buf, sizeof a);
+        fx_wide_run(&w, a, (size_t)N, FX_WIDE_FLAT, RATE);
+        ck("WIDE 1: every sample as it was", memcmp(a, buf, sizeof a) == 0);
+
+        fx_wide_run(&w, a, 1024, 0, RATE);          /* ramp to 0 */
+        memcpy(a, buf, sizeof a);
+        fx_wide_run(&w, a, (size_t)N, 0, RATE);
+        int diff = 0;
+        for (int k = 0; k < N; k++) diff |= a[2 * k] != a[2 * k + 1];
+        ck("WIDE 0: left and right the same (mono)", !diff);
+
+        fx_wide_reset(&w);
+        fx_wide_run(&w, a, 1024, 4, RATE);          /* ramp to 2 */
+        memcpy(a, buf, sizeof a);
+        fx_wide_run(&w, a, (size_t)N, 4, RATE);
+        int rail = 0; double err = 0;
+        for (int k = 0; k < N; k++) {
+            if (abs(a[2 * k]) >= 32767 || abs(a[2 * k + 1]) >= 32767) rail++;
+            /* the mono sum, through the headroom of 2/3 */
+            const double in = buf[2 * k] + buf[2 * k + 1];
+            const double out = a[2 * k] + a[2 * k + 1];
+            const double e = fabs(out - in * 2.0 / 3.0);
+            if (e > err) err = e;
+        }
+        snprintf(what, sizeof what, "WIDE 2: nothing at the rail (%d), mono sum kept (off by %.0f)",
+                 rail, err);
+        ck(what, rail == 0 && err <= 2.0);
+    }
+
+    /* 6105: WOW and FLTR. */
+    {
+        static fx_wow_t w;
+        static int16_t a[2 * N];
+        tone(1000, 12000);
+        fx_wow_reset(&w);
+        memcpy(a, buf, sizeof a);
+        for (int k = 0; k < N; k += 1024) {
+            const int n = (N - k) < 1024 ? (N - k) : 1024;
+            fx_wow_run(&w, a + 2 * k, (size_t)n, 0, 0, 100, RATE);
+        }
+        ck("WOW and FLTR off: every sample as it was", memcmp(a, buf, sizeof a) == 0);
+
+        /* Peak pitch deviation, from the gaps between rising zero
+         * crossings of a 1 kHz tone, once the depth has glided in.
+         * The same step should give the same deviation at any speed. */
+        static const struct { unsigned wow, fltr, thirds; double dev; const char *nm; } t[] = {
+            { 4, 0, 100, 0.010,  "WOW 1% at 33 1/3" },
+            { 4, 0, 234, 0.010,  "WOW 1% at 78" },
+            { 3, 0,  50, 0.005,  "WOW 0.5% at 16 2/3" },
+            { 0, 4, 100, 0.005,  "FLTR 0.5% at 33 1/3" },
+        };
+        static int16_t q[2 * 1024];
+        for (size_t i = 0; i < sizeof t / sizeof t[0]; i++) {
+            fx_wow_reset(&w);
+            const long total = (long)RATE * 30, from = (long)RATE * 14;
+            long n = 0, last = -1; double lastx = 0, lo = 1e9, hi = 0;
+            int16_t prev = 0;
+            for (long f = 0; f < total; f += 1024) {
+                for (int k = 0; k < 1024; k++) {
+                    const int16_t v = (int16_t)lrint(12000 * sin(2 * M_PI * 1000.0 * (double)(f + k) / RATE));
+                    q[2 * k] = q[2 * k + 1] = v;
+                }
+                fx_wow_run(&w, q, 1024, t[i].wow, t[i].fltr, t[i].thirds, RATE);
+                for (int k = 0; k < 1024; k++, n++) {
+                    const int16_t v = q[2 * k];
+                    if (prev < 0 && v >= 0) {
+                        const double x = (double)(n - 1) + (double)-prev / (double)(v - prev);
+                        if (last >= 0 && n > from) {
+                            const double hz = RATE / (x - lastx);
+                            if (hz < lo) lo = hz;
+                            if (hz > hi) hi = hz;
+                        }
+                        last = n; lastx = x;
+                    }
+                    prev = v;
+                }
+            }
+            const double dev = (hi - lo) / 2000.0;
+            snprintf(what, sizeof what, "%s: peak deviation %.3f%%", t[i].nm, dev * 100);
+            ck(what, dev > t[i].dev * 0.75 && dev < t[i].dev * 1.3);
+        }
+
+        /* Off again: the depth glides out, and then bit for bit. */
+        fx_wow_reset(&w);
+        for (int k = 0; k < 200; k++) fx_wow_run(&w, q, 1024, 2, 2, 100, RATE);
+        for (int k = 0; k < 400; k++) fx_wow_run(&w, q, 1024, 0, 0, 100, RATE);
+        memcpy(a, buf, sizeof a);
+        fx_wow_run(&w, a, (size_t)N, 0, 0, 100, RATE);
+        ck("WOW and FLTR on then off: bit for bit again", memcmp(a, buf, sizeof a) == 0);
+
+        /* A step from off to the deepest is a glide: no sample-to-sample
+         * jump bigger than the tone's own. */
+        fx_wow_reset(&w);
+        memcpy(a, buf, sizeof a);
+        for (int k = 0; k < N; k += 1024) {
+            const int m = (N - k) < 1024 ? (N - k) : 1024;
+            fx_wow_run(&w, a + 2 * k, (size_t)m, k ? 4 : 0, k ? 4 : 0, 50, RATE);
+        }
+        int jump = 0;
+        for (int k = 1; k < N; k++) {
+            const int d = abs(a[2 * k] - a[2 * k - 2]);
+            if (d > jump) jump = d;
+        }
+        snprintf(what, sizeof what, "WOW and FLTR switched fully on: biggest step %d (~1710)", jump);
+        ck(what, jump < 1800);
     }
 
     printf("%s\n", fails ? "fxtest: FAILED" : "fxtest: all ok");

@@ -206,6 +206,77 @@ void fx_dust_reset(fx_dust_t *d, uint32_t seed);
 void fx_dust_run(fx_dust_t *d, int16_t *pcm, size_t frames,
                  unsigned idx, uint32_t rate);
 
+/*
+ * 6105: WIDE, the stereo width -- a gain on what left and right do NOT
+ * share:
+ *
+ *     M = (L + R) / 2    S = (L - R) / 2    L' = M + w S    R' = M - w S
+ *
+ * 0 is mono, 1 the track bit for bit, 2 doubles the difference. The
+ * centre is never touched, so the mono sum L' + R' is the track's at
+ * every step. Above 1 a hard-panned sound gets an upside-down copy on
+ * the other side -- which is what puts it outside the speakers -- and
+ * the louder side reaches (1 + w) / 2 of what it was, so the headroom
+ * rule divides by that.
+ */
+#define FX_WIDE_FLAT    2
+extern const float fx_wide_gain[FX_STEPS];            /* 0 ½ 1 3/2 2; labels fx_vox_label */
+
+typedef struct {
+    float g;                    /* the width the last chunk ended on */
+} fx_wide_t;
+
+void fx_wide_reset(fx_wide_t *w);
+void fx_wide_run(fx_wide_t *w, int16_t *pcm, size_t frames,
+                 unsigned idx, uint32_t rate);
+
+/*
+ * 6105: WOW and FLTR, a turntable that does not turn quite evenly.
+ * Both are a delay that moves, read with linear interpolation; a delay
+ * shrinking is the pitch going up, growing is it going down.
+ *
+ *   WOW   once a revolution -- an off-centre hole, a warped disc. Its
+ *         rate is the speed selector's PLAYED: 0.28 Hz at 16⅔, 0.56 at
+ *         33⅓, 0.75 at 45, 1.3 at 78.
+ *   FLTR  FX_FLTR_PER_REV times a revolution -- a motor's cogging, an
+ *         idler wheel -- so 10 Hz at 33⅓, 23 at 78.
+ *
+ * The steps are the peak pitch deviation, in per cent:
+ *   WOW   off, 0.1, 0.25, 0.5, 1      FLTR  off, 0.05, 0.1, 0.2, 0.5
+ * A deviation d at rate f is a sine of amplitude d / (2 pi f) seconds,
+ * so the same step is a deeper delay at a slower speed -- 5.7 ms for
+ * WOW 1 at 16⅔. The delay is A (1 - cos), never below zero: at A = 0
+ * the output is the input, bit for bit, and off is off.
+ *
+ * A moves at most FX_WOW_SLEW seconds a second, so a change of step or
+ * of speed glides rather than jumping the pitch: the glide itself
+ * bends pitch by no more than 2 * FX_WOW_SLEW (0.2 %), and WOW 1 at
+ * 16⅔ takes about 6 s to reach full depth. The line is int16 stereo,
+ * FX_WOW_FRAMES -- 21 ms at 192 kHz, the deepest setting needs 12.
+ */
+#define FX_WOW_FRAMES   4096
+#define FX_FLTR_PER_REV 18
+#define FX_WOW_SLEW     (0.001f)
+extern const char *const fx_wow_label[FX_STEPS];     /* "off" is the UI's */
+extern const float       fx_wow_dev[FX_STEPS];       /* fractions: 0 .001 ... */
+extern const char *const fx_fltr_label[FX_STEPS];
+extern const float       fx_fltr_dev[FX_STEPS];
+
+typedef struct {
+    int16_t  line[FX_WOW_FRAMES][2];
+    uint32_t pos;
+    float    aw, af;            /* the two amplitudes now, seconds */
+    float    cw, sw, cf, sf;    /* the two phases, as unit phasors */
+    bool     live;              /* the line holds this run's audio */
+} fx_wow_t;
+
+void fx_wow_reset(fx_wow_t *w);
+
+/* `rpm_thirds` is varispeed_rpm_thirds[PLAYED]: 100 for 33⅓. */
+void fx_wow_run(fx_wow_t *w, int16_t *pcm, size_t frames,
+                unsigned wow, unsigned fltr, unsigned rpm_thirds,
+                uint32_t rate);
+
 /* ------------------------------------------------------------------ */
 
 typedef struct {

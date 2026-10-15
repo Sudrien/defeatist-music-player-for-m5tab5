@@ -202,6 +202,8 @@ ja:
     "Exit to Launcher?": "Launcher に戻りますか？"
     # browser.c
     "FLDR": "フォルダ"
+    # ui.c
+    "FLTR": "フラッター"
     # panel.c
     "FOCUSED": "フォーカス"
     # sleeppage.c
@@ -602,6 +604,10 @@ ja:
     "Volume": "音量"
     # remote.html
     "Volumes": "ボリューム"
+    # ui.c
+    "WIDE": "幅"
+    # ui.c
+    "WOW": "ワウ"
     # panel.c
     "Waiting for a network address.": "ネットのアドレス待ち。"
     # portal.c

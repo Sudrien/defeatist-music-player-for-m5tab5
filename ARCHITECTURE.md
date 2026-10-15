@@ -23694,3 +23694,63 @@ effects ramp over a chunk, so it fades rather than clicks.
 ABBREVIATIONS: VOX's "thins that range" becomes "greyed, does nothing,
 still settable", and WIDE says the same. Syntax-checked against stubs;
 not built with ESP-IDF here.
+
+## v0.7.0
+
+v0.6.0 was tagged at 6052 and got no notes here; everything from 6053
+to 6110 is v0.7.0, though it carries 6000-series numbers -- CLAUDE.md
+was not moved on at the v0.6.0 tag, so nobody started the 7000s. There
+is no 7000 series. After the v0.7.0 tag the 8000s begin, named for
+v0.8.0 (CLAUDE.md).
+
+**Board-checked** means seen working on a Tab5. **Not board-checked**
+means host-tested or reasoned only.
+
+- **The four libraries** (6053-6060): network, storage, the board
+  drivers and the display moved out into feckless-*-for-m5tab5, at
+  pinned versions. Board-checked by every run since.
+- **Charging on USB-C** (6052, just before the v0.6.0 tag, listed here
+  because v0.6.0 had no notes): CHG_EN driven, so the pack charges.
+  Board-checked.
+- **USB audio** (6062-6067, 6091-6094, 6096, 6098; drivers up to
+  v0.5.8): microphones at up to 24 bits; big descriptors enumerate; 48
+  kHz no longer dropped; the FIFO split that carries a drive and a
+  high-speed headset at once; a dropped headset freed and the drive
+  mounting after it. Board-checked: the port and the headset (6095).
+  NOT board-checked: 24-bit capture, 8 kHz outputs (6096), a USB
+  device's volume set mid-track (6098).
+- **Three more languages** (6068-6072, 6084-6090, 6107-6108):
+  Portuguese (Brazil), French, Italian, on the screen, the web pages,
+  the READMEs and the abbreviation tables. Machine translations, not
+  yet read by native speakers -- nor are any of the strings added in
+  6097-6109.
+- **Turntable speed** (6073-6082): 16⅔, 33⅓, 45 and 78, PLAYED over
+  CUT, Speed holds TRACK or BOOT. Board-checked (6095). Still
+  unmeasured: a crossfade cut short by a fast outgoing track; aliasing
+  above ×1.00.
+- **The Fx sheet** (6097-6105, 6109), two rows:
+
+      BASS  TREB  LCUT  HCUT  VOX   WIDE
+      ECHO   TIME   DUST   WOW   FLTR
+
+  Board-checked: BASS and TREB heard (6101), the 3/2 glyph (6100).
+  NOT board-checked: VOX, ECHO and TIME, LCUT and HCUT, DUST, WIDE,
+  WOW and FLTR, the two-row layout and its 12 px of margin, VOX and
+  WIDE greyed on a mono file. All are host-tested in fxtest, including
+  off being bit for bit.
+  NOT board-checked either: a card saved before the update keeping its
+  Fx settings -- "fx" records of 5, 6, 8, 10 and 11 digits are read at
+  the defaults for what they lack, and nothing on the host tests it.
+- **Station artwork** (6083): Wikimedia is not asked.
+
+Known and left, so they are not rediscovered:
+
+- ECHO's trail is not cleared by a seek.
+- BASS and TREB are first-order shelves: ½ and 2 are reached only far
+  from their corners.
+- The edges (ATK, DEC, REL) act at what they were left at but are off
+  the sheet (6101).
+- DUST's ticks do not repeat with the record's revolution, though WOW's
+  phase could now drive them; wow follows PLAYED, not CUT.
+
+Not on the board.

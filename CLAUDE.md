@@ -131,13 +131,22 @@ subject. Two numbers on one patch means the filenames stop sorting with
 the series after ten of them, and nobody can say which patch `0003` is
 without opening it.
 
-**Where the numbering is now: the 6000 series once v0.5.0 is tagged.**
+**Where the numbering is now: the 8000 series once v0.7.0 is tagged.**
 A series is named for the release it leads to: the 5000s were the work
-toward v0.5.0, the 6000s are toward v0.6.0, and the v0.6.0 tag starts
-the 7000s. Patches written before the v0.5.0 tag carry on the 5000s
-(5282 is the one this was written in). A point release (v0.5.1) does
-not start a series: the 6000s run on through it to v0.6.0. Before
-choosing a number, look
+toward v0.5.0, the 8000s are toward v0.8.0. Patches written before the
+v0.7.0 tag carry on the 6000s (6110 is the one this was written in). A
+point release (v0.7.1) does not start a series: the 8000s run on
+through it to v0.8.0.
+
+**There is no 7000 series, on purpose.** v0.6.0 was tagged at 6052 and
+this paragraph still said "the 6000 series once v0.5.0 is tagged", so
+nobody moved on: 6053-6110 are the v0.7.0 work under v0.6.0's numbers.
+They are not renumbered (history is history). The 8000s start after the
+v0.7.0 tag so the series and the release line up again. **So the first
+patch after a tag updates this paragraph** -- the tag is the reminder,
+and this file is what the next session reads.
+
+Before choosing a number, look
 at the last one used (`git log`,
 and the series heading at the end of `ARCHITECTURE.md`) and take the
 next; never start a range from a round number without checking it is

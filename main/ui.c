@@ -2137,18 +2137,64 @@ static void draw_confirm(void)
 #define POP_NUM_SC   (6)
 #define POP_BTN      (112)             /* square sign buttons */
 
-static void pop_sign(int i, bool plus, bool live)
+/*
+ * 6125: a sign's box with one end round, so the two signs of a pair --
+ * with their number between them -- read as one pill: the speed
+ * popup's - on the left and + on the right round their outer ends, the
+ * Fx sheet's + on top and - below round theirs. The round end is a half
+ * disc across the box's short side. Only the drawing is round; the
+ * box a tap is tested against is the square it always was.
+ */
+enum { ROUND_LEFT, ROUND_RIGHT, ROUND_TOP, ROUND_BOTTOM };
+
+static void fill_half_round(int x, int y, int w, int h, int side, uint16_t c)
+{
+    /* A disc of radius r is 2r + 1 pixels across, so one disc never
+     * spans an even side exactly: two of radius side/2 - 1, a pixel
+     * apart, do -- and a lone disc for an odd side. Without this the
+     * round end stood a pixel proud of the box at the join. */
+    const bool across = side == ROUND_TOP || side == ROUND_BOTTOM;
+    const int s = across ? w : h;                   /* the side made round */
+    const int r = (s - 1) / 2;                      /* 43 for 88, 43 for 87 */
+    const int two = (s % 2 == 0);                   /* even: a second disc */
+    switch (side) {
+    case ROUND_LEFT:
+        gfx_fill_circle(x + r, y + r, r, c);
+        if (two) gfx_fill_circle(x + r, y + r + 1, r, c);
+        gfx_fill_rect(x + r, y, w - r, h, c);
+        break;
+    case ROUND_RIGHT:
+        gfx_fill_circle(x + w - 1 - r, y + r, r, c);
+        if (two) gfx_fill_circle(x + w - 1 - r, y + r + 1, r, c);
+        gfx_fill_rect(x, y, w - r, h, c);
+        break;
+    case ROUND_TOP:
+        gfx_fill_circle(x + r, y + r, r, c);
+        if (two) gfx_fill_circle(x + r + 1, y + r, r, c);
+        gfx_fill_rect(x, y + r, w, h - r, c);
+        break;
+    default:
+        gfx_fill_circle(x + r, y + h - 1 - r, r, c);
+        if (two) gfx_fill_circle(x + r + 1, y + h - 1 - r, r, c);
+        gfx_fill_rect(x, y, w, h - r, c);
+        break;
+    }
+}
+
+/* `live`: the step can be taken (filled box, else an outline). `dim`
+ * (6125): the column is greyed -- VOX and WIDE on a mono track -- so
+ * the sign is drawn in the grey its value is, though still live. */
+static void pop_sign(int i, bool plus, bool live, int round, bool dim)
 {
     const int x = s_pop_btn[i][0], y = s_pop_btn[i][1];
     const int w = s_pop_btn[i][2], h = s_pop_btn[i][3];
-    gfx_fill_rect(x, y, w, h, live ? C_NOTICE_EDGE : C_NOTICE_BG);
-    if (!live) {
-        gfx_fill_rect(x, y, w, 2, C_NOTICE_EDGE);
-        gfx_fill_rect(x, y + h - 2, w, 2, C_NOTICE_EDGE);
-        gfx_fill_rect(x, y, 2, h, C_NOTICE_EDGE);
-        gfx_fill_rect(x + w - 2, y, 2, h, C_NOTICE_EDGE);
+    if (live) {
+        fill_half_round(x, y, w, h, round, C_NOTICE_EDGE);
+    } else {
+        fill_half_round(x, y, w, h, round, C_NOTICE_EDGE);
+        fill_half_round(x + 2, y + 2, w - 4, h - 4, round, C_NOTICE_BG);
     }
-    const uint16_t c = live ? C_THUMB : C_ICON_OFF;
+    const uint16_t c = live && !dim ? C_THUMB : C_ICON_OFF;
     const int cx = x + w / 2, cy = y + h / 2, arm = 26, th = 8;
     gfx_fill_rect(cx - arm, cy - th / 2, 2 * arm, th, c);
     if (plus) gfx_fill_rect(cx - th / 2, cy - arm, th, 2 * arm, c);
@@ -2177,8 +2223,8 @@ static void draw_speed_pop(void)
             s_pop_btn[2 * r + k][2] = POP_BTN;
             s_pop_btn[2 * r + k][3] = POP_BTN;
         }
-        pop_sign(2 * r,     false, v[r] > 0);
-        pop_sign(2 * r + 1, true,  v[r] < VARISPEED_RPMS - 1);
+        pop_sign(2 * r,     false, v[r] > 0, ROUND_LEFT, false);           /* 6125 */
+        pop_sign(2 * r + 1, true,  v[r] < VARISPEED_RPMS - 1, ROUND_RIGHT, false);
         const char *n = varispeed_rpm_label[v[r]];
         gfx_draw_text(x + (w - gfx_text_w(n, POP_NUM_SC)) / 2,
                       ry[r] + (POP_BTN - GFX_GLYPH_H(POP_NUM_SC)) / 2,
@@ -2315,9 +2361,9 @@ static void draw_fx_pop(void)
         const int keep[4] = { s_pop_btn[0][0], s_pop_btn[0][1],
                               s_pop_btn[0][2], s_pop_btn[0][3] };
         memcpy(s_pop_btn[0], bp, sizeof keep);
-        pop_sign(0, true, v < fx_col_max(c));
+        pop_sign(0, true, v < fx_col_max(c), ROUND_TOP, grey);     /* 6125 */
         memcpy(s_pop_btn[0], bm, sizeof keep);
-        pop_sign(0, false, v > 0);
+        pop_sign(0, false, v > 0, ROUND_BOTTOM, grey);
         memcpy(s_pop_btn[0], keep, sizeof keep);
     }
 }

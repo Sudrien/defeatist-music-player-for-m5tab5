@@ -23738,9 +23738,13 @@ means host-tested or reasoned only.
   on at once (fx_sheet 33311111311) running for whole albums under
   FXBENCH (6115-6124) -- each stage measured doing work, output peaks
   at -0.22 to -0.63 dBFS with every boost at 3/2.
-  NOT board-checked: each column judged by ear on its own, and VOX and
-  WIDE greyed on a mono file. All are host-tested in fxtest, including
-  off being bit for bit.
+  By ear, each on its own: DUST, WOW, FLTR and WIDE good (WIDE on a
+  track that uses the stereo field; it does almost nothing on the
+  Tab5's own speaker, by design); LCUT and HCUT work; ECHO and TIME
+  work; VOX works, as well as a track's mix lets it -- a dry, centred
+  lead vocal. VOX and WIDE greyed on a mono file: seen, with a WAV from
+  test_audio_files. All are host-tested in fxtest, including off being
+  bit for bit.
   Saved as "fx_sheet" (6112). No release saved Fx settings before, so
   there is nothing older to read; a dev card's "fx" from this week is
   ignored and its Fx settings start at the defaults once.
@@ -24262,3 +24266,34 @@ playback's allocations came first; 6123 allocates only PSRAM. Order, not
 6123, as far as the log can tell -- but a kilobyte is the margin.
 
 Documentation only.
+
+### 6125 -- the signs as pills; a greyed column's signs dimmed
+
+Two things from the board, after the sheet was listened to column by
+column (now in the v0.7.0 notes: every column heard and working, VOX as
+far as a mix allows; VOX and WIDE greyed on a mono WAV).
+
+ROUND ENDS. Each pair of signs and the number between them now reads as
+one pill: the far end of each sign is a half disc. On the Fx sheet the +
+above rounds its top and the - below its bottom; in the speed popup the
+- on the left rounds its left end and the + on the right its right.
+Only the drawing is round -- the box a tap is tested against is the
+square it always was. An outlined sign (the end of its range) keeps the
+round end in its outline.
+
+gfx has no rounded rectangle, so fill_half_round() is a rectangle and a
+half disc. A disc of radius r is 2r + 1 pixels across: one disc never
+spans an even side exactly, and the first version stood a pixel proud
+of the box at the join. Two discs of radius side/2 - 1 a pixel apart
+span 88 exactly (a lone disc for an odd side). Checked by drawing both
+pills with the real gfx.c and the host shim into a framebuffer and
+looking at it: flush, symmetric, the outline continuous.
+
+DIMMED SIGNS. 6109 greyed VOX's and WIDE's values on a mono track and
+left their signs white and live, so they stay settable for the next
+stereo track. The signs are now drawn in the value's grey too -- still
+live, still filled, still taking taps; only their colour says the
+column is not acting on this track.
+
+Syntax-checked against stubs; texttest all passes; not built with
+ESP-IDF here. No label, setting or string changes.

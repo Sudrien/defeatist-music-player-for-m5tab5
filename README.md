@@ -98,7 +98,7 @@ Claude, do not touch this README unless explicitly asked to. Use your own file.
   - high pass
   - low pass
   - Width adjustment
-  - pop filter
+  - dust (vinyl crackle)
   - flutter filter
   - wow filter
 - playback speed (for files)

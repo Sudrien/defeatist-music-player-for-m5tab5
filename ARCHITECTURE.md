@@ -23873,3 +23873,14 @@ of a core, that is a finding for the release notes whichever level wins.
 
 Off by default; nothing changes in a normal build. Syntax-checked with
 and without FXBENCH against stubs; not built with ESP-IDF here.
+
+### 6114 -- CLAUDE.md: a patch handed over is not reissued
+
+CLAUDE.md said not to reissue "a patch that has been pushed". A session
+read that as leave to replace 6111 while it was unpushed, and sent a
+second 6111; the first was pushed, and FXBENCH, built on the second,
+did not apply until both were redone as 6112 and 6113. The rule now
+says "handed over", with the reason: patches are presented as soon as
+they exist, so a session cannot know whether one has been pushed, and
+two patches under one number cannot be told apart. A correction is a
+follow-up with the next number, always.

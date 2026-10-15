@@ -76,11 +76,21 @@ holds, for the reason above, but not for the one written down.)
 
 **Patches are cumulative.** Each one applies on top of what is already
 here. Do not hand back a rewritten copy of a file, and do not reissue a
-corrected version of a patch that has been pushed -- send a follow-up
-that changes what needs changing. A patch already in the history is
-history: correcting it in place erases the reasoning that produced it,
-and which things turned out not to be tasks is the useful part of a
-record like this one.
+corrected version of a patch that has been handed over -- send a
+follow-up, with the next number, that changes what needs changing. A
+patch already in the history is history: correcting it in place erases
+the reasoning that produced it, and which things turned out not to be
+tasks is the useful part of a record like this one.
+
+**Handed over, not pushed, is the line.** Patches are presented as soon
+as they exist, so one can be applied and pushed before the session's
+next message; whether it has been is not something a session can see.
+A second file under the same number is two patches with one name, and
+there is no telling which one the next patch was built on. 6111 went
+out twice in one session -- the second "replacing" the first because
+it was not pushed yet -- the first was pushed, and the next patch,
+built on the second, did not apply. 6112 is the follow-up 6111's
+correction should have been from the start.
 
 **A stack protection fault reports the overshoot, not the demand.** The
 figure to size against is `bounds_size + (floor - SP)`. Reading

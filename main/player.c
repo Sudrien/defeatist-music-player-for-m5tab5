@@ -2253,6 +2253,118 @@ static bool vs_engaged(int r)
            s_vs_stage_n[r] >= PCM_BYTES_PER_FRAME;
 }
 
+#ifdef FXBENCH
+/*
+ * 6113: the writer's arithmetic in CPU cycles -- the Fx sheet (fx_out)
+ * and turntable speed (varispeed_run) -- for comparing builds (-O2
+ * against -O3 on fx.c and varispeed.c) on the board, and for knowing
+ * how close the writer gets to its DMA deadline with everything on.
+ * Off by default: `idf.py -DFXBENCH=1 build`, as DECBENCH (5279) is.
+ *
+ * Per chunk, the cycles spent against the chunk's own length in cycles
+ * at the output rate: that is the share of one core the stage needs to
+ * keep up, and the WORST chunk is the deadline figure. The average over
+ * a period is the steady cost.
+ *
+ * The writer is not pinned, so a call that starts on one core and ends
+ * on the other is dropped and counted, as DECBENCH does. Preemption is
+ * not visible from here and can only inflate a chunk: `worst` is an
+ * upper bound, `avg` the figure to compare between builds.
+ *
+ * The writer has a 4 KB stack, so it does not log: it fills a period
+ * (30 s of output), copies it to s_fb_pub and raises s_fb_ready, and the
+ * UI task (fxbench_poll) logs it. A period finished while the last is
+ * unread is dropped, not queued.
+ */
+#include "esp_cpu.h"
+
+static uint32_t fx_rate(void);     /* below, with the writer's Fx */
+static bool     fx_mono(void);
+
+typedef struct {
+    uint64_t cyc, frames;       /* this period's sum, output frames */
+    uint32_t worst_pm;          /* worst chunk, per mille of one core */
+    uint32_t chunks, moved;
+} fxbench_t;
+
+static fxbench_t     s_fb_fx, s_fb_vs;      /* the writer's, in progress */
+static fxbench_t     s_fb_pub_fx, s_fb_pub_vs;
+static uint32_t      s_fb_pub_rate;
+static volatile bool s_fb_ready;
+static uint64_t      s_fb_period;           /* output frames so far */
+
+static inline uint32_t fxbench_t0(int *core)
+{
+    *core = esp_cpu_get_core_id();
+    return (uint32_t)esp_cpu_get_cycle_count();
+}
+
+static void fxbench_add(fxbench_t *b, uint32_t t0, int core, size_t frames)
+{
+    const uint32_t cyc = (uint32_t)esp_cpu_get_cycle_count() - t0;
+    if (esp_cpu_get_core_id() != core) { b->moved++; return; }
+    if (!frames) return;
+    const uint64_t cpu = (uint64_t)CONFIG_ESP_DEFAULT_CPU_FREQ_MHZ * 1000000u;
+    /* cycles / (frames / rate * cpu), per mille */
+    const uint32_t pm = (uint32_t)((uint64_t)cyc * fx_rate() * 1000u /
+                                   ((uint64_t)frames * cpu));
+    if (pm > b->worst_pm) b->worst_pm = pm;
+    b->cyc += cyc;
+    b->frames += frames;
+    b->chunks++;
+}
+
+/* Called by the writer once per fx_out(): closes a period. */
+static void fxbench_tick(size_t frames)
+{
+    s_fb_period += frames;
+    if (s_fb_period < (uint64_t)fx_rate() * 30u) return;
+    if (!s_fb_ready) {
+        s_fb_pub_fx = s_fb_fx;
+        s_fb_pub_vs = s_fb_vs;
+        s_fb_pub_rate = fx_rate();
+        s_fb_ready = true;
+    }
+    memset(&s_fb_fx, 0, sizeof s_fb_fx);
+    memset(&s_fb_vs, 0, sizeof s_fb_vs);
+    s_fb_period = 0;
+}
+
+static void fxbench_line(const char *what, const fxbench_t *b, uint32_t rate)
+{
+    const uint64_t cpu = (uint64_t)CONFIG_ESP_DEFAULT_CPU_FREQ_MHZ * 1000000u;
+    const uint32_t avg = b->frames
+        ? (uint32_t)(b->cyc * rate * 1000u / (b->frames * cpu)) : 0;
+    const uint32_t per = b->frames ? (uint32_t)(b->cyc * 1024u / b->frames) : 0;
+    ESP_LOGW(TAG, "FXBENCH %s at %" PRIu32 " Hz: %" PRIu32 " cycles/1024 frames, "
+             "%" PRIu32 ".%" PRIu32 "%% of one core avg, worst chunk %" PRIu32
+             ".%" PRIu32 "%%; %" PRIu32 " chunks, %" PRIu32 " dropped (changed core)",
+             what, rate, per, avg / 10, avg % 10, b->worst_pm / 10,
+             b->worst_pm % 10, b->chunks, b->moved);
+}
+
+/* The UI task's, every pass: logs a finished period. */
+static void fxbench_poll(void)
+{
+    if (!s_fb_ready) return;
+    const fxbench_t fx = s_fb_pub_fx, vs = s_fb_pub_vs;
+    const uint32_t rate = s_fb_pub_rate;
+    s_fb_ready = false;
+    char cols[SETTINGS_FX_COUNT + 1];
+    for (unsigned i = 0; i < SETTINGS_FX_COUNT; i++)
+        cols[i] = (char)('0' + settings_fx(i));
+    cols[SETTINGS_FX_COUNT] = '\0';
+    ESP_LOGW(TAG, "FXBENCH period: fx_sheet %s, speed %s/%s%s", cols,
+             varispeed_rpm_label[settings_speed_played() < VARISPEED_RPMS
+                                 ? settings_speed_played() : 1],
+             varispeed_rpm_label[settings_speed_cut() < VARISPEED_RPMS
+                                 ? settings_speed_cut() : 1],
+             fx_mono() ? ", mono" : "");
+    fxbench_line("fx", &fx, rate);
+    fxbench_line("varispeed", &vs, rate);
+}
+#endif
+
 /*
  * Up to `cap` bytes of ring r at `step` into dst. Tops the stage up from
  * the ring first -- waiting up to `wait` only when the stage is nearly
@@ -2269,9 +2381,16 @@ static size_t vs_read(int r, uint32_t step, uint8_t *dst, size_t cap,
                                      have >= 4 * PCM_BYTES_PER_FRAME ? 0 : wait);
     }
     size_t used = 0;
+#ifdef FXBENCH
+    int fb_core;                                    /* 6113 */
+    const uint32_t fb_t0 = fxbench_t0(&fb_core);
+#endif
     const size_t out = varispeed_run(&s_vs[r], step, (const int16_t *)st,
                                      have / PCM_BYTES_PER_FRAME, &used,
                                      (int16_t *)dst, cap / PCM_BYTES_PER_FRAME);
+#ifdef FXBENCH
+    fxbench_add(&s_fb_vs, fb_t0, fb_core, out);
+#endif
     const size_t ub = used * PCM_BYTES_PER_FRAME;
     memmove(st, st + ub, have - ub);
     s_vs_stage_n[r] = have - ub;
@@ -2337,7 +2456,8 @@ static uint32_t fx_rate(void)
 }
 
 
-static void fx_out(uint8_t *buf, size_t n)
+
+static void fx_out_run(uint8_t *buf, size_t n)
 {
     const size_t frames = n / PCM_BYTES_PER_FRAME;
     if (!frames) return;
@@ -2388,6 +2508,20 @@ static void fx_out(uint8_t *buf, size_t n)
                 settings_fx(SETTINGS_FX_ECHO), settings_fx(SETTINGS_FX_TIME),
                 fx_rate());
     fx_edge_run(&s_fx_edge, (int16_t *)buf, frames);
+}
+
+/* 6113: fx_out_run(), timed under FXBENCH. */
+static void fx_out(uint8_t *buf, size_t n)
+{
+#ifdef FXBENCH
+    int core;
+    const uint32_t t0 = fxbench_t0(&core);
+    fx_out_run(buf, n);
+    fxbench_add(&s_fb_fx, t0, core, n / PCM_BYTES_PER_FRAME);
+    fxbench_tick(n / PCM_BYTES_PER_FRAME);
+#else
+    fx_out_run(buf, n);
+#endif
 }
 
 /* Whether a pause is still fading out: the writer runs on until it has. */
@@ -7516,6 +7650,9 @@ static void ui_task(void *arg)
     ui_state_t st;
 
     while (1) {
+#ifdef FXBENCH
+        fxbench_poll();                             /* 6113 */
+#endif
         int bx = 0, by = 0;
         bool bdown = touch_get(&bx, &by);           /* 5169: not const; see below */
         bool edited = false;    /* 5189: a queue edit applied this pass */

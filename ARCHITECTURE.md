@@ -23820,3 +23820,56 @@ compile time that ui_state_t's fx[] is SETTINGS_FX_COUNT long.
 Nothing on screen changes. Whole texttest suite passes; ui.c, player.c
 and settings.c syntax-checked against stubs; not built with ESP-IDF
 here. No i18n string changes.
+
+### 6113 -- FXBENCH: the writer's Fx and speed in cycles; FXO3
+
+5280 kept -O3 for decoder.c alone on the board's word -- 9.5% faster
+-- and found "minimp3 is the only heavy arithmetic main compiles". Two
+files have arrived since that it did not cover, both per sample in the
+writer, the task with the DMA deadline: fx.c (the Fx sheet, up to ten
+loops of float arithmetic per frame at up to 192 kHz) and varispeed.c
+(a cubic interpolation per sample off ×1.00). Whether -O3 helps them
+is the board's question, as it was for decoder.c, and it has a second
+one with it: with every column on at 192 kHz, how close does the
+writer come to its deadline? Nobody has measured that.
+
+`idf.py -DFXBENCH=1 build` times fx_out() and varispeed_run() with the
+cycle counter. Per chunk, cycles against the chunk's own length in
+cycles at the output rate: the share of one core that stage needs. Every
+30 s of output, from the UI task:
+
+    FXBENCH period: fx_sheet 22202000200, speed 33⅓/33⅓
+    FXBENCH fx at 44100 Hz: N cycles/1024 frames, A% of one core avg, worst chunk W%; ...
+    FXBENCH varispeed at 44100 Hz: ...
+
+`avg` is the figure to compare between builds; `worst` is the deadline
+figure and an upper bound (preemption can only add to it). The writer is
+not pinned: a call that changes core is dropped and counted, as
+DECBENCH does. The writer's stack is 4 KB (CLAUDE.md), so it only
+counts; it hands a finished period to the UI task (8 KB) to log, and a
+period finished while the last is unread is dropped, not queued.
+
+`-DFXO3=1` puts fx.c and varispeed.c at -O3, per source file and
+APPENDed as decoder.c's is (5276); the proof it took is -O3 in fx.c's
+entry of build/compile_commands.json.
+
+THE MEASUREMENT, for the board:
+
+1. `idf.py -DFXBENCH=1 -DFXO3=0 build`, flash. Every Fx column on
+   (VOX and WIDE not at 1 -- a stereo file, or they are skipped), PLAYED
+   not equal to CUT, a 192 kHz file if there is one and a 44.1 kHz one.
+   Two or three periods each.
+2. `idf.py -DFXBENCH=1 -DFXO3=1 build`, flash, the same.
+3. Keep FXO3 as a release setting only if `avg` drops by more than
+   the run-to-run spread (5280's was 1-2%). Then `-DFXBENCH=0`, and
+   `idf.py fullclean` before the release build, since both switches
+   stay in CMakeCache.txt.
+
+Expectations, written down to be checked: all off, fx near 0% (every
+stage returns early); -O3 less help than decoder.c got, as these loops
+are simpler than minimp3's and the P4 has no vector unit for -O3 to
+use. If the worst chunk at 192 kHz with everything on approaches 100%
+of a core, that is a finding for the release notes whichever level wins.
+
+Off by default; nothing changes in a normal build. Syntax-checked with
+and without FXBENCH against stubs; not built with ESP-IDF here.

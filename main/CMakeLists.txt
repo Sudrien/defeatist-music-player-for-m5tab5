@@ -82,6 +82,27 @@ if(DECBENCH)
     message(STATUS "DECBENCH: minimp3 decode cycles logged")
 endif()
 
+# 6113: the writer's Fx sheet and turntable speed in CPU cycles, logged
+# every 30 s of output as "FXBENCH" lines: the average share of one core
+# and the worst chunk's. Off by default. Build with
+#   idf.py -DFXBENCH=1 build
+# Like DECBENCH it stays in CMakeCache.txt until `-DFXBENCH=0`.
+if(FXBENCH)
+    target_compile_definitions(${COMPONENT_LIB} PRIVATE FXBENCH=1)
+    message(STATUS "FXBENCH: Fx and varispeed cycles logged")
+endif()
+
+# 6113: fx.c and varispeed.c at -O3, off by default, for FXBENCH's A/B:
+#   idf.py -DFXBENCH=1 -DFXO3=1 build
+# against the same with -DFXO3=0. Per source file and APPENDed, as
+# decoder.c's -O3 is (5276), so it lands after IDF's -O2. Keep it only if
+# the board says so (5280 is how that was decided for decoder.c). The
+# proof it took: fx.c's entry in build/compile_commands.json has -O3.
+if(FXO3)
+    set_property(SOURCE fx.c varispeed.c APPEND PROPERTY COMPILE_OPTIONS -O3)
+    message(STATUS "FXO3: fx.c and varispeed.c at -O3")
+endif()
+
 if(HEAPCHECK)
     target_compile_definitions(${COMPONENT_LIB} PRIVATE HEAPCHECK=1)
     message(STATUS "heap integrity checkpoints ENABLED (slow)")

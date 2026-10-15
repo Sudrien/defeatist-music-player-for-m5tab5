@@ -29,9 +29,7 @@
  *
  * EDGES: the fade up when play is pressed or a pause ends, the fade up
  * after a seek, and the fade down when pause is pressed -- so none of
- * them clicks. Fixed lengths since 6111 (FX_ATTACK_MS and the rest,
- * below); they were three settings, ATK DEC REL, named for a synth's
- * envelope.
+ * them clicks. Fixed lengths (FX_ATTACK_MS and the rest, below).
  *
  * Neither half is applied on the decode side. Both are the writer's,
  * at the moment the samples are handed to the hardware, after
@@ -62,10 +60,9 @@ extern "C" {
 extern const char *const fx_tone_label[FX_STEPS];
 extern const float       fx_tone_gain[FX_STEPS];
 
-/* 6111: the edges' lengths, fixed. They were settings (6097, ATK DEC
- * REL, 0 10 50 250 1000 ms) and off the sheet since 6101; these are
- * the defaults they had. Long enough that a start, a seek or a pause
- * does not click, short enough that nobody hears a fade. */
+/* 6111: the edges' lengths, fixed. Long enough that a start, a seek or
+ * a pause does not click, short enough that nobody hears a fade. They
+ * were settings for a week (6097-6110, ATK DEC REL), never released. */
 #define FX_ATTACK_MS    (10u)
 #define FX_DECAY_MS     (10u)
 #define FX_RELEASE_MS   (50u)

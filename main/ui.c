@@ -386,19 +386,18 @@ static int  s_pop_btn[4][4];    /* PLAYED -, PLAYED +, CUT -, CUT +: x y w h */
  * last asked for -- until ui_state_t has caught up. Six columns of
  * minus over value over plus; s_fx_btn[col][0] is the minus.
  */
-#define FX_COLS      (14)               /* settings_fx()'s, all of them */
-#define FX_VOX       (5)                /* 6101: SETTINGS_FX_VOICE */
-#define FX_ECHO      (6)                /* 6102: SETTINGS_FX_ECHO */
-#define FX_TIME      (7)                /* 6102: SETTINGS_FX_TIME */
-#define FX_LCUT      (8)                /* 6103: SETTINGS_FX_LCUT */
-#define FX_HCUT      (9)                /* 6103: SETTINGS_FX_HCUT */
-#define FX_DUST      (10)               /* 6104: SETTINGS_FX_DUST */
-#define FX_WIDE      (11)               /* 6105: SETTINGS_FX_WIDE */
-#define FX_WOW       (12)               /* 6105: SETTINGS_FX_WOW */
-#define FX_FLTR      (13)               /* 6105: SETTINGS_FX_FLTR */
-/* 6101: the columns shown, in order. Columns 2-4 were ATK, DEC and REL,
- * removed in 6111 -- the edges are fixed lengths now (fx.h) -- and SUS
- * (the crossfade) is on the AUDIO tab alone. */
+#define FX_COLS      (11)               /* settings_fx()'s, all of them */
+#define FX_VOX       (2)                /* SETTINGS_FX_VOICE */
+#define FX_ECHO      (3)                /* SETTINGS_FX_ECHO */
+#define FX_TIME      (4)                /* SETTINGS_FX_TIME */
+#define FX_LCUT      (5)                /* SETTINGS_FX_LCUT */
+#define FX_HCUT      (6)                /* SETTINGS_FX_HCUT */
+#define FX_DUST      (7)                /* SETTINGS_FX_DUST */
+#define FX_WIDE      (8)                /* SETTINGS_FX_WIDE */
+#define FX_WOW       (9)                /* SETTINGS_FX_WOW */
+#define FX_FLTR      (10)               /* SETTINGS_FX_FLTR */
+/* 6101: the columns shown, in order. SUS (the crossfade) is on the
+ * AUDIO tab alone; ATK, DEC and REL are gone (6111, 6112). */
 /* 6105: two rows. The sound as recorded on top -- tone, the cuts, the
  * voice and the width -- and below it what happens to the record and
  * the room: the echo, the dust, the turntable's wow and flutter. */
@@ -2235,11 +2234,10 @@ static void draw_fx_pop(void)
     gfx_fill_rect(x, y, w, h, C_NOTICE_EDGE);
     gfx_fill_rect(x + 2, y + 2, w - 4, h - 4, C_NOTICE_BG);
 
-    /* Indexed by settings column; 2-4 are reserved (6111) and never shown. */
+    /* Indexed by settings column. */
     const char *name[FX_COLS] = {
-        _("BASS"), _("TREB"), "", "", "", _("VOX"),        /* 6111: 2-4 reserved */
-        _("ECHO"), _("TIME"), _("LCUT"), _("HCUT"), _("DUST"), _("WIDE"),
-        _("WOW"), _("FLTR")
+        _("BASS"), _("TREB"), _("VOX"), _("ECHO"), _("TIME"), _("LCUT"),
+        _("HCUT"), _("DUST"), _("WIDE"), _("WOW"), _("FLTR")
     };
     /* 6105: two rows, each spread evenly across the sheet -- six
      * columns on top, five below, so their centres do not line up and

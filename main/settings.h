@@ -239,28 +239,21 @@ bool settings_speed_boot(void);
 void settings_set_speed_boot(bool boot);
 
 /*
- * 6097: the Fx sheet (fx.h), five indexes 0..FX_STEPS-1 -- BASS and
- * TREBLE into fx_tone_gain[] (2 is ×1, the default). The three after
- * them were ATTACK, DECAY and RELEASE; 6111 removed them, and their
- * digits stay in the record as reserved (below).
+ * 6097: the Fx sheet (fx.h), one index 0..FX_STEPS-1 per column (ECHO
+ * has FX_ECHO_STEPS), each into its table in fx.h.
  *
  * Kept whatever "Speed holds" says: speed is per record, and nobody
  * sets their bass per track. Saved on the card only, like speed, as one
- * key -- "fx":"22112202000200", the digits in this order (6101 added
- * VOX, the sixth; 6102 ECHO and TIME; 6103 LCUT and HCUT; 6104 DUST;
- * 6105 WIDE, WOW and FLTR, the last three -- a
- * shorter record from before reads with what it lacks at the default).
+ * key -- "fx_sheet":"22202000200", the digits in this order. 6112 named
+ * it fx_sheet: the earlier "fx" carried the edges (ATK DEC REL) as its
+ * third to fifth digits, and an 11-digit "fx" from 6104 is the same
+ * length as this, so a new key is what keeps one from being read as the
+ * other. "fx" was never in a release; a dev card's is ignored, and its
+ * Fx settings start at the defaults once.
  */
 enum {
-    SETTINGS_FX_BASS = 0,
+    SETTINGS_FX_BASS = 0,       /* into fx_tone_gain[], 2 is ×1 */
     SETTINGS_FX_TREBLE,
-    /* 6111: reserved -- were ATTACK, DECAY, RELEASE. Every later digit's
-     * place in "fx" counts past them, so they stay in the record,
-     * always written 1 1 2 (what older firmware takes as its defaults,
-     * so a card goes both ways) and never read. Not settable. */
-    SETTINGS_FX_RESERVED2,
-    SETTINGS_FX_RESERVED3,
-    SETTINGS_FX_RESERVED4,
     SETTINGS_FX_VOICE,          /* 6101: into fx_vox_gain[], 2 is ×1 */
     SETTINGS_FX_ECHO,           /* 6102: into fx_echo_gain[], 0 is off */
     SETTINGS_FX_TIME,           /* 6102: into fx_echo_ms[], 2 is 250 ms */

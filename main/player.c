@@ -2336,6 +2336,7 @@ static uint32_t fx_rate(void)
     return r ? r : audio_out_rate();
 }
 
+
 static void fx_out(uint8_t *buf, size_t n)
 {
     const size_t frames = n / PCM_BYTES_PER_FRAME;
@@ -2474,7 +2475,7 @@ static void i2s_writer_task(void *arg)
         /* 6097: not while a pause is still fading out -- a stream's
          * pause flushes, and dropping the ring under the release would
          * be the click the release is there to remove. It waits the
-         * release out, at most FX_RELEASE_MS (6111). */
+         * release out, FX_RELEASE_MS. */
         if (s_pcm_flush && !fx_releasing()) {
             size_t dropped = 0, got;
             for (int r = 0; r < PCM_RINGS; r++) {
@@ -9155,12 +9156,10 @@ static void ui_task(void *arg)
              * gone from the sheet, the crossfade back on AUDIO alone. */
             const unsigned col = (unsigned)act.value >> 4;
             const unsigned v = (unsigned)act.value & 15u;
-            /* 6111: the reserved three (were the edges) are not settable. */
-            if (col < SETTINGS_FX_COUNT &&
-                (col < SETTINGS_FX_RESERVED2 || col > SETTINGS_FX_RESERVED4)) {
+            if (col < SETTINGS_FX_COUNT) {
                 settings_set_fx(col, v);
                 static const char *const nm[SETTINGS_FX_COUNT] = {
-                    "bass", "treble", NULL, NULL, NULL, "voice",   /* 6111: 2-4 reserved */
+                    "bass", "treble", "voice",
                     "echo", "time", "low cut", "high cut", "dust", "width", "wow",
                     "flutter"
                 };
@@ -9253,6 +9252,9 @@ static void ui_task(void *arg)
             st.fx[i] = (uint8_t)settings_fx(i);
         }
         st.fx_mono = fx_mono();                          /* 6109 */
+        /* 6112: ui.c's FX_* column numbers are settings.h's, by hand;
+         * this is the check that they still are. */
+        _Static_assert(sizeof st.fx == SETTINGS_FX_COUNT, "ui_state_t fx[] size");
         /* 5117: what the panel is about to draw is what the browser is
          * told, so the two cannot disagree. Before ui_draw(), which
          * returns early with the screen off -- a remote is most useful

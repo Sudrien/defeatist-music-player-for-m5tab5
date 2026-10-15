@@ -23738,13 +23738,14 @@ means host-tested or reasoned only.
   WOW and FLTR, the two-row layout and its 12 px of margin, VOX and
   WIDE greyed on a mono file. All are host-tested in fxtest, including
   off being bit for bit.
-  NOT board-checked either: a card saved before the update keeping its
-  Fx settings -- "fx" records of 5, 6, 8, 10 and 11 digits are read at
-  the defaults for what they lack, and nothing on the host tests it.
+  Saved as "fx_sheet" (6112). No release saved Fx settings before, so
+  there is nothing older to read; a dev card's "fx" from this week is
+  ignored and its Fx settings start at the defaults once.
+  NOT board-checked: the Fx settings surviving a power-off.
 - **Station artwork** (6083): Wikimedia is not asked.
-- **The edges' settings removed** (6111): ATK, DEC and REL, off the
-  sheet since 6101, are gone; the fades they set stay, fixed at 10, 10
-  and 50 ms. Their three digits stay in a card's "fx" record, reserved.
+- **The edges' settings removed** (6111, 6112): ATK, DEC and REL are
+  gone, from the record too; the fades on play, seek and pause stay,
+  fixed at 10, 10 and 50 ms.
 
 Known and left, so they are not rediscovered:
 
@@ -23784,3 +23785,38 @@ sheet's names for them are empty and the log has no branch for them.
 Nothing on screen changes. Whole texttest suite passes; ui.c,
 player.c and settings.c syntax-checked against stubs; not built with
 ESP-IDF here. ABBREVIATIONS never listed them.
+
+### 6112 -- the edges' digits removed after all; the record renamed fx_sheet
+
+6111 removed ATK, DEC and REL as settings but kept their three digits
+in the "fx" record as reserved, written 1 1 2 and never read, because
+the record is positional and every later column counts past them. That
+protected nothing. v0.6.0 never wrote "fx" -- it first appeared in
+6097, the day before -- so the only cards with one are this week's
+dev builds. (A corrected 6111 doing this whole job was sent but the
+first one had already been pushed; this is the follow-up instead,
+per CLAUDE.md.)
+
+So they go completely: SETTINGS_FX_RESERVED2-4 out of the enum, the
+reserved writes out of settings.c, the refusal for them out of
+settings_set_fx() and the player's action handler, and ui.c's empty
+names and FX_* numbers -- every column from VOX on moves down three.
+FX_COLS and ui_state_t's fx[] are 11.
+
+THE RECORD NEEDS A NEW KEY. Without the three, the record is eleven
+digits, and so was 6104's "fx" (BASS TREB ATK DEC REL VOX ECHO TIME
+LCUT HCUT DUST): read as the new layout it would put 6104's ATK into
+VOX and so on down the line. So the record is "fx_sheet", read only at
+exactly SETTINGS_FX_COUNT digits, and "fx" is not read at all -- 6111's
+"fx" with its reserved digits included. A dev card's Fx settings go
+back to the defaults once. The shorter-record cases (5, 6, 8, 10, 11
+digits) go too. SETTINGS_MAX_LINE 628: the key is six longer, the
+digits three fewer.
+
+ui.c's FX_* column numbers are settings.h's written out by hand (ui.c
+does not include settings.h, on purpose); player.c now asserts at
+compile time that ui_state_t's fx[] is SETTINGS_FX_COUNT long.
+
+Nothing on screen changes. Whole texttest suite passes; ui.c, player.c
+and settings.c syntax-checked against stubs; not built with ESP-IDF
+here. No i18n string changes.

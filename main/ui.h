@@ -269,7 +269,7 @@ typedef struct {
      * order: bass, treble, attack, decay, release, 6101's voice, and
      * 6102's echo and its time, 6103's low and high cuts, 6104's dust, 6105's width, wow and
      * flutter. */
-    uint8_t fx[14];
+    uint8_t fx[11];
     /* 6109: the track is mono, so VOX and WIDE have nothing to work on:
      * the sheet greys their values (still settable, for the next
      * stereo track) and the writer leaves them out. */

@@ -44,7 +44,12 @@ static inline int16_t clip16(float v)
 {
     if (v >  32767.0f) return  32767;
     if (v < -32768.0f) return -32768;
-    return (int16_t)lrintf(v);
+    /* 6120: rounded the way varispeed.c's clip() does, half away from
+     * zero, so no library call. lrintf() is not inlined under IDF's
+     * default -fmath-errno, and this runs twice a frame in every stage
+     * that writes -- about twenty calls a frame with the sheet on. The
+     * two differ only on an exact .5, by one LSB. */
+    return (int16_t)(v < 0.0f ? v - 0.5f : v + 0.5f);
 }
 
 void fx_tone_run(fx_tone_t *t, int16_t *pcm, size_t frames,

@@ -2289,6 +2289,17 @@ typedef struct {
 
 static fxbench_t     s_fb_fx, s_fb_vs;      /* the writer's, in progress */
 static fxbench_t     s_fb_pub_fx, s_fb_pub_vs;
+
+/* 6120: fx_out_run() stage by stage. FXB_MARK(k) reads the cycle
+ * counter after stage k (0 is before the first); a call's differences
+ * are added only if the whole call stayed on one core. */
+#define FXB_STAGES 9
+static const char *const k_fb_stage[FXB_STAGES] = {
+    "vox", "dust", "wow", "wide", "tone", "lcut", "hcut", "echo", "edge"
+};
+static uint32_t      s_fb_mark[FXB_STAGES + 1];
+static uint64_t      s_fb_stage[FXB_STAGES], s_fb_pub_stage[FXB_STAGES];
+#define FXB_MARK(k)  (s_fb_mark[(k)] = (uint32_t)esp_cpu_get_cycle_count())
 static uint32_t      s_fb_pub_rate;
 static volatile bool s_fb_ready;
 static uint64_t      s_fb_period;           /* output frames so far */
@@ -2299,11 +2310,11 @@ static inline uint32_t fxbench_t0(int *core)
     return (uint32_t)esp_cpu_get_cycle_count();
 }
 
-static void fxbench_add(fxbench_t *b, uint32_t t0, int core, size_t frames)
+static bool fxbench_add(fxbench_t *b, uint32_t t0, int core, size_t frames)
 {
     const uint32_t cyc = (uint32_t)esp_cpu_get_cycle_count() - t0;
-    if (esp_cpu_get_core_id() != core) { b->moved++; return; }
-    if (!frames) return;
+    if (esp_cpu_get_core_id() != core) { b->moved++; return false; }
+    if (!frames) return false;
     const uint64_t cpu = (uint64_t)CONFIG_ESP_DEFAULT_CPU_FREQ_MHZ * 1000000u;
     /* cycles / (frames / rate * cpu), per mille */
     const uint32_t pm = (uint32_t)((uint64_t)cyc * fx_rate() * 1000u /
@@ -2312,6 +2323,7 @@ static void fxbench_add(fxbench_t *b, uint32_t t0, int core, size_t frames)
     b->cyc += cyc;
     b->frames += frames;
     b->chunks++;
+    return true;
 }
 
 /* Called by the writer once per fx_out(): closes a period. */
@@ -2322,11 +2334,13 @@ static void fxbench_tick(size_t frames)
     if (!s_fb_ready) {
         s_fb_pub_fx = s_fb_fx;
         s_fb_pub_vs = s_fb_vs;
+        memcpy(s_fb_pub_stage, s_fb_stage, sizeof s_fb_stage);
         s_fb_pub_rate = fx_rate();
         s_fb_ready = true;
     }
     memset(&s_fb_fx, 0, sizeof s_fb_fx);
     memset(&s_fb_vs, 0, sizeof s_fb_vs);
+    memset(s_fb_stage, 0, sizeof s_fb_stage);
     s_fb_period = 0;
 }
 
@@ -2361,8 +2375,21 @@ static void fxbench_poll(void)
                                  ? settings_speed_cut() : 1],
              fx_mono() ? ", mono" : "");
     fxbench_line("fx", &fx, rate);
+    /* 6120: where fx's cycles went, per 1024 frames, stage by stage. */
+    if (fx.frames) {
+        char line[192];
+        int o = 0;
+        for (int k = 0; k < FXB_STAGES && o < (int)sizeof line; k++)
+            o += snprintf(line + o, sizeof line - (size_t)o, "%s %" PRIu32 "%s",
+                          k_fb_stage[k],
+                          (uint32_t)(s_fb_pub_stage[k] * 1024u / fx.frames),
+                          k + 1 < FXB_STAGES ? ", " : "");
+        ESP_LOGW(TAG, "FXBENCH fx stages, cycles/1024 frames: %s", line);
+    }
     fxbench_line("varispeed", &vs, rate);
 }
+#else
+#define FXB_MARK(k)  ((void)0)
 #endif
 
 /*
@@ -2468,16 +2495,19 @@ static void fx_out_run(uint8_t *buf, size_t n)
             fx_edge_from_zero(&s_fx_edge, FX_ATTACK_MS, fx_rate());
         }
     }
+    FXB_MARK(0);                                    /* 6120 */
     /* 6101: the voice first -- it reads left against right, which tone
      * does not change but would filter both of. */
     fx_vox_run(&s_fx_vox, (int16_t *)buf, frames,
                fx_mono() ? FX_VOX_FLAT : settings_fx(SETTINGS_FX_VOICE),
                fx_rate());                                    /* 6109 */
+    FXB_MARK(1);
     /* 6104: the dust after the voice, which would take a centred tick
      * out with the singer, and before tone and the cuts, so it is
      * shaped as the record is -- an AM radio band thins it too. */
     fx_dust_run(&s_fx_dust, (int16_t *)buf, frames,
                 settings_fx(SETTINGS_FX_DUST), fx_rate());
+    FXB_MARK(2);
     /* 6105: the turntable's wobble after the dust, which is on the
      * record and wobbles with it; at the PLAYED speed's revolutions,
      * so it follows the speed selector. Then the width, on the sound as
@@ -2491,24 +2521,31 @@ static void fx_out_run(uint8_t *buf, size_t n)
                    settings_fx(SETTINGS_FX_WOW), settings_fx(SETTINGS_FX_FLTR),
                    varispeed_rpm_thirds[sp], fx_rate());
     }
+    FXB_MARK(3);
     fx_wide_run(&s_fx_wide, (int16_t *)buf, frames,
                 fx_mono() ? FX_WIDE_FLAT : settings_fx(SETTINGS_FX_WIDE),
                 fx_rate());                                   /* 6109 */
+    FXB_MARK(4);
     fx_tone_run(&s_fx_tone, (int16_t *)buf, frames,
                 settings_fx(SETTINGS_FX_BASS), settings_fx(SETTINGS_FX_TREBLE),
                 fx_rate());
+    FXB_MARK(5);
     /* 6103: the cuts after tone, so a boost cannot put back what they
      * take out, and before the echo, which repeats the band they left. */
     fx_cut_run(&s_fx_lcut, true, (int16_t *)buf, frames,
                settings_fx(SETTINGS_FX_LCUT), fx_rate());
+    FXB_MARK(6);
     fx_cut_run(&s_fx_hcut, false, (int16_t *)buf, frames,
                settings_fx(SETTINGS_FX_HCUT), fx_rate());
+    FXB_MARK(7);
     /* 6102: echo the sound as toned, and before the edge, so a pause's
      * release takes the trail down with the rest. */
     fx_echo_run(&s_fx_echo, (int16_t *)buf, frames,
                 settings_fx(SETTINGS_FX_ECHO), settings_fx(SETTINGS_FX_TIME),
                 fx_rate());
+    FXB_MARK(8);
     fx_edge_run(&s_fx_edge, (int16_t *)buf, frames);
+    FXB_MARK(9);
 }
 
 /* 6113: fx_out_run(), timed under FXBENCH. */
@@ -2517,8 +2554,13 @@ static void fx_out(uint8_t *buf, size_t n)
 #ifdef FXBENCH
     int core;
     const uint32_t t0 = fxbench_t0(&core);
+    s_fb_mark[0] = s_fb_mark[FXB_STAGES] = 0;
     fx_out_run(buf, n);
-    fxbench_add(&s_fb_fx, t0, core, n / PCM_BYTES_PER_FRAME);
+    if (fxbench_add(&s_fb_fx, t0, core, n / PCM_BYTES_PER_FRAME) &&
+        s_fb_mark[FXB_STAGES]) {                    /* 6120: a full pass */
+        for (int k = 0; k < FXB_STAGES; k++)
+            s_fb_stage[k] += s_fb_mark[k + 1] - s_fb_mark[k];
+    }
     fxbench_tick(n / PCM_BYTES_PER_FRAME);
 #else
     fx_out_run(buf, n);

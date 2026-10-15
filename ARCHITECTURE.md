@@ -24020,3 +24020,57 @@ What the board should show: under BOOT at a fraction with crossfade on,
 the incoming track at the fraction from its first sound. Under TRACK,
 unchanged: the incoming at ×1.00, the outgoing sliding there. Syntax-
 checked against stubs; texttest all passes; not built with ESP-IDF here.
+
+### 6120 -- FXO3 measured and not kept; Fx rounds inline; FXBENCH by stage
+
+THE A/B (6113's procedure). Same firmware but for FXO3, same tracks
+(Bôa, Get There 1-3, MP3 320 kbit/s 44.1 kHz), fx_sheet 33311111311,
+speed 78/45 under BOOT, three to five periods each:
+
+    build                          fx avg       fx worst    varispeed avg  varispeed worst
+    -O2  (v0.6.0-88 +6118 +6119)   14.8-14.9%   31-38%      4.2%           8-15%
+    -O3  (v0.6.0-90, FXO3=1)       14.8-14.9%   37-65%      4.4-4.6%       12-40%
+
+-O3 changes nothing on average and is worse at the worst chunk and for
+varispeed. By 6113's rule FXO3 is not a release setting; it stays as a
+switch, off. Unlike decoder.c (5280, 9.5% faster), these loops have no
+work -O3's unrolling and inlining can find -- which says the cost is not
+in their arithmetic.
+
+Also from these runs: 6118's first period after play with ECHO set
+had its worst chunk at 30.7%, where the run before 6118 had 113%. One
+run each, so it fits rather than proves.
+
+WHERE THE COST MIGHT BE. ~1,220 cycles a stereo frame for the sheet
+against ~350 for varispeed's cubic, which rounds inline. Every Fx stage
+that writes rounds through clip16(), which called lrintf(): not inlined
+under IDF's default -fmath-errno, so a library call, twice a frame per
+stage. clip16() now rounds as varispeed's clip() does, half away from
+zero -- the two differ only on an exact .5, by one LSB. fxtest's 49
+checks pass unchanged (off is bit for bit because off writes nothing;
+ECHO's 8000/4000/2000 are exact).
+
+And so the next run says rather than suggests: under FXBENCH, each
+period also logs the sheet stage by stage,
+
+    FXBENCH fx stages, cycles/1024 frames: vox N, dust N, wow N, wide N, tone N, lcut N, hcut N, echo N, edge N
+
+from a cycle-counter read between stages, counted only for a call that
+stayed on one core (as the total is). The UI task logs it; the writer
+only adds.
+
+THE NEXT RUN:
+
+    idf.py -DFXBENCH=1 -DFXO3=0 build
+
+-DFXO3=0 explicitly: both switches stay in CMakeCache.txt, and the last
+build was FXO3=1. The same tracks, the same fx_sheet 33311111311, the
+same 78/45, three periods or more. What to compare with the -O2 row
+above: fx avg -- if lrintf was most of it, well under 14.8% -- and the
+stage line, which says what is left and where.
+
+For the release afterwards: `idf.py -DFXBENCH=0 -DFXO3=0 build` after
+`idf.py fullclean`, so neither is cached into it.
+
+Syntax-checked with and without FXBENCH against stubs; texttest all
+passes; not built with ESP-IDF here. No manifest or sdkconfig change.

@@ -18,7 +18,6 @@ const char *const fx_tone_label[FX_STEPS] = {
  * prints the gain as a number instead (player.c). */
 const float fx_tone_gain[FX_STEPS] = { 0.5f, 2.0f / 3.0f, 1.0f, 1.5f, 2.0f };
 
-const uint16_t fx_edge_ms[FX_STEPS] = { 0, 10, 50, 250, 1000 };
 
 /* ------------------------------------------------------------------ */
 

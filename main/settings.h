@@ -240,9 +240,9 @@ void settings_set_speed_boot(bool boot);
 
 /*
  * 6097: the Fx sheet (fx.h), five indexes 0..FX_STEPS-1 -- BASS and
- * TREBLE into fx_tone_gain[] (2 is ×1, the default), ATTACK, DECAY and
- * RELEASE into fx_edge_ms[] (defaults 10, 10 and 50 ms). The sheet's
- * fourth column, SUSTAIN, is settings_crossfade_sec(), not one of these.
+ * TREBLE into fx_tone_gain[] (2 is ×1, the default). The three after
+ * them were ATTACK, DECAY and RELEASE; 6111 removed them, and their
+ * digits stay in the record as reserved (below).
  *
  * Kept whatever "Speed holds" says: speed is per record, and nobody
  * sets their bass per track. Saved on the card only, like speed, as one
@@ -254,9 +254,13 @@ void settings_set_speed_boot(bool boot);
 enum {
     SETTINGS_FX_BASS = 0,
     SETTINGS_FX_TREBLE,
-    SETTINGS_FX_ATTACK,
-    SETTINGS_FX_DECAY,
-    SETTINGS_FX_RELEASE,
+    /* 6111: reserved -- were ATTACK, DECAY, RELEASE. Every later digit's
+     * place in "fx" counts past them, so they stay in the record,
+     * always written 1 1 2 (what older firmware takes as its defaults,
+     * so a card goes both ways) and never read. Not settable. */
+    SETTINGS_FX_RESERVED2,
+    SETTINGS_FX_RESERVED3,
+    SETTINGS_FX_RESERVED4,
     SETTINGS_FX_VOICE,          /* 6101: into fx_vox_gain[], 2 is ×1 */
     SETTINGS_FX_ECHO,           /* 6102: into fx_echo_gain[], 0 is off */
     SETTINGS_FX_TIME,           /* 6102: into fx_echo_ms[], 2 is 250 ms */

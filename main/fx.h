@@ -27,12 +27,11 @@
  * nothing has to be caught. The clamp at the end is for a first-order
  * filter's phase putting a peak a few per cent over, not for the boost.
  *
- * EDGES: ATTACK, DECAY and RELEASE, in milliseconds -- the fade up when
- * play is pressed or a pause ends, the fade up after a seek, and the
- * fade down when pause is pressed. A synth's names for a player's
- * gestures: what they share is that each is how long the sound takes to
- * arrive or leave. SUSTAIN, the fourth, is the crossfade length, and
- * lives where it always has (settings_crossfade_sec()).
+ * EDGES: the fade up when play is pressed or a pause ends, the fade up
+ * after a seek, and the fade down when pause is pressed -- so none of
+ * them clicks. Fixed lengths since 6111 (FX_ATTACK_MS and the rest,
+ * below); they were three settings, ATK DEC REL, named for a synth's
+ * envelope.
  *
  * Neither half is applied on the decode side. Both are the writer's,
  * at the moment the samples are handed to the hardware, after
@@ -63,8 +62,13 @@ extern "C" {
 extern const char *const fx_tone_label[FX_STEPS];
 extern const float       fx_tone_gain[FX_STEPS];
 
-/* 0 10 50 250 1000 ms. */
-extern const uint16_t    fx_edge_ms[FX_STEPS];
+/* 6111: the edges' lengths, fixed. They were settings (6097, ATK DEC
+ * REL, 0 10 50 250 1000 ms) and off the sheet since 6101; these are
+ * the defaults they had. Long enough that a start, a seek or a pause
+ * does not click, short enough that nobody hears a fade. */
+#define FX_ATTACK_MS    (10u)
+#define FX_DECAY_MS     (10u)
+#define FX_RELEASE_MS   (50u)
 
 /*
  * 6101: VOX, Audacity's Vocal Reduction, as a gain on the centre --

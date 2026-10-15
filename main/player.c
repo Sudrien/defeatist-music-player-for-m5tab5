@@ -2336,12 +2336,6 @@ static uint32_t fx_rate(void)
     return r ? r : audio_out_rate();
 }
 
-static uint32_t fx_ms(unsigned which)
-{
-    const unsigned i = settings_fx(which);
-    return fx_edge_ms[i < FX_STEPS ? i : 0];
-}
-
 static void fx_out(uint8_t *buf, size_t n)
 {
     const size_t frames = n / PCM_BYTES_PER_FRAME;
@@ -2349,7 +2343,7 @@ static void fx_out(uint8_t *buf, size_t n)
     if (s_fx_gap) {
         s_fx_gap = false;
         if (fx_edge_unity(&s_fx_edge)) {
-            fx_edge_from_zero(&s_fx_edge, fx_ms(SETTINGS_FX_ATTACK), fx_rate());
+            fx_edge_from_zero(&s_fx_edge, FX_ATTACK_MS, fx_rate());
         }
     }
     /* 6101: the voice first -- it reads left against right, which tone
@@ -2480,7 +2474,7 @@ static void i2s_writer_task(void *arg)
         /* 6097: not while a pause is still fading out -- a stream's
          * pause flushes, and dropping the ring under the release would
          * be the click the release is there to remove. It waits the
-         * release out, at most fx_edge_ms[]'s last second. */
+         * release out, at most FX_RELEASE_MS (6111). */
         if (s_pcm_flush && !fx_releasing()) {
             size_t dropped = 0, got;
             for (int r = 0; r < PCM_RINGS; r++) {
@@ -2518,7 +2512,7 @@ static void i2s_writer_task(void *arg)
             if (s_playing) {
                 const bool seek = strcmp(s_flush_why, "seek") == 0;
                 fx_edge_from_zero(&s_fx_edge,
-                                  fx_ms(seek ? SETTINGS_FX_DECAY : SETTINGS_FX_ATTACK),
+                                  seek ? FX_DECAY_MS : FX_ATTACK_MS,
                                   fx_rate());
             } else {
                 fx_edge_go(&s_fx_edge, false, 0, fx_rate());
@@ -2563,7 +2557,7 @@ static void i2s_writer_task(void *arg)
         /*
          * 6097: RELEASE. The first pass after the press turns the edge
          * down, and the writer carries on until it reaches silence --
-         * that is the pause, arriving fx_edge_ms[] late on purpose. A
+         * that is the pause, arriving FX_RELEASE_MS late on purpose. A
          * ring with nothing in it has nothing to fade, and silence is
          * immediate. A resume (the else) turns it back up over ATTACK
          * from wherever it got to, so a quick pause-play is a dip, not
@@ -2572,7 +2566,7 @@ static void i2s_writer_task(void *arg)
         if (!s_playing && !s_writer_stop) {
             if (s_fx_edge.up) {
                 fx_edge_go(&s_fx_edge, false,
-                           ring_dry(s_ring_play) ? 0 : fx_ms(SETTINGS_FX_RELEASE),
+                           ring_dry(s_ring_play) ? 0 : FX_RELEASE_MS,
                            fx_rate());
             } else if (!fx_edge_silent(&s_fx_edge) && ring_dry(s_ring_play)) {
                 fx_edge_go(&s_fx_edge, false, 0, fx_rate());
@@ -2582,7 +2576,7 @@ static void i2s_writer_task(void *arg)
                 continue;
             }
         } else if (!s_fx_edge.up) {
-            fx_edge_go(&s_fx_edge, true, fx_ms(SETTINGS_FX_ATTACK), fx_rate());
+            fx_edge_go(&s_fx_edge, true, FX_ATTACK_MS, fx_rate());
             s_fx_gap = false;
         }
 
@@ -9161,10 +9155,12 @@ static void ui_task(void *arg)
              * gone from the sheet, the crossfade back on AUDIO alone. */
             const unsigned col = (unsigned)act.value >> 4;
             const unsigned v = (unsigned)act.value & 15u;
-            if (col < SETTINGS_FX_COUNT) {
+            /* 6111: the reserved three (were the edges) are not settable. */
+            if (col < SETTINGS_FX_COUNT &&
+                (col < SETTINGS_FX_RESERVED2 || col > SETTINGS_FX_RESERVED4)) {
                 settings_set_fx(col, v);
                 static const char *const nm[SETTINGS_FX_COUNT] = {
-                    "bass", "treble", "attack", "decay", "release", "voice",
+                    "bass", "treble", NULL, NULL, NULL, "voice",   /* 6111: 2-4 reserved */
                     "echo", "time", "low cut", "high cut", "dust", "width", "wow",
                     "flutter"
                 };
@@ -9201,9 +9197,6 @@ static void ui_task(void *arg)
                 } else if (col == SETTINGS_FX_TIME) {
                     ESP_LOGI(TAG, "fx: echo time %u ms",
                              (unsigned)fx_echo_ms[settings_fx(col)]);
-                } else {
-                    ESP_LOGI(TAG, "fx: %s %u ms", nm[col],
-                             (unsigned)fx_edge_ms[settings_fx(col)]);
                 }
             }
             break;

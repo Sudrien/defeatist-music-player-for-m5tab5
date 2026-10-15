@@ -23742,15 +23742,45 @@ means host-tested or reasoned only.
   Fx settings -- "fx" records of 5, 6, 8, 10 and 11 digits are read at
   the defaults for what they lack, and nothing on the host tests it.
 - **Station artwork** (6083): Wikimedia is not asked.
+- **The edges' settings removed** (6111): ATK, DEC and REL, off the
+  sheet since 6101, are gone; the fades they set stay, fixed at 10, 10
+  and 50 ms. Their three digits stay in a card's "fx" record, reserved.
 
 Known and left, so they are not rediscovered:
 
 - ECHO's trail is not cleared by a seek.
 - BASS and TREB are first-order shelves: ½ and 2 are reached only far
   from their corners.
-- The edges (ATK, DEC, REL) act at what they were left at but are off
-  the sheet (6101).
 - DUST's ticks do not repeat with the record's revolution, though WOW's
   phase could now drive them; wow follows PLAYED, not CUT.
 
 Not on the board.
+
+### 6111 -- ATK, DEC and REL removed; the edges fixed
+
+The three edges -- the fade up on play, the fade up after a seek, the
+fade down on pause -- were settings since 6097 (0, 10, 50, 250 or
+1000 ms) and off the sheet since 6101, still acting at whatever they
+were left at. They are no longer settings. The fades are not removed:
+without them a start, a seek and a pause click. They are FX_ATTACK_MS,
+FX_DECAY_MS and FX_RELEASE_MS in fx.h -- 10, 10 and 50, the defaults
+they always had. fx_edge_ms[] and player.c's fx_ms() are gone.
+
+THE RECORD KEEPS THEIR DIGITS. "fx" is positional: VOX is the sixth
+digit because the edges were the third to fifth, and every column
+since counts past them. Dropping three digits would move every later
+setting on an existing card. So SETTINGS_FX_ATTACK, _DECAY and _RELEASE
+become SETTINGS_FX_RESERVED2-4: always written 1 1 2, which is what
+older firmware takes as its defaults, so a card written now reads the
+same on a build from before; never read -- an older record's values
+there, say a 1000 ms release, are dropped on load and written back as
+1 1 2. settings_set_fx() refuses them, as does the player's action
+handler, so a stray (col << 4) from anywhere cannot set one.
+
+FX_COLS and ui_state_t's fx[] keep their fourteen: the UI indexes by
+settings column, and the reserved three are never in k_fx_shown. The
+sheet's names for them are empty and the log has no branch for them.
+
+Nothing on screen changes. Whole texttest suite passes; ui.c,
+player.c and settings.c syntax-checked against stubs; not built with
+ESP-IDF here. ABBREVIATIONS never listed them.

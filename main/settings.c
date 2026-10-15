@@ -556,6 +556,8 @@ unsigned settings_fx(unsigned which)
 void settings_set_fx(unsigned which, unsigned idx)
 {
     if (which >= SETTINGS_FX_COUNT || idx >= fx_steps(which)) return;
+    if (which >= SETTINGS_FX_RESERVED2 && which <= SETTINGS_FX_RESERVED4)
+        return;                                     /* 6111 */
     if (s_fx[which] == idx) return;
     s_fx[which] = (uint8_t)idx;
     s_dirty = true;
@@ -1101,6 +1103,11 @@ static bool parse_line(char *line, storage_id_t id, bool take_settings,
                 v[i] = (uint8_t)d;
             }
             if (okfx) {
+                /* 6111: the reserved three are not read; whatever an
+                 * older record held, they are written back 1 1 2. */
+                v[SETTINGS_FX_RESERVED2] = 1;
+                v[SETTINGS_FX_RESERVED3] = 1;
+                v[SETTINGS_FX_RESERVED4] = 2;
                 memcpy(s_fx, v, sizeof s_fx);
                 any = true;
             }

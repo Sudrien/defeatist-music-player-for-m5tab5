@@ -396,9 +396,9 @@ static int  s_pop_btn[4][4];    /* PLAYED -, PLAYED +, CUT -, CUT +: x y w h */
 #define FX_WIDE      (11)               /* 6105: SETTINGS_FX_WIDE */
 #define FX_WOW       (12)               /* 6105: SETTINGS_FX_WOW */
 #define FX_FLTR      (13)               /* 6105: SETTINGS_FX_FLTR */
-/* 6101: the columns shown, in order. ATK, DEC and REL are kept, and
- * still act at whatever they were left at, but off the sheet for now;
- * SUS (the crossfade) is gone from it, back to the AUDIO tab alone. */
+/* 6101: the columns shown, in order. Columns 2-4 were ATK, DEC and REL,
+ * removed in 6111 -- the edges are fixed lengths now (fx.h) -- and SUS
+ * (the crossfade) is on the AUDIO tab alone. */
 /* 6105: two rows. The sound as recorded on top -- tone, the cuts, the
  * voice and the width -- and below it what happens to the record and
  * the room: the echo, the dust, the turntable's wow and flutter. */
@@ -2235,10 +2235,9 @@ static void draw_fx_pop(void)
     gfx_fill_rect(x, y, w, h, C_NOTICE_EDGE);
     gfx_fill_rect(x + 2, y + 2, w - 4, h - 4, C_NOTICE_BG);
 
-    /* 6101: BASS TREB | VOX. The edges' names stay for when they come
-     * back: same() -- a synth's abbreviations in every language. */
+    /* Indexed by settings column; 2-4 are reserved (6111) and never shown. */
     const char *name[FX_COLS] = {
-        _("BASS"), _("TREB"), same("ATK"), same("DEC"), same("REL"), _("VOX"),
+        _("BASS"), _("TREB"), "", "", "", _("VOX"),        /* 6111: 2-4 reserved */
         _("ECHO"), _("TIME"), _("LCUT"), _("HCUT"), _("DUST"), _("WIDE"),
         _("WOW"), _("FLTR")
     };
@@ -2302,9 +2301,6 @@ static void draw_fx_pop(void)
             if (v) unit = same("%");
         } else if (c == FX_TIME) {
             snprintf(val, sizeof val, "%u", (unsigned)fx_echo_ms[v]);
-            unit = same("ms");
-        } else {
-            snprintf(val, sizeof val, "%u", (unsigned)fx_edge_ms[v]);
             unit = same("ms");
         }
         const bool grey = fx_col_grey(c);                       /* 6109 */

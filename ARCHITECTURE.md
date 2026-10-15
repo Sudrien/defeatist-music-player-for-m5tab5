@@ -23633,3 +23633,20 @@ lathe) rather than PLAYED. Not built with ESP-IDF; ui.c and player.c's
 changed lines syntax-checked against stubs.
 
 Not on the board.
+
+### 6106 -- X and RG marked same()
+
+A sweep for on-screen strings that never reach the translation tables
+found none missing, and two drawn as bare literals: the chooser's close
+button `X` and the ReplayGain mark `RG`. Both are symbols, documented in
+ABBREVIATIONS.md, and English in every language on purpose; same()
+now says so where they are drawn, as it does for USB, UAC and the
+rest. No behaviour changes -- same(s) is s.
+
+What else the sweep passed over, so it is not rediscovered: every other
+bare same() is a console name (6021); the CUE sheet's "Track %d" is
+MPD metadata (above); the SDIO clock notice exists only in a CLOCK_AB
+build; remote.html leaves "Language" English so a lost user can find
+it, and ReplayGain and Wi-Fi as names. 37 table entries equal their
+English key and are each that language's own word (Volume, Rotation,
+Buffering, Crossfade, min).

@@ -1327,7 +1327,7 @@ void browser_draw(void)
     foot_box(2, &bx, &bw); draw_button(bx + 4, fy + 8, bw - 8, FOOT_H - 16, _("UP^"), s_top > 0);
     foot_box(3, &bx, &bw); draw_button(bx + 4, fy + 8, bw - 8, FOOT_H - 16, _("DN"), s_top + rows < s_count);
     foot_box(4, &bx, &bw); draw_button(bx + 4, fy + 8, bw - 8, FOOT_H - 16, _(order_button_label()), true);
-    foot_box(5, &bx, &bw); draw_button(bx + 4, fy + 8, bw - 8, FOOT_H - 16, "X",    true);
+    foot_box(5, &bx, &bw); draw_button(bx + 4, fy + 8, bw - 8, FOOT_H - 16, same("X"), true);  /* 6106 */
 
     gfx_blit(0, h);
 }

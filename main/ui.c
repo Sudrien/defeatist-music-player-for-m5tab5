@@ -1274,7 +1274,7 @@ static void draw_rg(const ui_state_t *st)
 
     /* Under the speaker, in the margin it already owns. Scale 2 is the
      * smallest the font stays legible at arm's length. */
-    gfx_draw_text(cx - 17, cy + 20, "RG", 2, 40, C_RG);
+    gfx_draw_text(cx - 17, cy + 20, same("RG"), 2, 40, C_RG);     /* 6106 */
 
     if (st->rg_gain_db == 0.0f) return;
 

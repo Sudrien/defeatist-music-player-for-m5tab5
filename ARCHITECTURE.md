@@ -24074,3 +24074,34 @@ For the release afterwards: `idf.py -DFXBENCH=0 -DFXO3=0 build` after
 
 Syntax-checked with and without FXBENCH against stubs; texttest all
 passes; not built with ESP-IDF here. No manifest or sdkconfig change.
+
+### 6121 -- ECHO's read index steps instead of dividing
+
+THE RUN AFTER 6120 (v0.6.0-91, FXBENCH, FXO3=0, the A/B's tracks, Fx
+and speed). The Fx average went from 14.8% to 14.7% of a core: inline
+rounding was not the cost, and 6120's guess was wrong. Its stage line,
+the same to within 1% over eight periods, per stereo frame:
+
+    dust 230  wow 225  echo 172  tone 139  lcut 121  hcut 116  vox 111  wide 84  edge 4
+
+WIDE is four multiplies a frame and costs 84 cycles. That is the floor
+every stage pays to exist -- load int16, convert, a per-frame ramp,
+clamp, round, convert back, store -- and eight stages pay it: most of
+the ~1,200. 6122 and 6123 go after that. This patch takes the one cost
+that was not the floor.
+
+ECHO found its read position each frame as
+`(pos + FX_ECHO_FRAMES - d) % FX_ECHO_FRAMES`. FX_ECHO_FRAMES is
+192000, not a power of two, so that is an integer division a frame.
+(WOW's `% FX_WOW_FRAMES` is 4096, a mask, and stays.) The read index
+now starts at pos - d, wrapped, and steps with the write index.
+
+fxtest: 250000 frames through ECHO ½ at 500 ms -- past the line's wrap
+at 192000 -- against a reference that does the modulo every frame as
+6102 did: 0 samples differ. The other echo checks pass as they were.
+
+What the board should show: echo's figure in the stage line down from
+~176000 cycles/1024 frames. Next run, unchanged:
+`idf.py -DFXBENCH=1 -DFXO3=0 build`, the same tracks, Fx and speed.
+Syntax-checked against stubs; texttest all passes; not built with
+ESP-IDF here.

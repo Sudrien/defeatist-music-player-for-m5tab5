@@ -231,11 +231,15 @@ void fx_echo_run(fx_echo_t *e, int16_t *pcm, size_t frames,
     if (d > FX_ECHO_FRAMES - 1) d = FX_ECHO_FRAMES - 1;
     float *L = e->line;
     uint32_t pos = e->pos;
+    /* 6121: the read index steps beside the write index. It was
+     * (pos + FX_ECHO_FRAMES - d) % FX_ECHO_FRAMES every frame, and
+     * FX_ECHO_FRAMES is 192000, not a power of two: an integer division
+     * a frame, on a core that takes tens of cycles for one. */
+    uint32_t rd = pos >= d ? pos - d : pos + FX_ECHO_FRAMES - d;
     const float inv = 1.0f / (float)frames;
     for (size_t i = 0; i < frames; i++) {
         const float u = (float)(i + 1) * inv;
         const float g = g0 + (g1 - g0) * u;
-        const uint32_t rd = (pos + FX_ECHO_FRAMES - d) % FX_ECHO_FRAMES;
         const bool old = d <= e->fill;              /* 6118: written this run */
         for (int c = 0; c < 2; c++) {
             const float back = old ? L[2 * rd + (uint32_t)c] : 0.0f;
@@ -244,6 +248,7 @@ void fx_echo_run(fx_echo_t *e, int16_t *pcm, size_t frames,
             pcm[2 * i + (size_t)c] = clip16(y * (1.0f - g));
         }
         if (++pos == FX_ECHO_FRAMES) pos = 0;
+        if (++rd == FX_ECHO_FRAMES) rd = 0;
         if (e->fill < FX_ECHO_FRAMES) e->fill++;
     }
     e->pos = pos;

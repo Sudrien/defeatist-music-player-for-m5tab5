@@ -590,6 +590,48 @@ int main(void)
         free(line);
     }
 
+    /* 6121: the stepped read index is the modulo one, past the line's
+     * wrap: 250000 frames through ECHO ½ at 500 ms, against a reference
+     * that computes (pos + FRAMES - d) % FRAMES every frame as 6102 did. */
+    {
+        const size_t total = 250000, chunk = 1024;
+        float *line = calloc((size_t)FX_ECHO_FRAMES * 2, sizeof(float));
+        float *ref  = calloc((size_t)FX_ECHO_FRAMES * 2, sizeof(float));
+        fx_echo_t e;
+        fx_echo_init(&e, line);
+        static int16_t q[2 * 1024], r[2 * 1024];
+        const uint32_t d = (uint32_t)((uint64_t)RATE * 500 / 1000);
+        uint32_t pos = 0;
+        long diff = 0;
+        for (size_t f = 0; f < total; f += chunk) {
+            for (size_t i = 0; i < chunk; i++) {
+                const int16_t v = (int16_t)lrint(9000 * sin(2 * M_PI * 330.0 * (double)(f + i) / RATE));
+                q[2 * i] = q[2 * i + 1] = r[2 * i] = r[2 * i + 1] = v;
+            }
+            fx_echo_run(&e, q, chunk, 4, 3, RATE);
+            /* the reference: g settled at ½ after the first chunk's ramp */
+            for (size_t i = 0; i < chunk; i++) {
+                const float g = f ? 0.5f : 0.5f * (float)(i + 1) / (float)chunk;
+                const uint32_t rd = (pos + FX_ECHO_FRAMES - d) % FX_ECHO_FRAMES;
+                const bool old = d <= (uint32_t)(f + i);
+                for (int c = 0; c < 2; c++) {
+                    const float back = old ? ref[2 * rd + (uint32_t)c] : 0.0f;
+                    const float y = (float)r[2 * i + (size_t)c] + g * back;
+                    ref[2 * pos + (uint32_t)c] = y;
+                    const float o = y * (1.0f - g);
+                    const int16_t w = o > 32767.0f ? 32767 : o < -32768.0f ? -32768
+                                    : (int16_t)(o < 0.0f ? o - 0.5f : o + 0.5f);
+                    if (w != q[2 * i + (size_t)c]) diff++;
+                }
+                if (++pos == FX_ECHO_FRAMES) pos = 0;
+            }
+        }
+        snprintf(what, sizeof what, "ECHO's stepped index past the wrap: %ld samples differ", diff);
+        ck(what, diff == 0);
+        free(line);
+        free(ref);
+    }
+
     printf("%s\n", fails ? "fxtest: FAILED" : "fxtest: all ok");
     return fails != 0;
 }

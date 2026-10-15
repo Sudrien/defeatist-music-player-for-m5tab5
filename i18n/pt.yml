@@ -178,6 +178,8 @@ pt:
     "DN": "PG BAIXO"
     # panel.c
     "DONE": "OK"
+    # ui.c
+    "DUST": "PÓ"
     # portal.c
     "Defeatist setup": "Configuração do Defeatist"
     # sleeppage.c

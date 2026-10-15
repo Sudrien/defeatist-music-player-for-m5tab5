@@ -9,7 +9,7 @@
 #include <stddef.h>
 #include "i18n.h"
 
-const unsigned i18n_count = 377;
+const unsigned i18n_count = 378;
 const char *const i18n_keys[] = {
     "%.32s did not work. Try again.",
     "%d h",
@@ -97,6 +97,7 @@ const char *const i18n_keys[] = {
     "Crossfade within an album",
     "DN",
     "DONE",
+    "DUST",
     "Defeatist setup",
     "Dim screen",
     "EAT",
@@ -479,6 +480,7 @@ const unsigned char i18n_on_screen[] = {
     0,  /* 'Crossfade within an album' */
     1,  /* 'DN' */
     1,  /* 'DONE' */
+    1,  /* 'DUST' */
     0,  /* 'Defeatist setup' */
     1,  /* 'Dim screen' */
     1,  /* 'EAT' */
@@ -899,6 +901,7 @@ const char *const i18n_vals[] = {
     NULL,
     NULL,
     NULL,
+    NULL,
     "Insert a card or a USB\012drive to record to.",
     NULL,
     "It reached 4 GB, the\012most one file can hold.",
@@ -1249,6 +1252,7 @@ const char *const i18n_vals[] = {
     "同一专辑内也交叉淡化",
     "下页",
     "完成",
+    "底噪",
     "Defeatist 设置",
     "屏幕变暗",
     "播完删除",
@@ -1627,6 +1631,7 @@ const char *const i18n_vals[] = {
     "同じアルバム内でもクロスフェード",
     "次頁",
     "完了",
+    "パチパチ",
     "Defeatist の設定",
     "画面を暗く",
     "消費",
@@ -2005,6 +2010,7 @@ const char *const i18n_vals[] = {
     "Fundido cruzado dentro de un álbum",
     "AV PÁG",
     "HECHO",
+    "POLVO",
     "Configuración de Defeatist",
     "Atenuar pantalla",
     "BORRAR",
@@ -2383,6 +2389,7 @@ const char *const i18n_vals[] = {
     "Crossfade dentro do álbum",
     "PG BAIXO",
     "OK",
+    "PÓ",
     "Configuração do Defeatist",
     "Escurecer tela",
     "COMER",
@@ -2761,6 +2768,7 @@ const char *const i18n_vals[] = {
     "Fondu enchaîné dans un album",
     "PG BAS",
     "OK",
+    "CRAQ",
     "Configuration de Defeatist",
     "Assombrir l'écran",
     "MANGER",
@@ -3139,6 +3147,7 @@ const char *const i18n_vals[] = {
     "Dissolvenza nello stesso album",
     "PAG GIÙ",
     "FATTO",
+    "FRUS",
     "Configurazione di Defeatist",
     "Attenua schermo",
     "MANGIA",

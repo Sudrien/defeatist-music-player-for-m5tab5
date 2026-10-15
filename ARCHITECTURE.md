@@ -23498,3 +23498,65 @@ not cleared by a seek; the first-order shelves reach ½ and 2 only far
 from their corners.
 
 Not on the board.
+
+### 6104 -- DUST: a worn record's surface, the eighth column
+
+6103 called the sheet done for the release; this reopens it for one
+column. Asked for as an "ant record crackle", taken to mean a record's.
+
+What it adds, not what it changes: ticks at random moments and a hiss
+under them, laid over the track. Off, then 1, 4, 12 or 40 ticks a
+second on average -- a clean pressing to a 78 from a loft -- with the
+hiss rising alongside (-62 to -47 dBFS before its filter).
+
+    tick:  white noise under an exponential decay, 0.08-0.6 ms, drawn
+           per tick; level a uniform number squared times 0.10-0.20 FS
+           by step, so most are faint and a few are not; placed
+           between the speakers at random, never wholly one side
+    hiss:  white noise through a one-pole at 5 kHz, per channel
+    when:  each frame, a tick with probability cps / rate -- a
+           threshold on 32 random bits, so no division per frame
+
+Lengths are in milliseconds, so a tick is the same sound at 8 kHz as
+at 192; fxtest checks the time over the hiss at the two ends agree.
+The noise is xorshift32 seeded from esp_random() when the writer
+starts. A per-track seed was considered and not needed: the sequence
+never comes round within a listening, so two tracks never crackle
+alike.
+
+HEADROOM as the rest of the sheet: the track is multiplied by one less
+the most the dust can add (tick ceiling plus hiss), 0.90 at 1/s to 0.80
+at 40/s, ramped across a chunk on a change. fxtest: a full-scale 1 kHz
+tone under 40/s puts no sample on the rail.
+
+Off is bit for bit, and so is off again: turning it off lets a tick
+already sounding finish (it is under a bit within a millisecond), then
+returns untouched. Both are tested.
+
+Order in fx_out(): VOX, DUST, tone, LCUT, HCUT, ECHO, the edge. After
+VOX, which would take a centred tick out with the singer; before tone
+and the cuts so the dust is shaped as the record is -- DUST with LCUT
+150 and HCUT 8k is an old record on AM radio, which is the point.
+Before ECHO, so a room repeats the crackle with the music.
+
+The sheet is one row of eight:
+
+    BASS  TREB  LCUT  HCUT  VOX  ECHO  TIME  DUST
+
+84 px a column, so FX_BTN goes from 88 to 80 -- still bigger than a
+fingertip. "fx" grows to eleven digits ("22112202000"); ten-digit
+records (6103's) read with DUST off, as do the older lengths.
+SETTINGS_MAX_LINE 622. The Fx box is yellow when DUST is on.
+
+i18n: DUST, POLVO, CRAQ, FRUS, PÓ, パチパチ, 底噪. Chinese was first 噼啪,
+and i18ntest refused it: U+556A is not in Ark12. 底噪 ("noise floor")
+is what Chinese audio gear calls surface noise anyway. All by Claude,
+not yet read by a native speaker.
+
+Not done: no rumble (a low thump at 33⅓ rpm, 0.55 Hz, would sit under
+LCUT and mostly be cut by it); no wow, which is VARISPEED's to do if
+anyone's; ticks do not lock to the record's rotation the way a real
+scratch repeats every 1.8 s. That last would be the next thing to try
+if it sounds too even.
+
+Not on the board.

@@ -178,6 +178,8 @@ zh-CN:
     "DN": "下页"
     # panel.c
     "DONE": "完成"
+    # ui.c
+    "DUST": "底噪"
     # portal.c
     "Defeatist setup": "Defeatist 设置"
     # sleeppage.c

@@ -178,6 +178,8 @@ ja:
     "DN": "次頁"
     # panel.c
     "DONE": "完了"
+    # ui.c
+    "DUST": "パチパチ"
     # portal.c
     "Defeatist setup": "Defeatist の設定"
     # sleeppage.c

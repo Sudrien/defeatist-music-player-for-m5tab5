@@ -46,6 +46,7 @@
 #include "esp_system.h"    /* esp_restart */
 #include "nvs_flash.h"
 #include "esp_heap_caps.h"
+#include "esp_random.h"    /* 6104: the dust's seed */
 #include "esp_log.h"
 #include "freertos/FreeRTOS.h"
 #include "freertos/task.h"
@@ -2302,6 +2303,7 @@ static fx_tone_t s_fx_tone;
 static fx_vox_t  s_fx_vox;                  /* 6101 */
 static fx_echo_t s_fx_echo;                 /* 6102 */
 static fx_cut_t  s_fx_lcut, s_fx_hcut;      /* 6103 */
+static fx_dust_t s_fx_dust;                 /* 6104 */
 static fx_edge_t s_fx_edge;
 static bool      s_fx_gap = true;
 
@@ -2331,6 +2333,11 @@ static void fx_out(uint8_t *buf, size_t n)
      * does not change but would filter both of. */
     fx_vox_run(&s_fx_vox, (int16_t *)buf, frames,
                settings_fx(SETTINGS_FX_VOICE), fx_rate());
+    /* 6104: the dust after the voice, which would take a centred tick
+     * out with the singer, and before tone and the cuts, so it is
+     * shaped as the record is -- an AM radio band thins it too. */
+    fx_dust_run(&s_fx_dust, (int16_t *)buf, frames,
+                settings_fx(SETTINGS_FX_DUST), fx_rate());
     fx_tone_run(&s_fx_tone, (int16_t *)buf, frames,
                 settings_fx(SETTINGS_FX_BASS), settings_fx(SETTINGS_FX_TREBLE),
                 fx_rate());
@@ -2401,6 +2408,7 @@ static void i2s_writer_task(void *arg)
     fx_vox_reset(&s_fx_vox);
     fx_cut_reset(&s_fx_lcut);                       /* 6103 */
     fx_cut_reset(&s_fx_hcut);
+    fx_dust_reset(&s_fx_dust, esp_random());        /* 6104 */
     /* 6102: the echo's line, one second at 192 kHz, float stereo --
      * 1.5 MB, so PSRAM, and once here rather than when ECHO is turned
      * on: a malloc does not belong on the path with the DMA deadline.
@@ -9115,7 +9123,7 @@ static void ui_task(void *arg)
                 settings_set_fx(col, v);
                 static const char *const nm[SETTINGS_FX_COUNT] = {
                     "bass", "treble", "attack", "decay", "release", "voice",
-                    "echo", "time", "low cut", "high cut"
+                    "echo", "time", "low cut", "high cut", "dust"
                 };
                 if (col <= SETTINGS_FX_TREBLE || col == SETTINGS_FX_VOICE) {
                     /* 6100: as a number -- the labels include U+E000,
@@ -9133,6 +9141,10 @@ static void ui_task(void *arg)
                                                                  : fx_hcut_hz)[settings_fx(col)];
                     if (hz) ESP_LOGI(TAG, "fx: %s %u Hz", nm[col], hz);
                     else    ESP_LOGI(TAG, "fx: %s off", nm[col]);
+                } else if (col == SETTINGS_FX_DUST) {               /* 6104 */
+                    const unsigned n = fx_dust_cps[settings_fx(col)];
+                    if (n) ESP_LOGI(TAG, "fx: dust %u ticks/s", n);
+                    else   ESP_LOGI(TAG, "fx: dust off");
                 } else if (col == SETTINGS_FX_TIME) {
                     ESP_LOGI(TAG, "fx: echo time %u ms",
                              (unsigned)fx_echo_ms[settings_fx(col)]);

@@ -169,6 +169,43 @@ void fx_cut_reset(fx_cut_t *c);
 void fx_cut_run(fx_cut_t *c, bool hp, int16_t *pcm, size_t frames,
                 unsigned idx, uint32_t rate);
 
+/*
+ * 6104: DUST, a worn record's surface -- crackle on top of the track:
+ * short ticks at random moments and a little hiss under them. Nothing
+ * of the track is changed but its level.
+ *
+ * Index 0 is off, bit for bit. 1..4 are ticks a second on average,
+ * fx_dust_cps[] -- 1 a clean pressing, 40 a 78 found in a loft -- and
+ * the hiss rises with them. Each tick is noise under a decay of a
+ * fraction of a millisecond, its own length, level and place between
+ * the speakers; most are faint, a few are not (the level is a uniform
+ * number squared). Lengths are in time, not samples, so a tick sounds
+ * the same at 8 kHz as at 192.
+ *
+ * Headroom as everywhere on the sheet: the track is turned down by the
+ * most the dust can add, FX_DUST_ROOM[] of full scale, so a tick on a
+ * full-scale peak does not clip. A change of step ramps hiss and
+ * headroom across the chunk; a tick already sounding finishes.
+ *
+ * The noise is a xorshift32 seeded by the caller -- per boot is
+ * enough, the sequence never repeats within a listening.
+ */
+extern const uint16_t fx_dust_cps[FX_STEPS];        /* 0 1 4 12 40 */
+
+typedef struct {
+    uint32_t rng;
+    float    env, k;            /* the tick sounding: level, and its decay per frame */
+    float    pl, pr;            /* where it sits */
+    float    hs[2];             /* the hiss's one-pole, per channel */
+    float    ah;                /* its coefficient at `rate` */
+    float    hl, room;          /* hiss level and headroom the last chunk ended on */
+    uint32_t rate;
+} fx_dust_t;
+
+void fx_dust_reset(fx_dust_t *d, uint32_t seed);
+void fx_dust_run(fx_dust_t *d, int16_t *pcm, size_t frames,
+                 unsigned idx, uint32_t rate);
+
 /* ------------------------------------------------------------------ */
 
 typedef struct {

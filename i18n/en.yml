@@ -178,6 +178,8 @@ en:
     "DN": ~
     # panel.c
     "DONE": ~
+    # ui.c
+    "DUST": ~
     # portal.c
     "Defeatist setup": ~
     # sleeppage.c

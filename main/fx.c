@@ -324,3 +324,83 @@ void fx_cut_run(fx_cut_t *c, bool hp, int16_t *pcm, size_t frames,
     c->idx = idx;
     c->rate = rate;
 }
+
+/* ------------------------------------------------------------------ */
+/* 6104: DUST                                                         */
+/* ------------------------------------------------------------------ */
+
+const uint16_t fx_dust_cps[FX_STEPS] = { 0, 1, 4, 12, 40 };
+
+/* Per step, of full scale: the loudest a tick can be, and the hiss. */
+static const float k_dust_tick[FX_STEPS] = { 0.0f, 0.10f, 0.12f, 0.15f, 0.20f };
+static const float k_dust_hiss[FX_STEPS] = { 0.0f, 0.0008f, 0.0015f, 0.0025f, 0.0045f };
+#define FX_DUST_HISS_HZ   (5000.0f)   /* hiss through a one-pole, not white */
+#define FX_DUST_TICK_MS_LO (0.08f)
+#define FX_DUST_TICK_MS_HI (0.6f)
+
+static inline uint32_t xs32(uint32_t *s)
+{
+    uint32_t x = *s;
+    x ^= x << 13; x ^= x >> 17; x ^= x << 5;
+    return *s = x;
+}
+
+/* -1 .. 1 and 0 .. 1 */
+static inline float rnd_bi(uint32_t *s) { return (float)(int32_t)xs32(s) * (1.0f / 2147483648.0f); }
+static inline float rnd_un(uint32_t *s) { return (float)(xs32(s) >> 8) * (1.0f / 16777216.0f); }
+
+void fx_dust_reset(fx_dust_t *d, uint32_t seed)
+{
+    memset(d, 0, sizeof *d);
+    d->rng = seed ? seed : 0x9E3779B9u;     /* xorshift's one bad seed */
+}
+
+void fx_dust_run(fx_dust_t *d, int16_t *pcm, size_t frames,
+                 unsigned idx, uint32_t rate)
+{
+    if (!frames || !rate) return;
+    if (idx >= FX_STEPS) idx = 0;
+    if (rate != d->rate) {
+        d->rate = rate;
+        d->ah = onepole(FX_DUST_HISS_HZ, rate);
+    }
+    const float hl0 = d->hl, hl1 = k_dust_hiss[idx] * 32768.0f;
+    const float rm0 = d->room;
+    const float rm1 = idx ? k_dust_tick[idx] + k_dust_hiss[idx] : 0.0f;
+    if (idx == 0 && hl0 == 0.0f && rm0 == 0.0f && d->env == 0.0f)
+        return;                                     /* off: untouched */
+
+    /* A tick starts on a frame with probability cps / rate, as a
+     * threshold on 32 random bits. */
+    const uint32_t thr = (uint32_t)((double)fx_dust_cps[idx] / rate * 4294967296.0);
+    const float tick = k_dust_tick[idx] * 32768.0f;
+    const float inv = 1.0f / (float)frames;
+    for (size_t i = 0; i < frames; i++) {
+        const float u = (float)(i + 1) * inv;
+        const float hl = hl0 + (hl1 - hl0) * u;
+        const float h = 1.0f - (rm0 + (rm1 - rm0) * u);
+
+        if (thr && xs32(&d->rng) < thr) {
+            const float a = rnd_un(&d->rng);
+            const float ms = FX_DUST_TICK_MS_LO +
+                             (FX_DUST_TICK_MS_HI - FX_DUST_TICK_MS_LO) * rnd_un(&d->rng);
+            const float p = rnd_un(&d->rng);        /* 0 left .. 1 right */
+            d->env = tick * a * a;
+            d->k = expf(-1000.0f / (ms * (float)rate));
+            d->pl = 1.0f - 0.6f * p;                /* never wholly one side */
+            d->pr = 0.4f + 0.6f * p;
+        }
+        const float t = d->env * rnd_bi(&d->rng);
+        d->env *= d->k;
+        if (d->env < 0.5f) d->env = 0.0f;           /* under a bit: done */
+
+        for (int c = 0; c < 2; c++) {
+            d->hs[c] += d->ah * (rnd_bi(&d->rng) - d->hs[c]);
+            const float n = hl * d->hs[c] * 1.7f + t * (c ? d->pr : d->pl);
+            pcm[2 * i + (size_t)c] = clip16((float)pcm[2 * i + (size_t)c] * h + n);
+        }
+    }
+    d->hl = hl1;
+    d->room = rm1;
+    if (idx == 0) { d->hs[0] = d->hs[1] = 0.0f; }
+}

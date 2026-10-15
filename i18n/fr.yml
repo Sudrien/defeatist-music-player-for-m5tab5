@@ -178,6 +178,8 @@ fr:
     "DN": "PG BAS"
     # panel.c
     "DONE": "OK"
+    # ui.c
+    "DUST": "CRAQ"
     # portal.c
     "Defeatist setup": "Configuration de Defeatist"
     # sleeppage.c

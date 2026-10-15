@@ -11,7 +11,10 @@
  *     no more than full scale, without a limiter;
  *   - a change of gain is a ramp, not a step;
  *   - an edge takes the time it says, and a release turned round
- *     mid-way comes back up from where it got to.
+ *     mid-way comes back up from where it got to;
+ *   - 6104: DUST off is bit for bit, ticks come as often as it says and
+ *     as long in time at any rate, and the headroom keeps a full-scale
+ *     tone off the rail.
  *
  * SPDX-License-Identifier: MIT
  */
@@ -342,6 +345,91 @@ int main(void)
         }
         snprintf(what, sizeof what, "HCUT stepped every chunk: biggest step %d (1 kHz moves ~1140)", jump);
         ck(what, jump < 1300);
+    }
+
+
+    /* 6104: DUST. */
+    {
+        /* Off: bit for bit, and bit for bit again once a tick sounding
+         * when it was turned off has finished. */
+        static int16_t a[2 * N];
+        tone(1000, 12000);
+        memcpy(a, buf, sizeof a);
+        fx_dust_t d;
+        fx_dust_reset(&d, 1);
+        for (int k = 0; k < N; k += 1024) {
+            const int n = (N - k) < 1024 ? (N - k) : 1024;
+            fx_dust_run(&d, a + 2 * k, (size_t)n, 0, RATE);
+        }
+        ck("DUST off: every sample as it was", memcmp(a, buf, sizeof a) == 0);
+
+        fx_dust_reset(&d, 7);
+        memcpy(a, buf, sizeof a);
+        for (int k = 0; k < N / 2; k += 1024)
+            fx_dust_run(&d, a + 2 * k, 1024, 4, RATE);
+        for (int k = 0; k < 8; k++)                 /* off, let it finish */
+            fx_dust_run(&d, a, 1024, 0, RATE);
+        memcpy(a, buf, sizeof a);
+        fx_dust_run(&d, a, (size_t)N, 0, RATE);
+        ck("DUST on then off: bit for bit again", memcmp(a, buf, sizeof a) == 0);
+
+        /* Ticks a second as said, at two rates, over 20 s of silence;
+         * and ticks as long in time at 8 kHz as at 192. */
+        static const uint32_t rates[2] = { 8000, 192000 };
+        static int16_t q[2 * 4096];
+        double len[2];
+        for (int r = 0; r < 2; r++) {
+            fx_dust_reset(&d, 12345);
+            long loud = 0;
+            int16_t peak = 0;
+            const long total = (long)rates[r] * 20;
+            for (long f = 0; f < total; f += 4096) {
+                const size_t n = (size_t)((total - f) < 4096 ? (total - f) : 4096);
+                memset(q, 0, sizeof q);
+                fx_dust_run(&d, q, n, 4, rates[r]);
+                for (size_t i = 0; i < n; i++) {
+                    const int v = abs(q[2 * i]);
+                    if (v > peak) peak = (int16_t)v;
+                    if (v > 300) loud++;            /* over the hiss */
+                }
+            }
+            len[r] = (double)loud / rates[r];       /* seconds over the hiss */
+            snprintf(what, sizeof what, "DUST 40/s at %u Hz: peak %d, under 0.21 FS",
+                     (unsigned)rates[r], peak);
+            ck(what, peak > 1000 && peak < (int)(0.21 * 32768));
+        }
+        snprintf(what, sizeof what, "DUST ticks as long at 8k as at 192k: %.4f s vs %.4f s",
+                 len[0], len[1]);
+        ck(what, len[0] > 0.0 && fabs(len[0] / len[1] - 1.0) < 0.35);
+
+        /* Headroom: a full-scale tone under DUST 4 never reaches the
+         * clamp for more than a stray sample. */
+        tone(1000, 32767);
+        fx_dust_reset(&d, 3);
+        for (int k = 0; k < 4; k++)                 /* settle the ramp */
+            fx_dust_run(&d, a, 1024, 4, RATE);
+        memcpy(a, buf, sizeof a);
+        fx_dust_run(&d, a, (size_t)N, 4, RATE);
+        int clipped = 0;
+        for (int k = 0; k < 2 * N; k++) if (a[k] == 32767 || a[k] == -32768) clipped++;
+        snprintf(what, sizeof what, "DUST 40/s on a full-scale tone: %d samples at the rail", clipped);
+        ck(what, clipped == 0);
+
+        /* Rate of ticks: count onsets from silence at 44.1k, step 3. */
+        fx_dust_reset(&d, 99);
+        long on = 0; int quiet = 1000;
+        for (long f = 0; f < (long)RATE * 30; f += 4096) {
+            memset(q, 0, sizeof q);
+            fx_dust_run(&d, q, 4096, 3, RATE);
+            for (int i = 0; i < 4096; i++) {
+                const int v = abs(q[2 * i]) + abs(q[2 * i + 1]);
+                if (v > 300) { if (quiet > RATE / 500) on++; quiet = 0; }
+                else quiet++;
+            }
+        }
+        snprintf(what, sizeof what, "DUST 12/s: %.1f ticks a second over the hiss, 30 s (faint ones missed)",
+                 on / 30.0);
+        ck(what, on / 30.0 > 6.0 && on / 30.0 < 14.0);
     }
 
     printf("%s\n", fails ? "fxtest: FAILED" : "fxtest: all ok");

@@ -178,6 +178,8 @@ it:
     "DN": "PAG GIÙ"
     # panel.c
     "DONE": "FATTO"
+    # ui.c
+    "DUST": "FRUS"
     # portal.c
     "Defeatist setup": "Configurazione di Defeatist"
     # sleeppage.c

@@ -178,6 +178,8 @@ es:
     "DN": "AV PÁG"
     # panel.c
     "DONE": "HECHO"
+    # ui.c
+    "DUST": "POLVO"
     # portal.c
     "Defeatist setup": "Configuración de Defeatist"
     # sleeppage.c

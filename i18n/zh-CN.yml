@@ -216,8 +216,6 @@ zh-CN:
     "Focused: those two aimed out of it.": "定向：这两个麦克风朝屏幕外。"
     # sleeppage.c
     "For backlight life and battery. This panel cannot burn in.": "为延长背光寿命并省电。此屏幕不会烧屏。"
-    # panel.c
-    "Greyed while Wi-Fi is off; the setting is kept.": "Wi-Fi 关闭时变灰；设置会保留。"
     # ui.c
     "HCUT": "高切"
     # panel.c
@@ -360,6 +358,8 @@ zh-CN:
     "Or type a network name": "或输入网络名称"
     # portal.c, remote.html
     "Other or hidden network (type it below)": "其他或隐藏网络（在下方输入）"
+    # panel.c
+    "Over Wi-Fi or a USB Ethernet cable.": "通过 Wi-Fi 或 USB 以太网线均可。"
     # portal.c, remote.html
     "Password": "密码"
     # remote.html

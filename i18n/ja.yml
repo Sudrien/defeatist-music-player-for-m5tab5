@@ -216,8 +216,6 @@ ja:
     "Focused: those two aimed out of it.": "フォーカス：その2つを画面の外へ向ける。"
     # sleeppage.c
     "For backlight life and battery. This panel cannot burn in.": "バックライト寿命と電池のため。この画面は焼き付かない。"
-    # panel.c
-    "Greyed while Wi-Fi is off; the setting is kept.": "Wi-Fiがオフの間は灰色。設定は残る。"
     # ui.c
     "HCUT": "HCUT"
     # panel.c
@@ -360,6 +358,8 @@ ja:
     "Or type a network name": "またはネットワーク名を入力"
     # portal.c, remote.html
     "Other or hidden network (type it below)": "その他・非公開のネットワーク（下に入力）"
+    # panel.c
+    "Over Wi-Fi or a USB Ethernet cable.": "Wi-Fi でも USB イーサネットのケーブルでも。"
     # portal.c, remote.html
     "Password": "パスワード"
     # remote.html

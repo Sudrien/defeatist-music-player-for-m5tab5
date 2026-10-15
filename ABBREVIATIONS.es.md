@@ -143,7 +143,7 @@ Todas las grabaciones son FLAC, en `Recordings/` de la tarjeta SD (la unidad USB
 | Wi-Fi | sí / no | |
 | Control remoto | sí / no | El remoto por navegador, sobre HTTPS. |
 | Servidor MPD | sí / no | Para clientes MPD y Home Assistant. |
-| Hora de red | sí / no | NTP. En gris mientras el Wi-Fi está apagado; el ajuste se conserva. |
+| Hora de red | sí / no | NTP, por Wi-Fi o por un cable Ethernet USB. |
 | Añadir una red | `START` / `STOP` | Abre un portal cautivo para unirse a una red Wi-Fi desde un móvil. |
 | Benchmark | `RUN` (`BUSY` mientras corre) | Con qué rapidez se puede extraer el flujo de una emisora sin decodificar nada. |
 | Reloj | `RESET` | Olvidar el reloj. Solo disponible mientras la hora no se ha verificado. |

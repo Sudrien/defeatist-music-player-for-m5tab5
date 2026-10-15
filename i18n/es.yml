@@ -216,8 +216,6 @@ es:
     "Focused: those two aimed out of it.": "Enfocado: esos dos, apuntando hacia fuera."
     # sleeppage.c
     "For backlight life and battery. This panel cannot burn in.": "Por la vida de la retroiluminación y la batería. Esta pantalla no se quema."
-    # panel.c
-    "Greyed while Wi-Fi is off; the setting is kept.": "En gris con la Wi-Fi apagada; el ajuste se guarda."
     # ui.c
     "HCUT": "CAGUD"
     # panel.c
@@ -360,6 +358,8 @@ es:
     "Or type a network name": "O escribe el nombre de una red"
     # portal.c, remote.html
     "Other or hidden network (type it below)": "Otra red u oculta (escríbela abajo)"
+    # panel.c
+    "Over Wi-Fi or a USB Ethernet cable.": "Por Wi-Fi o por un cable Ethernet USB."
     # portal.c, remote.html
     "Password": "Contraseña"
     # remote.html

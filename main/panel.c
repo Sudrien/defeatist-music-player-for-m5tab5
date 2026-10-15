@@ -779,7 +779,7 @@ static const char *const k_wifi_note[] = {                     /* 6018 */
 static const char *const k_ntp_note[] = {
     N_("Sets the clock, in UTC. Streams need it: a certificate is "
        "invalid at an unset clock."),
-    N_("Greyed while Wi-Fi is off; the setting is kept."),
+    N_("Over Wi-Fi or a USB Ethernet cable."),           /* 6126 */
 };
 #define NET_WIFI_NOTE_LINES note_rows(k_wifi_note, COUNT(k_wifi_note))
 #define NET_NTP_NOTE_LINES  note_rows(k_ntp_note, COUNT(k_ntp_note))
@@ -1180,13 +1180,14 @@ static int draw_net(void)
     /* --- Network time ----------------------------------------------- */
     ntp_switch_box(&x, &y, &bw, &bh);
     gfx_fill_rect(x, y, bw, bh, C_ROW);
+    /* 6126: not greyed with Wi-Fi off -- a cable sets the clock too. */
     gfx_draw_text(24, y + (bh - GFX_GLYPH_H(NAME_SCALE)) / 2, _("Network time"),
-                  NAME_SCALE, 400, wifi ? C_TEXT : C_DISABLED);
+                  NAME_SCALE, 400, C_TEXT);
     {
         const bool pref = settings_ntp_pref();
         const int pw = 132, ph = 56;
         draw_state_pill(w - 24 - pw, y + (bh - ph) / 2, pw, ph,
-                        pref ? _("ON") : _("OFF"), pref, wifi, NAME_SCALE);
+                        pref ? _("ON") : _("OFF"), pref, true, NAME_SCALE);
     }
 
     (void)draw_paras(y + bh + AUDIO_NOTE_GAP, k_ntp_note, COUNT(k_ntp_note), 99);
@@ -1747,6 +1748,9 @@ bool panel_touch(bool down, int x, int y)
         }
 
         /*
+         * 6126: no longer greyed with Wi-Fi off at all -- NTP runs on a
+         * cable as well. What follows was written when it was:
+         *
          * Tappable with Wi-Fi off, exactly as the album crossfade switch
          * is tappable with the length at zero. Greyed means "having no
          * effect", not "unavailable": setting this before turning the
@@ -1757,8 +1761,7 @@ bool panel_touch(bool down, int x, int y)
         if (y >= by && y < by + bh) {
             const bool on = !settings_ntp_pref();
             settings_set_ntp_enabled(on);
-            ESP_LOGI(TAG, "ntp %s%s", on ? "on" : "off",
-                     settings_wifi_enabled() ? "" : " (wifi off)");
+            ESP_LOGI(TAG, "ntp %s", on ? "on" : "off");
             s_dirty = true;
         }
 

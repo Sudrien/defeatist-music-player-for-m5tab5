@@ -23754,8 +23754,9 @@ means host-tested or reasoned only.
 - **The edges' settings removed** (6111, 6112): ATK, DEC and REL are
   gone, from the record too; the fades on play, seek and pause stay,
   fixed at 10, 10 and 50 ms.
-- **Fixed on the board this cycle:** the radio, which 6105's 16 KB of
-  internal .bss had stopped (6115); under BOOT, a crossfaded track
+- **Fixed on the board this cycle:** NTP over a USB Ethernet cable with
+  Wi-Fi switched off, which a settings gate older than 5099 refused
+  (6126); the radio, which 6105's 16 KB of internal .bss had stopped (6115); under BOOT, a crossfaded track
   playing its overlap at ×1.00 and then jumping to the fraction (6119);
   ECHO's turn-on clearing 1.5 MB inside one chunk (6118).
 - **What the sheet costs** (6113's FXBENCH; 6120-6123), every column on,
@@ -24297,3 +24298,48 @@ column is not acting on this track.
 
 Syntax-checked against stubs; texttest all passes; not built with
 ESP-IDF here. No label, setting or string changes.
+
+### 6126 -- NTP on a cable with Wi-Fi off
+
+Seen on the board (v0.6.0-96): Wi-Fi switched off on the NET tab, a
+Realtek RTL8152 USB Ethernet adapter plugged in, `ecm: wired network
+up; it is the default route` -- and no `SNTP started`, then or after a
+reboot. The clock stayed where /sd/wifi.bin had pushed it (2028-12-02,
+778 days ahead; cardtime reads every root file's date, and that file is
+not the player's).
+
+5099 made the cable start NTP: ethernet.c calls wifi_ntp_start() when
+a wired link rises. That reaches sntp_start() in the network library,
+which asks the player's ntp_enabled hook first and returns without a
+word on a no. The hook was settings_ntp_enabled(), written in ea98ac6
+(2026-09-09), two and a half weeks before 5099, when Wi-Fi was the only
+network:
+
+    return s_wifi_enabled && s_ntp_enabled;
+
+So with Wi-Fi off the cable was told no. It is now the setting alone.
+Wi-Fi asks only once it has joined, so it needs no gate of its own.
+
+The NET tab's "Network time" row was greyed with Wi-Fi off, and its note
+said so ("Greyed while Wi-Fi is off; the setting is kept."). It is not
+greyed now, and the note says where it works: "Over Wi-Fi or a USB
+Ethernet cable." -- new in all six languages, by Claude, in Ark12
+(i18ntest). ABBREVIATIONS' Network time row likewise in all seven.
+
+What the board should show: with Wi-Fi off and a cable in, `SNTP
+started (3 servers)` after `wired network up`, then `NTP sync`, and the
+clock back from 2028.
+
+ALSO IN THAT LOG, recorded and not acted on: power off pressed on
+external power (the battery trace read the pack at 0 mV) logged
+`powering off (settings written)`, faded the screen, lost the serial
+console -- and came back with `rst:0x7 (HP_SYS_HP_WDT_RESET)` instead
+of staying dark until the power button. 6000 board-checked "the
+power-off with USB-C connected, the side button bringing it back", so
+this is either new or particular to the setup (a USB Ethernet adapter
+attached; the console's reconnect). power_off_now() ends in
+esp_deep_sleep_start(); a watchdog reset means the chip did not stay
+asleep. To look at with a run that keeps the console attached.
+
+Syntax-checked against stubs; texttest all passes; not built with
+ESP-IDF here. No manifest or sdkconfig change.

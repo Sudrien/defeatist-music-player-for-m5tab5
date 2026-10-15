@@ -116,7 +116,6 @@ const char *const i18n_keys[] = {
     "Files",
     "Focused: those two aimed out of it.",
     "For backlight life and battery. This panel cannot burn in.",
-    "Greyed while Wi-Fi is off; the setting is kept.",
     "HCUT",
     "HEADSET",
     "Headset, UAC: the jack, a USB mic.",
@@ -188,6 +187,7 @@ const char *const i18n_keys[] = {
     "Open networks are not supported yet.",
     "Or type a network name",
     "Other or hidden network (type it below)",
+    "Over Wi-Fi or a USB Ethernet cable.",
     "Password",
     "Play",
     "Play next",
@@ -502,7 +502,6 @@ const unsigned char i18n_on_screen[] = {
     0,  /* 'Files' */
     1,  /* 'Focused: those two aimed out of it.' */
     1,  /* 'For backlight life and battery. This pan' */
-    1,  /* 'Greyed while Wi-Fi is off; the setting i' */
     1,  /* 'HCUT' */
     1,  /* 'HEADSET' */
     1,  /* 'Headset, UAC: the jack, a USB mic.' */
@@ -574,6 +573,7 @@ const unsigned char i18n_on_screen[] = {
     0,  /* 'Open networks are not supported yet.' */
     0,  /* 'Or type a network name' */
     0,  /* 'Other or hidden network (type it below)' */
+    1,  /* 'Over Wi-Fi or a USB Ethernet cable.' */
     0,  /* 'Password' */
     0,  /* 'Play' */
     0,  /* 'Play next' */
@@ -908,7 +908,6 @@ const char *const i18n_vals[] = {
     NULL,
     NULL,
     NULL,
-    NULL,
     "Insert a card or a USB\012drive to record to.",
     NULL,
     "It reached 4 GB, the\012most one file can hold.",
@@ -954,6 +953,7 @@ const char *const i18n_vals[] = {
     NULL,
     "Not enough memory\012to record.",
     "Nothing is plugged into\012the headset jack.",
+    NULL,
     NULL,
     NULL,
     NULL,
@@ -1280,7 +1280,6 @@ const char *const i18n_vals[] = {
     "文件",
     "定向：这两个麦克风朝屏幕外。",
     "为延长背光寿命并省电。此屏幕不会烧屏。",
-    "Wi-Fi 关闭时变灰；设置会保留。",
     "高切",
     "耳麦",
     "耳麦、UAC：插孔、USB 麦克风。",
@@ -1352,6 +1351,7 @@ const char *const i18n_vals[] = {
     "暂不支持开放网络。",
     "或输入网络名称",
     "其他或隐藏网络（在下方输入）",
+    "通过 Wi-Fi 或 USB 以太网线均可。",
     "密码",
     "播放",
     "下一首播放",
@@ -1662,7 +1662,6 @@ const char *const i18n_vals[] = {
     "ファイル",
     "フォーカス：その2つを画面の外へ向ける。",
     "バックライト寿命と電池のため。この画面は焼き付かない。",
-    "Wi-Fiがオフの間は灰色。設定は残る。",
     "HCUT",
     "ヘッドセット",
     "ヘッドセット、UAC：端子、USBマイク。",
@@ -1734,6 +1733,7 @@ const char *const i18n_vals[] = {
     "パスワードなしのネットワークにはまだ対応していません。",
     "またはネットワーク名を入力",
     "その他・非公開のネットワーク（下に入力）",
+    "Wi-Fi でも USB イーサネットのケーブルでも。",
     "パスワード",
     "再生",
     "次に再生",
@@ -2044,7 +2044,6 @@ const char *const i18n_vals[] = {
     "Archivos",
     "Enfocado: esos dos, apuntando hacia fuera.",
     "Por la vida de la retroiluminación y la batería. Esta pantalla no se quema.",
-    "En gris con la Wi-Fi apagada; el ajuste se guarda.",
     "CAGUD",
     "AURICULAR",
     "Auricular, UAC: la toma, un micro USB.",
@@ -2116,6 +2115,7 @@ const char *const i18n_vals[] = {
     "Las redes abiertas aún no son compatibles.",
     "O escribe el nombre de una red",
     "Otra red u oculta (escríbela abajo)",
+    "Por Wi-Fi o por un cable Ethernet USB.",
     "Contraseña",
     "Reproducir",
     "Reproducir a continuación",
@@ -2426,7 +2426,6 @@ const char *const i18n_vals[] = {
     "Arquivos",
     "Focado: esses dois, virados para fora.",
     "Pela vida útil da luz de fundo e pela bateria. Esta tela não marca.",
-    "Cinza com o Wi-Fi desligado; o ajuste é mantido.",
     "CAGUD",
     "HEADSET",
     "Headset, UAC: o P2, um microfone USB.",
@@ -2498,6 +2497,7 @@ const char *const i18n_vals[] = {
     "Redes abertas ainda não são suportadas.",
     "Ou digite o nome de uma rede",
     "Outra rede ou rede oculta (digite abaixo)",
+    "Por Wi-Fi ou por um cabo Ethernet USB.",
     "Senha",
     "Tocar",
     "Tocar em seguida",
@@ -2808,7 +2808,6 @@ const char *const i18n_vals[] = {
     "Fichiers",
     "Dirigé : ces deux-là, tournés vers l'extérieur.",
     "Pour la durée du rétroéclairage et la batterie. Cet écran ne marque pas.",
-    "Grisé quand le Wi-Fi est coupé ; le réglage est conservé.",
     "CHAUT",
     "CASQUE",
     "Casque, UAC : la prise, un micro USB.",
@@ -2880,6 +2879,7 @@ const char *const i18n_vals[] = {
     "Les réseaux ouverts ne sont pas encore pris en charge.",
     "Ou saisissez un nom de réseau",
     "Autre réseau ou réseau masqué (saisissez-le ci-dessous)",
+    "Par Wi-Fi ou par un câble Ethernet USB.",
     "Mot de passe",
     "Lire",
     "Lire ensuite",
@@ -3190,7 +3190,6 @@ const char *const i18n_vals[] = {
     "File",
     "Diretto: quei due, rivolti verso l'esterno.",
     "Per la durata della retroilluminazione e della batteria. Questo schermo non si segna.",
-    "In grigio col Wi-Fi spento; l'impostazione resta.",
     "TALTI",
     "CUFFIA",
     "Cuffia, UAC: il jack, un microfono USB.",
@@ -3262,6 +3261,7 @@ const char *const i18n_vals[] = {
     "Le reti aperte non sono ancora supportate.",
     "Oppure scrivi il nome di una rete",
     "Altra rete o rete nascosta (scrivila sotto)",
+    "Via Wi-Fi o con un cavo Ethernet USB.",
     "Password",
     "Riproduci",
     "Riproduci dopo",

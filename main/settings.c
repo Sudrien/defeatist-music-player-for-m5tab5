@@ -583,7 +583,12 @@ bool settings_wifi_enabled(void) { return s_wifi_enabled; }
 
 /* The effective answer, and the gate is here rather than in each caller
  * on purpose -- see the header. */
-bool settings_ntp_enabled(void) { return s_wifi_enabled && s_ntp_enabled; }
+/* 6126: the setting alone. It was "and Wi-Fi on" from ea98ac6, when Wi-Fi
+ * was the only network; 5099 then started NTP on a cable too, and this
+ * gate refused it there whenever Wi-Fi was off -- silently, as the
+ * network library's sntp_start() returns without a word on a no. Wi-Fi
+ * itself asks only once joined, so it needs no gate here. */
+bool settings_ntp_enabled(void) { return s_ntp_enabled; }
 bool settings_ntp_pref(void)    { return s_ntp_enabled; }
 
 int64_t settings_last_ntp_epoch(void)   { return s_last_ntp_epoch; }

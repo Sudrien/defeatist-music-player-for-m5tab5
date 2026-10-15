@@ -158,7 +158,7 @@ if there is no card).
 | Wi-Fi | on / off | |
 | Remote control | on / off | The browser remote, over HTTPS. |
 | MPD server | on / off | For MPD clients and Home Assistant. |
-| Network time | on / off | NTP. Greyed while Wi-Fi is off; the setting is kept. |
+| Network time | on / off | NTP, over Wi-Fi or a USB Ethernet cable. |
 | Add a network | `START` / `STOP` | Opens a captive portal to join a Wi-Fi network from a phone. |
 | Benchmark | `RUN` (`BUSY` while running) | How fast a station's stream can be pulled with nothing decoding it. |
 | Clock | `RESET` | Forget the clock. Only available while the time has not been verified. |

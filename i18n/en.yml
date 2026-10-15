@@ -216,8 +216,6 @@ en:
     "Focused: those two aimed out of it.": ~
     # sleeppage.c
     "For backlight life and battery. This panel cannot burn in.": ~
-    # panel.c
-    "Greyed while Wi-Fi is off; the setting is kept.": ~
     # ui.c
     "HCUT": ~
     # panel.c
@@ -360,6 +358,8 @@ en:
     "Or type a network name": ~
     # portal.c, remote.html
     "Other or hidden network (type it below)": ~
+    # panel.c
+    "Over Wi-Fi or a USB Ethernet cable.": ~
     # portal.c, remote.html
     "Password": ~
     # remote.html

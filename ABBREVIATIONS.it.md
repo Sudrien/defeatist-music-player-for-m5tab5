@@ -143,7 +143,7 @@ Tutte le registrazioni sono FLAC, in `Recordings/` sulla scheda SD (sulla chiave
 | Wi-Fi | sì / no | |
 | Telecomando | sì / no | Il telecomando da browser, in HTTPS. |
 | Server MPD | sì / no | Per i client MPD e Home Assistant. |
-| Ora di rete | sì / no | NTP. In grigio col Wi-Fi spento; l'impostazione resta. |
+| Ora di rete | sì / no | NTP, via Wi-Fi o con un cavo Ethernet USB. |
 | Aggiungi rete | `START` / `STOP` | Apre un portale captive per collegarsi a una rete Wi-Fi dal telefono. |
 | Misura velocità | `RUN` (`BUSY` mentre gira) | Quanto velocemente si può scaricare lo stream di una radio senza decodificare niente. |
 | Orologio | `RESET` | Dimentica l'orologio. Disponibile solo finché l'ora non è stata verificata. |

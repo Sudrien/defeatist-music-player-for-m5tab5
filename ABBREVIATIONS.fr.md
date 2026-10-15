@@ -143,7 +143,7 @@ Tous les enregistrements sont en FLAC, dans `Recordings/` sur la carte SD (sur l
 | Wi-Fi | oui / non | |
 | Télécommande | oui / non | La télécommande par navigateur, en HTTPS. |
 | Serveur MPD | oui / non | Pour les clients MPD et Home Assistant. |
-| Heure réseau | oui / non | NTP. Grisé quand le Wi-Fi est coupé ; le réglage est conservé. |
+| Heure réseau | oui / non | NTP, par Wi-Fi ou par un câble Ethernet USB. |
 | Ajouter un réseau | `START` / `STOP` | Ouvre un portail captif pour connecter un réseau Wi-Fi depuis un téléphone. |
 | Test de débit | `RUN` (`BUSY` pendant le test) | À quelle vitesse on peut tirer le flux d'une station sans rien décoder. |
 | Horloge | `RESET` | Oublier l'heure. Disponible seulement tant que l'heure n'a pas été vérifiée. |

@@ -88,6 +88,20 @@
 - [bmorcelli/Launcher](https://github.com/bmorcelli/Launcher) 対応
   - Launcher へ戻る
   - Wi-Fi 認証情報のインポート
+- https://github.com/Sudrien/lothesome-audio-analyzer-for-m5tab5 用にライブラリを切り出した……失敗？かもね
+- いくつかのフィルター
+  - 低音の調整
+  - 高音の調整
+  - ステレオを使ったボーカル除去
+  - 設定できるエコー
+  - ハイパス
+  - ローパス
+  - 幅の調整
+  - パチパチ（レコードのノイズ）フィルター
+  - フラッターフィルター
+  - ワウフィルター
+- 再生速度（ファイルのみ）
+  - ターンテーブルの数字です。わかるでしょう。
 
 ## 実現するかもしれないこと
 
@@ -134,6 +148,18 @@
 翻訳や機能についてのご意見は、GitHub の issue でお寄せください：https://github.com/Sudrien/defeatist-music-player-for-m5tab5
 
 コードで貢献したい場合は、書式の基準について CONTRIBUTING.md と CLAUDE.md をお読みください。
+
+## 「Aurora Player — BT Mode」
+
+- 向こうは Codex、こっちは Opus、そこは問題なし
+- はい、ESP32-PICO-D4 モジュールを載せればクラシック Bluetooth が使える
+- ほとんどの人はハードウェアを恒久的に改造したくない、という前提で書いている
+- 次のことがそろうまでは、まだ勧められない
+  - ちゃんとした公開ソースコードのリポジトリがある（git でなくてもいい）
+  - ライセンス情報を公開している（使っているライブラリがそれを求めている）
+  - https://frolicking-bonbon-c32cfa.netlify.app/ よりましな URL がある
+  - 「feedback welcome」が本当にフィードバックできる場所へリンクしている
+  - リリースノートが本当にリリースノートになっている
 
 ## 最後にもう一刺し
 

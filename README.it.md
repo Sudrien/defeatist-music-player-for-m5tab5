@@ -88,6 +88,20 @@ L'obiettivo di questo progetto è spremere tutto il potenziale di questo hardwar
 - Supporto a [bmorcelli/Launcher](https://github.com/bmorcelli/Launcher)
   - uscita di ritorno al launcher
   - importazione delle credenziali Wi-Fi
+- Ho separato le librerie per https://github.com/Sudrien/lothesome-audio-analyzer-for-m5tab5 ... un errore? forse
+- Qualche filtro
+  - regolazione dei bassi
+  - regolazione degli alti
+  - cancellazione della voce basata sullo stereo
+  - eco configurabile
+  - passa-alto
+  - passa-basso
+  - regolazione della larghezza
+  - filtro dei crepitii (fruscio del vinile)
+  - filtro di flutter
+  - filtro di wow
+- velocità di riproduzione (per i file)
+  - Sono numeri da giradischi, ci arriverai.
 
 ## Cosa potrebbe succedere
 
@@ -134,6 +148,18 @@ L'obiettivo di questo progetto è spremere tutto il potenziale di questo hardwar
 Se vuoi commentare le traduzioni o le funzionalità, apri una issue su GitHub, su https://github.com/Sudrien/defeatist-music-player-for-m5tab5
 
 Se vuoi contribuire con del codice, leggi CONTRIBUTING.md e CLAUDE.md per le regole di formattazione.
+
+## «Aurora Player — BT Mode»
+
+- loro usano Codex, io uso Opus, nessun problema
+- Sì, installare un modulo ESP32-PICO-D4 dà accesso al Bluetooth classico
+- Scrivo partendo dal presupposto che la maggior parte delle persone non voglia modificare l'hardware in modo permanente
+- Non posso ancora consigliarli finché
+  - non avranno un vero repository pubblico del codice sorgente (non deve per forza essere git)
+  - non pubblicheranno le informazioni sulle licenze (le librerie che usano lo richiedono)
+  - non avranno un URL migliore di https://frolicking-bonbon-c32cfa.netlify.app/
+  - 'feedback welcome' NON PORTERÀ DAVVERO DA QUALCHE PARTE DOVE LASCIARE UN PARERE
+  - non avranno note di rilascio che siano davvero note di rilascio
 
 ## Un'ultima frecciata
 

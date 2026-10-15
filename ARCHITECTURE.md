@@ -23650,3 +23650,18 @@ build; remote.html leaves "Language" English so a lost user can find
 it, and ReplayGain and Wi-Fi as names. 37 table entries equal their
 English key and are each that language's own word (Volume, Rotation,
 Buffering, Crossfade, min).
+
+### 6107 -- README translations caught up
+
+The six README translations last followed the English at 36a54f3. Since
+then the English gained the "A few filters" list with playback speed
+and the analyzer-library note, and the "Aurora Player — BT Mode"
+section; all six now carry both, in the README's own voice. "pop
+filter" is rendered as the crackle it is (DUST), not as the microphone
+accessory the words mean everywhere else. The languages line was
+already current. Every translation has the English's eleven headings.
+
+ABBREVIATIONS.*.md matches row for row (148 table rows in each); the
+only English commits not mirrored in them predate the translations.
+The Licensing section is shorter in line count only: the English is
+hard-wrapped and the translations are not.

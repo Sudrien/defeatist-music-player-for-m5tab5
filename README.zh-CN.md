@@ -88,6 +88,20 @@
 - [bmorcelli/Launcher](https://github.com/bmorcelli/Launcher) 支持
   - 退回 Launcher
   - Wi-Fi 凭据导入
+- 为 https://github.com/Sudrien/lothesome-audio-analyzer-for-m5tab5 拆出了几个库……是个错误？也许吧
+- 几个滤波器
+  - 低音调节
+  - 高音调节
+  - 基于立体声的人声消除
+  - 可调回声
+  - 高通
+  - 低通
+  - 宽度调节
+  - 噼啪（黑胶底噪）滤波器
+  - 快抖（flutter）滤波器
+  - 慢抖（wow）滤波器
+- 播放速度（仅限文件）
+  - 这些是唱机的转速数字，你会明白的。
 
 ## 可能会有
 
@@ -134,6 +148,18 @@
 如果想对翻译或功能提出意见，请在 GitHub 上创建 issue：https://github.com/Sudrien/defeatist-music-player-for-m5tab5
 
 如果想贡献代码，请阅读 CONTRIBUTING.md 和 CLAUDE.md 了解格式规范。
+
+## “Aurora Player — BT Mode”
+
+- 他们用 Codex，我用 Opus，这点没问题
+- 是的，装一块 ESP32-PICO-D4 模块就能用上经典蓝牙
+- 我写的时候假设大多数人不想永久改动自己的硬件
+- 在以下几点做到之前，我仍然无法推荐他们
+  - 有一个真正公开的源代码仓库——不一定是 git
+  - 公布许可信息（因为他们用的库要求这样做）
+  - 有一个比 https://frolicking-bonbon-c32cfa.netlify.app/ 更好的网址
+  - “feedback welcome” 真的链接到某个可以反馈的地方
+  - 有真正称得上发布说明的发布说明
 
 ## 最后补一刀
 

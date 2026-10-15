@@ -97,7 +97,7 @@ Le but de ce projet est de tirer tout le potentiel de ce matériel sans le modif
   - passe-haut
   - passe-bas
   - réglage de la largeur
-  - filtre de craquements (vinyle)
+  - craquements (crépitement du vinyle)
   - filtre de scintillement (flutter)
   - filtre de pleurage (wow)
 - vitesse de lecture (pour les fichiers)

@@ -97,7 +97,7 @@ El objetivo de este proyecto es exprimir al máximo el potencial de este hardwar
   - paso alto
   - paso bajo
   - ajuste de anchura
-  - filtro de chasquidos (crepitar de vinilo)
+  - polvo (crepitar de vinilo)
   - filtro de flutter
   - filtro de wow
 - velocidad de reproducción (para archivos)

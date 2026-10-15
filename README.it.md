@@ -97,7 +97,7 @@ L'obiettivo di questo progetto è spremere tutto il potenziale di questo hardwar
   - passa-alto
   - passa-basso
   - regolazione della larghezza
-  - filtro dei crepitii (fruscio del vinile)
+  - fruscio (crepitio del vinile)
   - filtro di flutter
   - filtro di wow
 - velocità di riproduzione (per i file)

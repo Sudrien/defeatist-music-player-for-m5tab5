@@ -97,7 +97,7 @@ O objetivo deste projeto é tirar o máximo deste hardware sem modificá-lo. Sem
   - passa-alta
   - passa-baixa
   - ajuste de largura
-  - filtro de estalos (chiado de vinil)
+  - pó (chiado de vinil)
   - filtro de flutter
   - filtro de wow
 - velocidade de reprodução (para arquivos)

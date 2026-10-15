@@ -52,8 +52,9 @@ static const char *TAG = "tab5_remote";
 
 /* The page, embedded by main/CMakeLists.txt (EMBED_TXTFILES, so it is
  * NUL-terminated and the NUL is not part of it). */
-extern const char remote_html_start[] asm("_binary_remote_i18n_html_start");   /* 6028 */
-extern const char remote_html_end[]   asm("_binary_remote_i18n_html_end");
+/* 6127: gzipped by tools/i18n.py compile and sent as it is stored. */
+extern const char remote_html_start[] asm("_binary_remote_i18n_html_gz_start");   /* 6028 */
+extern const char remote_html_end[]   asm("_binary_remote_i18n_html_gz_end");
 /* 5119: a white disc with the switch's green play arrow, 16/32/48 px.
  * EMBED_FILES, so no NUL is added and the length is end - start. */
 extern const uint8_t favicon_ico_start[] asm("_binary_favicon_ico_start");
@@ -174,10 +175,19 @@ static void keep_and_send(char *keep, size_t *keep_len, size_t cap,
  */
 static esp_err_t h_page(httpd_req_t *req)
 {
+    /*
+     * 6127: gzipped at build time and sent as stored -- the browser
+     * inflates it, nothing here does. 65 KB of page is 22 KB of flash and
+     * of Wi-Fi. Every browser that can run the page accepts gzip, so the
+     * request's Accept-Encoding is not consulted: there is no plain copy
+     * to fall back to, by design. EMBED_FILES, not EMBED_TXTFILES, so no
+     * NUL is appended and the length is the whole span.
+     */
     httpd_resp_set_type(req, "text/html; charset=utf-8");
+    httpd_resp_set_hdr(req, "Content-Encoding", "gzip");
     httpd_resp_set_hdr(req, "Cache-Control", "no-cache");
     return httpd_resp_send(req, remote_html_start,
-                           (ssize_t)(remote_html_end - remote_html_start - 1));
+                           (ssize_t)(remote_html_end - remote_html_start));
 }
 
 static esp_err_t h_icon(httpd_req_t *req)

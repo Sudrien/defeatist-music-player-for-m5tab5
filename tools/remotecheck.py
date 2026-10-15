@@ -65,6 +65,7 @@ SPDX-License-Identifier: MIT
 
 import argparse
 import base64
+import gzip
 import http.client
 import json
 import os
@@ -401,8 +402,16 @@ class Checker:
 
     def check_http(self):
         self.section("the other endpoints")
-        st, _, body = self.https("GET", "/")
-        self.ok("GET / is the page", st == 200 and b"/ws" in body, st)
+        st, h, body = self.https("GET", "/")
+        # 6127: the page is served gzipped; http.client does not inflate.
+        enc = {k.lower(): v for k, v in h.items()}.get("content-encoding", "")
+        if enc == "gzip":
+            try:
+                body = gzip.decompress(body)
+            except OSError:
+                body = b""
+        self.ok("GET / is the page, gzipped", st == 200 and enc == "gzip" and b"/ws" in body,
+                f"{st} {enc or 'not gzipped'}")
         st, _, _ = self.https("GET", "/art?k=00000000")
         self.ok("/art with a stale key is 404", st == 404, st)
         key = (self.state or {}).get("art")

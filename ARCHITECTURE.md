@@ -24343,3 +24343,48 @@ asleep. To look at with a run that keeps the console attached.
 
 Syntax-checked against stubs; texttest all passes; not built with
 ESP-IDF here. No manifest or sdkconfig change.
+
+### 6127 -- the web remote's page served gzipped
+
+`idf.py size-components` put 375 KB of rodata under libesp_stdio.a. It
+is not stdio's: `.rodata.esp_stdio_register.str1.4` is the linker's
+merged string pool -- every string literal in the image, deduplicated
+into one section -- credited to whichever input section came first.
+Sorted by kind (a scratch script over the ELF's .flash.rodata), it is
+mostly this player's translations: the screen's tables and the web
+remote's page in all seven languages. IDF's own diagnostics in it are
+small -- assert text about 9 KB plus expressions, ESP_ERR names 5 KB,
+mbedTLS error text under 1 KB -- and are kept: they are what a crash or
+an error log says.
+
+The page was the easy part. remote_i18n.html is 67,390 bytes and was
+embedded as text and sent as text. Every browser that can run it
+accepts gzip, so it is now compressed once, by `tools/i18n.py compile`,
+into main/remote_i18n.html.gz (22,569 bytes), embedded as that, and
+sent as stored with `Content-Encoding: gzip`. Nothing on the device
+inflates it. About 44 KB of flash back -- the app was 0x2d5aa0 in a
+0x300000 slot, 6% free -- and a third of the bytes over Wi-Fi.
+
+- remote_i18n.html stays committed beside the .gz, so the page can be
+  read in review; the .gz is that file compressed and nothing else.
+- The .gz is deterministic: no file name and mtime 0 in its header, so
+  an unchanged page compresses to an unchanged file (checked: two
+  compiles, the same bytes).
+- `i18n.py check` compares what the .gz holds, decompressed, with the
+  page, not the bytes: another machine's zlib may compress the same page
+  differently, which is not staleness.
+- EMBED_FILES, not EMBED_TXTFILES: no NUL is appended, so the length is
+  the whole span (it was span - 1, for the NUL).
+- tools/remotecheck.py inflates the page before looking for /ws, and
+  now also checks it arrived gzipped.
+
+Not done here, and worth doing next: the screen's translation tables
+(i18n_tab.c, ~73 KB) compress to ~19 KB; miniz is already in the build
+(pngle vendors it), so inflating them into PSRAM at boot costs no new
+code. And separately, the ~104 KB of internal-RAM statics in libmain --
+the radio's margin, 5178 -- which is RAM, not flash.
+
+What the board should show: the remote's page loading as before; in a
+browser's network panel, `content-encoding: gzip` and about 22 KB
+transferred for `/`. Syntax-checked against stubs; texttest all passes;
+not built with ESP-IDF here. No manifest or sdkconfig change.

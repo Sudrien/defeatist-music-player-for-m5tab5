@@ -19,8 +19,8 @@ idf_component_register(
          "sleeppage.c" "streamprobe.c" "netstream.c" "netdec.c" "stations.c" "favorites.c" "starred.c" "streamgain.c" "radiobrowser.c" "bench.c" "cuedir.c" "cardtime.c" "mediacat.c" "mediawalk.c" "mediasync.c" "medialib.c" "mediadir.c" "rateconv.c" "varispeed.c" "fx.c" "radiokeep.c" "icoimg.c" "heapmap.c" "flacenc.c" "recorder.c" "beam.c"
          "mpdqueue.c" "mpdproto.c" "mpdfilter.c" "casefold_tab.c" "mpduri.c" "mpdmode.c" "mpdidle.c" "mpd.c" "uireq.c" "m3uline.c" "urlclean.c" "remote.c" "remoteproto.c" "certgen.c" "devcert.c" "wifijoin.c" "nvsns.c" "launcher_import.c"
     INCLUDE_DIRS "."
-    EMBED_TXTFILES "remote_i18n.html"    # 6028: generated from remote.html
-    EMBED_FILES "favicon.ico"
+    EMBED_FILES "remote_i18n.html.gz"    # 6028: generated from remote.html; 6127: gzipped
+                "favicon.ico"
     REQUIRES driver esp_app_format esp_driver_i2c esp_driver_i2s esp_driver_sdmmc
              esp_driver_jpeg esp_driver_ledc esp_driver_usb_serial_jtag esp_lcd esp_lcd_touch fatfs sdmmc
              usb usb_host_msc usb_host_uac esp_timer lwip ${DMP_JSON}

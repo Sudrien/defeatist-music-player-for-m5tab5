@@ -5,7 +5,7 @@ in the C source, extracted into one YAML file per locale, and compiled
 into main/i18n_tab.c.
 
     ./tools/i18n.py extract     # main/*.c -> i18n/*.yml (adds new, keeps old)
-    ./tools/i18n.py compile     # i18n/*.yml -> main/i18n_tab.c
+    ./tools/i18n.py compile     # i18n/*.yml -> main/i18n_tab.c, main/remote_i18n.html(.gz)
     ./tools/i18n.py check       # fails if either step would change a file
 
 THE MARKERS (main/i18n.h):
@@ -520,6 +520,21 @@ def build_c():
 # Committed, like i18n_tab.c; `check` says when it is stale.
 REMOTE_SRC = os.path.join(SRC_DIR, "remote.html")
 REMOTE_OUT = os.path.join(SRC_DIR, "remote_i18n.html")
+# 6127: what the firmware embeds and serves, with Content-Encoding: gzip.
+# remote_i18n.html stays beside it, committed, so the page can be read and
+# reviewed; the .gz is that file compressed, and nothing else.
+REMOTE_GZ = REMOTE_OUT + ".gz"
+
+
+def _gzip(text):
+    """Deterministic: no name and no time in the header (mtime 0), so an
+    unchanged page compresses to an unchanged file and git sees nothing."""
+    import gzip
+    import io
+    buf = io.BytesIO()
+    with gzip.GzipFile(filename="", mode="wb", compresslevel=9, fileobj=buf, mtime=0) as g:
+        g.write(text.encode("utf-8"))
+    return buf.getvalue()
 LANG_NAMES = {"en": "English", "zh-CN": "简体中文", "ja": "日本語", "es": "Español",
               "pt": "Português", "fr": "Français", "it": "Italiano"}
 
@@ -602,8 +617,11 @@ def cmd_compile(args):
     text, report = build_c()
     with open(OUT_C, "w", encoding="utf-8") as f:
         f.write(text)
+    page = _remote_inputs()
     with open(REMOTE_OUT, "w", encoding="utf-8") as f:            # 6028
-        f.write(_remote_inputs())
+        f.write(page)
+    with open(REMOTE_GZ, "wb") as f:                              # 6127
+        f.write(_gzip(page))
     print("i18n: wrote main/i18n_tab.c; " + "; ".join(report))
 
 
@@ -620,6 +638,16 @@ def cmd_check(args):
     old = open(REMOTE_OUT, encoding="utf-8").read() if os.path.exists(REMOTE_OUT) else None
     if _remote_inputs() != old:
         sys.exit("i18n: main/remote_i18n.html is out of date (run compile)")
+    # 6127: the .gz is checked by what it holds, not byte for byte -- a
+    # different zlib may compress the same page to different bytes, and
+    # that is not staleness.
+    import gzip
+    try:
+        held = gzip.decompress(open(REMOTE_GZ, "rb").read()).decode("utf-8")
+    except (OSError, EOFError, UnicodeDecodeError):
+        held = None
+    if held != old:
+        sys.exit("i18n: main/remote_i18n.html.gz is out of date (run compile)")
     print("i18n: up to date; " + "; ".join(report))
 
 

@@ -80,7 +80,7 @@ Claude, do not touch this README unless explicitly asked to. Use your own file.
 - Cue sheets
 - m3u/m3u8 - at least through MPD
 - Oh right, [Music Player Daemon](https://mpd.readthedocs.io/en/stable/user.html) support - yes, this should mean home assistant control too.
-- https web ui
+- https web ui (it's a self signed certificate, you'll have to accept it)
 - Audio recording, since the hardware is right there, in FLAC
   - with a level meter while it records
 - a status line under volume: USB power, MPD, HTTPS, and the sleep timer's minutes left. Green is on.

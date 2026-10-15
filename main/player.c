@@ -2310,6 +2310,26 @@ static fx_wow_t  s_fx_wow;
 static fx_edge_t s_fx_edge;
 static bool      s_fx_gap = true;
 
+/*
+ * 6109: a mono file. The decoder says one channel and the rings carry it
+ * as left = right, so VOX finds the whole track in its centre and thins
+ * the band out of everything, and WIDE finds no side to widen or narrow.
+ * Neither is what its name says, so on a mono track both are left out --
+ * the samples untouched -- and the sheet greys them. The settings stay,
+ * for the next stereo track. Unknown (0, a stream) is not mono.
+ *
+ * s_fmt_chans is the decoder's, set on a track's first block, so across
+ * a crossfade into or out of a mono track the switch comes at the start
+ * of the decode, a few seconds ahead of the ear; both effects ramp over
+ * a chunk, so it is a fade, not a click.
+ */
+static volatile int s_fmt_chans;     /* defined with the format card's state, below */
+
+static bool fx_mono(void)
+{
+    return s_fmt_chans == 1;
+}
+
 static uint32_t fx_rate(void)
 {
     const uint32_t r = s_frames_rate[s_ring_play];
@@ -2335,7 +2355,8 @@ static void fx_out(uint8_t *buf, size_t n)
     /* 6101: the voice first -- it reads left against right, which tone
      * does not change but would filter both of. */
     fx_vox_run(&s_fx_vox, (int16_t *)buf, frames,
-               settings_fx(SETTINGS_FX_VOICE), fx_rate());
+               fx_mono() ? FX_VOX_FLAT : settings_fx(SETTINGS_FX_VOICE),
+               fx_rate());                                    /* 6109 */
     /* 6104: the dust after the voice, which would take a centred tick
      * out with the singer, and before tone and the cuts, so it is
      * shaped as the record is -- an AM radio band thins it too. */
@@ -2355,7 +2376,8 @@ static void fx_out(uint8_t *buf, size_t n)
                    varispeed_rpm_thirds[sp], fx_rate());
     }
     fx_wide_run(&s_fx_wide, (int16_t *)buf, frames,
-                settings_fx(SETTINGS_FX_WIDE), fx_rate());
+                fx_mono() ? FX_WIDE_FLAT : settings_fx(SETTINGS_FX_WIDE),
+                fx_rate());                                   /* 6109 */
     fx_tone_run(&s_fx_tone, (int16_t *)buf, frames,
                 settings_fx(SETTINGS_FX_BASS), settings_fx(SETTINGS_FX_TREBLE),
                 fx_rate());
@@ -9237,6 +9259,7 @@ static void ui_task(void *arg)
         for (unsigned i = 0; i < SETTINGS_FX_COUNT; i++) {
             st.fx[i] = (uint8_t)settings_fx(i);
         }
+        st.fx_mono = fx_mono();                          /* 6109 */
         /* 5117: what the panel is about to draw is what the browser is
          * told, so the two cannot disagree. Before ui_draw(), which
          * returns early with the screen off -- a remote is most useful

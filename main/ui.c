@@ -409,6 +409,15 @@ static const int k_fx_shown[FX_SHOWN] = {
     FX_ECHO, FX_TIME, FX_DUST, FX_WOW, FX_FLTR
 };
 static bool s_fx_pop, s_fx_wait;
+/* 6109: VOX and WIDE greyed on a mono track -- their values, not their
+ * signs. The settings persist across tracks, so they stay settable
+ * here for the next stereo one; grey says they are not acting now. */
+static bool s_fx_mono;
+
+static bool fx_col_grey(int c)
+{
+    return s_fx_mono && (c == FX_VOX || c == FX_WIDE);
+}
 static int  s_fx_v[FX_COLS];
 static int  s_fx_x, s_fx_y, s_fx_w, s_fx_h;
 static int  s_fx_btn[FX_COLS][2][4];
@@ -2298,8 +2307,9 @@ static void draw_fx_pop(void)
             snprintf(val, sizeof val, "%u", (unsigned)fx_edge_ms[v]);
             unit = same("ms");
         }
+        const bool grey = fx_col_grey(c);                       /* 6109 */
         gfx_draw_text(cx - gfx_text_w(val, FX_VAL_SC) / 2, yy, val, FX_VAL_SC,
-                      colw, plain ? C_THUMB : C_RG);
+                      colw, grey ? C_ICON_OFF : plain ? C_THUMB : C_RG);
         yy += val_h + 8;
         gfx_draw_text(cx - gfx_text_w(unit, FX_LBL_SC) / 2, yy, unit,
                       FX_LBL_SC, colw, C_ICON_OFF);
@@ -2703,6 +2713,7 @@ void ui_draw(const ui_state_t *st)
             s_fx_wait = false;
             for (int i = 0; i < FX_COLS; i++) s_fx_v[i] = st->fx[i];
         }
+        s_fx_mono = st->fx_mono;                        /* 6109 */
         draw_fx_pop();
     }
 

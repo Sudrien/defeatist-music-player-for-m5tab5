@@ -23665,3 +23665,32 @@ ABBREVIATIONS.*.md matches row for row (148 table rows in each); the
 only English commits not mirrored in them predate the translations.
 The Licensing section is shorter in line count only: the English is
 hard-wrapped and the translations are not.
+
+### 6109 -- VOX and WIDE greyed on a mono track
+
+6103 left this written down: VOX on a mono track was not greyed. A mono
+file reaches the rings as left = right, so VOX found the whole track in
+its centre and thinned 150 Hz-8 kHz out of everything -- not a voice
+going, just the track getting thin -- and WIDE found no side to work
+on: 0 to 3/2 did nothing, and 2 only turned the track down by its
+headroom.
+
+Now, when the decoder says one channel (s_fmt_chans == 1, the format
+card's figure), the writer runs both at flat -- the samples untouched
+-- and the sheet draws their values grey. Unknown, as on a stream, is
+not mono.
+
+Their signs stay live and taps still step them. The Fx settings persist
+across tracks, so a VOX chosen while a mono track plays is for the next
+stereo one; locking the column would only make that harder. Grey says
+"not acting on this track", not "not settable". The Fx box stays yellow
+while either is set: it reports the settings, not the sound.
+
+s_fmt_chans is set on a track's first decoded block, so across a
+crossfade into or out of a mono track the change lands when the new
+track starts decoding, ahead of the ear by the rings' depth; both
+effects ramp over a chunk, so it fades rather than clicks.
+
+ABBREVIATIONS: VOX's "thins that range" becomes "greyed, does nothing,
+still settable", and WIDE says the same. Syntax-checked against stubs;
+not built with ESP-IDF here.

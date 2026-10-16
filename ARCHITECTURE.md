@@ -23798,6 +23798,34 @@ means host-tested or reasoned only.
 - **MINIMAL_BUILD** (6134): builds and runs; only the components main
   needs are compiled.
 
+- **Cover art** (6138-6148). The formats are JPEG, PNG, and now JPEG
+  XL through J40 (6139) and the first frame of a GIF through the
+  stb_image already built in (6145). The host tests are arttest,
+  jxltest, folderarttest, oggseektest and gifstacktest. The board set
+  is test_art_files/, forty-five-second tracks (6144), with every
+  picture labelled with its case. Board-checked on 2026-10-15:
+  - JPEG baseline and progressive (1000x1000 through stb_image in
+    1.6-1.8 s), PNG with and without alpha, in MP3, FLAC, M4A and Ogg
+    tags.
+  - A tag whose MIME type lies: the bytes decide.
+  - JPEG XL lossy, lossless and recompressed from a JPEG, all drawn,
+    in 7.9-9.2 s for 600x600. Before 6146 every one of them was dropped
+    as stale while its track was still on screen.
+  - Refusals logged and the strip cleared: the 200 px JPEG XL J40
+    cannot read, the 2500x2500 progressive over stb's limit.
+  - An Ogg Vorbis with a cover plays (6142); it had played nothing,
+    because the comment header spans pages.
+  - A GIF cover twice stopped the player with a stack protection fault
+    (6147, 6148): stb's GIF reader needs 35 KB of frame plus up to
+    128 KB of recursion. GIF_STACK is 192 KB, checked by gifstacktest.
+    The GIF cases themselves have not yet been seen to draw on the
+    board.
+
+  Not board-checked yet: GIF 15 and 16 and folder 2k drawing; the
+  folder fallback after a refused embedded picture (2i); the folder
+  cases 2a-2l as a whole; .jxl and .gif beside the tracks; hidden
+  dotfiles on Windows (6131).
+
 Known and left, so they are not rediscovered:
 
 - ECHO's trail is not cleared by a seek.
@@ -23809,6 +23837,20 @@ Known and left, so they are not rediscovered:
   outgoing ring empties: the overlap is planned in the track's frames,
   not in time at its speed. It finishes on silence, as designed (6095's
   "still unmeasured" path, now seen on every 78/45 crossfade).
+- **J40 refuses a share of JPEG XL files and is slow.** It refuses lossy
+  files at 256 px or smaller, lossless at effort 1, flat lossy at 600 px
+  and up, and some recompressed JPEGs (6139's table; jxltest pins
+  them). It takes about 8 s for 600x600 on the board, about 13 bytes a
+  pixel of PSRAM at the peak. A refused picture falls back to the
+  folder's cover (6146). J40 has not been updated upstream since 2022;
+  libjxl does not fit the app slot.
+- **"ring send blocked ~800 ms (ring 99%)"** warnings around track
+  changes in the test_art_files runs. Not looked into; possibly the
+  writer's ordinary back-pressure logged at W.
+- **A cover is fetched only once its ring is 60% full** (12 s of a 20 s
+  ring, or 8 s of waiting), so on a track shorter than a ring the cover
+  arrives late or not at all. Real tracks are long enough; the test set
+  had to be lengthened twice (6143, 6144) to see this.
 - **A power-off on USB power comes back as a watchdog reset.** That is
   the Tab5 itself: its power cycle ends in a watchdog reset, meant or
   not, and the player is not the cause. A reset reason of "task
@@ -24912,3 +24954,14 @@ recursion was missed (6147 measured stbi__gif_load() only).
 -fstack-usage reports frames, not depth.
 
 Not on the board.
+
+### 6149 -- v0.7.0 notes: cover art; a CLAUDE.md rule for vendored stacks
+
+Documentation only. The v0.7.0 notes gain the cover art work,
+6138-6148: what the board showed on 2026-10-15, and what it has not
+yet shown (GIF drawing, the folder cases, the 2i fallback). Three
+entries join "known and left": J40's refusals and speed, the "ring send
+blocked" warnings, and covers on tracks shorter than a ring. CLAUDE.md
+gains a rule: size a stack for vendored code by running its worst input
+at that size (gifstacktest), not from -fstack-usage frames. 6147
+missed a recursion that way.

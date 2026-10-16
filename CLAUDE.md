@@ -122,6 +122,16 @@ happened to be running, not the line that caused it. Check `sizeof`
 before putting a struct on a stack; the struct that will do this is one
 whose size is a protocol maximum somewhere else in the file.
 
+**A stack size for vendored code is measured by running it, not by
+reading frames.** `-fstack-usage` gives each function's frame, not how
+deep the calls go. 6147 sized the GIF task from stbi__gif_load()'s
+35 KB frame, and the board overran it in stbi__out_gif_code(), which
+recurses once per LZW link: 4096 deep, 128 KB more (6148). texttest's
+8 MB host stacks and ASan's padded frames hide this either way. Run the
+worst input on a host thread of exactly the stack the board will give
+it, without sanitizers (texttest/gifstacktest.c), and have the test
+read that size from the source so the two cannot drift.
+
 **Internal RAM belongs to the radio. Buffers go in PSRAM unless
 something needs them internal.** The Wi-Fi radio's DMA pool comes out
 of internal RAM, and every internal allocation added to main has come

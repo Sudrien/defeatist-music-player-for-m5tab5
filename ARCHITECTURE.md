@@ -24680,3 +24680,33 @@ Not on the board. Unknown until it runs there: the decode time (host
 x86 decodes 1000x1000 in about 120 ms; the P4 has no SIMD and is
 probably 20 to 40 times slower), the flash it adds, and the stack it
 really uses.
+
+### 6140 -- test_art_files: covers to play on the board
+
+The host tests (6138, 6139) check the decoders. This set checks the
+rest, on the board: picture blocks in each container, the folder's
+names and their order, the cover cache, and what the screen does when
+there is no picture. It is 2.3 MB of four-second tracks, built by
+test_art_files/build/make.py. Every picture carries its case number in
+large letters, so a glance at the screen says which picture was used.
+
+- **1 Embedded**: one track for each of MP3 APIC, FLAC PICTURE, M4A
+  covr and Ogg METADATA_BLOCK_PICTURE. Pictures: JPEG baseline and
+  progressive, PNG with and without alpha, JPEG XL lossy and lossless
+  and recompressed from a JPEG, a MIME type that lies, a 1000x1000
+  progressive. Then the ones that must not show: no picture, a GIF, a
+  JPEG XL J40 refuses, a 2500x2500 progressive over stb's limit.
+- **2a-2l**: a picture beside the tracks. Each name and format, upper
+  case, the order between two names and between two formats of one
+  name, embedded against folder, AlbumArtSmall.jpg and cover.gif
+  (neither looked for), and a folder with nothing at all.
+
+The README's table says what each one should show.
+
+One case, 2i, records a gap rather than a pass. The folder's picture is
+only looked for when the file has no picture (ESP_ERR_NOT_FOUND or
+ESP_ERR_NOT_SUPPORTED from the tag), not when the file has one that
+fails to decode. A JPEG XL J40 refuses therefore hides a good
+cover.jpg beside it.
+
+Not on the board yet.

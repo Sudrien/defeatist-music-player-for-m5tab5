@@ -139,6 +139,7 @@ cases = [
     (11, 'flac', ['11', 'FLAC PICTURE', 'JXL lossless'], lambda im: jxl(im, lossless=True, effort=7), 'image/jxl'),
     (12, 'mp3',  ['12', 'MP3 APIC', 'MIME says PNG', 'bytes are JPEG'], lambda im: jpeg(im), 'image/png'),
     (13, 'mp3',  ['13', 'MP3 APIC', 'JPEG 1000x1000', 'progressive'], None, 'image/jpeg'),
+    (14, 'mp3',  ['14', 'MP3 APIC', 'JXL from a JPEG'], lambda im: jpeg_to_jxl(jpeg(im)), 'image/jxl'),
 ]
 for n, ext, lines, make, mime in cases:
     if n == 4:
@@ -154,8 +155,6 @@ track(E, '20 no picture', 'mp3', '20 no picture', EA, 20)
 track(E, '21 GIF, not decoded', 'mp3', '21 GIF', EA, 21, gif(picture(['21', 'GIF', 'MUST NOT SHOW'], n=21)), 'image/gif')
 track(E, '22 JXL small lossy, J40 refuses', 'mp3', '22 JXL 200px lossy', EA, 22,
       jxl(picture(['22', 'JXL 200px', 'MUST NOT SHOW'], size=200, n=22), quality=90), 'image/jxl')
-track(E, '23 JXL from a JPEG, J40 refuses', 'mp3', '23 JXL recompressed JPEG', EA, 23,
-      jpeg_to_jxl(jpeg(picture(['23', 'JXL from JPEG', 'MUST NOT SHOW'], n=23))), 'image/jxl')
 track(E, '24 JPEG 2500x2500 progressive, too big', 'mp3', '24 JPEG too big', EA, 24,
       jpeg(picture(['24', '2500 px', 'progressive', 'MUST NOT SHOW'], size=2500, n=24), progressive=True), 'image/jpeg')
 

@@ -25083,6 +25083,43 @@ checked, that esp_audio_codec's Ogg parser accepts a stream whose
 serial is a constant and whose pages each hold one packet; both are
 ordinary Ogg. Expected log: `mp4: opus 48000 Hz, 2 ch, ... seekable`.
 
+### 6153 -- MP3 in MP4, a frame at a time into minimp3
+
+An `mp4a` sample entry can hold MP3: the esds DecoderConfigDescriptor
+names object type 0x6B (MPEG-1 audio) or 0x69 (MPEG-2) and there is no
+AudioSpecificConfig. parse_asc() returned false on that and the file
+fell to the M4A parser, which has no MP3 either (the MP3 decoder is off
+in sdkconfig.defaults). Now parse_asc() sets `mp3` on those object types,
+and mp4_probe() takes rate and channels from the sample entry as it does
+for ALAC.
+
+decoder.c does not open an esp_audio_codec decoder for it.
+esp_codec_read() hands each table sample, which is one MP3 frame, to
+mp3dec_decode_frame() through the mp3dec_t inside `ex`, which the
+esp_audio_codec backend never otherwise uses. A frame that decodes to
+nothing is skipped. A seek is the table lookup the AAC path already
+does, plus mp3dec_init(): the frames whose bit reservoir reaches back
+past the seek decode to nothing and are dropped (one, on file 31).
+
+Stack: mp3dec_decode_frame() keeps about 11.6 KB on the caller's stack
+(CLAUDE.md). Its caller here is decoder_read() for a file, which runs on
+media_task, sized 16384 for minimp3 already. No new task calls it.
+
+Host: mp4mp3test decodes new file 31 (file 01, LAME 128k, in MP4). It
+checks every frame and the full minute (frames x 1152), and checks that
+the audio against file 01 has LAME's delay (found by search: 1105, which
+is 576 + 529) and an SNR of 26 dB on these pure tones. After a seek it
+lands on a frame boundary; after the first decoded frame, the output
+matches a decode from the start exactly. Needs the vendored minimp3.h,
+as the image tests need theirs.
+
+Known: the encoder delay is not trimmed (trim is UNKNOWN for .m4a, as
+before). An iTunSMPB atom or the edit list would say how much; neither
+is read. MP2 in MP4 (also 0x6B/0x69) reaches minimp3, which decodes
+layers I and II too, but that is untested.
+
+Not built for the target, not run on the board.
+
 ### 8000 -- CI: host tests after the components they include exist
 
 The v0.7.0 tag's workflow run failed at "Host tests (text layout, USB

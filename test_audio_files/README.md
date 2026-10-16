@@ -57,6 +57,7 @@ place; one that is wrong by more is obvious from the beep count.
 | 28 wav-ima-adpcm | IMA ADPCM, decoded in imaadpcm.h (6151); stereo 1024-byte blocks | plays, seeks, exact; log says *IMA ADPCM* |
 | 29 wav-ima-adpcm-mono | the same, mono at 22.05 kHz, ending mid-block | plays 7.3 s and stops there, not at the end of the padded block |
 | 30 m4a-opus | Opus in MP4, sent to the Ogg parser as synthesised pages (6152) | plays exactly 60 s, seeks; the first ~30 ms after a seek may click |
+| 31 m4a-mp3 | MP3 in MP4, frames from the sample table into minimp3 (6153) | plays, seeks; starts with LAME's 1105 samples (25 ms) of delay, which nothing here trims |
 | 22 cue-flac-image | cue sheet, one image, six tracks on the marks; UTF-8 BOM, CRLF | six tracks; track N opens with N beeps; track 5 reads *Fünf Signaltöne* |
 | 23 cue-pregap-htoa | INDEX 00, a hidden track, starts off the second; Windows-1252 | four tracks starting 3, 10, 25.49 and 39.99 s; performer *Café Tones* |
 | 24 cue-filename-mismatch | sheet names `CDImage.wav`, which is not there | resolves to the FLAC beside it; tracks at 0, 20, 40 |

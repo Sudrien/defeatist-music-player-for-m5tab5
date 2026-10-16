@@ -151,6 +151,12 @@ static bool parse_asc(const uint8_t *p, size_t n, mp4_t *m)
             continue;
         }
         if (tag == 0x04 && want == 0x04) {
+            /* 0x6B is MPEG-1 audio and 0x69 MPEG-2: MP3 (or MP2), whose
+             * frames carry their own headers and need no config. 6153. */
+            if (at < n && (p[at] == 0x6B || p[at] == 0x69)) {
+                m->mp3 = true;
+                return true;
+            }
             at += 13;                           /* object type, stream
                                                  * type, buffer size,
                                                  * bitrates */
@@ -637,6 +643,17 @@ bool mp4_probe(FILE *f, mp4_t *m)
         if (!parse_asc(desc, (size_t)esds_len, m)) {
             FAIL("no usable AudioSpecificConfig in esds");
         }
+        if (m->mp3) {
+            /* The sample entry states them, as for ALAC: channel count
+             * at 16 and the 16.16 rate at 24, after the 8-byte header.
+             * minimp3 reports both again from the first frame, which is
+             * what the player uses; these are for the log. */
+            uint8_t se[36];
+            if (read_at(f, entry, se, sizeof(se))) {
+                m->channels = se[8 + 16 + 1];
+                m->sample_rate = ((uint32_t)se[8 + 24] << 8) | se[8 + 25];
+            }
+        }
     }
 
 have_config:
@@ -654,7 +671,8 @@ out:
         m->stts_left = m->stts_n ? m->stts_count[0] : 0;
         ESP_LOGI(TAG, "mp4: %s %" PRIu32 " Hz, %u ch, %" PRIu32 " samples, "
                       "%" PRIu32 " s, seekable",
-                 m->alac ? "alac" : m->opus ? "opus" : "aac",
+                 m->alac ? "alac" : m->opus ? "opus"
+                 : m->mp3 ? "mp3" : "aac",
                  m->sample_rate, (unsigned)m->channels, m->count,
                  mp4_duration_sec(m));
     } else {

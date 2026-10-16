@@ -716,6 +716,28 @@ static esp_err_t esp_codec_open(decoder_t *d, const char *path, int fmt,
              : d->mp4.opus ? ESP_AUDIO_SIMPLE_DEC_TYPE_OGG
                            : ESP_AUDIO_SIMPLE_DEC_TYPE_AAC;
         d->frame_mode = d->mp4.alac;
+        if (d->mp4.mp3) {
+            /*
+             * MP3 IN MP4 (6153): minimp3, not esp_audio_codec, whose MP3
+             * decoder is switched off in sdkconfig.defaults. The table
+             * frames the samples, so no window and no resync: one sample
+             * is one frame, handed to mp3dec_decode_frame() in
+             * esp_codec_read(). The decoder state is the one inside
+             * `ex`, which this backend otherwise never touches.
+             *
+             * minimp3 keeps about 11.6 KB of scratch on the caller's
+             * stack (CLAUDE.md). decoder_read() for a file runs on
+             * media_task, which is 16384 for exactly that reason, so
+             * this adds no new caller -- but it does make the M4A path
+             * one that needs it.
+             */
+            mp3dec_init(&d->ex.mp3d);
+            d->info.codec = "m4a";
+            d->info.trim = DECODER_TRIM_UNKNOWN;
+            d->info.sample_rate = (int)d->mp4.sample_rate;
+            d->info.channels = d->mp4.channels;
+            return ESP_OK;
+        }
     } else if (d->mp4.encrypted) {
         /*
          * REFUSED HERE, NOT ONE FRAME LATER.
@@ -977,8 +999,32 @@ static esp_err_t esp_codec_open(decoder_t *d, const char *path, int fmt,
  * about rounding, the clamp and the in-place direction went with it.
  */
 
+/* MP3 in MP4: one table sample, one frame, one call. A frame that
+ * yields nothing (the bit reservoir after a seek, a damaged frame) is
+ * skipped rather than reported as the end. */
+static int mp4_mp3_read(decoder_t *d, int16_t *out, int max_int16)
+{
+    if (max_int16 < MINIMP3_MAX_SAMPLES_PER_FRAME) return -1;
+    for (;;) {
+        const uint32_t sz = mp4_read_frame(d->f, &d->mp4, d->inbuf,
+                                           (size_t)d->in_cap);
+        if (!sz) return 0;
+        mp3dec_frame_info_t fi;
+        memset(&fi, 0, sizeof(fi));
+        const int spc = mp3dec_decode_frame(&d->ex.mp3d, d->inbuf, (int)sz,
+                                            out, &fi);
+        if (spc <= 0 || fi.channels <= 0) continue;
+        d->info.sample_rate = fi.hz;
+        d->info.channels = fi.channels;
+        d->info.bitrate_kbps = fi.bitrate_kbps;
+        return spc * fi.channels;
+    }
+}
+
 static int esp_codec_read(decoder_t *d, int16_t *out, int max_int16)
 {
+    if (d->mp4.ok && d->mp4.mp3) return mp4_mp3_read(d, out, max_int16);
+
     /* A reopen that failed leaves no handle. Reporting the stream as
      * unusable is the only safe answer; calling into it is not. */
     if (!d->esp_dec) return -1;
@@ -1254,6 +1300,10 @@ static esp_err_t esp_codec_seek(decoder_t *d, uint32_t sec, uint32_t *landed_cs)
      * mp4_seek_cs() has already arranged for the header pages to be
      * sent again ahead of the first packet. */
     if (d->mp4.ok && !d->mp4.opus) {
+        /* MP3's bit reservoir points back into frames that are no longer
+         * coming; a fresh state makes the first frame or two decode to
+         * nothing rather than to the old position's leftovers. */
+        if (d->mp4.mp3) mp3dec_init(&d->ex.mp3d);
         if (landed_cs) *landed_cs = at_cs;
         ESP_LOGI(TAG, "mp4: seek to %" PRIu32 "s, landed %" PRIu32 ".%02" PRIu32
                       "s, sample %" PRIu32,

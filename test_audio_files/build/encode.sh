@@ -377,4 +377,9 @@ $F -t 7.3 -ac 1 -ar 22050 -c:a adpcm_ima_wav "$OUT/29 wav-ima-adpcm-mono.wav"
 # cut by the final granule rather than played.
 $F -c:a libopus -b:a 64k -f mp4 "$OUT/30 m4a-opus.m4a"
 
+# ---------------------------------------------------------------- 6153
+# 31 -- MP3 in MP4 (esds object type 0x6B), framed by the sample table
+# and decoded by minimp3 a frame at a time.
+$F -c:a libmp3lame -b:a 128k -f mp4 "$OUT/31 m4a-mp3.m4a"
+
 echo "built into $OUT"

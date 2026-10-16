@@ -137,6 +137,14 @@ typedef struct {
      * reopened there and has to see the headers again.
      */
     bool     opus;
+    /*
+     * MP3 instead of AAC (6153): an `mp4a` entry whose esds names
+     * object type 0x6B (MPEG-1 audio) or 0x69 (MPEG-2). The samples are
+     * MP3 frames as they are, headers and all, and go to minimp3 one at
+     * a time through mp4_read_frame(). Rate and channels come from the
+     * sample entry, there being no AudioSpecificConfig.
+     */
+    bool     mp3;
     uint8_t *opus_head;
     uint32_t opus_head_len;
     bool     ogg_hdr_sent;

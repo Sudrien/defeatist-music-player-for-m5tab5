@@ -122,6 +122,28 @@ happened to be running, not the line that caused it. Check `sizeof`
 before putting a struct on a stack; the struct that will do this is one
 whose size is a protocol maximum somewhere else in the file.
 
+**Internal RAM belongs to the radio. Buffers go in PSRAM unless
+something needs them internal.** The Wi-Fi radio's DMA pool comes out
+of internal RAM, and every internal allocation added to main has come
+out of it: 5178, 6027 and 6105 each stopped the radio that way, and
+before 6136 its min-ever with Wi-Fi up was 12 bytes. A heap buffer is
+`heap_caps_malloc(..., MALLOC_CAP_SPIRAM | MALLOC_CAP_8BIT)`. A static
+in main is in PSRAM already: main/psram_bss.lf maps all of main's
+zero-initialised statics there, which gave back about 104 KB (DMA
+min-ever 75,900 with Wi-Fi up). An initialised static (`.data`) is not
+moved, so a large table that starts as zeros should be left
+uninitialised. Internal RAM is for what has to be there: a buffer a
+peripheral's DMA cannot reach in PSRAM, code or data used with the
+cache off, and FreeRTOS objects.
+
+**A static FreeRTOS object in main needs `DRAM_ATTR`.** A
+`StaticTask_t`, `StaticSemaphore_t`, `StaticQueue_t` or
+`StaticStreamBuffer_t` that is zero-initialised would otherwise land in
+PSRAM, where FreeRTOS does not want a task control block and the P4
+cannot do the atomic operations a spinlock needs. `DRAM_ATTR` keeps it
+internal (6132 has the list). The failure is not a link error, so it
+has to be remembered.
+
 **A patch has one number, and it is written down once.** The next patch
 after 0108 is 0109 and its file is `0109-<subject>.patch`. The number is
 supplied by `--start-number`, which counts from the project rather than

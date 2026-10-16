@@ -23778,6 +23778,26 @@ means host-tested or reasoned only.
   READMEs say the certificate is self-signed and has to be accepted
   (6129).
 
+- **Internal RAM given back to the radio** (6132, 6136): main's
+  zero-initialised statics are in PSRAM. Board-checked on 2026-10-15:
+  internal free at boot went from 60,199 to 164,067; DMA min-ever with
+  Wi-Fi up went from 12 to 75,900; the largest free internal block
+  went from 28,672 to 73,728. FXBENCH with every column on, at 78 on a
+  45, was unchanged: Fx 10.7-10.9% of a core against 6123's 10.7%,
+  speed 4.1-4.2% against 4.4%, 0 chunks dropped, output peak -0.22
+  dBFS. The rule is in CLAUDE.md (6137).
+- **The clock and the card** (6133, 6135): the card's dates are read
+  only from the player's own `.defeatist.*` files, and NTP re-dates
+  them when they are in the future. Board-checked: a card that had
+  put the clock in 2028 on every boot (from the Launcher's `wifi.bin`,
+  then from `.defeatist.cat`) was re-dated at the first NTP sync ("5 of
+  the player's own files re-dated", and 4 on a USB drive), and the
+  next two boots stayed in 2026 from the RX8130.
+- **Dotfiles hidden as the walk passes** (6131): not checked on
+  Windows.
+- **MINIMAL_BUILD** (6134): builds and runs; only the components main
+  needs are compiled.
+
 Known and left, so they are not rediscovered:
 
 - ECHO's trail is not cleared by a seek.
@@ -23789,12 +23809,6 @@ Known and left, so they are not rediscovered:
   outgoing ring empties: the overlap is planned in the track's frames,
   not in time at its speed. It finishes on silence, as designed (6095's
   "still unmeasured" path, now seen on every 78/45 crossfade).
-- **The radio's DMA pool is nearly empty once Wi-Fi is up**: DMA
-  `min-ever 12` on every run, and the 6123 run's station-up map had
-  1291 bytes free, largest 512. Any internal allocation added from here
-  can stop the radio, as 5178, 6027 and 6105 did. The rule 5178 wrote
-  -- a task's buffer goes in PSRAM unless something needs it internal --
-  is still not in CLAUDE.md.
 - **A power-off on USB power comes back as a watchdog reset.** That is
   the Tab5 itself: its power cycle ends in a watchdog reset, meant or
   not, and the player is not the cause. A reset reason of "task
@@ -24539,3 +24553,17 @@ longer 0, libmain's DIRAM drops by about 60 KB in
 well above 60,199.
 
 Not on the board.
+
+### 6137 -- board results for 6130-6136; the PSRAM rule in CLAUDE.md
+
+Documentation only. The v0.7.0 notes record what the board showed on
+2026-10-15. 6136 freed about 104 KB of internal RAM: the DMA pool's
+min-ever with Wi-Fi up went from 12 bytes to 75,900, and FXBENCH did not
+change. 6135 stopped the card's dates from putting the clock in 2028.
+The "DMA pool nearly empty" entry is removed from "known and left".
+
+CLAUDE.md gains two rules. First, internal RAM belongs to the radio,
+so buffers go in PSRAM unless something needs them internal; this is
+5178's rule, written down at last. Second, a static FreeRTOS object in
+main needs DRAM_ATTR, since psram_bss.lf would otherwise move it to
+PSRAM and nothing fails at link time.

@@ -24835,3 +24835,34 @@ found and comes after front.jxl. test_art_files: 15 (GIF) and 16
 (animated GIF) replace 21 (GIF refused), and 2k's cover.gif now shows.
 
 Not on the board.
+### 6146 -- a slow cover is kept while its track is on screen; a refused one falls back to the folder's
+
+Two gaps in show_cover(), both found with test_art_files on the board.
+
+**Dropped while still on screen.** The cover was checked against
+s_track_gen, which moves when the decoder starts the next track. The
+decoder runs a ring (20 s) ahead of what is heard, and the screen moves
+only when the ring it reads catches up (late_commit_poll(),
+s_shown_path). On the 45-second set, a JPEG XL cover took J40 3.5 to
+9.2 s, the decoder moved on about 3 s after the screen did, and each
+JPEG XL cover was "decoded after the track changed; not shown" while
+its track was the one on screen. cover_still_wanted() now accepts
+either the same generation or the screen still showing that path, as
+long as something is playing (s_path not empty). On real tracks the
+gap is minutes, but a slow decoder and a short track will meet again.
+
+**No fallback after a failed decode.** The folder's cover (6042) was
+looked for only when the file had no picture (NOT_FOUND or
+NOT_SUPPORTED from the tag). A picture that was there but would not
+decode, such as a JPEG XL J40 refuses or a JPEG too big to afford,
+left the art strip as it was, with the previous track's cover still on
+it, and hid a good cover.jpg beside the file. Now a failed decode tries
+folderart_load() and draws that if it decodes. The folder picture is
+not cached under the track's path, because the cache's entry is the
+file's own picture. If nothing decodes, the strip is cleared.
+
+test_art_files' README: 2i now expects the folder's cover; 22 and 24
+expect an empty strip; 10, 11 and 14 expect their JPEG XL covers, after
+about eight seconds.
+
+Not built here (player.c needs ESP-IDF). Not on the board.

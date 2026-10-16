@@ -31,7 +31,7 @@ inside each file can show.
 | 07 | M4A covr, JPEG | hardware | shows *07* |
 | 08 | M4A covr, PNG | pngle | shows *08* |
 | 09 | Ogg Vorbis METADATA_BLOCK_PICTURE, JPEG | hardware | plays (6142: it did not, the comment header spans pages) and shows *09* |
-| 10 | MP3 APIC, JPEG XL lossy 600x600 | J40 | shows *10*, after a few seconds |
+| 10 | MP3 APIC, JPEG XL lossy 600x600 | J40 | shows *10*, after about eight seconds (6146: no longer dropped when the next track starts decoding) |
 | 11 | FLAC PICTURE, JPEG XL lossless | J40 | shows *11* |
 | 12 | MP3 APIC, MIME says image/png, bytes are JPEG | hardware | shows *12*: the bytes decide, not the MIME type |
 | 13 | MP3 APIC, JPEG progressive 1000x1000 | stb_image | shows *13*; about 10 MB of PSRAM for a moment |
@@ -39,8 +39,8 @@ inside each file can show.
 | 15 | MP3 APIC, GIF | stb_image | shows *15* (6145) |
 | 16 | MP3 APIC, animated GIF | stb_image | shows *16, first frame*; never *SECOND FRAME* |
 | 20 | none | -- | the format card |
-| 22 | MP3 APIC, JPEG XL lossy 200x200 | J40 refuses | no picture; the log names J40's reason |
-| 24 | MP3 APIC, JPEG progressive 2500x2500 | stb_image refuses | no picture; the log says too many pixels |
+| 22 | MP3 APIC, JPEG XL lossy 200x200 | J40 refuses | an empty art strip (not the last track's cover); the log names J40's reason |
+| 24 | MP3 APIC, JPEG progressive 2500x2500 | stb_image refuses | an empty art strip; the log says too many pixels |
 
 ## 2 Beside the tracks
 
@@ -59,7 +59,7 @@ the cover cache with no read (the log says which).
 | 2f | folder.jpg, cover.png | *cover.png, right one* |
 | 2g | cover.jxl, cover.jpg | *cover.jpg, right one*: JPEG before JPEG XL within a name |
 | 2h | cover.jpg; the tracks carry a JPEG | *EMBEDDED, right one*: inside the file comes first |
-| 2i | cover.jpg; the tracks carry a 200 px JPEG XL J40 refuses | **known gap**: the folder's cover.jpg is not tried after an embedded picture fails to decode, only after a file has none |
+| 2i | cover.jpg; the tracks carry a 200 px JPEG XL J40 refuses | shows *2i cover.jpg*: since 6146 a picture in the file that will not decode falls back to the folder's |
 | 2j | AlbumArtSmall.jpg only | the format card: the 75 px Windows thumbnail is not looked for |
 | 2k | cover.gif only | shows *2k cover.gif* (6145: GIF is looked for, last of each name) |
 | 2l | nothing | the format card |

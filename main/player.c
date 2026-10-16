@@ -5054,6 +5054,28 @@ static void show_format_card(const char *path, long bytes, uint32_t gen)
  * the generation checks, the cache, the decode and its failure lines.
  * `owned`: the bytes are ours, and the cache takes them.
  */
+/*
+ * 6146: is this cover still worth drawing?
+ *
+ * s_track_gen moves when the DECODER starts the next track, and the
+ * decoder runs a ring (20 s) ahead of what is heard. The screen moves
+ * when the ring it reads catches up (late_commit_poll(), s_shown_path).
+ * So a cover whose decode outlasted the gap between the two -- J40's
+ * eight seconds on the board, against three on a 45-second track -- was
+ * thrown away while its track was still the one on screen. Still
+ * wanted, then, if the generation is unchanged OR the screen is still
+ * showing this path. s_path is empty once playback has stopped, and a
+ * stopped player's screen is not waiting for a cover.
+ *
+ * s_shown_path is the decode task's, read here on media_task: a torn
+ * read can only say "not this path", which drops a cover, as before.
+ */
+static bool cover_still_wanted(const char *path, uint32_t gen)
+{
+    if (gen == s_track_gen) return true;
+    return path && path[0] && s_path[0] && strcmp(path, s_shown_path) == 0;
+}
+
 static void show_cover(const char *path, uint8_t *jpg, size_t jpg_len,
                        bool owned, uint32_t gen)
 {
@@ -5063,7 +5085,7 @@ static void show_cover(const char *path, uint8_t *jpg, size_t jpg_len,
      * screen, and unlike the envelope -- which is only ever drawn
      * once, from a flag -- there is no later redraw to correct it.
      */
-    if (gen != s_track_gen) {
+    if (!cover_still_wanted(path, gen)) {                           /* 6146 */
         ESP_LOGI(TAG, "cover arrived after the track changed; dropped");
         /* Into the cache rather than the bin. It was read for a track
          * that moved on, but the track it belongs to is very likely the
@@ -5110,13 +5132,40 @@ static void show_cover(const char *path, uint8_t *jpg, size_t jpg_len,
                      cent, (unsigned)(cbytes / 1024),
                      (unsigned)(csaved / 1024));
         }
+
+        /*
+         * 6146: a picture in the file that will not decode is not the
+         * end of it. The folder's cover was only looked for when the
+         * file had none (6042); a JPEG XL J40 refuses, or a JPEG too big
+         * to afford, hid a good cover.jpg beside it (test_art_files 2i).
+         * Drawn, not cached: the cache's entry for this path is the
+         * file's own picture, and the next visit fails and falls back
+         * the same way.
+         */
+        if (cover_still_wanted(path, gen)) {
+            static char ff_buf[512];
+            const char *file = cuedir_file_of(path, ff_buf, sizeof(ff_buf));
+            uint8_t *fimg = NULL;
+            size_t fimg_len = 0;
+            if (folderart_load(file, path, &fimg, &fimg_len, NULL) == ESP_OK) {
+                const esp_err_t ferr = albumart_show(s_panel, art_w, art_h, fimg, fimg_len);
+                free(fimg);
+                if (ferr == ESP_OK) {
+                    ESP_LOGI(TAG, "the folder's cover instead");
+                    return;
+                }
+            }
+            /* Nothing drawable: an empty strip rather than the last
+             * track's cover, which nothing has painted over. */
+            clear_art();
+        }
         return;
     }
 
     /* One more generation check. The decode is the long part, and a
      * cover blitted for a track that has already been replaced is
      * exactly what the first check was avoiding. */
-    if (gen != s_track_gen) {
+    if (!cover_still_wanted(path, gen)) {                           /* 6146 */
         ESP_LOGI(TAG, "cover decoded after the track changed; not shown");
         clear_art();                                                /* 5265 */
     }

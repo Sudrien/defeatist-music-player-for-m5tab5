@@ -18,6 +18,15 @@ One file per flavour a cover is found in: JPEG baseline 4:2:0 and
 PNG RGB, RGBA, palette, palette with transparency, greyscale, grey with
 alpha, 16 bits a channel, and Adam7-interlaced.
 
+6139, JPEG XL (needs pillow-jxl-plugin): lossy, lossless, with alpha,
+the lossy codestream wrapped in a container as one `jxlc` box and again
+as two `jxlp` boxes behind an `Exif` box, a 320x240 JPEG losslessly
+recompressed (a container with `jbrd` and split `jxlp` boxes), and one
+fixture for each kind J40 refuses (no_*.jxl, the recompressed JPEG
+among them). Plus
+flat pictures at awkward sizes for the size-header parser, one per
+SizeHeader path (div8, each ratio, each U32 width).
+
 Usage:  ./tools/gen_art_fixtures.py [outdir]   (default texttest/fixtures/art)
 Needs Pillow. The outputs are committed; rerun only to change them.
 
@@ -29,12 +38,12 @@ from PIL import Image
 W, H = 64, 48
 RED, GREEN, BLUE, WHITE = (220, 30, 30), (30, 200, 40), (40, 50, 210), (255, 255, 255)
 
-def quads(alpha=False):
-    im = Image.new('RGBA', (W, H))
+def quads(alpha=False, w=W, h=H):
+    im = Image.new('RGBA', (w, h))
     px = im.load()
-    for y in range(H):
-        for x in range(W):
-            c = (RED if x < W // 2 else GREEN) if y < H // 2 else (BLUE if x < W // 2 else WHITE)
+    for y in range(h):
+        for x in range(w):
+            c = (RED if x < w // 2 else GREEN) if y < h // 2 else (BLUE if x < w // 2 else WHITE)
             a = 0 if (alpha and c == WHITE) else 255
             px[x, y] = c + (a,)
     return im
@@ -80,6 +89,61 @@ def main():
     open(p('interlaced.png'), 'wb').write(b'\x89PNG\r\n\x1a\n' +
         chunk(b'IHDR', struct.pack('>IIBBBBB', W, H, 8, 2, 0, 0, 1)) +
         chunk(b'IDAT', zlib.compress(raw, 9)) + chunk(b'IEND', b''))
+    jxl(out)
+
+def box(t, payload):
+    return struct.pack('>I', len(payload) + 8) + t + payload
+
+JXL_SIG = b'\x00\x00\x00\x0cJXL \x0d\x0a\x87\x0a'
+FTYP = box(b'ftyp', b'jxl \x00\x00\x00\x00jxl ')
+
+def jxl(out):
+    """
+    J40 decodes some JPEG XL and not others, and which is which is what
+    texttest/jxltest.c pins down. Found while writing it (6139, against
+    libjxl 0.11 via pillow-jxl-plugin 1.3.8):
+      - lossy at 256x256 or smaller: refused (one group; "rnge", "hufd")
+      - lossy, one flat colour, 600 px and up: refused ("hufd")
+      - lossless at effort 1, any size: refused ("rnge")
+      - lossy above 256 px with detail, lossless at effort 3 and up: decoded
+      - a JPEG recompressed into JPEG XL: sometimes. Busy pictures over
+        256 px decoded in testing; this four-quadrant one does not
+        ("Premature end of file"), nor did one 700x700 busy one
+        ("Unimplemented feature")
+    So the pictures that should decode are 320x240, and each refusal that
+    has a pattern has a fixture of its own.
+    """
+    try:
+        import pillow_jxl  # noqa: F401 -- registers the format with Pillow
+    except ImportError:
+        print('pillow-jxl-plugin not installed: no JPEG XL fixtures')
+        return
+    p = lambda n: os.path.join(out, n)
+    big = quads(w=320, h=240).convert('RGB')
+    big.save(p('lossy.jxl'), quality=90)
+    big.save(p('lossless.jxl'), lossless=True, effort=7)
+    quads(alpha=True, w=320, h=240).save(p('alpha.jxl'), lossless=True, effort=7)
+    cs = open(p('lossy.jxl'), 'rb').read()
+    assert cs[:2] == b'\xff\x0a'
+    open(p('container.jxl'), 'wb').write(JXL_SIG + FTYP + box(b'jxlc', cs))
+    half = len(cs) // 2
+    exif = box(b'Exif', b'\x00\x00\x00\x00' + b'MM\x00\x2a\x00\x00\x00\x08\x00\x00')
+    open(p('jxlp.jxl'), 'wb').write(JXL_SIG + FTYP + exif +
+        box(b'jxlp', struct.pack('>I', 0) + cs[:half]) +
+        box(b'jxlp', struct.pack('>I', 0x80000001) + cs[half:]))
+    # The refusals.
+    quads().convert('RGB').save(p('no_small_lossy.jxl'), quality=90)
+    big.save(p('no_lossless_e1.jxl'), lossless=True, effort=1)
+    Image.new('RGB', (700, 700), RED).save(p('no_flat_lossy.jxl'), quality=90)
+    big.save(os.path.join(out, '_tmp320.jpg'), quality=92)
+    Image.open(p('_tmp320.jpg')).save(p('no_from_jpeg.jxl'), lossless_jpeg=True)
+    os.remove(p('_tmp320.jpg'))
+    assert open(p('no_from_jpeg.jxl'), 'rb').read()[:12] == JXL_SIG
+    # The size header, one file per SizeHeader shape.
+    sizes = [(1, 1), (8, 8), (40, 8), (8, 40), (64, 48), (256, 144), (300, 200),
+             (600, 500), (517, 313), (513, 1), (1, 513), (1024, 768), (8200, 2)]
+    for w, h in sizes:
+        Image.new('RGB', (w, h), (10, 20, 30)).save(p('size_%dx%d.jxl' % (w, h)), lossless=True, effort=3)
 
 if __name__ == '__main__':
     main()

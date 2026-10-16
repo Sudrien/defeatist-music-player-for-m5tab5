@@ -31,7 +31,7 @@ idf_component_register(
              feckless_network_handler feckless_storage_handler   # 6053
              feckless_drivers   # 6054
              feckless_graphics_handler   # 6055: gfx, lcd, ark12, arabixel
-    PRIV_REQUIRES pngle minimp3 stbjpeg
+    PRIV_REQUIRES pngle minimp3 stbjpeg jxlimg   # 6139: jxlimg, JPEG XL
 )
 
 # Heap integrity checkpoints, off by default. Build with

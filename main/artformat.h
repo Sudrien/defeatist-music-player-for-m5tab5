@@ -25,13 +25,20 @@ typedef enum {
     ART_NONE = 0,       /* not a picture this player decodes */
     ART_JPEG,
     ART_PNG,
+    ART_JXL,            /* 6139: JPEG XL, bare codestream or ISOBMFF container */
 } art_format_t;
+
+/* JPEG XL's two signatures: the bare codestream, and the container's
+ * first box ("JXL " with its fixed 12-byte header). */
+#define ARTFORMAT_JXL_BOX "\x00\x00\x00\x0cJXL \x0d\x0a\x87\x0a"
 
 static inline art_format_t artformat_sniff(const uint8_t *p, size_t len)
 {
     if (!p) return ART_NONE;
     if (len > 3 && p[0] == 0xFF && p[1] == 0xD8) return ART_JPEG;
     if (len > 8 && memcmp(p, "\x89PNG\r\n\x1a\n", 8) == 0) return ART_PNG;
+    if (len > 3 && p[0] == 0xFF && p[1] == 0x0A) return ART_JXL;
+    if (len > 12 && memcmp(p, ARTFORMAT_JXL_BOX, 12) == 0) return ART_JXL;
     return ART_NONE;
 }
 
@@ -41,6 +48,7 @@ static inline const char *artformat_mime(art_format_t f)
     switch (f) {
     case ART_JPEG: return "image/jpeg";
     case ART_PNG:  return "image/png";
+    case ART_JXL:  return "image/jxl";
     default:       return "application/octet-stream";
     }
 }

@@ -2533,6 +2533,8 @@ static const char *pic_mime(const uint8_t *d, size_t n)
     if (n >= 6 && (memcmp(d, "GIF87a", 6) == 0 || memcmp(d, "GIF89a", 6) == 0)) return "image/gif";
     if (n >= 12 && memcmp(d, "RIFF", 4) == 0 && memcmp(d + 8, "WEBP", 4) == 0) return "image/webp";
     if (n >= 2 && d[0] == 'B' && d[1] == 'M') return "image/bmp";
+    if (n >= 3 && d[0] == 0xFF && d[1] == 0x0A) return "image/jxl";     /* 6139 */
+    if (n >= 12 && memcmp(d, "\x00\x00\x00\x0cJXL \x0d\x0a\x87\x0a", 12) == 0) return "image/jxl";
     return NULL;
 }
 

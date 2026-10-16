@@ -65,10 +65,11 @@ static void cache_clear(void)
     for (int i = 0; i < FAKE_KEYS; i++) { free(cache[i].img); cache[i].img = NULL; }
 }
 
+/* 6139: the real check, now that it is a header (artformat.h). */
+#include "../main/artformat.h"
 bool albumart_is_supported_image(const uint8_t *p, size_t len)
 {
-    if (len >= 3 && p[0] == 0xFF && p[1] == 0xD8 && p[2] == 0xFF) return true;
-    return len >= 8 && memcmp(p, "\x89PNG\r\n\x1a\n", 8) == 0;
+    return artformat_sniff(p, len) != ART_NONE;
 }
 
 /* ---- the test ---- */
@@ -94,6 +95,7 @@ static void put_file(const char *dir, const char *name, const char *kind, size_t
     if (!f) { perror(p); exit(2); }
     if (!strcmp(kind, "jpg")) fwrite("\xFF\xD8\xFF\xE0", 1, 4, f);
     else if (!strcmp(kind, "png")) fwrite("\x89PNG\r\n\x1a\n", 1, 8, f);
+    else if (!strcmp(kind, "jxl")) fwrite("\xFF\x0A", 1, 2, f);
     for (size_t i = 0; i < n; i++) fputc((int)(i & 0xFF), f);
     fclose(f);
 }
@@ -171,6 +173,24 @@ int main(void)
     put_file(a, "cover.jpg", "jpg", 50);
     CHECK(load(track(a, "01.mp3"), &name, &img, &len) == ESP_OK && !strcmp(name, "cover.jpg"),
           "cover.jpg before cover.png (%s)", name ? name : "-");
+    free(img);
+
+    /* 6139: JPEG XL is found, and comes after the other two of a name. */
+    folderart_forget();
+    const char *x = mkdir_in("x");
+    put_file(x, "folder.jxl", "jxl", 70);
+    CHECK(load(track(x, "01.flac"), &name, &img, &len) == ESP_OK && !strcmp(name, "folder.jxl") &&
+          len == 72, "folder.jxl alone (%s, %zu)", name ? name : "-", len);
+    free(img);
+    folderart_forget();
+    put_file(x, "folder.png", "png", 30);
+    CHECK(load(track(x, "01.flac"), &name, &img, &len) == ESP_OK && !strcmp(name, "folder.png"),
+          "folder.png before folder.jxl (%s)", name ? name : "-");
+    free(img);
+    folderart_forget();
+    put_file(x, "cover.jxl", "jxl", 10);
+    CHECK(load(track(x, "01.flac"), &name, &img, &len) == ESP_OK && !strcmp(name, "cover.jxl"),
+          "cover.jxl before folder.png: the name decides first (%s)", name ? name : "-");
     free(img);
 
     /* An album: the first track reads, the rest copy from the cache. */

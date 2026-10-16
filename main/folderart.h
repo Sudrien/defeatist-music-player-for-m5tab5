@@ -21,7 +21,8 @@
  *   here, so it is not "improved".
  * - FOLDERART_NAMES is the screen's: the names rippers and stores
  *   actually write, JPEG before PNG within a name because the JPEG
- *   decoder here is the hardware one. TIFF and BMP are left out because
+ *   decoder here is the hardware one, and JPEG XL last (6139) because
+ *   it is the slowest to decode and the one J40 may refuse. TIFF and BMP are left out because
  *   albumart_show() decodes neither, and AlbumArtSmall.jpg (a 75 px
  *   thumbnail Windows writes beside folder.jpg) is left out because it
  *   would be the worst picture in the folder.
@@ -50,10 +51,10 @@ extern "C" {
 #endif
 
 static const char *const FOLDERART_NAMES[] = {
-    "cover.jpg",  "cover.jpeg",  "cover.png",
-    "folder.jpg", "folder.jpeg", "folder.png",
-    "front.jpg",  "front.jpeg",  "front.png",
-    "album.jpg",  "album.jpeg",  "album.png",
+    "cover.jpg",  "cover.jpeg",  "cover.png",  "cover.jxl",
+    "folder.jpg", "folder.jpeg", "folder.png", "folder.jxl",
+    "front.jpg",  "front.jpeg",  "front.png",  "front.jxl",
+    "album.jpg",  "album.jpeg",  "album.png",  "album.jxl",
 };
 #define FOLDERART_NNAMES ((int)(sizeof(FOLDERART_NAMES) / sizeof(FOLDERART_NAMES[0])))
 

@@ -24605,3 +24605,78 @@ on the board.
 miniz switches on unaligned loads and stores for x86 only, so the host
 build turns off UBSan's alignment check. The board's RISC-V build never
 compiles that path.
+
+### 6139 -- JPEG XL cover art, through J40, and what it refuses
+
+Covers can now be JPEG XL: embedded (ID3 APIC, FLAC PICTURE, MP4 covr,
+all decided by the image's magic bytes), as cover/folder/front/album.jxl
+beside the tracks (after the .jpg, .jpeg and .png of the same name), and
+as station logos. The web remote and MPD's readpicture call it image/jxl.
+
+**The decoder is J40**, Kang Seonghoon's single-file C decoder, version
+2270 (2022-09). Its licence is public domain, or MIT No Attribution
+where that cannot apply. It is pinned and hash-checked in
+cmake/vendored.cmake, gitignored like stb_image.h, and wrapped in
+components/jxlimg. It is about 90 KB of code. libjxl, the reference
+decoder, is C++ and well over a megabyte; it does not fit the app slot.
+
+**What J40 refuses** was found by testing, and each case has a fixture
+in texttest/fixtures/art that jxltest pins. Encoded by libjxl 0.11
+through pillow-jxl-plugin 1.3.8:
+
+| | J40 2270 |
+|---|---|
+| lossy, over 256 px, with detail | decodes |
+| lossless, effort 3 and up | decodes |
+| lossy at 256x256 or smaller | refused ("rnge", "hufd": one group) |
+| lossless at effort 1 | refused ("rnge") |
+| lossy, one flat colour, 600 px and up | refused ("hufd") |
+| a JPEG recompressed into JPEG XL (cjxl's default for a .jpg) | sometimes: busy pictures over 256 px decoded; a flat 320x240 one ("Premature end of file") and one busy 700x700 ("Unimplemented feature") did not |
+| codestream split over `jxlp` boxes | refused by J40; joined first by jxlimg.c, then decodes |
+
+A refused cover is a log line naming J40's reason, and the player
+carries on without it, as it does for a JPEG it cannot afford. Small
+lossy logos are common, and J40's failures are not all predictable,
+so expect a share of real .jxl covers to be refused. Where it decodes,
+the pixels are right: against the source, lossless is exact to RGB565
+and lossy is within what lossy coding moves (a mean of 8 per channel
+on a busy 600x600; J40 skips libjxl's restoration filters). If a newer J40 reads one of the
+no_*.jxl fixtures, jxltest fails and that fixture moves to the decodes.
+
+**jxlimg.c**, the wrapper:
+
+- `jxlimg_info()` reads the SizeHeader itself (ISO/IEC 18181-1 9.2.1,
+  bare or inside a container) so memory can be checked before
+  decoding. It is tested against the encoder at one size per header
+  shape.
+- J40 decodes at full size into float planes. Measured peak: 4.3 MB at
+  500x500, 6.7 MB at 700x700, 12.8 MB at 1000x1000 (lossy).
+  `jxlimg_peak_bytes()` is 13 bytes a pixel plus 2 MB, checked against
+  free PSRAM first, as decode_stb() does. The result is thinned to the
+  screen box like stbjpeg's, and alpha is blended over the screen's
+  background colour.
+- Every J40 allocation goes through a tracking allocator into PSRAM.
+  J40 leaks on several error paths (a codestream that ends inside an
+  entropy code, a frame header or a modular tree), and jxltest's
+  truncation sweep found them. Whatever J40 still holds after
+  j40_free() is freed. Its posix_memalign() path is disabled, so the
+  pixel planes cannot go to the default heap, which hands a block under
+  4 KB internal RAM.
+- A codestream split over `jxlp` boxes is joined into a bare one before
+  J40 sees it.
+
+**albumart.c** runs J40 on a task of its own: 24 KB of stack in PSRAM,
+DRAM_ATTR TCB, idle priority like the other software decoders.
+Measured on a 64-bit host, J40 uses 11.5 KB of stack, which media_task's
+16 KB cannot spare with its own frames above it. The caller waits, then
+deletes the suspended task and frees its stack.
+
+artformat.h gains ART_JXL (FF 0A, or the container's 12-byte box), and
+FOLDERART_NAMES gains the four .jxl names (sixteen candidates now).
+folderarttest checks that .jxl is found and comes after the .jpg,
+.jpeg and .png of the same name. jxltest: 105 checks.
+
+Not on the board. Unknown until it runs there: the decode time (host
+x86 decodes 1000x1000 in about 120 ms; the P4 has no SIMD and is
+probably 20 to 40 times slower), the flash it adds, and the stack it
+really uses.

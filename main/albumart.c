@@ -15,6 +15,7 @@
 #include <string.h>
 
 #include "driver/jpeg_decode.h"
+#include "esp_attr.h"     /* 6139: DRAM_ATTR */
 #include "esp_check.h"
 #include "esp_lcd_mipi_dsi.h"
 #include "esp_lcd_panel_ops.h"
@@ -28,6 +29,7 @@
 #include "pngle.h"
 #include "artformat.h"
 #include "stbjpeg.h"  /* 5062: stb_image, the last JPEG decoder */
+#include "jxlimg.h"   /* 6139: J40, JPEG XL */
 
 #include "albumart.h"
 #include "artplace.h"
@@ -1281,6 +1283,112 @@ static esp_err_t draw_in_software(esp_lcd_panel_handle_t panel,
     return ret;
 }
 
+/*
+ * 6139: JPEG XL, through J40 (components/jxlimg).
+ *
+ * On a task of its own, with its stack in PSRAM. J40 is deep: 11.5 KB of
+ * stack measured on a 64-bit host, which would leave media_task's 16 KB
+ * too little for its own frames above it. The stack is PSRAM because
+ * internal RAM is the radio's (CLAUDE.md); the TCB stays internal, as a
+ * TCB must. The task runs at idle priority, which is what
+ * soft_decode_begin() gives the other software decoders, and the caller
+ * waits for it.
+ *
+ * Asked about memory first, as decode_stb() is: about 13 bytes a pixel
+ * at the peak, so a 1000x1000 cover is about 13 MB for a moment.
+ */
+#define JXL_STACK  (24 * 1024)
+
+typedef struct {
+    const uint8_t *in;
+    size_t len;
+    int box_w, box_h;
+    uint16_t *px;
+    size_t size;
+    int w, h;
+    jxlimg_err_t err;
+    const char *why;
+    TaskHandle_t waiter;
+} jxl_job_t;
+
+static DRAM_ATTR StaticTask_t s_jxl_tcb;   /* internal: psram_bss.lf, CLAUDE.md */
+
+static void jxl_task(void *arg)
+{
+    jxl_job_t *j = arg;
+    j->err = jxlimg_decode_rgb565(j->in, j->len, j->box_w, j->box_h, UI_BG_RGB565,
+                                  &j->px, &j->size, &j->w, &j->h, &j->why);
+    xTaskNotifyGive(j->waiter);
+    vTaskSuspend(NULL);                 /* deleted by the caller, which owns the stack */
+}
+
+static esp_err_t decode_jxl(const uint8_t *in, size_t len, int screen_w, int screen_h,
+                            uint8_t **out_buf, size_t *out_size, int *out_w, int *out_h)
+{
+    int w = 0, h = 0;
+    const jxlimg_err_t info = jxlimg_info(in, len, &w, &h);
+    if (info != JXLIMG_OK) {
+        ESP_LOGW(TAG, "jxl: %s (%dx%d)", jxlimg_err_name(info), w, h);
+        return ESP_ERR_NOT_SUPPORTED;
+    }
+    const size_t peak = jxlimg_peak_bytes(w, h);
+    const size_t free_ps = heap_caps_get_free_size(MALLOC_CAP_SPIRAM);
+    if (free_ps < peak + JXL_STACK) {
+        ESP_LOGW(TAG, "jxl: %dx%d needs up to %u KB of PSRAM, %u KB free",
+                 w, h, (unsigned)(peak / 1024), (unsigned)(free_ps / 1024));
+        return ESP_ERR_NO_MEM;
+    }
+    StackType_t *stack = heap_caps_malloc(JXL_STACK, MALLOC_CAP_SPIRAM | MALLOC_CAP_8BIT);
+    if (!stack) return ESP_ERR_NO_MEM;
+
+    jxl_job_t job = { .in = in, .len = len, .box_w = screen_w, .box_h = screen_h,
+                      .err = JXLIMG_FAILED, .waiter = xTaskGetCurrentTaskHandle() };
+    const int64_t t0 = esp_timer_get_time();
+    TaskHandle_t t = xTaskCreateStatic(jxl_task, "jxl", JXL_STACK, &job,
+                                       tskIDLE_PRIORITY, stack, &s_jxl_tcb);
+    if (!t) {
+        heap_caps_free(stack);
+        return ESP_ERR_NO_MEM;
+    }
+    ulTaskNotifyTake(pdTRUE, portMAX_DELAY);
+    while (eTaskGetState(t) != eSuspended) vTaskDelay(1);
+    vTaskDelete(t);
+    heap_caps_free(stack);
+
+    if (job.err != JXLIMG_OK) {
+        ESP_LOGW(TAG, "jxl: %dx%d %s (%s)", w, h, jxlimg_err_name(job.err),
+                 job.why ? job.why : "no reason given");
+        return job.err == JXLIMG_NO_MEM ? ESP_ERR_NO_MEM
+             : job.err == JXLIMG_UNSUPPORTED ? ESP_ERR_NOT_SUPPORTED : ESP_FAIL;
+    }
+    *out_buf = (uint8_t *)job.px;
+    *out_size = job.size;
+    *out_w = job.w;
+    *out_h = job.h;
+    ESP_LOGI(TAG, "cover decoded by J40: %dx%d -> %dx%d, %u KB, %lld ms",
+             w, h, job.w, job.h, (unsigned)(job.size / 1024),
+             (long long)((esp_timer_get_time() - t0) / 1000));
+    return ESP_OK;
+}
+
+static esp_err_t albumart_draw_jxl(esp_lcd_panel_handle_t panel, int screen_w, int screen_h,
+                                   const uint8_t *in, size_t len)
+{
+    const uint32_t in_hash = albumart_cover_hash(in, len);
+    s_keystone_seed = s_keystone_key ? s_keystone_key : in_hash;
+    uint8_t *rgb = NULL;
+    size_t rgb_size = 0;
+    int w = 0, h = 0;
+    esp_err_t ret = decode_jxl(in, len, screen_w, screen_h, &rgb, &rgb_size, &w, &h);
+    if (ret != ESP_OK) return ret;
+    ret = blit_cover(panel, screen_w, screen_h, rgb, w, h, w);
+    if (ret == ESP_OK && cover_retain(rgb, rgb_size, w, h, w, in_hash)) {
+        rgb = NULL;
+    }
+    free(rgb);
+    return ret;
+}
+
 esp_err_t albumart_draw(esp_lcd_panel_handle_t panel, int screen_w, int screen_h,
                         const uint8_t *jpeg, size_t jpeg_len)
 {
@@ -1900,6 +2008,9 @@ esp_err_t albumart_show(esp_lcd_panel_handle_t panel, int screen_w, int screen_h
 {
     if (artformat_sniff(img, img_len) == ART_PNG) {
         return albumart_draw_png(panel, screen_w, screen_h, img, img_len);
+    }
+    if (artformat_sniff(img, img_len) == ART_JXL) {                   /* 6139 */
+        return albumart_draw_jxl(panel, screen_w, screen_h, img, img_len);
     }
     return albumart_draw(panel, screen_w, screen_h, img, img_len);
 }

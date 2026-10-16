@@ -131,13 +131,16 @@ foreach(_c usb_host_msc usb_host_uac)
     endif()
 endforeach()
 
-# These three are fetched as single headers, without their licence files,
+# These are fetched as single headers, without their licence files,
 # so their licences are written here -- checked at these commits (5284):
 # minimp3's LICENSE is CC0 1.0, pngle's MIT, and stb_image.h ends with
-# its two alternatives, MIT or the Unlicense. A new commit in
+# its two alternatives, MIT or the Unlicense; J40's LICENSE.txt
+# disclaims copyright, with MIT No Attribution where that cannot be
+# done (6139). A new commit in
 # cmake/vendored.cmake means checking the licence again.
 foreach(_pair "minimp3;MINIMP3_COMMIT;CC0-1.0" "pngle;PNGLE_COMMIT;MIT"
-              "stb_image;STB_COMMIT;MIT or Unlicense")
+              "stb_image;STB_COMMIT;MIT or Unlicense"
+              "j40;J40_COMMIT;public domain or MIT-0")
     list(GET _pair 0 _n)
     list(GET _pair 1 _var)
     list(GET _pair 2 _lic)

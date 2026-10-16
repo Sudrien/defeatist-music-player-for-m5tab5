@@ -24,6 +24,8 @@ set(MINIMP3_COMMIT ea99364f61c14656440e8d77e9c233ccf3124633)
 set(PNGLE_COMMIT   b1c68193f1d3f8642b3e0e095d457a828038e6fb)
 # 5062: stb_image v2.30, the last JPEG decoder. See components/stbjpeg.
 set(STB_COMMIT     013ac3beddff3dbffafd5177e7972067cd2b5083)
+# 6139: J40 version 2270, the JPEG XL decoder. See components/jxlimg.
+set(J40_COMMIT     252e7987d36d50f617f29e94eeeb741198adc617)
 
 # The font is no longer fetched here. ark12 (feckless-graphics-handler's
 # fonts/ark12 since 6055) is generated from
@@ -121,3 +123,9 @@ set(_stb_dir "${CMAKE_CURRENT_LIST_DIR}/../components/stbjpeg")
 
 vendored_fetch("${_stb_base}/stb_image.h" "${_stb_dir}/stb_image.h"
                594c2fe35d49488b4382dbfaec8f98366defca819d916ac95becf3e75f4200b3)
+
+set(_j40_base "https://raw.githubusercontent.com/lifthrasiir/j40/${J40_COMMIT}")
+set(_j40_dir "${CMAKE_CURRENT_LIST_DIR}/../components/jxlimg")
+
+vendored_fetch("${_j40_base}/j40.h" "${_j40_dir}/j40.h"
+               981c80c07d46d7a263d7790e71f6d9713278974088235cffcf21dea4fc3b5f6d)

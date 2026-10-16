@@ -5,7 +5,7 @@
  * WHAT A LOOKUP COSTS, AND WHY IT IS REMEMBERED
  *
  * Finding the file is a stat() per candidate name, and on FAT each one
- * is a walk of the folder's directory entries -- twelve walks of an
+ * is a walk of the folder's directory entries -- sixteen walks of an
  * album folder for a folder with nothing in it. An album plays its
  * tracks in a row, so the answer is remembered per folder, found or
  * not: FOLDERART_SLOTS folders, by hash, the oldest replaced. The second

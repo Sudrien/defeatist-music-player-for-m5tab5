@@ -26,6 +26,7 @@
 
 #include "jpeg_decoder.h"   /* espressif/esp_jpeg: TJpgDec */
 #include "pngle.h"
+#include "artformat.h"
 #include "stbjpeg.h"  /* 5062: stb_image, the last JPEG decoder */
 
 #include "albumart.h"
@@ -401,10 +402,7 @@ static uint32_t syncsafe32(const uint8_t *p)
  */
 bool albumart_is_supported_image(const uint8_t *p, size_t len)
 {
-    if (!p) return false;
-    if (len > 3 && p[0] == 0xFF && p[1] == 0xD8) return true;               /* JPEG */
-    if (len > 8 && memcmp(p, "\x89PNG\r\n\x1a\n", 8) == 0) return true;    /* PNG */
-    return false;
+    return artformat_sniff(p, len) != ART_NONE;     /* 6138: artformat.h */
 }
 
 esp_err_t albumart_extract_at(FILE *f, storage_io_class_t cls, long base,
@@ -798,42 +796,7 @@ esp_err_t id3_read_tags(FILE *f, id3_tags_t *out)
 bool albumart_jpeg_is_baseline(const uint8_t *p, size_t len, uint8_t *sof_out,
                                uint32_t *w_out, uint32_t *h_out)
 {
-    *sof_out = 0;
-    *w_out = 0;
-    *h_out = 0;
-    if (len < 4 || p[0] != 0xFF || p[1] != 0xD8) return false;   /* no SOI */
-
-    size_t i = 2;
-    while (i + 3 < len) {
-        if (p[i] != 0xFF) { i++; continue; }             /* fill byte or junk */
-        const uint8_t m = p[i + 1];
-        if (m == 0xFF) { i++; continue; }                /* fill */
-        if (m == 0xD8 || m == 0x01 || (m >= 0xD0 && m <= 0xD7)) { i += 2; continue; }
-        if (m == 0xDA) return false;                     /* SOS, no SOF seen */
-
-        /* SOFn: C0-CF except C4 (DHT), C8 (JPG), CC (DAC). C0 is
-         * baseline, C1 is extended sequential and the hardware takes it
-         * too; C2 is progressive, which it does not. */
-        if (m >= 0xC0 && m <= 0xCF && m != 0xC4 && m != 0xC8 && m != 0xCC) {
-            *sof_out = m;
-            /* Every SOF has the same first five payload bytes: precision,
-             * then height and width, both big-endian 16-bit. Read them
-             * even for the flavours that cannot be decoded -- the size is
-             * what says whether a software fallback could afford the
-             * picture, and bailing before jpeg_decoder_get_info() means
-             * nothing else will report it. */
-            if (i + 9 < len) {
-                *h_out = ((uint32_t)p[i + 5] << 8) | p[i + 6];
-                *w_out = ((uint32_t)p[i + 7] << 8) | p[i + 8];
-            }
-            return (m == 0xC0 || m == 0xC1);
-        }
-
-        const size_t seg = ((size_t)p[i + 2] << 8) | p[i + 3];
-        if (seg < 2) return false;
-        i += 2 + seg;
-    }
-    return false;
+    return artformat_jpeg_sof(p, len, sof_out, w_out, h_out);   /* 6138 */
 }
 
 static const char *sof_name(uint8_t m)
@@ -1935,7 +1898,7 @@ static esp_err_t albumart_draw_png(esp_lcd_panel_handle_t panel,
 esp_err_t albumart_show(esp_lcd_panel_handle_t panel, int screen_w, int screen_h,
                         const uint8_t *img, size_t img_len)
 {
-    if (img_len > 8 && memcmp(img, "\x89PNG\r\n\x1a\n", 8) == 0) {
+    if (artformat_sniff(img, img_len) == ART_PNG) {
         return albumart_draw_png(panel, screen_w, screen_h, img, img_len);
     }
     return albumart_draw(panel, screen_w, screen_h, img, img_len);

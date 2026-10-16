@@ -5,6 +5,7 @@
  */
 #include "heapmap.h"
 #include "remote.h"
+#include "artformat.h"
 
 #include <dirent.h>
 #include <inttypes.h>
@@ -223,8 +224,7 @@ static esp_err_t h_art(httpd_req_t *req)
         httpd_resp_set_status(req, "404 Not Found");
         return httpd_resp_send(req, NULL, 0);
     }
-    const bool png = len > 8 && memcmp(img, "\x89PNG\r\n\x1a\n", 8) == 0;
-    httpd_resp_set_type(req, png ? "image/png" : "image/jpeg");
+    httpd_resp_set_type(req, artformat_mime(artformat_sniff(img, len)));   /* 6138 */
     httpd_resp_set_hdr(req, "Cache-Control", "public, max-age=31536000, immutable");
     const esp_err_t err = httpd_resp_send(req, (const char *)img, (ssize_t)len);
     free(img);

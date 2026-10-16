@@ -24567,3 +24567,41 @@ so buffers go in PSRAM unless something needs them internal; this is
 5178's rule, written down at last. Second, a static FreeRTOS object in
 main needs DRAM_ATTR, since psram_bss.lf would otherwise move it to
 PSRAM and nothing fails at link time.
+
+### 6138 -- cover pictures tested: the format check, JPEG and PNG
+
+The player decodes two kinds of picture, JPEG and PNG. Until now only
+stb_image, the last of the three JPEG decoders, had a host test
+(stbjpegtest, 5062). The magic-byte check, the JPEG marker walk and
+pngle had none.
+
+**main/artformat.h** is the pure part, moved out of albumart.c so it
+can be tested: `artformat_sniff()` (magic bytes to ART_JPEG, ART_PNG
+or ART_NONE), `artformat_jpeg_sof()` (the marker walk that was
+albumart_jpeg_is_baseline()'s body, which now calls it) and
+`artformat_mime()`. Two callers decided "PNG" with `img[0] != 0xFF`:
+player.c's stream_art_decodable() and remote.c's Content-Type. That
+held only while JPEG and PNG were the only two answers, and both now
+ask artformat_sniff().
+
+**texttest/arttest.c** uses fixtures from tools/gen_art_fixtures.py,
+committed in texttest/fixtures/art. Every fixture is one 64x48 picture
+of four flat quadrants, and a decode passes when the middle of each
+quadrant is the right colour:
+
+- JPEG through stb_image: baseline 4:2:0 and 4:4:4, progressive,
+  greyscale, and EXIF ahead of the SOF. The marker walk must find the
+  right SOF and size in each.
+- PNG through pngle, drawn with png_on_draw()'s RGB565 conversion and
+  its rule of skipping transparent pixels: RGB, RGBA, palette, palette
+  with tRNS, grey, grey with alpha, 16 bits a channel, and Adam7. Pillow
+  cannot write the last two, so the generator writes them by hand.
+- Every file cut short at every length, and junk. The answer must be
+  refused or partly drawn, never a crash, under ASan and UBSan.
+
+113 checks, all passing. The hardware JPEG engine and TJpgDec run only
+on the board.
+
+miniz switches on unaligned loads and stores for x86 only, so the host
+build turns off UBSan's alignment check. The board's RISC-V build never
+compiles that path.

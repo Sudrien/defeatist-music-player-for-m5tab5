@@ -24497,3 +24497,21 @@ is what this depends on. Anything that goes missing fails at link time
 with an undefined symbol and is fixed by naming it in main's REQUIRES.
 
 Not built here: there is no ESP-IDF in this environment.
+
+### 6135 -- NTP re-dates the player's dotfiles
+
+After 6133, a board log showed the clock still going to 2028, now
+because of `.defeatist.cat`. That file had been written on the
+wrong-clock boot, so it carried 2028. Every boot read it back, moved
+the RX8130 forward, and saved `.defeatist.dat` with a 2028 date before
+NTP corrected the clock 20 s later. The player's own files carry the
+player's own clock, so a wrong date in one keeps itself going.
+
+Once the time is verified, recorder.c's sweep (5115) already re-dates
+the player's root files that are dated more than an hour in the
+future. Its list now includes the dotfiles: `.defeatist.dat`, `.bak`,
+`.cat`, `.ix4` and `.sr4`. On the first boot with NTP, they are set
+back to the time NTP gave, and the next boot without a network finds
+nothing ahead of the clock chip.
+
+Not on the board.

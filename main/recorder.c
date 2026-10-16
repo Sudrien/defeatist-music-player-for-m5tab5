@@ -850,8 +850,15 @@ static void sweep_volume(storage_id_t vol)
     }
     free(names);
 
-    /* The player's own root files and the folder itself. */
-    static const char *const own[] = { "stations.m3u", "favorites.m3u", "starred.m3u", REC_DIR };
+    /* The player's own root files and the folder itself. 6135: and its
+     * dotfiles, which since 6133 are the only entries cardtime.c reads
+     * the clock from -- one stamped on a wrong-clock boot otherwise
+     * carries that date into every boot after, ahead of NTP. */
+    static const char *const own[] = {
+        "stations.m3u", "favorites.m3u", "starred.m3u", REC_DIR,
+        ".defeatist.dat", ".defeatist.bak", ".defeatist.cat",
+        ".defeatist.ix4", ".defeatist.sr4",
+    };
     int touched = 0;
     for (size_t i = 0; i < sizeof(own) / sizeof(own[0]); i++) {
         char p[128];

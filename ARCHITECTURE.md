@@ -24761,3 +24761,18 @@ three for Vorbis and two for Opus. Without the fix, three of the five
 fail.
 
 Not on the board.
+
+### 6143 -- test_art_files: fifteen-second tracks
+
+On the board, 6140's four-second tracks showed almost no covers. The
+log showed why. A track that short ends its decode while its tail is
+still playing, so the decoder is a whole track ahead of the screen.
+Each cover was asked for once the screen caught up and was dropped as
+stale ("cover arrived after the track changed"), or never logged at
+all, because the next track had already started decoding. Only the
+cases with no picture, or a refused one, got far enough to log.
+
+That is the set's problem, not the player's: a real track is minutes
+long. The tracks are now fifteen seconds (MP3 and AAC at 32 kbps, FLAC
+at 16 bits), 3.6 MB in all. The run also found the Ogg bug fixed in
+6142. Its README row says so.

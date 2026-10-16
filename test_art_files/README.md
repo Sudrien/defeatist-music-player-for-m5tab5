@@ -6,7 +6,10 @@ screen shows which picture was used without reading the log. A case
 that must show nothing has no picture with its number on it, or one
 that says MUST NOT SHOW.
 
-The tracks are four seconds of a quiet tone. Rebuild them with
+The tracks are fifteen seconds of a quiet tone: long enough for each
+cover to be drawn before the next track takes the screen. (At four
+seconds, 6140's first length, the decoder ran a whole track ahead of
+the screen and nearly every cover was dropped as stale.) Rebuild them with
 `build/make.py` (needs ffmpeg, Pillow, pillow-jxl-plugin and mutagen).
 
 What happens when there is no picture to show is the format card, as
@@ -27,7 +30,7 @@ inside each file can show.
 | 06 | FLAC PICTURE, PNG | pngle | shows *06* |
 | 07 | M4A covr, JPEG | hardware | shows *07* |
 | 08 | M4A covr, PNG | pngle | shows *08* |
-| 09 | Ogg Vorbis METADATA_BLOCK_PICTURE, JPEG | hardware | shows *09* |
+| 09 | Ogg Vorbis METADATA_BLOCK_PICTURE, JPEG | hardware | plays (6142: it did not, the comment header spans pages) and shows *09* |
 | 10 | MP3 APIC, JPEG XL lossy 600x600 | J40 | shows *10*, after a few seconds |
 | 11 | FLAC PICTURE, JPEG XL lossless | J40 | shows *11* |
 | 12 | MP3 APIC, MIME says image/png, bytes are JPEG | hardware | shows *12*: the bytes decide, not the MIME type |

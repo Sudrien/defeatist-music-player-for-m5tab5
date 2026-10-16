@@ -24966,6 +24966,41 @@ gains a rule: size a stack for vendored code by running its worst input
 at that size (gifstacktest), not from -fstack-usage frames. 6147
 missed a recursion that way.
 
+### 6150 -- 32-bit WAV, integer and float, folded by what the header says
+
+Files 19 and 20 refused on purpose: the decoder reports 32 bits and
+nothing about whether that is integer or IEEE float, and guessing wrong
+is full-scale noise. The header says, though. cbr_probe() already read
+the WAV format tag, including the extensible subformat, and threw the
+answer away except to refuse float. It now accepts tag 3 as well as 1
+and keeps `is_float` in the map; cbr_resume_preamble() re-declares tag
+3 for a float file, so a seek does not hand the parser float samples
+labelled as integer.
+
+decoder.c folds 32 only when cbr_probe() mapped the file as a 32-bit
+WAV, by integer or float as that says. Any other 32-bit output (a
+WAV the probe could not map, or another codec) is refused as before.
+netdec.c is unchanged: a stream has no header to ask, and 32 stays
+refused there.
+
+pcmfold.h gains pcmfold_s32_to_16() (offset binary, round half up, the
+same rule as the 24-bit fold; a 24-bit sample shifted left 8 folds
+identically, and the test checks it) and pcmfold_f32_to_16() (x 32768,
+clamped as a float before conversion because out-of-range float to int
+is undefined, NaN to silence, read through memcpy). pcmfoldtest covers
+both under ASan and UBSan. On the host, folding 19 and 20 reproduces
+01's first ten seconds exactly, 882000 samples each.
+
+Not on the board. Not built for the target either: no ESP-IDF here.
+What the log should show on 19: `wav is 32-bit integer; rounding to
+16`; on 20, `... 32-bit float ...`. If 20 is noise, the header was not
+consulted -- check `cbr_probe` logged the map. It is assumed, not
+checked, that esp_audio_codec's WAV parser passes float samples through
+untouched; 20 previously reached the 32-bit refusal, which is where
+that assumption comes from.
+
+Flash: a few hundred bytes of code, no new strings for translation.
+
 ### 8000 -- CI: host tests after the components they include exist
 
 The v0.7.0 tag's workflow run failed at "Host tests (text layout, USB

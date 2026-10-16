@@ -71,7 +71,7 @@ static long file_size(FILE *f)
  * between `fmt ` and `data`, and a parser that assumed offset 36 would
  * take the metadata for the audio.
  *
- * Only uncompressed PCM is accepted. The block-aligned compressed WAV
+ * Only uncompressed PCM is accepted, integer or float. The block-aligned compressed WAV
  * variants (IMA/MS ADPCM and the rest) do have a constant byte rate, and
  * a byte offset into one of them is meaningless without decoding the
  * block that contains it -- and they do not route to a decoder here
@@ -107,12 +107,15 @@ static bool probe_wav(FILE *f, long base, cbr_map_t *m)
              * of the subformat GUID, and it is read rather than assumed:
              * the resume preamble below re-declares the stream as plain
              * PCM, so accepting a format that is not PCM would describe
-             * it wrongly to the parser at every seek. Float is refused
-             * for the same reason rather than because it is not linear,
-             * which it is.
+             * it wrongly to the parser at every seek. Float (tag 3) is
+             * accepted since 6150: it is as linear as integer PCM, and
+             * the preamble now re-declares it as what it is. Its tag is
+             * also the only record of whether a 32-bit sample is a float,
+             * which the decoder cannot report -- so it is kept.
              */
             if (tag == 0xFFFE && want == 40) tag = le16(fmt + 24);
-            pcm = (tag == 0x0001);
+            pcm = (tag == 0x0001 || tag == 0x0003);
+            m->is_float = (tag == 0x0003);
             byte_rate = le32(fmt + 8);
             block_align = le16(fmt + 12);
             have_fmt = true;
@@ -624,10 +627,11 @@ size_t cbr_resume_preamble(const cbr_map_t *m, long off, uint8_t *buf, size_t ca
     memcpy(buf + 8, "WAVE", 4);
     memcpy(buf + 12, "fmt ", 4);
     w32le(buf + 16, 16);
-    w16le(buf + 20, 1);                         /* PCM; extensible is not
+    w16le(buf + 20, m->is_float ? 3 : 1);       /* PCM or IEEE float;
+                                                 * extensible is not
                                                  * re-declared, because what
                                                  * follows it here is plain
-                                                 * PCM either way */
+                                                 * samples either way */
     w16le(buf + 22, m->channels);
     w32le(buf + 24, m->sample_rate);
     w32le(buf + 28, m->byte_rate);

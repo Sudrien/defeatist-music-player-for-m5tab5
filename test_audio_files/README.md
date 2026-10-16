@@ -51,8 +51,8 @@ place; one that is wrong by more is obvious from the beep count.
 | 16 m4a-aac-fragmented | mp4seek with no `stbl` to read | **plays or refuses; must not seek** |
 | 17 ts-aac-spliced | tsseek's non-monotonic PTS refusal | **no seek, no duration, empty bar** |
 | 18 ogg-vorbis-chained | oggseek and duration.c where the tail is another stream | 20 s on the bar, seeks within it, clamps at the chain |
-| 19 wav-pcm32 | 32-bit integer | **refuses, and says 32-bit** |
-| 20 wav-float32 | 32-bit float, indistinguishable from 19 at the decoder | **refuses, identically** |
+| 19 wav-pcm32 | 32-bit integer, folded by its header (6150) | plays, seeks, exact; log says *32-bit integer* |
+| 20 wav-float32 | 32-bit float, indistinguishable from 19 at the decoder, distinguished by its header (6150) | plays, seeks, exact, sounds like 19; log says *32-bit float* |
 | 21 flac-24bit | the fold on a real decoder rather than a PCM chunk | plays, seeks |
 | 22 cue-flac-image | cue sheet, one image, six tracks on the marks; UTF-8 BOM, CRLF | six tracks; track N opens with N beeps; track 5 reads *Fünf Signaltöne* |
 | 23 cue-pregap-htoa | INDEX 00, a hidden track, starts off the second; Windows-1252 | four tracks starting 3, 10, 25.49 and 39.99 s; performer *Café Tones* |
@@ -200,12 +200,21 @@ at a greater width, so folding it must reproduce 01 exactly, and on the
 host it does, for all 5292000 samples with no sample differing by so
 much as one LSB.
 
-**19 and 20 are why 32 stays refused.** They are the same ten seconds
-as integer and as float, and `esp_audio_simple_dec_info_t` reports a
-bit count with nothing to say which is which. Folding float samples as
-integers sends full-scale noise to headphones, so there is no side to
-guess on. Both must refuse and the log must name the width; if either
-one ever plays, something has started guessing.
+**19 and 20 were why 32 stayed refused, and are now why it is not.**
+They are the same ten seconds as integer and as float, and
+`esp_audio_simple_dec_info_t` reports a bit count with nothing to say
+which is which. Folding float samples as integers sends full-scale
+noise to headphones, so the decoder is still never asked. Since 6150
+the WAV header is: the format tag (here inside the extensible
+subformat, since ffmpeg writes both files as `0xFFFE`) is read by
+`cbr_probe()` and decides the fold. Both fold, on the host, to 01's
+first ten seconds exactly -- 882000 samples, none differing.
+
+What to listen for on the board is the failure the refusal guarded
+against: **if 20 is loud noise, the header was not used.** Both must
+sound like the start of 01, and the log must name which 32 it is. A
+32-bit file that is not a WAV `cbr_probe()` could map is still
+refused, and still says 32-bit.
 
 **21 is the case worth having.** 02 arrives as PCM in a chunk, where
 being 24-bit is a fact about the file. 21 arrives from the FLAC

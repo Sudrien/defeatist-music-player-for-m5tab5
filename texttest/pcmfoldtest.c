@@ -23,8 +23,14 @@
  *     input, and the corruption would start partway through a buffer,
  *     which is the hardest kind to see in a log.
  *
+ * 6150 added the two 32-bit folds, integer and float, and the checks
+ * at the end of main() for them. The same four risks apply, plus two of
+ * float's own: a sample outside +-1.0, which is legal and must clamp
+ * rather than reach an out-of-range conversion, and NaN.
+ *
  * SPDX-License-Identifier: MIT
  */
+#include <math.h>
 #include <stdint.h>
 #include <stdio.h>
 #include <string.h>
@@ -181,6 +187,85 @@ int main(void)
             const uint32_t bytes = (uint32_t)cap * 2;
             CHECK((int)(bytes / 3) <= cap, "a %d-int16 buffer overflows", cap);
         }
+    }
+
+    printf("  32-bit integer\n");
+    {
+        int16_t buf[16];
+        const int32_t in[] = { 0, 0x7FFFFFFF, INT32_MIN, 0x00008000,
+                               0x00007FFF, -0x00008000, -0x00008001,
+                               0x7FFF8000 };
+        const int16_t want[] = { 0, 32767, -32768, 1, 0, 0, -1, 32767 };
+        memcpy(buf, in, sizeof(in));   /* the same bytes on a LE host */
+        const int n = pcmfold_s32_to_16(buf, sizeof(in));
+        CHECK(n == 8, "folded %d of 8", n);
+        for (int i = 0; i < 8; i++) {
+            CHECK(buf[i] == want[i], "s32 0x%08X gave %d, expected %d",
+                  (unsigned)in[i], buf[i], want[i]);
+        }
+
+        /* A 24-bit sample shifted left by 8 must fold to what the 24-bit
+         * fold gives it: one rounding rule, not two. */
+        int bad = -1;
+        for (int32_t v = -0x800000; v <= 0x7FFFFF; v += 37) {
+            int16_t b[2];
+            const uint32_t u = (uint32_t)v << 8;
+            memcpy(b, &u, 4);
+            pcmfold_s32_to_16(b, 4);
+            if (b[0] != fold1(v)) { bad = v; break; }
+        }
+        CHECK(bad < 0, "24-in-32 sample %d folded unlike the 24-bit fold", bad);
+    }
+
+    printf("  32-bit float\n");
+    {
+        int16_t buf[32];
+        const float in[] = { 0.0f, 1.0f, -1.0f, 0.5f, -0.5f,
+                             1.0f / 32768.0f, -1.0f / 32768.0f,
+                             2.0f, -2.0f, 1e30f, -1e30f,
+                             (float)INFINITY, -(float)INFINITY, NAN };
+        const int16_t want[] = { 0, 32767, -32768, 16384, -16384, 1, -1,
+                                 32767, -32768, 32767, -32768,
+                                 32767, -32768, 0 };
+        enum { K = sizeof(in) / sizeof(in[0]) };
+        memcpy(buf, in, sizeof(in));
+        const int n = pcmfold_f32_to_16(buf, sizeof(in));
+        CHECK(n == K, "folded %d of %d", n, (int)K);
+        for (int i = 0; i < K; i++) {
+            CHECK(buf[i] == want[i], "float %g gave %d, expected %d",
+                  (double)in[i], buf[i], want[i]);
+        }
+    }
+
+    printf("  32-bit in place, whole buffer\n");
+    {
+        enum { N = 1024 };
+        static int16_t buf[N * 2], ref[N];
+        static int32_t si[N];
+        static float sf[N];
+        for (int i = 0; i < N; i++) {
+            si[i] = (int32_t)((uint32_t)i * 2654435761u);
+            sf[i] = (float)((i * 7919) % 4001 - 2000) / 1500.0f;
+        }
+        memcpy(buf, si, sizeof(si));
+        CHECK(pcmfold_s32_to_16(buf, sizeof(si)) == N, "s32 count");
+        for (int i = 0; i < N; i++) {
+            int16_t one[2]; memcpy(one, &si[i], 4);
+            pcmfold_s32_to_16(one, 4); ref[i] = one[0];
+        }
+        CHECK(memcmp(buf, ref, sizeof(ref)) == 0, "s32 buffer differs from one-at-a-time");
+
+        memcpy(buf, sf, sizeof(sf));
+        CHECK(pcmfold_f32_to_16(buf, sizeof(sf)) == N, "f32 count");
+        for (int i = 0; i < N; i++) {
+            int16_t one[2]; memcpy(one, &sf[i], 4);
+            pcmfold_f32_to_16(one, 4); ref[i] = one[0];
+        }
+        CHECK(memcmp(buf, ref, sizeof(ref)) == 0, "f32 buffer differs from one-at-a-time");
+
+        /* Partial samples are left unread, as with 24. */
+        CHECK(pcmfold_s32_to_16(buf, 7) == 1, "7 bytes is 1 sample");
+        CHECK(pcmfold_f32_to_16(buf, 3) == 0, "3 bytes is no sample");
     }
 
     printf("%d checks, %d failures\n", checks, failures);

@@ -25,13 +25,18 @@
  * int16, and the I2S slot config is 16-bit. Converting there means none
  * of them learn the source was ever anything else.
  *
- * 32 IS NOT A WIDER 24 AND IS NOT HANDLED HERE.
+ * 32 IS NOT A WIDER 24, AND THE DECODER CANNOT SAY WHICH 32 IT IS.
  * esp_audio_simple_dec_info_t reports a bit count and nothing about how
  * to read it, so a 32-bit stream is integer or IEEE float and the struct
  * cannot say which. Folding float samples as integers is full-scale
- * noise into headphones, and guessing has no safe side. Both callers
- * refuse 32 before reaching this file; see test files 19 and 20, which
- * are the same audio in both forms and are indistinguishable from here.
+ * noise into headphones, and guessing has no safe side. So there are two
+ * 32-bit folds below and nothing here chooses between them: the caller
+ * has to know from somewhere other than the decoder. Since 6150 the file
+ * path does, for WAV -- cbr_probe() reads the format tag (and the
+ * extensible subformat) out of `fmt `, which is the one place the file
+ * says. The stream path has no such place and still refuses 32. See test
+ * files 19 and 20: the same audio in both forms, indistinguishable at
+ * the decoder and distinguished by the header.
  *
  * SPDX-License-Identifier: MIT
  */
@@ -39,6 +44,7 @@
 #define PCMFOLD_H
 
 #include <stdint.h>
+#include <string.h>
 
 #ifdef __cplusplus
 extern "C" {
@@ -102,6 +108,82 @@ static inline int pcmfold_24_to_16(int16_t *buf, uint32_t bytes)
         if (s > 32767) s = 32767;
         else if (s < -32768) s = -32768;
         *dst++ = (int16_t)s;
+    }
+    return (int)n;
+}
+
+/*
+ * Fold `bytes` of little-endian signed 32-bit integer PCM to int16, in
+ * place. Returns the number of int16 samples written.
+ *
+ * Four bytes read for every two written: the same in-place forward walk
+ * as the 24-bit fold, with more margin. Rounded half up and clamped,
+ * exactly as the 24-bit fold rounds, so a 32-bit file that is a 24-bit
+ * file shifted left by 8 folds to the same samples.
+ *
+ * NO SIGNED SHIFTS. The sample is moved to offset binary by flipping the
+ * sign bit -- 0x80000000 is silence, 0 and 0xFFFFFFFF the extremes --
+ * rounded and shifted as an unsigned 64-bit value, and moved back by a
+ * subtraction. Nothing is left-shifted while negative and nothing
+ * depends on the signedness of a right shift, for the reason the 24-bit
+ * fold gives.
+ */
+static inline int pcmfold_s32_to_16(int16_t *buf, uint32_t bytes)
+{
+    const uint8_t *src = (const uint8_t *)buf;
+    int16_t *dst = buf;
+    const uint32_t n = bytes / 4;
+
+    for (uint32_t i = 0; i < n; i++) {
+        const uint32_t raw = ((uint32_t)src[3] << 24) |
+                             ((uint32_t)src[2] << 16) |
+                             ((uint32_t)src[1] << 8) | (uint32_t)src[0];
+        src += 4;
+        uint64_t q = (((uint64_t)(raw ^ 0x80000000u)) + 0x8000u) >> 16;
+        if (q > 0xFFFFu) q = 0xFFFFu;           /* rounding up off the top */
+        *dst++ = (int16_t)((int32_t)q - 32768);
+    }
+    return (int)n;
+}
+
+/*
+ * Fold `bytes` of little-endian IEEE 754 single-precision PCM to int16,
+ * in place. Returns the number of int16 samples written.
+ *
+ * Full scale is +-1.0 and is mapped to +-32768, then clamped: the
+ * convention every float-to-integer converter worth matching uses, and
+ * the one that makes 32767/32768 the top rather than wrapping. Float
+ * PCM is allowed to exceed 1.0 -- that is half the point of it -- so the
+ * clamp is not a corner case here but the ordinary handling of a loud
+ * master.
+ *
+ * CLAMPED AS A FLOAT, BEFORE THE CONVERSION. Converting a float outside
+ * the range of int32 is undefined behaviour in C, and a sample of 1e30
+ * is a legal float. NaN compares false with everything, so it is caught
+ * by name and becomes silence: there is no right answer for it, and
+ * silence is the one that cannot hurt.
+ *
+ * Read through memcpy, which the compiler turns into a load: the buffer
+ * is int16 and reading it as float through a pointer cast is an
+ * aliasing violation, the kind that works until an optimiser notices.
+ */
+static inline int pcmfold_f32_to_16(int16_t *buf, uint32_t bytes)
+{
+    const uint8_t *src = (const uint8_t *)buf;
+    int16_t *dst = buf;
+    const uint32_t n = bytes / 4;
+
+    for (uint32_t i = 0; i < n; i++) {
+        float x;
+        memcpy(&x, src, sizeof(x));         /* little-endian host and file */
+        src += 4;
+        float s = x * 32768.0f;
+        if (s != s) s = 0.0f;               /* NaN */
+        else if (s > 32767.0f) s = 32767.0f;
+        else if (s < -32768.0f) s = -32768.0f;
+        /* Half away from zero; the clamp above leaves room for it, since
+         * 32767.5 and -32768.5 both truncate back inside. */
+        *dst++ = (int16_t)(int32_t)(s < 0.0f ? s - 0.5f : s + 0.5f);
     }
     return (int)n;
 }

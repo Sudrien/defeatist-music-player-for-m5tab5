@@ -99,7 +99,7 @@ struct decoder {
     int in_len;         /* valid bytes in inbuf */
     int in_pos;         /* consumed bytes */
     bool eof;
-    bool folding;       /* the stream is 24-bit and is being folded */
+    bool folding;       /* the stream is 24 or 32-bit and is being folded */
     bool frame_mode;    /* the decoder wants exactly one frame per call
                          * -- ALAC in MP4, framed by the sample table */
     int  in_cap;        /* allocated size of inbuf: ESP_IN_BUF, or one
@@ -1057,40 +1057,51 @@ static int esp_codec_read(decoder_t *d, int16_t *out, int max_int16)
              * the header says is only valid once decoded_size is
              * nonzero. Hence asking here rather than above. */
             esp_audio_simple_dec_info_t fi;
-            bool fold = false;
+            int fold = 16;      /* width being folded from; 16 is none */
             if (esp_audio_simple_dec_get_info(d->esp_dec, &fi) == ESP_AUDIO_ERR_OK) {
+                /*
+                 * 32 IS NOT A WIDER 24, AND THE DECODER CANNOT SAY WHICH.
+                 *
+                 * esp_audio_simple_dec_info_t reports a bit count and
+                 * nothing about how to read it: a 32-bit stream is
+                 * integer or IEEE float, and folding float samples as
+                 * integers is full-scale noise into headphones. Until
+                 * 6150 that meant refusing 32 outright. The WAV header
+                 * does say -- format tag 1 or 3, or the extensible
+                 * subformat -- and cbr_probe() has already read it, so a
+                 * 32-bit WAV that cbr_probe() mapped is folded by what
+                 * its header declares. Anything else at 32 has no such
+                 * answer and is still refused. Files 19 and 20 are the
+                 * same audio both ways.
+                 */
+                const bool wav32 = fi.bits_per_sample == 32 && d->cbr_ok &&
+                                   d->cbr.bits == 32 && d->cbr.channels;
                 if (fi.bits_per_sample == 24) {
-                    /* Folded below, once, on the way out. Announced on
-                     * the first frame only -- it is a property of the
-                     * file, not an event. */
-                    if (!d->folding) {
-                        d->folding = true;
-                        ESP_LOGI(TAG, "%s is 24-bit; rounding to 16",
-                                 d->info.codec);
-                    }
-                    fold = true;
+                    fold = 24;
+                } else if (wav32) {
+                    fold = d->cbr.is_float ? -32 : 32;
                 } else if (fi.bits_per_sample != 16) {
-                    /*
-                     * 32 IS NOT A WIDER 24 AND MUST STAY REFUSED.
-                     *
-                     * esp_audio_simple_dec_info_t reports a bit count
-                     * and nothing about how to read it, so a 32-bit
-                     * stream is integer or IEEE float and the struct
-                     * cannot say which. Folding float samples as
-                     * integers is full-scale noise into headphones, and
-                     * guessing has no safe side. See files 19 and 20,
-                     * which are the same audio in both and are
-                     * indistinguishable from here.
-                     */
                     ESP_LOGE(TAG, "%s is %u-bit, this player is 16-bit only",
                              d->info.codec, (unsigned)fi.bits_per_sample);
                     return -1;
+                }
+                /* Announced on the first frame only -- it is a property
+                 * of the file, not an event. */
+                if (fold != 16 && !d->folding) {
+                    d->folding = true;
+                    ESP_LOGI(TAG, "%s is %s; rounding to 16", d->info.codec,
+                             fold == 24 ? "24-bit"
+                             : fold == 32 ? "32-bit integer" : "32-bit float");
                 }
                 d->info.sample_rate = (int)fi.sample_rate;
                 d->info.channels = (int)fi.channel;
                 d->info.bitrate_kbps = (int)(fi.bitrate / 1000);
             }
-            if (fold) return pcmfold_24_to_16(out, frame.decoded_size);
+            /* Each fold reads more bytes than it writes, so a buffer of
+             * max_int16 int16 cannot be overrun -- see pcmfold.h. */
+            if (fold == 24) return pcmfold_24_to_16(out, frame.decoded_size);
+            if (fold == 32) return pcmfold_s32_to_16(out, frame.decoded_size);
+            if (fold == -32) return pcmfold_f32_to_16(out, frame.decoded_size);
             return (int)(frame.decoded_size / sizeof(int16_t));
         }
         /* Header-only chunk (container boxes, metadata blocks). Consumed

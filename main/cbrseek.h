@@ -91,6 +91,10 @@ typedef struct {
     uint16_t channels;
     uint16_t bits;
     uint32_t sample_rate;
+    bool     is_float;      /* WAV: IEEE float (tag 3), not integer PCM.
+                             * The decoder reports only a bit count, so
+                             * this is the one place a 32-bit sample's
+                             * meaning is known -- see pcmfold.h */
     uint8_t  magic[9];      /* AMR: the file's own magic */
     uint8_t  magic_len;
 } cbr_map_t;

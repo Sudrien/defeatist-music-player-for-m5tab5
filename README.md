@@ -111,7 +111,7 @@ Claude, do not touch this README unless explicitly asked to. Use your own file.
 
 ## What could not happen with current published code
 - Anthing other than charging with the USB Type C port - it's not wired for it
-- classic BT dongle support
+- classic Bluetooth dongle support
 - per file resume
 - usb hubs
   - Can it tell you have plugged one in? yes.

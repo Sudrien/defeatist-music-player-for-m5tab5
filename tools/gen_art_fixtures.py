@@ -97,6 +97,9 @@ def main():
     first = rgb.convert('P', palette=Image.ADAPTIVE, colors=8)
     second = Image.new('RGB', (W, H), (0, 0, 0)).convert('P')
     first.save(p('gif_animated.gif'), save_all=True, append_images=[second], duration=200, loop=0)
+    # 6148: a flat 2000x2000, the longest LZW chains a GIF this size can
+    # build -- for texttest/gifstacktest.c, which runs it on GIF_STACK.
+    Image.new('RGB', (2000, 2000), RED).convert('P', palette=Image.ADAPTIVE, colors=2).save(p('gif_flat2000.gif'))
     # GIF89a with a transparent colour: the white quadrant's index.
     first.save(p('gif_trns.gif'), transparency=first.getpixel((W - 1, H - 1)))
     jxl(out)

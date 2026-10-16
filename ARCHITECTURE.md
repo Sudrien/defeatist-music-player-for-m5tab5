@@ -24887,3 +24887,28 @@ Before 6147 the board also showed 6146 working: 14's JPEG XL cover
 was drawn after 8237 ms, with the next track already decoding.
 
 Not on the board.
+
+### 6148 -- the GIF stack is 192 KB: stb's LZW output recurses
+
+6147 moved GIF decoding onto a 48 KB task, and the board's next GIF
+overran that too. This time the backtrace was thirty-odd frames of
+stbi__out_gif_code() calling itself. It recurses once per link of an
+LZW code's prefix chain (32 bytes a frame), and a chain can be 4096
+long, since stb stops the code size at 12 bits. A flat area builds the
+longest chains, because each new code is the previous one plus a pixel,
+and the test covers are mostly flat colour. So the worst case is 35 KB
+for stbi__gif_load()'s frame plus 128 KB of recursion: GIF_STACK is now
+192 KB, in PSRAM, for the length of one decode.
+
+texttest/gifstacktest.c checks the number itself. It decodes a flat
+2000x2000 GIF (tools/gen_art_fixtures.py; 3.9 KB) on a host thread of
+exactly GIF_STACK bytes. The Makefile reads the value out of
+albumart.c, so the two cannot drift apart. It is built without
+sanitizers so the frames are real. On the host it crashes at 48 and 96
+KB and passes at 128 and 192.
+
+This is the second time a stack size was guessed from one frame and a
+recursion was missed (6147 measured stbi__gif_load() only).
+-fstack-usage reports frames, not depth.
+
+Not on the board.

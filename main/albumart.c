@@ -206,9 +206,17 @@ static esp_err_t run_on_big_stack(const char *name, size_t stack_bytes,
     return ESP_OK;
 }
 
-/* 35 KB measured for stbi__gif_load() on a 32-bit host (-fstack-usage),
- * and the frames above it. */
-#define GIF_STACK  (48 * 1024)
+/*
+ * 35 KB for stbi__gif_load()'s frame (-fstack-usage, 32-bit host), and
+ * 6148: stbi__out_gif_code() recurses once per link of an LZW prefix
+ * chain, 32 bytes a frame, and a chain is at most 4096 long (stb stops
+ * the code size at 12 bits). 35 + 128 KB. 6147's 48 KB was the frame
+ * alone, and a flat 600x600 cover overran it on the board.
+ * texttest/gifstacktest.c decodes a flat 2000x2000 on a host thread of
+ * exactly this size, without sanitizers. PSRAM, for the length of one
+ * decode.
+ */
+#define GIF_STACK  (192 * 1024)
 
 typedef struct {
     const uint8_t *in; size_t len; int box_w, box_h;

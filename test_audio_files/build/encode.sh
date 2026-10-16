@@ -370,4 +370,11 @@ $F -c:a adpcm_ima_wav "$OUT/28 wav-ima-adpcm.wav"
 # padding being played. Mono also changes the block's interleave.
 $F -t 7.3 -ac 1 -ar 22050 -c:a adpcm_ima_wav "$OUT/29 wav-ima-adpcm-mono.wav"
 
+# ---------------------------------------------------------------- 6152
+# 30 -- Opus in MP4, which mp4seek.c sends to the Ogg parser as
+# synthesised pages. ffmpeg writes `dOps` and an edit list for the
+# pre-skip; the length is exactly 60 s, and the last packet's padding is
+# cut by the final granule rather than played.
+$F -c:a libopus -b:a 64k -f mp4 "$OUT/30 m4a-opus.m4a"
+
 echo "built into $OUT"

@@ -37,6 +37,10 @@
  *
  * WHAT IT DELIBERATELY DOES NOT COVER
  *
+ * (Since written: ALAC goes a frame at a time through mp4_read_frame(),
+ * and Opus as Ogg pages through mp4_read() -- 6152. What follows is
+ * the original reasoning, and still holds for everything else.)
+ *
  * ALAC, and anything else in an MP4 that is not AAC. ALAC cannot be
  * remuxed to ADTS -- there is no such framing -- so those files stay on
  * esp_audio_codec's M4A path exactly as they are today, unseekable and
@@ -117,6 +121,30 @@ typedef struct {
     uint32_t cookie_len;
     uint32_t cookie_cfg_off;
 
+    /*
+     * Opus instead of AAC (6152).
+     *
+     * The decoder that takes Opus a packet at a time wants a config this
+     * build has never been checked against, and the one that plays .opus
+     * files already takes Ogg. So the samples go out as Ogg pages, one
+     * packet each, the same way AAC goes out as ADTS: `opus_head` is the
+     * OpusHead packet rebuilt from the `dOps` box, followed by an empty
+     * OpusTags, and each sample becomes a page whose granule position is
+     * its end time at 48 kHz -- which in MP4 counts the pre-skip from
+     * zero, as Ogg's does. See mp4_read().
+     *
+     * `ogg_hdr_sent` is cleared by a seek, because the Ogg parser is
+     * reopened there and has to see the headers again.
+     */
+    bool     opus;
+    uint8_t *opus_head;
+    uint32_t opus_head_len;
+    bool     ogg_hdr_sent;
+    uint32_t ogg_seq;
+    uint64_t t_cur;             /* timescale units at `cur` */
+    int      stts_e;            /* the stts run `cur` is in */
+    uint32_t stts_left;         /* samples left in that run */
+
     /* The largest sample in the file. The frame path has to be able to
      * hold one whole sample, and this is how big to make that. */
     uint32_t max_size;
@@ -185,9 +213,10 @@ uint32_t mp4_seek_cs(mp4_t *m, uint32_t sec);
 uint32_t mp4_read_frame(FILE *f, mp4_t *m, uint8_t *dst, size_t cap);
 
 /*
- * Fill `dst` with whole ADTS frames, header synthesised per sample.
- * Returns bytes written, 0 at the end of the table. AAC only -- ALAC
- * uses mp4_read_frame().
+ * Fill `dst` with whole ADTS frames, header synthesised per sample --
+ * or for Opus, whole Ogg pages, the two header pages first. Returns
+ * bytes written, 0 at the end of the table. Not ALAC, which uses
+ * mp4_read_frame().
  *
  * Whole frames only: a partial one at the end of the buffer would be
  * completed on the next call, which is fine for a decoder that

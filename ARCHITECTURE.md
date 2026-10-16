@@ -25041,6 +25041,48 @@ about 50 hours of stereo at 44.1 kHz. 3-bit IMA, IMA4 (Apple's, in
 Not built for the target, not run on the board. Expected log on 28:
 `wav is IMA ADPCM: 2 ch, 44100 Hz, 1024 B blocks of 1017 samples`.
 
+### 6152 -- Opus in MP4, as Ogg pages
+
+An .m4a holding Opus had a sample entry of 'Opus', which mp4_probe()
+refused, and the M4A parser it fell back to does not read Opus either.
+The simple decoder's raw Opus type wants one packet per call and a
+config struct this build has never been checked against, whereas its
+Ogg parser already plays every .opus file. So mp4seek.c does for Opus
+what it does for AAC: the sample table frames the packets, and each one
+goes out with a synthesised header, an Ogg page instead of ADTS.
+
+mp4_probe() reads `dOps` and rebuilds OpusHead from it (same fields,
+little-endian, with the magic and version 1); more than two channels is
+refused. mp4_read() sends OpusHead (BOS) and an empty OpusTags first,
+then one page per sample with lacing, a sequence number, the granule
+position at the sample's end in 48 kHz units (MP4 counts the pre-skip
+from zero, as Ogg does, so the two line up), EOS on the last, and the
+Ogg CRC, computed bitwise to save the 1 KB table. Runs are still read in
+one call and spread in place, with per-page header sizes summed first.
+
+Unlike AAC, a seek reopens the decoder: the Ogg parser holds stream
+state. mp4_seek_cs() records where the stts walk stands and clears
+`ogg_hdr_sent`, so the reopened parser sees the headers again with
+sequence numbers from 0.
+
+Host: mp4opustest checks file 30's synthesised stream at three read
+sizes (CRCs against a table-driven implementation, sequence, OpusHead
+fields, BOS/EOS, rising granules, the last granule equal to the table's
+end, and the packets equal to the MP4's samples byte for byte) and after
+a seek. By hand: ffmpeg decodes that stream to the same 2880000 samples
+it decodes from the .m4a, none differing; its .m4a decode has 648 more
+at the end, the last packet's padding, which the final granule cuts.
+
+Known: there is no pre-roll on a seek, so the first 30 ms or so after
+one decode slightly wrong (on file 30 at 30 s, 1548 samples differ,
+peak 1302) until the decoder converges. Opus asks for 80 ms of
+pre-roll; the Ogg file path has the same behaviour.
+
+Not built for the target, not run on the board. It is assumed, not
+checked, that esp_audio_codec's Ogg parser accepts a stream whose
+serial is a constant and whose pages each hold one packet; both are
+ordinary Ogg. Expected log: `mp4: opus 48000 Hz, 2 ch, ... seekable`.
+
 ### 8000 -- CI: host tests after the components they include exist
 
 The v0.7.0 tag's workflow run failed at "Host tests (text layout, USB

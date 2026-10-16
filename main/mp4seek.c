@@ -505,7 +505,8 @@ bool mp4_probe(FILE *f, mp4_t *m)
         uint8_t b[16];
         if (!read_at(f, stsd + 8, b, 8)) FAIL("stsd sample entry would not read");
         const bool is_alac = (memcmp(b + 4, "alac", 4) == 0);
-        if (!is_alac && memcmp(b + 4, "mp4a", 4) != 0) {
+        const bool is_opus = (memcmp(b + 4, "Opus", 4) == 0);
+        if (!is_alac && !is_opus && memcmp(b + 4, "mp4a", 4) != 0) {
             /*
              * An encryption wrapper is not "a container this code does
              * not read". The file will not play by any route, and the
@@ -528,7 +529,7 @@ bool mp4_probe(FILE *f, mp4_t *m)
                 FAIL(whybuf);
             }
             snprintf(whybuf, sizeof(whybuf),
-                     "sample entry is '%c%c%c%c', not mp4a or alac",
+                     "sample entry is '%c%c%c%c', not mp4a, alac or Opus",
                      b[4], b[5], b[6], b[7]);
             FAIL(whybuf);
         }
@@ -583,6 +584,48 @@ bool mp4_probe(FILE *f, mp4_t *m)
         const long entry_end = entry + (long)be32(b);
         long esds_len;
         if (m->alac) goto have_config;   /* the cookie is the config */
+
+        if (is_opus) {
+            /*
+             * dOps is OpusHead with the magic dropped and the byte order
+             * turned round: version 0, channels, pre-skip (BE16), input
+             * rate (BE32), gain (BE16), mapping family, and for a family
+             * other than 0 a stream count, a coupled count and one map
+             * byte per channel. OpusHead is "OpusHead", version 1, then
+             * the same fields little-endian.
+             */
+            long dops_len = 0;
+            const long dops = find_box(f, entry + 8 + 28, entry_end, "dOps",
+                                       &dops_len, 0);
+            if (dops < 0 || dops_len < 11 || dops_len > 64) {
+                FAIL("no usable dOps box in the Opus entry");
+            }
+            uint8_t o[64];
+            if (!read_at(f, dops, o, (size_t)dops_len)) FAIL("dOps would not read");
+            const uint8_t ch = o[1];
+            const uint8_t family = o[10];
+            if (ch < 1 || ch > 2) FAIL("Opus with more than two channels");
+            const size_t table = family ? (size_t)2 + ch : 0;
+            if ((size_t)dops_len < 11 + table) FAIL("dOps is short of its map");
+
+            m->opus_head_len = (uint32_t)(19 + table);
+            m->opus_head = malloc(m->opus_head_len);
+            if (!m->opus_head) FAIL("no memory for OpusHead");
+            uint8_t *h = m->opus_head;
+            memcpy(h, "OpusHead", 8);
+            h[8] = 1;
+            h[9] = ch;
+            h[10] = o[3]; h[11] = o[2];                             /* pre-skip */
+            h[12] = o[7]; h[13] = o[6]; h[14] = o[5]; h[15] = o[4]; /* rate */
+            h[16] = o[9]; h[17] = o[8];                             /* gain */
+            h[18] = family;
+            if (table) memcpy(h + 19, o + 11, table);
+
+            m->opus = true;
+            m->channels = ch;
+            m->sample_rate = 48000;     /* what Opus decodes to, always */
+            goto have_config;
+        }
         const long esds = find_box(f, entry + 8 + 28, entry_end, "esds",
                                    &esds_len, 0);
         if (esds < 0 || esds_len < 8 || esds_len > 512) {
@@ -607,9 +650,11 @@ out:
     if (ok) {
         m->ok = true;
         m->pos = -1;
+        m->stts_e = 0;
+        m->stts_left = m->stts_n ? m->stts_count[0] : 0;
         ESP_LOGI(TAG, "mp4: %s %" PRIu32 " Hz, %u ch, %" PRIu32 " samples, "
                       "%" PRIu32 " s, seekable",
-                 m->alac ? "alac" : "aac",
+                 m->alac ? "alac" : m->opus ? "opus" : "aac",
                  m->sample_rate, (unsigned)m->channels, m->count,
                  mp4_duration_sec(m));
     } else {
@@ -634,6 +679,7 @@ void mp4_free(mp4_t *m)
     free(m->stts_count);
     free(m->stts_delta);
     free(m->cookie);
+    free(m->opus_head);
     memset(m, 0, sizeof(*m));
 }
 
@@ -655,12 +701,15 @@ uint32_t mp4_seek_cs(mp4_t *m, uint32_t sec)
     uint64_t t = 0;
     uint32_t idx = 0;
 
-    for (int e = 0; e < m->stts_n && idx < m->count; e++) {
+    int e = 0;
+    uint32_t left = 0;
+    for (e = 0; e < m->stts_n && idx < m->count; e++) {
         const uint64_t span = (uint64_t)m->stts_count[e] * m->stts_delta[e];
         if (m->stts_delta[e] && t + span > want) {
             const uint64_t into = (want - t) / m->stts_delta[e];
             idx += (uint32_t)into;
             t += into * m->stts_delta[e];
+            left = m->stts_count[e] - (uint32_t)into;
             break;
         }
         t += span;
@@ -669,6 +718,15 @@ uint32_t mp4_seek_cs(mp4_t *m, uint32_t sec)
     if (idx >= m->count) idx = m->count - 1;
 
     m->cur = idx;
+    /* Where the stts walk stands, for the Ogg granule positions; and a
+     * new Ogg stream, because the parser behind it is reopened. A seek
+     * past the last run leaves the walk at its end, which only the
+     * last sample's granule ever reads. */
+    m->t_cur = t;
+    m->stts_e = e;
+    m->stts_left = left;
+    m->ogg_hdr_sent = false;
+    m->ogg_seq = 0;
     /* The reader is not where the table says any more, so the next read
      * seeks. Without this a seek backwards would be read as a
      * contiguous run and simply carry on from where it was. */
@@ -716,9 +774,173 @@ static void adts_header(const mp4_t *m, uint8_t *h, uint32_t payload)
  * destination is at most 7*N bytes before where it was read to, and
  * every earlier sample moves further back than the one after it.
  */
+/* ------------------------------------------------------------------ */
+/* Opus, as Ogg pages                                                  */
+/* ------------------------------------------------------------------ */
+
+/*
+ * Ogg's CRC: polynomial 0x04C11DB7, not reflected, initial value 0, no
+ * final xor -- not the zlib CRC, and not esp_rom_crc32_be(), whose
+ * conventions differ. Bitwise rather than a 1 KB table: an Opus stream
+ * is a few KB a second and flash is the scarcer thing here.
+ */
+static uint32_t ogg_crc(uint32_t crc, const uint8_t *p, size_t n)
+{
+    while (n--) {
+        crc ^= (uint32_t)*p++ << 24;
+        for (int i = 0; i < 8; i++) {
+            crc = (crc & 0x80000000u) ? (crc << 1) ^ 0x04C11DB7u : crc << 1;
+        }
+    }
+    return crc;
+}
+
+/* A page header for one packet of `len` bytes: 27 fixed, then the
+ * lacing values -- 255 for every full 255 bytes, then the remainder,
+ * which may be 0 and is what ends the packet on this page. */
+static size_t ogg_hdr_bytes(uint32_t len)
+{
+    return 27 + len / 255 + 1;
+}
+
+static void ogg_page_header(uint8_t *h, uint8_t flags, uint64_t granule,
+                            uint32_t seq, uint32_t len)
+{
+    memcpy(h, "OggS", 4);
+    h[4] = 0;
+    h[5] = flags;
+    for (int i = 0; i < 8; i++) h[6 + i] = (uint8_t)(granule >> (8 * i));
+    memcpy(h + 14, "mp4o", 4);                  /* serial: any constant */
+    for (int i = 0; i < 4; i++) h[18 + i] = (uint8_t)(seq >> (8 * i));
+    memset(h + 22, 0, 4);                       /* CRC, filled after */
+    const uint32_t segs = len / 255 + 1;
+    h[26] = (uint8_t)segs;
+    for (uint32_t i = 0; i + 1 < segs; i++) h[27 + i] = 255;
+    h[27 + segs - 1] = (uint8_t)(len % 255);
+}
+
+static void ogg_page_crc(uint8_t *page, size_t total)
+{
+    const uint32_t c = ogg_crc(0, page, total);
+    for (int i = 0; i < 4; i++) page[22 + i] = (uint8_t)(c >> (8 * i));
+}
+
+/* One whole page around `len` bytes at `body`, written at `dst`. */
+static size_t ogg_put(uint8_t *dst, uint8_t flags, uint64_t granule,
+                      uint32_t seq, const void *body, uint32_t len)
+{
+    const size_t h = ogg_hdr_bytes(len);
+    ogg_page_header(dst, flags, granule, seq, len);
+    memcpy(dst + h, body, len);
+    ogg_page_crc(dst, h + len);
+    return h + len;
+}
+
+/* The time at the END of sample `cur`, advancing the stts walk. */
+static uint64_t stts_step(mp4_t *m)
+{
+    while (!m->stts_left && m->stts_e + 1 < m->stts_n) {
+        m->stts_e++;
+        m->stts_left = m->stts_count[m->stts_e];
+    }
+    if (m->stts_e < m->stts_n) {
+        m->t_cur += m->stts_delta[m->stts_e];
+        if (m->stts_left) m->stts_left--;
+    }
+    return m->t_cur;
+}
+
+/*
+ * The Opus counterpart to the ADTS loop in mp4_read(): one Ogg page per
+ * sample, a contiguous run read in one call and spread out in place.
+ * The spread is safe for the reason given there -- every page's header
+ * is laid down before the payload that follows it is moved -- with
+ * header sizes that vary by packet, which is why they are summed first.
+ *
+ * The CRC is taken after the move, over the page as it will be read.
+ */
+static size_t mp4_read_ogg(FILE *f, mp4_t *m, uint8_t *dst, size_t cap)
+{
+    size_t out = 0;
+
+    if (!m->ogg_hdr_sent) {
+        static const uint8_t tags[] = { 'O', 'p', 'u', 's', 'T', 'a', 'g', 's',
+                                        3, 0, 0, 0, 'm', 'p', '4',
+                                        0, 0, 0, 0 };
+        if (ogg_hdr_bytes(m->opus_head_len) + m->opus_head_len +
+            ogg_hdr_bytes(sizeof(tags)) + sizeof(tags) > cap) {
+            return 0;
+        }
+        out += ogg_put(dst, 0x02, 0, m->ogg_seq++, m->opus_head, m->opus_head_len);
+        out += ogg_put(dst + out, 0x00, 0, m->ogg_seq++, tags, sizeof(tags));
+        m->ogg_hdr_sent = true;
+    }
+
+    /* Packets over 255 * 254 bytes would need more lacing than one page
+     * holds. Opus's own limit is a few KB, so such a sample is damage,
+     * skipped like the ADTS path skips an absurd one. */
+    while (m->cur < m->count &&
+           (!m->size[m->cur] || m->size[m->cur] >= 255u * 254u)) {
+        m->cur++;
+        stts_step(m);
+    }
+    if (m->cur >= m->count) return out;
+
+    uint32_t n = 0;
+    size_t payload = 0, head = 0;
+    int64_t expect = m->offset[m->cur];
+    while (m->cur + n < m->count) {
+        const uint32_t sz = m->size[m->cur + n];
+        if (!sz || sz >= 255u * 254u) break;
+        if (m->offset[m->cur + n] != expect) break;
+        const size_t h = ogg_hdr_bytes(sz);
+        if (out + head + h + payload + sz > cap) break;
+        payload += sz;
+        head += h;
+        expect += sz;
+        n++;
+    }
+    if (!n) return out;
+
+    const int64_t at = m->offset[m->cur];
+    if (m->pos != at) {
+        if (at > (int64_t)LONG_MAX || fseek(f, (long)at, SEEK_SET) != 0) {
+            return out;
+        }
+        m->pos = at;
+    }
+    uint8_t *base = dst + out;
+    if (storage_io_fread(base + head, payload, f, STORAGE_IO_PLAYBACK) != payload) {
+        m->pos = -1;
+        return out;
+    }
+    m->pos += (int64_t)payload;
+
+    size_t src = head, w = 0;
+    for (uint32_t i = 0; i < n; i++) {
+        const uint32_t sz = m->size[m->cur + i];
+        const size_t h = ogg_hdr_bytes(sz);
+        const uint64_t end = stts_step(m);
+        const uint64_t granule = m->timescale == 48000
+            ? end : end * 48000 / m->timescale;
+        const uint8_t flags = (m->cur + i + 1 == m->count) ? 0x04 : 0x00;
+        /* Payload, then the header in front of it: the header's bytes
+         * are all below where the payload came from, so neither write
+         * reaches a packet that has not been moved yet. */
+        memmove(base + w + h, base + src, sz);
+        ogg_page_header(base + w, flags, granule, m->ogg_seq++, sz);
+        ogg_page_crc(base + w, h + sz);
+        w += h + sz;
+        src += sz;
+    }
+    m->cur += n;
+    return out + w;
+}
+
 size_t mp4_read(FILE *f, mp4_t *m, uint8_t *dst, size_t cap)
 {
     if (!f || !m || !m->ok || !dst) return 0;
+    if (m->opus) return mp4_read_ogg(f, m, dst, cap);
 
     /* Skip anything absurd before measuring, so the run below is made
      * of samples that will actually be emitted. */

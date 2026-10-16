@@ -710,7 +710,10 @@ static esp_err_t esp_codec_open(decoder_t *d, const char *path, int fmt,
          * samples go over as they are and the decoder is told the
          * shape of them once, in the magic cookie.
          */
+        /* Opus goes out as Ogg pages (6152), so the parser that plays
+         * .opus files plays it. */
         type = d->mp4.alac ? ESP_AUDIO_SIMPLE_DEC_TYPE_ALAC
+             : d->mp4.opus ? ESP_AUDIO_SIMPLE_DEC_TYPE_OGG
                            : ESP_AUDIO_SIMPLE_DEC_TYPE_AAC;
         d->frame_mode = d->mp4.alac;
     } else if (d->mp4.encrypted) {
@@ -1246,7 +1249,11 @@ static esp_err_t esp_codec_seek(decoder_t *d, uint32_t sec, uint32_t *landed_cs)
      * it sees ADTS frames and nothing else -- so there is no header
      * state to restore and no half-assembled packet to discard.
      */
-    if (d->mp4.ok) {
+    /* Except Opus, which goes out as Ogg: the Ogg parser does hold
+     * stream state, so it is reopened below like any other, and
+     * mp4_seek_cs() has already arranged for the header pages to be
+     * sent again ahead of the first packet. */
+    if (d->mp4.ok && !d->mp4.opus) {
         if (landed_cs) *landed_cs = at_cs;
         ESP_LOGI(TAG, "mp4: seek to %" PRIu32 "s, landed %" PRIu32 ".%02" PRIu32
                       "s, sample %" PRIu32,
@@ -1311,7 +1318,8 @@ static esp_err_t esp_codec_seek(decoder_t *d, uint32_t sec, uint32_t *landed_cs)
              d->cbr_ok ? d->cbr.what
                        : d->flac.ok ? "flac"
                        : d->ogg.ok  ? "ogg"
-                       : d->ts.ok   ? "ts" : "adts table",
+                       : d->ts.ok   ? "ts"
+                       : d->mp4.opus ? "mp4 opus" : "adts table",
              sec, off, at_cs / 100, at_cs % 100,
              (unsigned)plen,
              (unsigned)((t_found - t0) / 1000),

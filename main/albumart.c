@@ -511,7 +511,7 @@ esp_err_t albumart_extract_at(FILE *f, storage_io_class_t cls, long base,
 
         const size_t img_len = fsz - i;
         if (!albumart_is_supported_image(&frame[i], img_len)) {
-            ESP_LOGW(TAG, "APIC is %s, which is neither JPEG nor PNG", mime);
+            ESP_LOGW(TAG, "APIC is %s, which is not JPEG, PNG or JPEG XL", mime);
             free(frame);
             return ESP_ERR_NOT_SUPPORTED;
         }

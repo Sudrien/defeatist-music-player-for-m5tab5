@@ -6,11 +6,11 @@ screen shows which picture was used without reading the log. A case
 that must show nothing has no picture with its number on it, or one
 that says MUST NOT SHOW.
 
-The tracks are fifteen seconds of a quiet tone: long enough for each
-cover to be drawn before the next track takes the screen. (At four
-seconds, 6140's first length, the decoder ran a whole track ahead of
-the screen and nearly every cover was dropped as stale.) Rebuild them with
-`build/make.py` (needs ffmpeg, Pillow, pillow-jxl-plugin and mutagen).
+The tracks are forty-five seconds of a quiet tone; use the skip button
+to move on. A cover is read only once the track's PCM ring (20 s) is 60%
+full, and a track shorter than a ring decodes whole while the one before
+it is still on screen. So shorter tracks show almost no covers: 6140's
+four seconds and 6143's fifteen both did that on the board.
 
 What happens when there is no picture to show is the format card, as
 for any track without art.

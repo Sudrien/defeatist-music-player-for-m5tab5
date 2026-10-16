@@ -66,9 +66,12 @@ def jpeg_to_jxl(jpg_bytes):
     Image.open(io.BytesIO(jpg_bytes)).save(b, 'JXL', lossless_jpeg=True)
     return b.getvalue()
 
-# ---- audio: fifteen seconds of a quiet tone, one base file per container ----
+# ---- audio: forty-five seconds of a quiet tone, one base file per container ----
 #
-# 6143: fifteen, not four. At four seconds the decoder is a whole track
+# 6144: forty-five. Fifteen was still shorter than a PCM ring (20 s),
+# so a whole track still decoded ahead of the screen, and a cover is only
+# read once its ring is 60% full (12 s), which a short track never gets
+# to in time. 6143: fifteen, not four. At four seconds the decoder is a whole track
 # ahead of the screen (the tail of one track plays while the next is
 # already decoding), so a cover was asked for and dropped as stale for
 # almost every track on the board, and the set tested nothing.
@@ -77,12 +80,12 @@ BASE = {}
 def base(ext):
     if ext in BASE: return BASE[ext]
     path = os.path.join(TMP, 'base.' + ext)
-    codec = {'mp3': ['-c:a', 'libmp3lame', '-b:a', '32k'],
+    codec = {'mp3': ['-c:a', 'libmp3lame', '-b:a', '16k'],
              'flac': ['-c:a', 'flac', '-sample_fmt', 's16'],
-             'm4a': ['-c:a', 'aac', '-b:a', '32k'],
+             'm4a': ['-c:a', 'aac', '-b:a', '16k'],
              'ogg': ['-c:a', 'libvorbis', '-q:a', '1']}[ext]
     subprocess.run(['ffmpeg', '-loglevel', 'error', '-y', '-f', 'lavfi', '-i',
-                    'sine=frequency=330:sample_rate=22050:duration=15', '-ac', '1',
+                    'sine=frequency=330:sample_rate=22050:duration=45', '-ac', '1',
                     '-af', 'volume=0.25'] + codec + [path], check=True)
     BASE[ext] = path
     return path

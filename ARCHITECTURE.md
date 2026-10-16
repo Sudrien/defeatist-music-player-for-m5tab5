@@ -24776,3 +24776,35 @@ That is the set's problem, not the player's: a real track is minutes
 long. The tracks are now fifteen seconds (MP3 and AAC at 32 kbps, FLAC
 at 16 bits), 3.6 MB in all. The run also found the Ogg bug fixed in
 6142. Its README row says so.
+
+### 6144 -- test_art_files: forty-five-second tracks; what the board showed
+
+6143's fifteen seconds were still too short. Each track has a 20 s PCM
+ring, and a cover is read only once its ring is 60% full (12 s), or
+after 8 s of waiting ("ring never reached 60% in 8000 ms; going ahead
+anyway"). A fifteen-second track decodes whole while the one before it
+is still on screen. Its cover was read late, then dropped as decoded
+"after the track changed", or never read at all. The tracks are now
+forty-five seconds at 16 kbps; the set is 5.2 MB. The README says to
+skip forward.
+
+What the fifteen-second run did show, on the board (2026-10-15):
+
+- **6142 works.** `09 OGG picture JPEG.ogg`: `vorbis: 22050 Hz granule,
+  42724 B of headers, audio at 42724, 15 s`, and it played.
+- **J40 is slow.** A 600x600 lossy JPEG XL took 8199 ms and 7845 ms
+  (`cover decoded by J40: 600x600 -> 600x600, 703 KB`), at idle
+  priority under playback. Nothing dropped, but both were finished too
+  late to show on a fifteen-second track. A 1000x1000 would be about
+  three times that.
+- **stb_image**: a 1000x1000 progressive JPEG in 1782 ms.
+- **The MIME type that lies** (12, image/png on JPEG bytes) went to the
+  JPEG decoder and was drawn.
+- **Refusals are logged as designed**: the 200 px JPEG XL ("uses a
+  JPEG XL feature J40 does not implement"), the 2500x2500 progressive
+  ("too many pixels"), and the GIF ("neither JPEG nor PNG", then no
+  folder picture, then the format card).
+- One DSI underrun during track 07, with no decode running.
+
+The GIF line said "neither JPEG nor PNG", a message older than JPEG XL.
+It and covertag.c's covr message now say "not JPEG, PNG or JPEG XL".

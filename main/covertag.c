@@ -570,7 +570,7 @@ static esp_err_t mp4_read(FILE *f, storage_io_class_t prio, id3_tags_t *tags,
                     *out_len = n;
                     found++;
                 } else {
-                    ESP_LOGW(TAG, "covr atom is not JPEG, PNG or JPEG XL (kind %u)",
+                    ESP_LOGW(TAG, "covr atom is not JPEG, PNG, JPEG XL or GIF (kind %u)",
                              (unsigned)kind);
                     free(v);
                 }

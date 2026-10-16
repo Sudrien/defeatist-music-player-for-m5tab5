@@ -301,7 +301,8 @@ static esp_err_t decode_stb(const uint8_t *jpeg, size_t jpeg_len,
         ESP_LOGW(TAG, "stb_image: %s (%dx%d)", stbjpeg_err_name(info), w, h);
         return ESP_ERR_NOT_SUPPORTED;
     }
-    const size_t peak = stbjpeg_peak_bytes(w, h);
+    const size_t peak = artformat_sniff(jpeg, jpeg_len) == ART_GIF   /* 6145 */
+                      ? stbjpeg_gif_peak_bytes(w, h) : stbjpeg_peak_bytes(w, h);
     const size_t free_ps = heap_caps_get_free_size(MALLOC_CAP_SPIRAM);
     if (free_ps < peak) {
         ESP_LOGW(TAG, "stb_image: %dx%d needs up to %u KB of PSRAM, %u KB free",
@@ -511,7 +512,7 @@ esp_err_t albumart_extract_at(FILE *f, storage_io_class_t cls, long base,
 
         const size_t img_len = fsz - i;
         if (!albumart_is_supported_image(&frame[i], img_len)) {
-            ESP_LOGW(TAG, "APIC is %s, which is not JPEG, PNG or JPEG XL", mime);
+            ESP_LOGW(TAG, "APIC is %s, which is not JPEG, PNG, JPEG XL or GIF", mime);
             free(frame);
             return ESP_ERR_NOT_SUPPORTED;
         }
@@ -1389,6 +1390,16 @@ static esp_err_t albumart_draw_jxl(esp_lcd_panel_handle_t panel, int screen_w, i
     return ret;
 }
 
+/* 6145: a GIF's first frame, through stb_image -- the decoder that
+ * already takes the JPEGs the hardware and TJpgDec cannot. */
+static esp_err_t albumart_draw_gif(esp_lcd_panel_handle_t panel, int screen_w, int screen_h,
+                                   const uint8_t *in, size_t len)
+{
+    const uint32_t in_hash = albumart_cover_hash(in, len);
+    s_keystone_seed = s_keystone_key ? s_keystone_key : in_hash;
+    return draw_in_software(panel, screen_w, screen_h, in, len, in_hash);
+}
+
 esp_err_t albumart_draw(esp_lcd_panel_handle_t panel, int screen_w, int screen_h,
                         const uint8_t *jpeg, size_t jpeg_len)
 {
@@ -2011,6 +2022,9 @@ esp_err_t albumart_show(esp_lcd_panel_handle_t panel, int screen_w, int screen_h
     }
     if (artformat_sniff(img, img_len) == ART_JXL) {                   /* 6139 */
         return albumart_draw_jxl(panel, screen_w, screen_h, img, img_len);
+    }
+    if (artformat_sniff(img, img_len) == ART_GIF) {                   /* 6145 */
+        return albumart_draw_gif(panel, screen_w, screen_h, img, img_len);
     }
     return albumart_draw(panel, screen_w, screen_h, img, img_len);
 }

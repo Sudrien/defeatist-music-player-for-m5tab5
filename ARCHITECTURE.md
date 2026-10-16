@@ -24808,3 +24808,30 @@ What the fifteen-second run did show, on the board (2026-10-15):
 
 The GIF line said "neither JPEG nor PNG", a message older than JPEG XL.
 It and covertag.c's covr message now say "not JPEG, PNG or JPEG XL".
+
+### 6145 -- GIF covers: the first frame, through stb_image
+
+stb_image was already in the build, compiled JPEG-only, as the last
+JPEG decoder (5062). It reads GIF too, so GIF is switched on in the
+same file (`STBI_ONLY_GIF`). That costs about 5 KB of code (measured on
+x86-32: 16.8 to 22.0 KB of text), with no new library and no new pin.
+An animated GIF shows its first frame.
+
+- artformat.h: ART_GIF for GIF87a and GIF89a; MIME image/gif.
+- albumart.c: a GIF goes to draw_in_software(), the path stb's JPEGs
+  already take. The memory check is stbjpeg_gif_peak_bytes(): frame
+  and background at 4 bytes a pixel, history at 1, RGB at 3, RGB565 at
+  2, so 14 a pixel. A transparent colour comes out black; RGB565 has
+  no alpha to carry it.
+- FOLDERART_NAMES: cover/folder/front/album.gif, last of each name
+  (twenty candidates now).
+- The "not JPEG, PNG or JPEG XL" refusals name GIF too.
+
+Tests: arttest decodes four GIFs: GIF87a, interlaced, GIF89a with a
+transparent colour, and an animated one whose second frame is black, so
+the first frame must be what shows. Each is also cut short at every
+length, under ASan and UBSan. folderarttest checks that front.gif is
+found and comes after front.jxl. test_art_files: 15 (GIF) and 16
+(animated GIF) replace 21 (GIF refused), and 2k's cover.gif now shows.
+
+Not on the board.

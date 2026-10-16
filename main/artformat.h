@@ -26,6 +26,7 @@ typedef enum {
     ART_JPEG,
     ART_PNG,
     ART_JXL,            /* 6139: JPEG XL, bare codestream or ISOBMFF container */
+    ART_GIF,            /* 6145: GIF87a or GIF89a; the first frame is shown */
 } art_format_t;
 
 /* JPEG XL's two signatures: the bare codestream, and the container's
@@ -39,6 +40,7 @@ static inline art_format_t artformat_sniff(const uint8_t *p, size_t len)
     if (len > 8 && memcmp(p, "\x89PNG\r\n\x1a\n", 8) == 0) return ART_PNG;
     if (len > 3 && p[0] == 0xFF && p[1] == 0x0A) return ART_JXL;
     if (len > 12 && memcmp(p, ARTFORMAT_JXL_BOX, 12) == 0) return ART_JXL;
+    if (len > 13 && (memcmp(p, "GIF87a", 6) == 0 || memcmp(p, "GIF89a", 6) == 0)) return ART_GIF;
     return ART_NONE;
 }
 
@@ -49,6 +51,7 @@ static inline const char *artformat_mime(art_format_t f)
     case ART_JPEG: return "image/jpeg";
     case ART_PNG:  return "image/png";
     case ART_JXL:  return "image/jxl";
+    case ART_GIF:  return "image/gif";
     default:       return "application/octet-stream";
     }
 }

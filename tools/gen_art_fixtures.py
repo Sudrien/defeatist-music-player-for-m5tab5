@@ -16,7 +16,9 @@ for every format and the test is about the decoder, not the encoder.
 One file per flavour a cover is found in: JPEG baseline 4:2:0 and
 4:4:4, progressive, greyscale, with an EXIF segment before the SOF;
 PNG RGB, RGBA, palette, palette with transparency, greyscale, grey with
-alpha, 16 bits a channel, and Adam7-interlaced.
+alpha, 16 bits a channel, and Adam7-interlaced. 6145, GIF: plain
+(GIF87a), interlaced, GIF89a with a transparent colour, and animated with a black second frame (the first
+must be what shows).
 
 6139, JPEG XL (needs pillow-jxl-plugin): lossy, lossless, with alpha,
 the lossy codestream wrapped in a container as one `jxlc` box and again
@@ -89,6 +91,14 @@ def main():
     open(p('interlaced.png'), 'wb').write(b'\x89PNG\r\n\x1a\n' +
         chunk(b'IHDR', struct.pack('>IIBBBBB', W, H, 8, 2, 0, 0, 1)) +
         chunk(b'IDAT', zlib.compress(raw, 9)) + chunk(b'IEND', b''))
+    # 6145: GIF, which stb_image reads now -- the first frame only.
+    rgb.convert('P', palette=Image.ADAPTIVE, colors=8).save(p('gif.gif'))
+    rgb.convert('P', palette=Image.ADAPTIVE, colors=8).save(p('gif_interlaced.gif'), interlace=True)
+    first = rgb.convert('P', palette=Image.ADAPTIVE, colors=8)
+    second = Image.new('RGB', (W, H), (0, 0, 0)).convert('P')
+    first.save(p('gif_animated.gif'), save_all=True, append_images=[second], duration=200, loop=0)
+    # GIF89a with a transparent colour: the white quadrant's index.
+    first.save(p('gif_trns.gif'), transparency=first.getpixel((W - 1, H - 1)))
     jxl(out)
 
 def box(t, payload):

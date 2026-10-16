@@ -54,6 +54,14 @@ stbjpeg_err_t stbjpeg_info(const uint8_t *in, size_t len, int *w, int *h);
 size_t stbjpeg_peak_bytes(int w, int h);
 
 /*
+ * 6145: the same for a GIF, which stb_image also reads now (the first
+ * frame of an animated one). stbjpeg_info() and stbjpeg_decode_rgb565()
+ * take a GIF as they take a JPEG; transparent pixels come out as their
+ * palette colour, there being no alpha in RGB565.
+ */
+size_t stbjpeg_gif_peak_bytes(int w, int h);
+
+/*
  * Decode to native little-endian RGB565 (gfx.h's RGB()), thinned by
  * whole steps to the smallest size that still covers box_w x box_h, so
  * the picture kept afterwards is not bigger than the screen needs.

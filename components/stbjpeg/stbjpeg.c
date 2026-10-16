@@ -29,9 +29,11 @@ static void *stbjpeg_realloc(void *p, size_t n)
 #define OUT_MALLOC(n)       malloc(n)
 #endif
 
-/* JPEG and nothing else: every other format here has its own decoder,
- * and each one compiled in is attack surface fed from the internet. */
+/* JPEG, and since 6145 GIF (its first frame): every other format here
+ * has its own decoder, and each one compiled in is attack surface fed
+ * from the internet. GIF costs about 5 KB of code. */
 #define STBI_ONLY_JPEG
+#define STBI_ONLY_GIF
 #define STBI_NO_STDIO
 #define STBI_NO_HDR
 #define STBI_NO_LINEAR
@@ -51,6 +53,14 @@ stbjpeg_err_t stbjpeg_info(const uint8_t *in, size_t len, int *w, int *h)
     if (*w < 1 || *h < 1) return STBJPEG_NOT_JPEG;
     if ((uint64_t)*w * (uint64_t)*h > STBJPEG_MAX_PIXELS) return STBJPEG_TOO_BIG;
     return STBJPEG_OK;
+}
+
+size_t stbjpeg_gif_peak_bytes(int w, int h)
+{
+    /* stb's GIF reader holds the frame and the background at 4 bytes a
+     * pixel and a byte of history, then the RGB888 copy at 3, and the
+     * RGB565 result at 2: 14 a pixel, and the LZW tables. */
+    return (size_t)w * (size_t)h * 14u + 256u * 1024u;
 }
 
 size_t stbjpeg_peak_bytes(int w, int h)
@@ -125,7 +135,7 @@ const char *stbjpeg_err_name(stbjpeg_err_t e)
 {
     switch (e) {
     case STBJPEG_OK:       return "ok";
-    case STBJPEG_NOT_JPEG: return "not a JPEG stb_image can read";
+    case STBJPEG_NOT_JPEG: return "not a JPEG or GIF stb_image can read";
     case STBJPEG_TOO_BIG:  return "too many pixels";
     case STBJPEG_NO_MEM:   return "out of memory";
     case STBJPEG_FAILED:   return "decode failed";

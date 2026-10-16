@@ -36,8 +36,9 @@ inside each file can show.
 | 12 | MP3 APIC, MIME says image/png, bytes are JPEG | hardware | shows *12*: the bytes decide, not the MIME type |
 | 13 | MP3 APIC, JPEG progressive 1000x1000 | stb_image | shows *13*; about 10 MB of PSRAM for a moment |
 | 14 | MP3 APIC, a JPEG recompressed into JPEG XL | J40 | shows *14* |
+| 15 | MP3 APIC, GIF | stb_image | shows *15* (6145) |
+| 16 | MP3 APIC, animated GIF | stb_image | shows *16, first frame*; never *SECOND FRAME* |
 | 20 | none | -- | the format card |
-| 21 | MP3 APIC, GIF | none | the format card: GIF is not decoded |
 | 22 | MP3 APIC, JPEG XL lossy 200x200 | J40 refuses | no picture; the log names J40's reason |
 | 24 | MP3 APIC, JPEG progressive 2500x2500 | stb_image refuses | no picture; the log says too many pixels |
 
@@ -60,7 +61,7 @@ the cover cache with no read (the log says which).
 | 2h | cover.jpg; the tracks carry a JPEG | *EMBEDDED, right one*: inside the file comes first |
 | 2i | cover.jpg; the tracks carry a 200 px JPEG XL J40 refuses | **known gap**: the folder's cover.jpg is not tried after an embedded picture fails to decode, only after a file has none |
 | 2j | AlbumArtSmall.jpg only | the format card: the 75 px Windows thumbnail is not looked for |
-| 2k | cover.gif only | the format card: GIF is not looked for |
+| 2k | cover.gif only | shows *2k cover.gif* (6145: GIF is looked for, last of each name) |
 | 2l | nothing | the format card |
 
 ## What the decoders are
@@ -69,6 +70,7 @@ the cover cache with no read (the log says which).
   then TJpgDec (baseline), then stb_image (progressive, any size, within
   free PSRAM).
 - **PNG**: pngle, streamed straight into the frame.
+- **GIF**: stb_image, since 6145: the first frame.
 - **JPEG XL**: J40, since 6139. It refuses some files: lossy at 256 px
   or smaller, lossless at effort 1, flat lossy at 600 px and up, and
   some others. texttest/jxltest.c pins which.

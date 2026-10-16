@@ -160,7 +160,16 @@ for n, ext, lines, make, mime in cases:
 
 # The ones that should show no picture: the format card instead.
 track(E, '20 no picture', 'mp3', '20 no picture', EA, 20)
-track(E, '21 GIF, not decoded', 'mp3', '21 GIF', EA, 21, gif(picture(['21', 'GIF', 'MUST NOT SHOW'], n=21)), 'image/gif')
+# 6145: GIF is decoded now, the first frame of an animated one.
+track(E, '15 MP3 APIC GIF', 'mp3', '15 GIF', EA, 15, gif(picture(['15', 'MP3 APIC', 'GIF'], n=15)), 'image/gif')
+def animated(lines, n):
+    first = picture(lines, n=n).convert('RGB')
+    second = picture(['16', 'SECOND FRAME', 'MUST NOT SHOW'], n=n + 1).convert('RGB')
+    b = io.BytesIO()
+    first.save(b, 'GIF', save_all=True, append_images=[second], duration=500, loop=0)
+    return b.getvalue()
+track(E, '16 MP3 APIC GIF animated', 'mp3', '16 GIF animated', EA, 16,
+      animated(['16', 'GIF animated', 'first frame'], 16), 'image/gif')
 track(E, '22 JXL small lossy, J40 refuses', 'mp3', '22 JXL 200px lossy', EA, 22,
       jxl(picture(['22', 'JXL 200px', 'MUST NOT SHOW'], size=200, n=22), quality=90), 'image/jxl')
 track(E, '24 JPEG 2500x2500 progressive, too big', 'mp3', '24 JPEG too big', EA, 24,
@@ -194,7 +203,7 @@ folder('2h embedded beats cover.jpg', [('cover.jpg', jpeg(picture(['2h', 'cover.
 folder('2i refused embedded JXL and cover.jpg', [('cover.jpg', jpeg(picture(['2i', 'cover.jpg'], n=1)))],
        embedded=jxl(picture(['2i', 'EMBEDDED JXL', 'refused'], size=200, n=2), quality=90))
 folder('2j AlbumArtSmall.jpg only', [('AlbumArtSmall.jpg', jpeg(picture(['2j', 'small', 'MUST NOT SHOW'], size=75, n=3)))])
-folder('2k cover.gif only', [('cover.gif', gif(picture(['2k', 'cover.gif', 'MUST NOT SHOW'], n=4)))])
+folder('2k cover.gif only', [('cover.gif', gif(picture(['2k', 'cover.gif'], n=4)))])
 folder('2l no picture at all', [])
 
 shutil.rmtree(TMP)

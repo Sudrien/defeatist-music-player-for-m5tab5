@@ -15,6 +15,8 @@
  *   - PNG through pngle, with the RGB565 conversion albumart.c's
  *     png_on_draw() uses: RGB, RGBA, palette, palette with tRNS, grey,
  *     grey with alpha, 16 bits a channel, Adam7.
+ *   - GIF through stb_image (6145): GIF87a, interlaced, GIF89a with a
+ *     transparent colour, and the first frame of an animated one.
  *   - Every file cut short, and junk: refused or partial, never a crash
  *     (run under ASan and UBSan).
  *
@@ -199,6 +201,48 @@ static void jpeg_case(const char *name, uint8_t sof_want, int grey)
     free(b);
 }
 
+/* ---- GIF, through stb_image (6145): the first frame ---------------- */
+
+static void gif_case(const char *name, int hole)
+{
+    size_t len;
+    uint8_t *b = slurp(name, &len);
+    CHECK(artformat_sniff(b, len) == ART_GIF, "%s: not sniffed as GIF", name);
+    int w = 0, h = 0;
+    CHECK(stbjpeg_info(b, len, &w, &h) == STBJPEG_OK && w == W && h == H,
+          "%s: info %dx%d", name, w, h);
+    uint16_t *px = NULL;
+    size_t size = 0;
+    int ow = 0, oh = 0;
+    const char *why = NULL;
+    const stbjpeg_err_t e = stbjpeg_decode_rgb565(b, len, 0, 0, &px, &size, &ow, &oh, &why);
+    CHECK(e == STBJPEG_OK && ow == W && oh == H, "%s: stb_image %s %dx%d (%s)",
+          name, stbjpeg_err_name(e), ow, oh, why ? why : "-");
+    if (px) {
+        /* Palette colours are exact; a transparent one comes out black,
+         * there being no alpha to carry it -- so not checked. */
+        if (hole) {
+            static const int want[3][3] = { { 220, 30, 30 }, { 30, 200, 40 }, { 40, 50, 210 } };
+            static const int at[3][2] = { { 16, 12 }, { 48, 12 }, { 16, 36 } };
+            for (int q = 0; q < 3; q++) {
+                const uint16_t got = px[at[q][1] * W + at[q][0]];
+                CHECK(chan_diff(got, rgb565(want[q][0], want[q][1], want[q][2])) <= 8,
+                      "%s: quadrant %d is %04x", name, q, got);
+            }
+        } else {
+            quadrants(name, px, W, 8, 0, 0);
+        }
+    }
+    free(px);
+    for (size_t cut = 0; cut < len; cut++) {
+        uint16_t *t = NULL;
+        (void)stbjpeg_decode_rgb565(b, cut, 0, 0, &t, &size, &ow, &oh, &why);
+        free(t);
+    }
+    checks++;
+    free(b);
+}
+
 int main(void)
 {
     printf("arttest\n");
@@ -209,7 +253,9 @@ int main(void)
     CHECK(artformat_sniff((const uint8_t *)"\xFF\xD8\xFF\xE0", 4) == ART_JPEG, "JPEG SOI");
     CHECK(artformat_sniff((const uint8_t *)"\x89PNG\r\n\x1a\n", 8) == ART_NONE, "PNG signature alone");
     CHECK(artformat_sniff((const uint8_t *)"\x89PNG\r\n\x1a\n\0", 9) == ART_PNG, "PNG");
-    CHECK(artformat_sniff((const uint8_t *)"GIF89a....", 10) == ART_NONE, "GIF refused");
+    CHECK(artformat_sniff((const uint8_t *)"GIF89a........", 14) == ART_GIF, "GIF89a (6145)");
+    CHECK(artformat_sniff((const uint8_t *)"GIF87a........", 14) == ART_GIF, "GIF87a (6145)");
+    CHECK(artformat_sniff((const uint8_t *)"GIF88a........", 14) == ART_NONE, "no such GIF");
     CHECK(artformat_sniff((const uint8_t *)"BM........", 10) == ART_NONE, "BMP refused");
     CHECK(artformat_sniff((const uint8_t *)"RIFF....WEBPVP8 ", 16) == ART_NONE, "WebP refused");
     CHECK(strcmp(artformat_mime(ART_PNG), "image/png") == 0 &&
@@ -239,6 +285,12 @@ int main(void)
     png_case("gray_alpha.png", 1, 1);
     png_case("rgb16.png", 0, 0);
     png_case("interlaced.png", 0, 0);
+
+    gif_case("gif.gif", 0);
+    gif_case("gif_interlaced.gif", 0);
+    gif_case("gif_trns.gif", 1);
+    gif_case("gif_animated.gif", 0);    /* the second frame is black */
+    CHECK(stbjpeg_gif_peak_bytes(600, 600) >= 600u * 600u * 13u, "GIF peak estimate");
 
     /* Junk handed to pngle is an error or nothing, never a picture. */
     {

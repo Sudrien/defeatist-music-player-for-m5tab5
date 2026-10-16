@@ -96,6 +96,7 @@ static void put_file(const char *dir, const char *name, const char *kind, size_t
     if (!strcmp(kind, "jpg")) fwrite("\xFF\xD8\xFF\xE0", 1, 4, f);
     else if (!strcmp(kind, "png")) fwrite("\x89PNG\r\n\x1a\n", 1, 8, f);
     else if (!strcmp(kind, "jxl")) fwrite("\xFF\x0A", 1, 2, f);
+    else if (!strcmp(kind, "gif")) fwrite("GIF89a", 1, 6, f);
     for (size_t i = 0; i < n; i++) fputc((int)(i & 0xFF), f);
     fclose(f);
 }
@@ -191,6 +192,19 @@ int main(void)
     put_file(x, "cover.jxl", "jxl", 10);
     CHECK(load(track(x, "01.flac"), &name, &img, &len) == ESP_OK && !strcmp(name, "cover.jxl"),
           "cover.jxl before folder.png: the name decides first (%s)", name ? name : "-");
+    free(img);
+
+    /* 6145: GIF is found, last of a name. */
+    folderart_forget();
+    const char *g = mkdir_in("g");
+    put_file(g, "front.gif", "gif", 40);
+    CHECK(load(track(g, "01.flac"), &name, &img, &len) == ESP_OK && !strcmp(name, "front.gif"),
+          "front.gif alone (%s)", name ? name : "-");
+    free(img);
+    folderart_forget();
+    put_file(g, "front.jxl", "jxl", 40);
+    CHECK(load(track(g, "01.flac"), &name, &img, &len) == ESP_OK && !strcmp(name, "front.jxl"),
+          "front.jxl before front.gif (%s)", name ? name : "-");
     free(img);
 
     /* An album: the first track reads, the rest copy from the cache. */

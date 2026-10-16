@@ -24728,3 +24728,36 @@ build. Our wrapper, jxlimg.c, is compiled in the same unit, so check it
 with texttest's -Werror build.
 
 Not on the board.
+
+### 6142 -- an Ogg with a cover in it plays
+
+Found by test_art_files on the board (6140): "09 OGG picture JPEG.ogg"
+logged `vorbis: ... 58 B of headers, audio at 58` and then
+`unreadable, 0 blocks`, and was skipped. ffmpeg decodes the file.
+
+ogg_seek_probe() finds where the audio starts by walking the header
+pages, and it took the first page whose granule position is not 0 as
+audio. A page that ends no packet has granule -1. That is every page
+but the last of a header packet too big for one page, and a comment
+header carrying METADATA_BLOCK_PICTURE is tens or hundreds of KB, about
+4 KB a page from libvorbis. The walk stopped after the identification
+header, and the decoder was fed the rest of the comment as audio. Any
+Ogg Vorbis or Opus with a cover in it played nothing.
+
+- Granule -1 counts as a header page too. The first page with any
+  other granule is audio.
+- The walk now reads page by page from the file (one page header and
+  segment table per read, the payload skipped) instead of inside the
+  64 KB window it read first, which a cover outgrows. The kept header
+  copy (replayed after a seek) is read in one go afterwards, into
+  PSRAM. Headers stop being walked at 8 MB.
+
+texttest/oggseektest.c probes one second of Vorbis and of Opus, each
+without a picture and with one (20 KB, and for Vorbis 70 KB, whose
+headers end at 99 KB). Fixtures come from tools/gen_ogg_fixtures.py.
+The test does not reuse the probe's rule: it counts the complete
+packets the lacing values close before the offset the probe gave,
+three for Vorbis and two for Opus. Without the fix, three of the five
+fail.
+
+Not on the board.

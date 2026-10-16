@@ -82,6 +82,12 @@ static void *big_alloc(size_t n)
 #define OGG_HDR      27
 #define OGG_PAGE_MAX (27 + 255 + 255 * 255)     /* 65307 */
 
+/* 6142: how far the header walk goes. A cover in the comment header is
+ * base64, a third bigger than the picture; 8 MB of headers is a 6 MB
+ * cover, past anything COVERTAG_MAX_IMAGE would show anyway. */
+#define OGG_HEADERS_CAP   (8L * 1024 * 1024)
+#define OGG_HEADER_PAGES  4096
+
 typedef struct {
     uint64_t granule;
     uint32_t serial;
@@ -289,7 +295,8 @@ bool ogg_stream_extent(FILE *f, uint32_t serial, long from, long file_end,
 
 /*
  * Header pages are the pages at the front of the file whose granule
- * position is zero; the first page with a nonzero granule is audio.
+ * position is zero, or -1 where a header packet runs on to the next
+ * page (6142); the first page with any other granule is audio.
  * That is true of both codecs here -- Vorbis has three header packets
  * and Opus two, and neither can have produced any samples yet -- and it
  * is far more robust than counting packets, which for Vorbis means
@@ -342,21 +349,44 @@ bool ogg_seek_probe(FILE *f, ogg_seek_t *os)
     }
     if (!os->rate) goto out;
 
-    /* Walk pages until one carries audio. */
+    /*
+     * Walk pages until one carries audio.
+     *
+     * 6142: a header page is granule 0 OR granule -1. -1 is "no packet
+     * ends on this page", and that is every page but the last of a
+     * header packet too big for one page -- a comment header with a
+     * cover in it (METADATA_BLOCK_PICTURE) is tens or hundreds of KB,
+     * 4 KB a page from libvorbis. Stopping at the first -1 put the audio
+     * at byte 58, after the identification header alone, and the
+     * decoder was handed the rest of the comment as audio: "unreadable,
+     * 0 blocks" for any Ogg Vorbis with a picture in it.
+     *
+     * And page by page from the file rather than inside the 64 KB window
+     * read above, which a cover outgrows. Each step reads one page's
+     * header and segment table and skips its payload.
+     */
     long pos = 0;
-    for (int guard = 0; guard < 64; guard++) {
+    for (int guard = 0; guard < OGG_HEADER_PAGES; guard++) {
+        if (pos + OGG_HDR > end) break;
+        uint8_t ph[OGG_HDR + 255];
+        const long n = end - pos < (long)sizeof(ph) ? end - pos : (long)sizeof(ph);
+        if (!read_at(f, pos, ph, (size_t)n)) break;
         ogg_page_t pg;
-        if (!page_at(buf + pos, (size_t)want - (size_t)pos, &pg)) break;
+        if (!page_at(ph, (size_t)n, &pg)) break;
         if (pg.serial != os->serial) break;
-        if (pg.granule != 0) break;             /* audio starts here */
+        if (pg.granule != 0 && pg.granule != UINT64_MAX) break;   /* audio starts here */
         pos += pg.size;
-        if (pos + OGG_HDR > want) break;
+        if (pos > OGG_HEADERS_CAP) { pos = 0; break; }
     }
-    if (pos <= 0 || pos >= want) goto out;
+    if (pos <= 0 || pos >= end) goto out;
 
-    os->header = malloc((size_t)pos);
+    os->header = big_alloc((size_t)pos);
     if (!os->header) goto out;
-    memcpy(os->header, buf, (size_t)pos);
+    if (!read_at(f, 0, os->header, (size_t)pos)) {
+        free(os->header);
+        os->header = NULL;
+        goto out;
+    }
     os->header_len = (size_t)pos;
     os->first_audio = pos;
     os->file_end = end;

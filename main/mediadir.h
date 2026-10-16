@@ -32,6 +32,7 @@
 #pragma once
 
 #include <stdbool.h>
+#include <string.h>
 
 #include "mediaindex.h"
 
@@ -54,6 +55,23 @@ bool mdir_open(const char *path);
 int mdir_next(mdir_ent_t *out);
 
 void mdir_close(void);
+
+/*
+ * True for a dotfile this player wrote and wants hidden on FAT: its own
+ * ".defeatist.*" files and the ".rgcache" sidecars. They are flagged
+ * hidden when written (storage_mark_hidden()), but a file written
+ * before that existed -- or by a build without f_chmod -- keeps showing
+ * on Windows until it is rewritten, and a sidecar that is still good is
+ * never rewritten. mdir_next() flags any it passes. Other dotfiles are
+ * someone else's and are left as they are.
+ */
+static inline bool mdir_ours_to_hide(const char *name)
+{
+    if (name[0] != '.') return false;
+    if (strncmp(name, ".defeatist.", 11) == 0) return true;
+    const size_t n = strlen(name), k = sizeof(".rgcache") - 1;
+    return n > k + 1 && strcmp(name + n - k, ".rgcache") == 0;
+}
 
 #ifdef __cplusplus
 }

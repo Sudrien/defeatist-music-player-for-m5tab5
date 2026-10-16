@@ -24403,3 +24403,23 @@ not built with ESP-IDF here. No manifest or sdkconfig change.
 ### 6128 -- the web remote's Wi-Fi note reworded
 
 The note under the Wi-Fi password field read "Tried before it is saved. Only over this encrypted page -- never in the clear." "Tried" had no subject, "in the clear" is jargon, and the self-signed certificate's browser warning makes a bare "encrypted page" read oddly. It now says who does what: "The player tests the network and password before saving them. The password is only ever sent over this encrypted connection." All six translations were redone to match, and the page and its gzip were regenerated.
+
+### 6131 -- dotfiles left visible are hidden on the way past
+
+The player's own dotfiles -- `.defeatist.dat` and its backup, the
+catalogue, the index, the search file, the `.rgcache` beside each
+track -- are flagged hidden on FAT when they are written
+(storage_mark_hidden(), since 509bded), so Windows does not show them.
+But a file written before that, or by a build without f_chmod, stays
+visible until it is rewritten, and a sidecar that is still good is
+never rewritten.
+
+The media walk already reads every folder's entries with their
+attributes, so mdir_next() now flags any of ours it passes that is not
+hidden: one f_chmod, once per file, ever. The path is built on the end
+of the folder's own buffer and cut back after, so it costs no RAM.
+Only the player's own files are touched (mdir_ours_to_hide(), checked
+in mediawalktest): another program's dotfile, or macOS's `._` sidecar,
+is left as it is.
+
+Not on the board.

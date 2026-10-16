@@ -299,6 +299,13 @@ static int path_qsort(const void *a, const void *b)
 int main(void)
 {
     printf("mediawalktest\n");
+    CHECK(mdir_ours_to_hide(".defeatist.dat"), "settings hidden");
+    CHECK(mdir_ours_to_hide(".defeatist.ix4"), "index hidden");
+    CHECK(mdir_ours_to_hide(".01 Song.flac.rgcache"), "sidecar hidden");
+    CHECK(!mdir_ours_to_hide(".rgcache"), "a bare suffix is not a sidecar");
+    CHECK(!mdir_ours_to_hide("defeatist.dat"), "no dot, not ours to hide");
+    CHECK(!mdir_ours_to_hide(".git"), "someone else's dotfile left alone");
+    CHECK(!mdir_ours_to_hide("._01 Song.flac"), "macOS's sidecar left alone");
     snprintf(s_root, sizeof(s_root), "/tmp/mwalkXXXXXX");
     if (!mkdtemp(s_root)) { printf("no temp dir\n"); return 1; }
     /* the mount string is at most 15 bytes; a symlink keeps it short */

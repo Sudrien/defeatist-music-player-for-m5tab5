@@ -61,6 +61,28 @@ int mdir_next(mdir_ent_t *out)
         return -1;
     }
     if (s_fi.fname[0] == '\0') return 0;
+#if FF_USE_CHMOD
+    if (!(s_fi.fattrib & AM_HID) && mdir_ours_to_hide(s_fi.fname)) {
+        /* One left visible by an older build: flag it, on the way past.
+         * The open folder is not disturbed -- f_chmod rewrites the entry
+         * in place, and the next f_readdir carries on after it. The path
+         * is built on the end of the folder's own and cut back after, so
+         * this costs no RAM: internal RAM is what the radio runs short
+         * of. A name too long to fit is left visible. */
+        const size_t d = strlen(s_ffpath);
+        const bool slash = d && s_ffpath[d - 1] == '/';
+        const int n = snprintf(s_ffpath + d, sizeof(s_ffpath) - d, "%s%s",
+                               slash ? "" : "/", s_fi.fname);
+        if (n > 0 && (size_t)n < sizeof(s_ffpath) - d) {
+            storage_io_acquire(CLS);
+            const FRESULT h = f_chmod(s_ffpath, AM_HID, AM_HID);
+            storage_io_release();
+            ESP_LOGD(TAG, "hid %s: %d", s_ffpath, (int)h);
+            (void)h;
+        }
+        s_ffpath[d] = '\0';
+    }
+#endif
     out->name = s_fi.fname;
     out->is_dir = (s_fi.fattrib & AM_DIR) != 0;
     out->stamp.mtime = midx_fat_time(s_fi.fdate, s_fi.ftime);

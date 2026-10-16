@@ -110,6 +110,7 @@ Claude, do not touch this README unless explicitly asked to. Use your own file.
   - there's so much. So so much.
 
 ## What could not happen with current published code
+- Anthing other than charging with the USB Type C port - it's not wired for it
 - classic BT dongle support
 - per file resume
 - usb hubs

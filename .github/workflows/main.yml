@@ -53,13 +53,6 @@ jobs:
         id: ver
         run: echo "name=${{ github.event.inputs.git_ref || github.ref_name }}" >> "$GITHUB_OUTPUT"
 
-      # Before the firmware build, not after: this needs no ESP-IDF and
-      # takes seconds, so a layout regression should fail here rather
-      # than fifteen minutes later. It does not replace a flash -- see
-      # texttest/README.md -- it only covers arithmetic.
-      - name: Host tests (text layout, USB control handoff)
-        run: make -C texttest
-
       - name: Install ESP-IDF
         uses: espressif/install-esp-idf-action@v1
         with:
@@ -73,6 +66,21 @@ jobs:
 
           chmod +x tools/fetch_vendored.sh
           ./tools/fetch_vendored.sh
+
+      # 8000: after ESP-IDF and the vendored fetch, not first. Since the
+      # libraries moved out (6053-6060) the tests include headers from
+      # managed_components/ (storage.h, storage_io.h, ...), which only the
+      # component manager writes, at configure time; and since 6138-6148
+      # they compile the vendored decoders (pngle, stb_image, J40), which
+      # fetch_vendored.sh writes. Run first, on a bare checkout, they
+      # failed on the first missing header -- v0.7.0's run stopped here
+      # with "exit code 2". set-target configures, which resolves the
+      # managed components; the build step below configures again.
+      # It does not replace a flash -- see texttest/README.md.
+      - name: Host tests (resolve components, then texttest)
+        run: |
+          idf.py set-target esp32p4
+          make -C texttest
 
       - name: Build and Merge Binaries
         run: |

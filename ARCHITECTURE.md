@@ -24965,3 +24965,27 @@ blocked" warnings, and covers on tracks shorter than a ring. CLAUDE.md
 gains a rule: size a stack for vendored code by running its worst input
 at that size (gifstacktest), not from -fstack-usage frames. 6147
 missed a recursion that way.
+
+### 8000 -- CI: host tests after the components they include exist
+
+The v0.7.0 tag's workflow run failed at "Host tests (text layout, USB
+control handoff)" with exit code 2. The step ran first, on a bare
+checkout. Since 6053-6060 the host tests include headers from
+managed_components/ (storage.h, storage_io.h and the rest of the
+feckless libraries), which only the component manager writes, at
+configure time. Since 6138-6148 they also compile the vendored decoders
+(pngle, stb_image, J40), which fetch_vendored.sh writes. On a fresh
+clone `make -C texttest` stops at mediasearchtest: "storage.h: No such
+file or directory".
+
+The step now runs after ESP-IDF is installed and the vendored files
+are fetched. It runs `idf.py set-target esp32p4` first, which
+configures and so resolves the managed components, then texttest. The
+build step configures again, as it did before. Failing fast before the
+toolchain install is given up; failing at all, rather than passing on
+nothing, is the point.
+
+v0.7.0's firmware build never ran on CI, because the job stopped at
+the host tests. The tag's binaries need a rerun after this (workflow
+dispatch on the tag, which takes the workflow file from the default
+branch).

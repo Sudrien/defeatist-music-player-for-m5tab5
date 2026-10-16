@@ -193,9 +193,45 @@ int main(void)
     }
 
     free(in);
-    free(pcm);
     mp4_free(&m);
     fclose(f);
+
+    /*
+     * 6155: file 40 is MPEG-1 Layer II, which decoder.c sends to the
+     * same minimp3 as .mp3. Every frame must decode, as layer 2, and
+     * the minute must be file 01's audio.
+     */
+    printf("  40, layer II\n");
+    FILE *g = fopen("../test_audio_files/40 mp2.mp2", "rb");
+    if (!g) {
+        printf("  (skipped: 40 not found)\n");
+    } else {
+        fseek(g, 0, SEEK_END);
+        const long gl = ftell(g);
+        uint8_t *mp2 = malloc((size_t)gl);
+        fseek(g, 0, SEEK_SET);
+        const size_t have = fread(mp2, 1, (size_t)gl, g);
+        fclose(g);
+        mp3dec_init(&dec);
+        size_t at2 = 0, out2 = 0;
+        int frames = 0, not2 = 0;
+        while (at2 < have) {
+            mp3dec_frame_info_t fi;
+            const int spc = mp3dec_decode_frame(&dec, mp2 + at2, (int)(have - at2),
+                                                pcm + out2, &fi);
+            if (fi.frame_bytes <= 0) break;
+            at2 += (size_t)fi.frame_bytes;
+            if (spc > 0) {
+                frames++;
+                if (fi.layer != 2) not2++;
+                out2 += (size_t)spc * fi.channels;
+            }
+        }
+        CHECK(frames > 2000 && not2 == 0, "%d frames, %d not layer II", frames, not2);
+        CHECK(out2 >= 2646000 * 2, "only %zu samples", out2);
+        free(mp2);
+    }
+    free(pcm);
     printf("%d checks, %d failures\n", checks, failures);
     printf(failures ? "FAILURES\n" : "all passed\n");
     return failures ? 1 : 0;

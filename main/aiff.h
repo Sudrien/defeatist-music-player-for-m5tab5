@@ -16,8 +16,13 @@
  * AIFF-C compression types taken, all uncompressed: NONE and twos (big-
  * endian signed), sowt (little-endian, what macOS writes), in24/in32
  * (QuickTime's names for 24- and 32-bit big-endian), raw (8-bit offset
- * binary), and fl32/fl64 in either case. Anything compressed -- ima4,
- * ulaw, alaw, MAC3/6 -- is refused rather than played as noise.
+ * binary), fl32/fl64 in either case, and since 6155 ulaw/alaw (G.711,
+ * expanded in pcmconv.h). Anything else compressed -- ima4, MAC3/6 --
+ * is refused rather than played as noise.
+ *
+ * wav_g711_probe() below fills the same struct from a WAV holding G.711
+ * (format tags 6 and 7), which esp_audio_codec's WAV parser does not
+ * take: one layout, one reader, two containers.
  *
  * Mono and stereo only, for the reason imaadpcm.h gives.
  *
@@ -94,6 +99,14 @@ static inline bool aiff_layout(const uint8_t *t, uint16_t bits, pcm_layout_t *l)
     if (!memcmp(t, "fl64", 4) || !memcmp(t, "FL64", 4)) {
         l->fp = true; l->bytes = 8; return true;
     }
+    /* G.711 (6155): one byte a sample whatever COMM's width says --
+     * Apple writes 16 there, the width it expands to. */
+    if (!memcmp(t, "ulaw", 4) || !memcmp(t, "ULAW", 4)) {
+        l->law = 'u'; l->bytes = 1; return true;
+    }
+    if (!memcmp(t, "alaw", 4) || !memcmp(t, "ALAW", 4)) {
+        l->law = 'a'; l->bytes = 1; return true;
+    }
     return false;
 }
 
@@ -159,6 +172,57 @@ static inline bool aiff_probe(FILE *f, int64_t size, aiff_t *a,
             /* COMM is the count; SSND can only shorten it. A COMM of 0
              * from an unfinished writer means "what is there". */
             a->frames = (frames && frames < in_file) ? frames : in_file;
+            return a->frames > 0;
+        }
+        pos += 8 + (int64_t)len + (len & 1);
+    }
+    return false;
+}
+
+/*
+ * A WAV whose format tag is 6 (A-law) or 7 (mu-law), 8 bits, mono or
+ * stereo, into an aiff_t (6155). False for every other WAV, which then
+ * goes the way it always has. Chunks walked, as everywhere.
+ */
+static inline bool wav_g711_probe(FILE *f, int64_t size, aiff_t *a,
+                                  storage_io_class_t cls)
+{
+    memset(a, 0, sizeof(*a));
+    uint8_t h[12];
+    if (size < 12 || !storage_io_read_at(f, 0, h, 12, cls)) return false;
+    if (memcmp(h, "RIFF", 4) != 0 || memcmp(h + 8, "WAVE", 4) != 0) return false;
+
+    bool have_fmt = false;
+    int64_t pos = 12;
+    for (int guard = 0; guard < 64 && pos + 8 <= size; guard++) {
+        uint8_t c[8];
+        if (!storage_io_read_at(f, pos, c, 8, cls)) return false;
+        const uint32_t len = (uint32_t)c[4] | (uint32_t)c[5] << 8 |
+                             (uint32_t)c[6] << 16 | (uint32_t)c[7] << 24;
+        if (!memcmp(c, "fmt ", 4)) {
+            uint8_t m[16];
+            if (len < 16 || !storage_io_read_at(f, pos + 8, m, 16, cls)) return false;
+            const unsigned tag = m[0] | m[1] << 8;
+            if (tag != 6 && tag != 7) return false;
+            if ((m[14] | m[15] << 8) != 8) return false;
+            a->channels = (uint16_t)(m[2] | m[3] << 8);
+            a->sample_rate = (uint32_t)m[4] | (uint32_t)m[5] << 8 |
+                             (uint32_t)m[6] << 16 | (uint32_t)m[7] << 24;
+            a->layout.bytes = 1;
+            a->layout.law = tag == 7 ? 'u' : 'a';
+            memcpy(a->kind, tag == 7 ? "ulaw" : "alaw", 4);
+            have_fmt = true;
+        } else if (!memcmp(c, "data", 4)) {
+            if (!have_fmt || a->channels < 1 || a->channels > 2 || !a->sample_rate) {
+                return false;
+            }
+            a->data_start = pos + 8;
+            int64_t avail = len;
+            if (!len || len == 0xFFFFFFFFu || a->data_start + avail > size) {
+                avail = size - a->data_start;
+            }
+            a->frame_bytes = a->channels;
+            a->frames = avail > 0 ? (uint64_t)avail / a->frame_bytes : 0;
             return a->frames > 0;
         }
         pos += 8 + (int64_t)len + (len & 1);

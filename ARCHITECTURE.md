@@ -25163,6 +25163,32 @@ this one does. It is worth a follow-up.
 
 Not built for the target, not run on the board.
 
+### 6155 -- G.711 (WAV and AIFF-C), and MPEG Layer I/II
+
+Two small ones on 6154's code.
+
+G.711. A WAV with format tag 6 (A-law) or 7 (mu-law), and an AIFF-C
+of type ulaw or alaw, now play. pcm_layout_t gains `law`, and pcm_conv()
+expands those bytes by the reference (Sun g711.c) arithmetic, with no
+tables. aiff.h gains wav_g711_probe(), which fills the same aiff_t from
+a WAV, so BACKEND_AIFF reads both containers. In open_file() a .wav is
+tried as IMA ADPCM, then as G.711, then given to esp_audio_codec as
+before. Each probe that says no opens the file once and reads a few
+header chunks. An ordinary WAV now pays that twice before it plays.
+
+.mp2 and .mpa are MPEG audio layers II and I. minimp3 decodes all three
+layers (MINIMP3_ONLY_MP3 is not defined), so these are two rows in the
+format table, on the minimp3 backend and named "mp3", so everything
+keyed on that name (seek tables, ReplayGain) treats them alike.
+
+Host: aifftest decodes new files 37 (mu-law WAV), 38 (A-law WAV) and 39
+(mu-law AIFF-C, 37's bytes) to ffmpeg's samples exactly, by hash. It also
+checks both scales' end codes, and that PCM WAV is not taken as G.711.
+mp4mp3test decodes new file 40 (Layer II, the minute) frame by frame:
+every frame is layer 2, and the length is right.
+
+Not built for the target, not run on the board.
+
 ### 8000 -- CI: host tests after the components they include exist
 
 The v0.7.0 tag's workflow run failed at "Host tests (text layout, USB

@@ -63,6 +63,10 @@ place; one that is wrong by more is obvious from the beep count.
 | 34 aiff-pcm24 | AIFF 24-bit, folded with pcmfold.h's rounding | 5 s of 01 |
 | 35 aifc-fl32 | AIFF-C `fl32` float | 5 s of 01 |
 | 36 aiff-mono-8bit | AIFF 8-bit mono, 22.05 kHz | 5 s, quieter-sounding hiss than 01: 8 bits |
+| 37 wav-ulaw | G.711 mu-law WAV, expanded in pcmconv.h (6155) | 5 s of 01, telephone-grade; log says *wav (ulaw)* |
+| 38 wav-alaw | G.711 A-law WAV | the same, *alaw* |
+| 39 aifc-ulaw | 37's bytes in AIFF-C | sounds exactly like 37 |
+| 40 mp2 | MPEG-1 Layer II, to minimp3 (6155) | plays, seeks, like an .mp3 |
 | 22 cue-flac-image | cue sheet, one image, six tracks on the marks; UTF-8 BOM, CRLF | six tracks; track N opens with N beeps; track 5 reads *Fünf Signaltöne* |
 | 23 cue-pregap-htoa | INDEX 00, a hidden track, starts off the second; Windows-1252 | four tracks starting 3, 10, 25.49 and 39.99 s; performer *Café Tones* |
 | 24 cue-filename-mismatch | sheet names `CDImage.wav`, which is not there | resolves to the FLAC beside it; tracks at 0, 20, 40 |

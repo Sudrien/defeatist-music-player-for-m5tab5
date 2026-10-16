@@ -241,6 +241,12 @@ static const struct {
     decoder_trim_t trim;
 } k_formats[] = {
     { ".mp3",  BACKEND_MINIMP3,   0,                              "mp3",  DECODER_TRIM_UNKNOWN },
+    /* 6155: MPEG audio layers I and II. minimp3 decodes all three layers
+     * (MINIMP3_ONLY_MP3 is not defined), and an .mp2 is the same frame
+     * stream with a different layer number, so the same backend and the
+     * same "mp3" for everything keyed on it. */
+    { ".mp2",  BACKEND_MINIMP3,   0,                              "mp3",  DECODER_TRIM_UNKNOWN },
+    { ".mpa",  BACKEND_MINIMP3,   0,                              "mp3",  DECODER_TRIM_UNKNOWN },
     { ".flac", BACKEND_ESP_CODEC, ESP_AUDIO_SIMPLE_DEC_TYPE_FLAC, "flac", DECODER_TRIM_EXACT   },
     { ".wav",  BACKEND_ESP_CODEC, ESP_AUDIO_SIMPLE_DEC_TYPE_WAV,  "wav",  DECODER_TRIM_EXACT   },
     { ".m4a",  BACKEND_ESP_CODEC, ESP_AUDIO_SIMPLE_DEC_TYPE_M4A,  "m4a",  DECODER_TRIM_UNKNOWN },
@@ -1512,15 +1518,23 @@ static esp_err_t adpcm_seek(decoder_t *d, uint32_t sec, uint32_t *landed_cs)
  * layout (stereo fl64) 16 KB of PSRAM. */
 #define AIFF_CHUNK_FRAMES   1024
 
-static esp_err_t aiff_open(decoder_t *d, const char *path)
+/*
+ * `wav`: the file is a .wav and only G.711 is wanted from it (6155);
+ * ESP_ERR_NOT_SUPPORTED then quietly sends it on to esp_audio_codec, as
+ * adpcm_open() does. Otherwise it is an AIFF and a refusal is the end.
+ */
+static esp_err_t aiff_open(decoder_t *d, const char *path, bool wav)
 {
     d->f = storage_io_open(path, "rb");
     if (!d->f) return ESP_ERR_NOT_FOUND;
     int64_t size = -1;
     if (fseek(d->f, 0, SEEK_END) == 0) size = ftell(d->f);
-    if (!aiff_probe(d->f, size, &d->aiff, STORAGE_IO_PLAYBACK)) {
-        ESP_LOGE(TAG, "not an AIFF this can play (compressed, or more than "
-                      "two channels)");
+    if (wav ? !wav_g711_probe(d->f, size, &d->aiff, STORAGE_IO_PLAYBACK)
+            : !aiff_probe(d->f, size, &d->aiff, STORAGE_IO_PLAYBACK)) {
+        if (!wav) {
+            ESP_LOGE(TAG, "not an AIFF this can play (compressed, or more "
+                          "than two channels)");
+        }
         storage_io_close(d->f);
         d->f = NULL;
         return ESP_ERR_NOT_SUPPORTED;
@@ -1535,15 +1549,15 @@ static esp_err_t aiff_open(decoder_t *d, const char *path)
         d->f = NULL;
         return ESP_ERR_NO_MEM;
     }
-    d->info.codec = "aiff";
+    d->info.codec = wav ? "wav" : "aiff";
     d->info.trim = DECODER_TRIM_EXACT;
     d->info.sample_rate = (int)a->sample_rate;
     d->info.channels = a->channels;
     d->info.bitrate_kbps = (int)((uint64_t)a->sample_rate * a->frame_bytes * 8 / 1000);
     d->probed = true;
     d->probe_sec = (uint32_t)(a->frames / a->sample_rate);
-    ESP_LOGI(TAG, "aiff (%s): %u ch, %" PRIu32 " Hz, %u-byte %s%s samples",
-             a->kind, (unsigned)a->channels, a->sample_rate,
+    ESP_LOGI(TAG, "%s (%s): %u ch, %" PRIu32 " Hz, %u-byte %s%s samples",
+             d->info.codec, a->kind, (unsigned)a->channels, a->sample_rate,
              (unsigned)a->layout.bytes, a->layout.fp ? "float " : "",
              a->layout.big ? "big-endian" : "little-endian");
     return ESP_OK;
@@ -1613,9 +1627,14 @@ static decoder_t *open_file(const char *path, const decoder_index_t *ix)
         ret = adpcm_open(d, path);
         if (ret == ESP_OK) d->backend = BACKEND_ADPCM;
         else if (ret != ESP_ERR_NOT_SUPPORTED) { free(d); return NULL; }
+        if (d->backend == BACKEND_ESP_CODEC) {
+            ret = aiff_open(d, path, true);         /* G.711, 6155 */
+            if (ret == ESP_OK) d->backend = BACKEND_AIFF;
+            else if (ret != ESP_ERR_NOT_SUPPORTED) { free(d); return NULL; }
+        }
     }
     if (d->backend == BACKEND_AIFF) {
-        ret = aiff_open(d, path);
+        if (k_formats[fmt].backend == BACKEND_AIFF) ret = aiff_open(d, path, false);
     } else if (d->backend != BACKEND_ADPCM) {
         ret = (d->backend == BACKEND_MINIMP3)
             ? minimp3_open(d, path, ix)

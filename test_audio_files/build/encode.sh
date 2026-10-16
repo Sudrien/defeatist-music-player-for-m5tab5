@@ -393,4 +393,15 @@ $F -t 5 -c:a pcm_s24be "$OUT/34 aiff-pcm24.aiff"
 $F -t 5 -c:a pcm_f32be -f aiff "$OUT/35 aifc-fl32.aifc"
 $F -t 5 -ac 1 -ar 22050 -c:a pcm_s8 "$OUT/36 aiff-mono-8bit.aiff"
 
+# ---------------------------------------------------------------- 6155
+# G.711, expanded in pcmconv.h: five seconds each. 37 and 39 are the
+# same mu-law bytes in WAV and AIFF-C. aifftest checks all three against
+# ffmpeg's decode by hash.
+$F -t 5 -c:a pcm_mulaw "$OUT/37 wav-ulaw.wav"
+$F -t 5 -c:a pcm_alaw "$OUT/38 wav-alaw.wav"
+$F -t 5 -c:a pcm_mulaw -f aiff "$OUT/39 aifc-ulaw.aifc"
+
+# 40 -- MPEG-1 Layer II, the whole minute, to the same minimp3 as .mp3.
+$F -c:a mp2 -b:a 192k "$OUT/40 mp2.mp2"
+
 echo "built into $OUT"

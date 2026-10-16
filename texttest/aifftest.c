@@ -12,6 +12,9 @@
  * Also: the 80-bit rate field, every layout pcmconv.h takes against a
  * hand-written sample, and a refusal for a compressed AIFF-C.
  *
+ * 6155 added G.711: files 37 (mu-law WAV), 38 (A-law WAV) and 39 (mu-law
+ * AIFF-C) must decode to ffmpeg's samples exactly, hashed below.
+ *
  * SPDX-License-Identifier: MIT
  */
 #include <stdint.h>
@@ -66,7 +69,8 @@ static void load_ref(void)
     fclose(f);
 }
 
-/* Decode a whole file the way aiff_read() does, in chunks. */
+/* Decode a whole file the way aiff_read() does, in chunks. A .wav is
+ * probed as G.711, as open_file() does for one. */
 static int16_t *decode(const char *path, aiff_t *a, size_t *n)
 {
     *n = 0;
@@ -74,7 +78,12 @@ static int16_t *decode(const char *path, aiff_t *a, size_t *n)
     if (!f) return NULL;
     fseek(f, 0, SEEK_END);
     const int64_t size = ftell(f);
-    if (!aiff_probe(f, size, a, STORAGE_IO_PLAYBACK)) { fclose(f); return NULL; }
+    const bool wav = strstr(path, ".wav") != NULL;
+    if (wav ? !wav_g711_probe(f, size, a, STORAGE_IO_PLAYBACK)
+            : !aiff_probe(f, size, a, STORAGE_IO_PLAYBACK)) {
+        fclose(f);
+        return NULL;
+    }
     int16_t *out = malloc((size_t)a->frames * a->channels * sizeof(int16_t));
     uint8_t *buf = malloc((size_t)1024 * a->frame_bytes);
     fseek(f, (long)a->data_start, SEEK_SET);
@@ -172,16 +181,16 @@ int main(void)
         /* -12345 in each layout pcmconv.h takes. 16-bit and wider are
          * exact; the float forms are -12345 / 32768. */
         struct { pcm_layout_t l; uint8_t b[8]; int16_t want; } t[] = {
-            { { 2, true,  false, false }, { 0xCF, 0xC7 }, -12345 },
-            { { 2, false, false, false }, { 0xC7, 0xCF }, -12345 },
-            { { 3, true,  false, false }, { 0xCF, 0xC7, 0x00 }, -12345 },
-            { { 3, false, false, false }, { 0x00, 0xC7, 0xCF }, -12345 },
-            { { 4, true,  false, false }, { 0xCF, 0xC7, 0x00, 0x00 }, -12345 },
-            { { 1, true,  false, false }, { 0xCF }, (int16_t)(0xCF00) },
-            { { 1, true,  false, true  }, { 0x4F }, (int16_t)(0xCF00) },
-            { { 4, true,  true,  false }, { 0xBE, 0xC0, 0xE4, 0x00 }, -12345 },
-            { { 4, false, true,  false }, { 0x00, 0xE4, 0xC0, 0xBE }, -12345 },
-            { { 8, true,  true,  false }, { 0xBF, 0xD8, 0x1C, 0x80, 0, 0, 0, 0 }, -12345 },
+            { { 2, true, false, false, 0 }, { 0xCF, 0xC7 }, -12345 },
+            { { 2, false, false, false, 0 }, { 0xC7, 0xCF }, -12345 },
+            { { 3, true, false, false, 0 }, { 0xCF, 0xC7, 0x00 }, -12345 },
+            { { 3, false, false, false, 0 }, { 0x00, 0xC7, 0xCF }, -12345 },
+            { { 4, true, false, false, 0 }, { 0xCF, 0xC7, 0x00, 0x00 }, -12345 },
+            { { 1, true, false, false, 0 }, { 0xCF }, (int16_t)(0xCF00) },
+            { { 1, true, false, true, 0 }, { 0x4F }, (int16_t)(0xCF00) },
+            { { 4, true, true, false, 0 }, { 0xBE, 0xC0, 0xE4, 0x00 }, -12345 },
+            { { 4, false, true, false, 0 }, { 0x00, 0xE4, 0xC0, 0xBE }, -12345 },
+            { { 8, true, true, false, 0 }, { 0xBF, 0xD8, 0x1C, 0x80, 0, 0, 0, 0 }, -12345 },
         };
         for (size_t i = 0; i < sizeof(t) / sizeof(t[0]); i++) {
             int16_t o = 0;
@@ -191,14 +200,14 @@ int main(void)
         }
         /* The extremes: the top of 24 bits rounds and clamps rather than
          * wrapping, as the WAV fold does. */
-        const pcm_layout_t l24 = { 3, true, false, false };
+        const pcm_layout_t l24 = { 3, true, false, false, 0 };
         const uint8_t top[3] = { 0x7F, 0xFF, 0xFF }, bot[3] = { 0x80, 0, 0 };
         int16_t o;
         pcm_conv(top, 1, l24, &o);
         CHECK(o == 32767, "24-bit top gave %d", o);
         pcm_conv(bot, 1, l24, &o);
         CHECK(o == -32768, "24-bit bottom gave %d", o);
-        const pcm_layout_t bad = { 8, true, false, false };
+        const pcm_layout_t bad = { 8, true, false, false, 0 };
         CHECK(!pcm_layout_ok(bad), "an 8-byte integer was taken");
     }
 
@@ -229,6 +238,59 @@ int main(void)
             for (size_t i = 0; i < n; i++) if (s[i] & 0xFF) low++;
             CHECK(low == 0, "8-bit samples with low bits set: %zu", low);
             free(s);
+        }
+    }
+
+    printf("  G.711, 37 to 39 against ffmpeg\n");
+    {
+        /* FNV-1a 64 over ffmpeg's s16le decode of each file. 37 and 39
+         * are the same mu-law bytes in two containers, so one hash. */
+        const struct { const char *name; uint64_t hash; uint16_t ch; char law; } g[] = {
+            { DIR "37 wav-ulaw.wav",   0x1907f16281ef6897ull, 2, 'u' },
+            { DIR "38 wav-alaw.wav",   0x5a187cfed0674092ull, 2, 'a' },
+            { DIR "39 aifc-ulaw.aifc", 0x1907f16281ef6897ull, 2, 'u' },
+        };
+        for (size_t i = 0; i < sizeof(g) / sizeof(g[0]); i++) {
+            aiff_t a;
+            size_t n;
+            int16_t *s = decode(g[i].name, &a, &n);
+            if (!s) {
+                FILE *t = fopen(g[i].name, "rb");
+                CHECK(t == NULL, "%s did not probe", g[i].name);
+                if (t) fclose(t);
+                else printf("  (skipped: %s)\n", g[i].name);
+                continue;
+            }
+            uint64_t h = 0xcbf29ce484222325ull;
+            for (size_t k = 0; k < n; k++) {
+                const uint16_t v = (uint16_t)s[k];
+                h = (h ^ (v & 0xFF)) * 0x100000001b3ull;
+                h = (h ^ (v >> 8)) * 0x100000001b3ull;
+            }
+            CHECK(a.layout.law == g[i].law && a.channels == g[i].ch && n == 441000,
+                  "%s: law %c, %u ch, %zu samples", g[i].name,
+                  a.layout.law ? a.layout.law : '-', a.channels, n);
+            CHECK(h == g[i].hash, "%s: hash %016llx, ffmpeg's %016llx", g[i].name,
+                  (unsigned long long)h, (unsigned long long)g[i].hash);
+            free(s);
+        }
+        /* The ends of each scale, which are what the shifts get wrong. */
+        CHECK(pcm_ulaw(0x00) == -32124 && pcm_ulaw(0x80) == 32124 &&
+              pcm_ulaw(0xFF) == 0 && pcm_ulaw(0x7F) == 0,
+              "mu-law ends: %d %d %d %d", pcm_ulaw(0x00), pcm_ulaw(0x80),
+              pcm_ulaw(0xFF), pcm_ulaw(0x7F));
+        CHECK(pcm_alaw(0xAA) == 32256 && pcm_alaw(0x2A) == -32256 &&
+              pcm_alaw(0xD5) == 8 && pcm_alaw(0x55) == -8,
+              "A-law ends: %d %d %d %d", pcm_alaw(0xAA), pcm_alaw(0x2A),
+              pcm_alaw(0xD5), pcm_alaw(0x55));
+        /* And PCM WAV is not G.711. */
+        FILE *f = fopen(DIR "01 wav-pcm16.wav", "rb");
+        if (f) {
+            aiff_t a;
+            fseek(f, 0, SEEK_END);
+            CHECK(!wav_g711_probe(f, ftell(f), &a, STORAGE_IO_PLAYBACK),
+                  "PCM WAV was taken as G.711");
+            fclose(f);
         }
     }
 

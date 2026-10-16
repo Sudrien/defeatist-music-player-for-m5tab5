@@ -16,6 +16,7 @@
 #endif
 
 #include "duration.h"
+#include "aiff.h"
 #include "mp3count.h"         /* 5263: mp3_frame_len() */
 #include "oggseek.h"
 #include "storage_io.h"
@@ -443,6 +444,13 @@ uint32_t duration_probe(FILE *f, storage_io_class_t cls)
         } else if (memcmp(magic, "RIFF", 4) == 0 &&
                    memcmp(magic + 8, "WAVE", 4) == 0) {
             sec = probe_wav(f, cls);
+        } else if (memcmp(magic, "FORM", 4) == 0) {
+            /* 6154: AIFF states its frame count in COMM. */
+            aiff_t a;
+            if (fseek(f, 0, SEEK_END) == 0 &&
+                aiff_probe(f, ftell(f), &a, cls) && a.sample_rate) {
+                sec = (uint32_t)(a.frames / a.sample_rate);
+            }
         } else if (memcmp(magic + 4, "ftyp", 4) == 0) {
             sec = probe_mp4(f, cls);
         } else if (memcmp(magic, "ID3", 3) == 0 ||

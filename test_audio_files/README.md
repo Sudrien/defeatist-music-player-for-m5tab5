@@ -58,6 +58,11 @@ place; one that is wrong by more is obvious from the beep count.
 | 29 wav-ima-adpcm-mono | the same, mono at 22.05 kHz, ending mid-block | plays 7.3 s and stops there, not at the end of the padded block |
 | 30 m4a-opus | Opus in MP4, sent to the Ogg parser as synthesised pages (6152) | plays exactly 60 s, seeks; the first ~30 ms after a seek may click |
 | 31 m4a-mp3 | MP3 in MP4, frames from the sample table into minimp3 (6153) | plays, seeks; starts with LAME's 1105 samples (25 ms) of delay, which nothing here trims |
+| 32 aiff-pcm16 | AIFF, 16-bit big-endian, read in aiff.h (6154) | plays, seeks, exact |
+| 33 aifc-sowt | AIFF-C `sowt`, little-endian (what macOS writes) | 5 s of 01 |
+| 34 aiff-pcm24 | AIFF 24-bit, folded with pcmfold.h's rounding | 5 s of 01 |
+| 35 aifc-fl32 | AIFF-C `fl32` float | 5 s of 01 |
+| 36 aiff-mono-8bit | AIFF 8-bit mono, 22.05 kHz | 5 s, quieter-sounding hiss than 01: 8 bits |
 | 22 cue-flac-image | cue sheet, one image, six tracks on the marks; UTF-8 BOM, CRLF | six tracks; track N opens with N beeps; track 5 reads *Fünf Signaltöne* |
 | 23 cue-pregap-htoa | INDEX 00, a hidden track, starts off the second; Windows-1252 | four tracks starting 3, 10, 25.49 and 39.99 s; performer *Café Tones* |
 | 24 cue-filename-mismatch | sheet names `CDImage.wav`, which is not there | resolves to the FLAC beside it; tracks at 0, 20, 40 |

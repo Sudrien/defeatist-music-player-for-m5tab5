@@ -112,6 +112,47 @@ static inline int pcmfold_24_to_16(int16_t *buf, uint32_t bytes)
     return (int)n;
 }
 
+
+/*
+ * THE TWO ROUNDING RULES, ONE SAMPLE AT A TIME (6154).
+ *
+ * Lifted out of the 32-bit folds below so that pcmconv.h -- AIFF and
+ * the other big-endian and 8-bit layouts -- rounds exactly as they do
+ * rather than by a copy of them. The reasoning is at each fold.
+ *
+ * pcmfold_round32(): a signed sample left-justified in 32 bits (a
+ * 24-bit sample shifted left 8, a 16-bit one left 16), to int16.
+ */
+static inline int16_t pcmfold_round32(uint32_t raw)
+{
+    uint64_t q = (((uint64_t)(raw ^ 0x80000000u)) + 0x8000u) >> 16;
+    if (q > 0xFFFFu) q = 0xFFFFu;               /* rounding up off the top */
+    return (int16_t)((int32_t)q - 32768);
+}
+
+/* A float sample, full scale +-1.0, to int16: see pcmfold_f32_to_16(). */
+static inline int16_t pcmfold_f32_one(float x)
+{
+    float s = x * 32768.0f;
+    if (s != s) s = 0.0f;                       /* NaN */
+    else if (s > 32767.0f) s = 32767.0f;
+    else if (s < -32768.0f) s = -32768.0f;
+    /* Half away from zero; the clamp above leaves room for it, since
+     * 32767.5 and -32768.5 both truncate back inside. */
+    return (int16_t)(int32_t)(s < 0.0f ? s - 0.5f : s + 0.5f);
+}
+
+/* The same for a double, clamped as a double: narrowing one that is
+ * out of float's range first would be the undefined conversion again. */
+static inline int16_t pcmfold_f64_one(double x)
+{
+    double s = x * 32768.0;
+    if (s != s) s = 0.0;
+    else if (s > 32767.0) s = 32767.0;
+    else if (s < -32768.0) s = -32768.0;
+    return (int16_t)(int32_t)(s < 0.0 ? s - 0.5 : s + 0.5);
+}
+
 /*
  * Fold `bytes` of little-endian signed 32-bit integer PCM to int16, in
  * place. Returns the number of int16 samples written.
@@ -139,9 +180,7 @@ static inline int pcmfold_s32_to_16(int16_t *buf, uint32_t bytes)
                              ((uint32_t)src[2] << 16) |
                              ((uint32_t)src[1] << 8) | (uint32_t)src[0];
         src += 4;
-        uint64_t q = (((uint64_t)(raw ^ 0x80000000u)) + 0x8000u) >> 16;
-        if (q > 0xFFFFu) q = 0xFFFFu;           /* rounding up off the top */
-        *dst++ = (int16_t)((int32_t)q - 32768);
+        *dst++ = pcmfold_round32(raw);
     }
     return (int)n;
 }
@@ -177,13 +216,7 @@ static inline int pcmfold_f32_to_16(int16_t *buf, uint32_t bytes)
         float x;
         memcpy(&x, src, sizeof(x));         /* little-endian host and file */
         src += 4;
-        float s = x * 32768.0f;
-        if (s != s) s = 0.0f;               /* NaN */
-        else if (s > 32767.0f) s = 32767.0f;
-        else if (s < -32768.0f) s = -32768.0f;
-        /* Half away from zero; the clamp above leaves room for it, since
-         * 32767.5 and -32768.5 both truncate back inside. */
-        *dst++ = (int16_t)(int32_t)(s < 0.0f ? s - 0.5f : s + 0.5f);
+        *dst++ = pcmfold_f32_one(x);
     }
     return (int)n;
 }

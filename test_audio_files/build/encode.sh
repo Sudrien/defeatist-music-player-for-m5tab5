@@ -382,4 +382,15 @@ $F -c:a libopus -b:a 64k -f mp4 "$OUT/30 m4a-opus.m4a"
 # and decoded by minimp3 a frame at a time.
 $F -c:a libmp3lame -b:a 128k -f mp4 "$OUT/31 m4a-mp3.m4a"
 
+# ---------------------------------------------------------------- 6154
+# AIFF and AIFF-C, read in aiff.h. 32 is the minute, for seeking by ear.
+# 33-35 are five seconds of 01 in other layouts: 16-bit audio widened
+# to 24 bits or to float is exact, so all of them must convert back to
+# 01's samples exactly (texttest/aifftest). 36 is 8-bit mono.
+$F -c:a pcm_s16be "$OUT/32 aiff-pcm16.aiff"
+$F -t 5 -c:a pcm_s16le -f aiff "$OUT/33 aifc-sowt.aifc"
+$F -t 5 -c:a pcm_s24be "$OUT/34 aiff-pcm24.aiff"
+$F -t 5 -c:a pcm_f32be -f aiff "$OUT/35 aifc-fl32.aifc"
+$F -t 5 -ac 1 -ar 22050 -c:a pcm_s8 "$OUT/36 aiff-mono-8bit.aiff"
+
 echo "built into $OUT"

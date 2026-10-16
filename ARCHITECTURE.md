@@ -25120,6 +25120,49 @@ layers I and II too, but that is untested.
 
 Not built for the target, not run on the board.
 
+### 6154 -- AIFF and AIFF-C
+
+.aif, .aiff and .aifc were not in the format table. esp_audio_codec has
+no AIFF parser, and AIFF is the other uncompressed format lossless
+downloads come in. It is read here, in two headers:
+
+- main/aiff.h walks the FORM's big-endian chunks for COMM (channels,
+  frames, width, the 80-bit extended rate) and SSND (offset, frames),
+  through storage_io_read_at(). AIFF-C types taken: NONE, twos, sowt
+  (little-endian, what macOS writes), in24, in32, raw (8-bit offset
+  binary), fl32/fl64. Anything compressed (ima4, ulaw, alaw, MAC3/6) and
+  more than two channels are refused. COMM's frame count is cut to
+  what SSND holds, and a COMM of 0 means "what is there".
+- main/pcmconv.h converts any of those layouts to int16 by left-
+  justifying the sample into 32 bits and calling pcmfold.h. The rounding
+  is not copied: pcmfold.h's 32-bit and float folds now call one-sample
+  helpers (pcmfold_round32, pcmfold_f32_one, pcmfold_f64_one), which
+  pcmconv.h calls too. pcmfoldtest is unchanged and still passes. A
+  24-bit AIFF and a 24-bit WAV of the same audio fold to the same
+  samples.
+
+decoder.c gains BACKEND_AIFF, named in the format table. It reads up to
+1024 frames a call into a PSRAM buffer and converts them into the
+caller's. Seeking is exact (fixed frame size). Duration is COMM's,
+and duration.c reads it too, so the library shows AIFF lengths.
+
+Host: aifftest. The 80-bit rate is read back for eleven rates and the
+canonical 44100 bytes, and a negative rate is refused. Every layout is
+checked on a hand-written sample, including the 24-bit clamp. New files
+32-35 (AIFF 16, AIFF-C sowt, AIFF 24, AIFF-C fl32) must equal file 01's
+samples, and do, all of them. A sample read by seek offset is checked
+against the full decode, file 36's shape is checked, and an ima4 AIFF-C
+is refused.
+
+Known: AIFF tags (the ID3 and NAME chunks) are not read, so the library
+shows the file name. The probe and the seek use fseek() with a long, the
+2 GB ceiling in CLAUDE.md's list; an AIFF's own sizes are 32-bit anyway.
+6151's imawav_probe() reads with plain fread() rather than
+storage_io_read_at(), and does not take its turn with the card the way
+this one does. It is worth a follow-up.
+
+Not built for the target, not run on the board.
+
 ### 8000 -- CI: host tests after the components they include exist
 
 The v0.7.0 tag's workflow run failed at "Host tests (text layout, USB

@@ -44,6 +44,7 @@
 #include "tsseek.h"
 #include "mp4seek.h"
 #include "imaadpcm.h"
+#include "aiff.h"
 #include "duration.h"
 #include "cuedir.h"
 
@@ -64,7 +65,10 @@ static const char *TAG = "tab5_dec";
 /* BACKEND_ADPCM is IMA ADPCM WAV, decoded in imaadpcm.h (6151). The
  * format table never names it: a .wav is chosen for it at open, by its
  * format tag, and every other WAV goes to esp_audio_codec as before. */
-typedef enum { BACKEND_MINIMP3, BACKEND_ESP_CODEC, BACKEND_ADPCM } backend_t;
+/* BACKEND_AIFF is AIFF and AIFF-C, read in aiff.h and converted in
+ * pcmconv.h (6154). esp_audio_codec has no AIFF parser at all. */
+typedef enum { BACKEND_MINIMP3, BACKEND_ESP_CODEC, BACKEND_ADPCM,
+               BACKEND_AIFF } backend_t;
 
 /*
  * A cue track: one span of a real file, presented as if it were the
@@ -191,6 +195,11 @@ struct decoder {
     uint32_t skip;              /* samples per channel to discard */
     uint64_t block;             /* the next block to read */
     uint64_t done;              /* samples per channel handed out so far */
+
+    /* AIFF: frames are read straight into inbuf and converted into the
+     * caller's buffer; `done` and `inbuf` are shared with the IMA path,
+     * which never runs on the same decoder. */
+    aiff_t aiff;
 };
 
 #define ESP_IN_BUF  (8 * 1024)
@@ -240,6 +249,10 @@ static const struct {
     { ".ogg",  BACKEND_ESP_CODEC, ESP_AUDIO_SIMPLE_DEC_TYPE_OGG,  "ogg",  DECODER_TRIM_UNKNOWN },
     { ".opus", BACKEND_ESP_CODEC, ESP_AUDIO_SIMPLE_DEC_TYPE_OGG,  "ogg",  DECODER_TRIM_UNKNOWN },
     { ".ts",   BACKEND_ESP_CODEC, ESP_AUDIO_SIMPLE_DEC_TYPE_TS,   "ts",   DECODER_TRIM_UNKNOWN },
+    /* 6154. No esp_audio_codec type: the 0 is never read for these. */
+    { ".aif",  BACKEND_AIFF,      0,                              "aiff", DECODER_TRIM_EXACT   },
+    { ".aiff", BACKEND_AIFF,      0,                              "aiff", DECODER_TRIM_EXACT   },
+    { ".aifc", BACKEND_AIFF,      0,                              "aiff", DECODER_TRIM_EXACT   },
 };
 
 const char *decoder_trim_name(decoder_trim_t t)
@@ -1491,6 +1504,83 @@ static esp_err_t adpcm_seek(decoder_t *d, uint32_t sec, uint32_t *landed_cs)
     return ESP_OK;
 }
 
+/* ------------------------------------------------------------------ */
+/* AIFF and AIFF-C                                                     */
+/* ------------------------------------------------------------------ */
+
+/* Frames read per call: 1024 is 23 ms at 44.1 kHz, and at the widest
+ * layout (stereo fl64) 16 KB of PSRAM. */
+#define AIFF_CHUNK_FRAMES   1024
+
+static esp_err_t aiff_open(decoder_t *d, const char *path)
+{
+    d->f = storage_io_open(path, "rb");
+    if (!d->f) return ESP_ERR_NOT_FOUND;
+    int64_t size = -1;
+    if (fseek(d->f, 0, SEEK_END) == 0) size = ftell(d->f);
+    if (!aiff_probe(d->f, size, &d->aiff, STORAGE_IO_PLAYBACK)) {
+        ESP_LOGE(TAG, "not an AIFF this can play (compressed, or more than "
+                      "two channels)");
+        storage_io_close(d->f);
+        d->f = NULL;
+        return ESP_ERR_NOT_SUPPORTED;
+    }
+    const aiff_t *a = &d->aiff;
+    d->inbuf = heap_caps_malloc((size_t)AIFF_CHUNK_FRAMES * a->frame_bytes,
+                                MALLOC_CAP_SPIRAM | MALLOC_CAP_8BIT);
+    if (!d->inbuf || fseek(d->f, (long)a->data_start, SEEK_SET) != 0) {
+        free(d->inbuf);
+        d->inbuf = NULL;
+        storage_io_close(d->f);
+        d->f = NULL;
+        return ESP_ERR_NO_MEM;
+    }
+    d->info.codec = "aiff";
+    d->info.trim = DECODER_TRIM_EXACT;
+    d->info.sample_rate = (int)a->sample_rate;
+    d->info.channels = a->channels;
+    d->info.bitrate_kbps = (int)((uint64_t)a->sample_rate * a->frame_bytes * 8 / 1000);
+    d->probed = true;
+    d->probe_sec = (uint32_t)(a->frames / a->sample_rate);
+    ESP_LOGI(TAG, "aiff (%s): %u ch, %" PRIu32 " Hz, %u-byte %s%s samples",
+             a->kind, (unsigned)a->channels, a->sample_rate,
+             (unsigned)a->layout.bytes, a->layout.fp ? "float " : "",
+             a->layout.big ? "big-endian" : "little-endian");
+    return ESP_OK;
+}
+
+static int aiff_read(decoder_t *d, int16_t *out, int max_int16)
+{
+    const aiff_t *a = &d->aiff;
+    if (d->done >= a->frames) return 0;
+    uint64_t want = (uint64_t)max_int16 / a->channels;
+    if (want > AIFF_CHUNK_FRAMES) want = AIFF_CHUNK_FRAMES;
+    if (want > a->frames - d->done) want = a->frames - d->done;
+    if (!want) return 0;
+    const size_t bytes = (size_t)want * a->frame_bytes;
+    const size_t got = storage_io_fread(d->inbuf, bytes, d->f, STORAGE_IO_PLAYBACK);
+    const uint32_t frames = (uint32_t)(got / a->frame_bytes);
+    if (!frames) return 0;                  /* the file ended early */
+    pcm_conv(d->inbuf, frames * a->channels, a->layout, out);
+    d->done += frames;
+    return (int)(frames * a->channels);
+}
+
+/* Exact: a frame is a fixed number of bytes. */
+static esp_err_t aiff_seek(decoder_t *d, uint32_t sec, uint32_t *landed_cs)
+{
+    const aiff_t *a = &d->aiff;
+    uint64_t target = (uint64_t)sec * a->sample_rate;
+    if (target >= a->frames) target = a->frames ? a->frames - 1 : 0;
+    if (fseek(d->f, (long)(a->data_start + (int64_t)target * a->frame_bytes),
+              SEEK_SET) != 0) {
+        return ESP_FAIL;
+    }
+    d->done = target;
+    if (landed_cs) *landed_cs = (uint32_t)(target * 100 / a->sample_rate);
+    return ESP_OK;
+}
+
 decoder_t *decoder_open(const char *path)
 {
     return decoder_open_indexed(path, NULL);
@@ -1524,7 +1614,9 @@ static decoder_t *open_file(const char *path, const decoder_index_t *ix)
         if (ret == ESP_OK) d->backend = BACKEND_ADPCM;
         else if (ret != ESP_ERR_NOT_SUPPORTED) { free(d); return NULL; }
     }
-    if (d->backend != BACKEND_ADPCM) {
+    if (d->backend == BACKEND_AIFF) {
+        ret = aiff_open(d, path);
+    } else if (d->backend != BACKEND_ADPCM) {
         ret = (d->backend == BACKEND_MINIMP3)
             ? minimp3_open(d, path, ix)
             : esp_codec_open(d, path, fmt, ix);
@@ -1539,6 +1631,7 @@ static decoder_t *open_file(const char *path, const decoder_index_t *ix)
 static int read_raw(decoder_t *d, int16_t *out, int max_int16)
 {
     if (d->backend == BACKEND_ADPCM) return adpcm_read(d, out, max_int16);
+    if (d->backend == BACKEND_AIFF) return aiff_read(d, out, max_int16);
     return (d->backend == BACKEND_MINIMP3)
          ? minimp3_read(d, out, max_int16)
          : esp_codec_read(d, out, max_int16);
@@ -1624,7 +1717,7 @@ bool decoder_can_seek(decoder_t *d)
 {
     if (!d) return false;
 
-    if (d->backend == BACKEND_ADPCM) return true;
+    if (d->backend == BACKEND_ADPCM || d->backend == BACKEND_AIFF) return true;
 
     /* minimp3, once its index exists. */
     if (d->backend == BACKEND_MINIMP3) {
@@ -1661,6 +1754,7 @@ static esp_err_t seek_raw(decoder_t *d, uint32_t sec, uint32_t *landed_cs)
     if (landed_cs) *landed_cs = sec * 100;
 
     if (d->backend == BACKEND_ADPCM) return adpcm_seek(d, sec, landed_cs);
+    if (d->backend == BACKEND_AIFF) return aiff_seek(d, sec, landed_cs);
     if (d->backend != BACKEND_MINIMP3) return esp_codec_seek(d, sec, landed_cs);
 
     if (!d->ex.info.hz || !d->ex.info.channels) return ESP_ERR_INVALID_STATE;

@@ -24481,3 +24481,19 @@ for a card carried over from another player. The RX8130, with its
 backup supply, and NTP keep the time.
 
 Not on the board.
+
+### 6134 -- MINIMAL_BUILD: only the components main needs are built
+
+Before `project()`, the top-level CMakeLists.txt now sets
+`idf_build_set_property(MINIMAL_BUILD ON)`. IDF then builds main and
+everything reachable from its REQUIRES, instead of every component it
+knows of (bt, openthread, ieee802154, spiffs, unity, cmock, protocomm,
+esp_https_ota, ...). Nothing called those, so the linker already
+dropped them: the image does not change size, but clean builds get
+shorter.
+
+main/CMakeLists.txt already names its requirements explicitly, which
+is what this depends on. Anything that goes missing fails at link time
+with an undefined symbol and is fixed by naming it in main's REQUIRES.
+
+Not built here: there is no ESP-IDF in this environment.

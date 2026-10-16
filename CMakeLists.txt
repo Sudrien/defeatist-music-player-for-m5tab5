@@ -38,6 +38,20 @@ if(IDF_VERSION_MAJOR GREATER_EQUAL 6)
     set(SDKCONFIG_DEFAULTS "sdkconfig.defaults;sdkconfig.defaults.idf6")
 endif()
 
+# 6134: build only main and what it REQUIRES, directly or through
+# another component -- not every component IDF and the component
+# manager know of. Without this IDF compiles bt, openthread, ieee802154,
+# spiffs, unity, protocomm and the rest on every clean build, and the
+# linker then throws them away: nothing calls them. The firmware is the
+# same size either way; the build is shorter.
+#
+# main/CMakeLists.txt names its requirements explicitly, which is what
+# this relies on. A component reached only by a side effect and never by
+# a REQUIRES would go missing; that shows as a link error (an undefined
+# symbol), not as different behaviour, and the fix is to name it in
+# main's REQUIRES.
+idf_build_set_property(MINIMAL_BUILD ON)
+
 project(defeatist_music_player_for_m5tab5)
 
 # esp_driver_sdmmc greets every mount attempt with

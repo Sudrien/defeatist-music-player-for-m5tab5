@@ -15,4 +15,12 @@ idf_component_register(
 target_compile_options(${COMPONENT_LIB} PRIVATE -fwrapv
     -Wno-unused-function -Wno-sign-compare -Wno-unused-but-set-variable
     -Wno-type-limits -Wno-implicit-fallthrough -Wno-unused-variable
-    -Wno-maybe-uninitialized -Wno-missing-field-initializers)
+    -Wno-maybe-uninitialized -Wno-missing-field-initializers
+    # 6141: on RISC-V newlib int32_t is long, not int. J40 prints int32_t
+    # with %d and passes an int * where it declares int32_t *: the same
+    # 32 bits either way, and invisible on the host, where int32_t is
+    # int. GCC 14 makes the pointer mismatch an error by default.
+    -Wno-format -Wno-incompatible-pointer-types
+    # And nothing in upstream's code stops the build: its warnings are
+    # upstream's, and the file is fetched unmodified.
+    -Wno-error)

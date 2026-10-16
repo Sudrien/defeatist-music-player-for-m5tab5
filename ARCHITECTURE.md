@@ -24710,3 +24710,21 @@ fails to decode. A JPEG XL J40 refuses therefore hides a good
 cover.jpg beside it.
 
 Not on the board yet.
+
+### 6141 -- J40 builds for the board
+
+6139 built on the host only, and the board's build refused J40 with
+-Werror. On RISC-V newlib, int32_t is `long`, not `int`, so J40 prints
+int32_t with %d (-Wformat), passes `int *` where it declared
+`int32_t *` (-Wincompatible-pointer-types, an error by default since
+GCC 14), and formats its four-letter error codes as `long unsigned`
+through %c. The bits are the same in every case. On the host int32_t
+is `int`, which is why texttest never showed it.
+
+components/jxlimg/CMakeLists.txt turns off those two warnings for J40,
+and -Werror with them: J40 is fetched unmodified, so its warnings are
+upstream's, and a newer compiler finding one more should not stop the
+build. Our wrapper, jxlimg.c, is compiled in the same unit, so check it
+with texttest's -Werror build.
+
+Not on the board.

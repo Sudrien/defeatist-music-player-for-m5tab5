@@ -5,6 +5,7 @@
  */
 #include "netstream.h"
 
+#include "esp_attr.h"
 #include <inttypes.h>
 #include <stdio.h>
 #include <stdlib.h>
@@ -186,7 +187,7 @@ _Static_assert(NETSTREAM_TITLE_MAX == ICY_TITLE_MAX,
  * buffer over a permanent allocation has no allocator to mispair a free
  * with. A stream that starts and stops forty times allocates nothing. */
 static StreamBufferHandle_t s_ring;
-static StaticStreamBuffer_t s_ring_struct;
+static DRAM_ATTR StaticStreamBuffer_t s_ring_struct;   /* internal: psram_bss.lf */
 static uint8_t             *s_ring_storage;
 
 static TaskHandle_t      s_task;

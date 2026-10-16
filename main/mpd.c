@@ -63,6 +63,7 @@
 #include "folderart.h"            /* 6042: FOLDERART_MPD_NAMES */
 #include "mpd.h"
 
+#include "esp_attr.h"
 #include <errno.h>
 #include <inttypes.h>
 #include <stdarg.h>
@@ -400,7 +401,7 @@ static char              *s_text;           /* MPD_TEXT_MAX, PSRAM */
 /* Non-NULL while a task exists or has not yet been seen to be deleted;
  * only mpd_poll() writes it (5159). */
 static TaskHandle_t       s_task;
-static StaticTask_t       s_tcb;            /* 5159: internal .bss */
+static DRAM_ATTR StaticTask_t s_tcb;     /* 5159: internal; psram_bss.lf */
 static StackType_t       *s_stack;          /* 5159: MPD_STACK, PSRAM */
 static volatile bool      s_stop;
 static volatile bool      s_listening;

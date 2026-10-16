@@ -50,6 +50,11 @@ CONFIG_ESP_CONSOLE_USB_SERIAL_JTAG=y
 # MP3 decode buffers live in PSRAM.
 CONFIG_SPIRAM=y
 CONFIG_SPIRAM_SPEED_200M=y
+# 6132: lets main/psram_bss.lf put main's zero-initialised statics in
+# PSRAM, out of the internal RAM the radio's DMA pool comes from. An
+# existing sdkconfig keeps its old value: delete it, or set this in
+# menuconfig (Component config > ESP PSRAM).
+CONFIG_SPIRAM_ALLOW_BSS_SEG_EXTERNAL_MEMORY=y
 CONFIG_IDF_EXPERIMENTAL_FEATURES=y
 
 # --- display bandwidth ----------------------------------------------

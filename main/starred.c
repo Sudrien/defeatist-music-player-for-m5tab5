@@ -5,6 +5,7 @@
  */
 #include "starred.h"
 
+#include "esp_attr.h"
 #include <errno.h>
 #include <stdint.h>
 #include <stdio.h>
@@ -31,7 +32,7 @@ typedef struct {
 
 static vol_t             s_vol[STORAGE_COUNT];
 static SemaphoreHandle_t s_lock;
-static StaticSemaphore_t s_lock_buf;
+static DRAM_ATTR StaticSemaphore_t s_lock_buf;   /* internal: psram_bss.lf */
 
 static void lock(void)
 {

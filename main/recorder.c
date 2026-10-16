@@ -6,6 +6,7 @@
 #include "recorder.h"
 #include "i18n.h"         /* 6017 */
 
+#include "esp_attr.h"
 #include <dirent.h>
 #include <errno.h>
 #include <inttypes.h>
@@ -90,7 +91,7 @@ static const char *TAG = "tab5_rec";
  * + 2 KB, none of it touched when nothing is recording.
  */
 static StreamBufferHandle_t s_ring;
-static StaticStreamBuffer_t s_ring_struct;
+static DRAM_ATTR StaticStreamBuffer_t s_ring_struct;   /* internal: psram_bss.lf */
 static uint8_t             *s_ring_storage;
 static int32_t             *s_in_buf;       /* REC_IN_FRAMES frames */
 static int32_t             *s_enc_buf;      /* REC_BLOCK frames */
@@ -429,7 +430,7 @@ static void rec_enc_run(void)
 #if !CONFIG_FREERTOS_TASK_CREATE_ALLOW_EXT_MEM
 #error "recorder.c puts its task stacks in PSRAM and needs CONFIG_FREERTOS_TASK_CREATE_ALLOW_EXT_MEM=y"
 #endif
-static StaticTask_t s_in_tcb, s_enc_tcb;
+static DRAM_ATTR StaticTask_t s_in_tcb, s_enc_tcb;   /* internal: psram_bss.lf */
 static StackType_t *s_in_stack, *s_enc_stack;
 static TaskHandle_t s_in_task, s_enc_task;
 

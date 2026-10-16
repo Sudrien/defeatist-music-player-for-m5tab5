@@ -5,6 +5,7 @@
  */
 #include "medialib.h"
 
+#include "esp_attr.h"
 #include <stdint.h>
 #include <stdio.h>
 #include <stdlib.h>
@@ -656,7 +657,7 @@ static uint32_t      s_seen_gen = UINT32_MAX;
 #if !CONFIG_FREERTOS_TASK_CREATE_ALLOW_EXT_MEM
 #error "medialib.c puts its task stack in PSRAM and needs CONFIG_FREERTOS_TASK_CREATE_ALLOW_EXT_MEM=y"
 #endif
-static StaticTask_t  s_tcb;
+static DRAM_ATTR StaticTask_t s_tcb;   /* internal: psram_bss.lf */
 static StackType_t  *s_stack;
 static TaskHandle_t  s_task;
 

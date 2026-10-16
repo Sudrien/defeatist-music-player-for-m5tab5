@@ -24423,3 +24423,36 @@ in mediawalktest): another program's dotfile, or macOS's `._` sidecar,
 is left as it is.
 
 Not on the board.
+
+### 6132 -- main's statics in PSRAM
+
+The radio's DMA pool is nearly empty once Wi-Fi is up (DMA min-ever
+12), and main held about 66 KB of internal .bss: path buffers, URLs,
+rings, tables. None of it needs to be internal. main/psram_bss.lf maps
+libmain.a's whole .bss to `extram_bss`, which
+CONFIG_SPIRAM_ALLOW_BSS_SEG_EXTERNAL_MEMORY allows.
+
+Kept internal with DRAM_ATTR, which puts a static in .dram1 where the
+mapping does not reach:
+
+- the StaticTask_t of medialib, mpd and recorder's two tasks --
+  FreeRTOS wants a task's control block internal;
+- every StaticSemaphore_t (browser, cuedir, radiokeep, starred) and
+  StaticStreamBuffer_t (netstream, player's PCM rings, recorder) -- each
+  holds a spinlock, and the P4 cannot do atomic operations on PSRAM.
+
+The port muxes are initialised, so they are .data and stay internal
+anyway. Nothing in main is an ISR or runs with the cache off.
+
+Not moved: main's initialised .data, about 40 KB, which has no PSRAM
+scheme. Worth knowing for next time: a new static RTOS object in main
+needs DRAM_ATTR, or it lands in PSRAM.
+
+An existing sdkconfig keeps the option off. Delete it, or turn the
+option on in menuconfig (Component config > ESP PSRAM).
+
+To measure on the board: DMA min-ever with a station playing, against
+12 before; and FXBENCH, since the Fx and speed state is now in PSRAM
+behind the cache.
+
+Not on the board; not built here (no ESP-IDF in this environment).

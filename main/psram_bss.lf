@@ -1,0 +1,25 @@
+# psram_bss.lf -- main's zero-initialised statics live in PSRAM (6132).
+#
+# Internal RAM is what the radio runs short of: DMA min-ever 12 once
+# Wi-Fi is up, and 5178, 6027 and 6105 each stopped the radio by adding
+# an internal buffer. main's .bss was about 66 KB of internal RAM -- path
+# buffers, URLs, rings, tables -- none of which needs to be internal.
+# So the whole archive's .bss goes out, with
+# CONFIG_SPIRAM_ALLOW_BSS_SEG_EXTERNAL_MEMORY (sdkconfig.defaults).
+#
+# What must stay internal is pinned in the source with DRAM_ATTR, which
+# puts it in .dram1 where this rule does not reach:
+#   - a StaticTask_t: FreeRTOS wants a task's control block internal;
+#   - a StaticSemaphore_t or StaticStreamBuffer_t: each holds a spinlock,
+#     and the P4 cannot do atomic operations on PSRAM.
+# A new one of those added to main needs the same DRAM_ATTR. Nothing in
+# main runs as an ISR or with the cache off, which is the other reason a
+# static would have to stay in.
+#
+# Initialised statics (.data, about 40 KB) are not moved: IDF has no
+# scheme for that.
+
+[mapping:main_bss_psram]
+archive: libmain.a
+entries:
+    * (extram_bss)

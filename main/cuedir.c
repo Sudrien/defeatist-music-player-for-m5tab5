@@ -3,6 +3,7 @@
  *
  * SPDX-License-Identifier: MIT
  */
+#include "esp_attr.h"
 #include <dirent.h>
 #include <stdio.h>
 #include <stdlib.h>
@@ -392,7 +393,7 @@ bool cuedir_track(const char *vpath, storage_io_class_t cls, cuetrack_t *out)
  * because one is a kilobyte, and one lock around the copy out.
  */
 static cuetrack_t        s_look;
-static StaticSemaphore_t s_look_buf;
+static DRAM_ATTR StaticSemaphore_t s_look_buf;   /* internal: psram_bss.lf */
 static SemaphoreHandle_t s_look_lock;
 
 static bool look(const char *vpath)

@@ -6,6 +6,7 @@
 #include "nvsns.h"              /* 6006 */
 #include "radiokeep.h"
 
+#include "esp_attr.h"
 #include <string.h>
 
 #include "esp_log.h"
@@ -30,7 +31,7 @@ static char s_blob[BLOB_MAX];
 static char s_last_err[64];     /* 5051: why the last read went as it did */
 
 static SemaphoreHandle_t s_lock;
-static StaticSemaphore_t s_lock_buf;
+static DRAM_ATTR StaticSemaphore_t s_lock_buf;   /* internal: psram_bss.lf */
 static portMUX_TYPE      s_init_mux = portMUX_INITIALIZER_UNLOCKED;
 
 static void lock(void)

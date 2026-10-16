@@ -4,6 +4,7 @@
  * SPDX-License-Identifier: MIT
  */
 
+#include "esp_attr.h"
 #include <dirent.h>
 #include <stdlib.h>
 #include <stdio.h>
@@ -332,7 +333,7 @@ static void stars_resolve(void)
 static SemaphoreHandle_t load_lock(void)
 {
     static portMUX_TYPE mux = portMUX_INITIALIZER_UNLOCKED;
-    static StaticSemaphore_t buf;
+    static DRAM_ATTR StaticSemaphore_t buf;   /* internal: see psram_bss.lf */
     static SemaphoreHandle_t h;
     taskENTER_CRITICAL(&mux);
     if (!h) h = xSemaphoreCreateMutexStatic(&buf);

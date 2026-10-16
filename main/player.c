@@ -31,6 +31,7 @@
  * SPDX-License-Identifier: MIT
  */
 
+#include "esp_attr.h"
 #include <inttypes.h>
 #include <math.h>
 #include <stdio.h>
@@ -871,7 +872,7 @@ static inline uint64_t ring_frames_of(uint64_t file_frames,
  * the usable size -- the implementation keeps head and tail distinct
  * that way -- and it is the caller's job to know that.
  */
-static StaticStreamBuffer_t s_pcm_struct[PCM_RINGS];
+static DRAM_ATTR StaticStreamBuffer_t s_pcm_struct[PCM_RINGS];   /* internal: psram_bss.lf */
 static uint8_t             *s_pcm_store[PCM_RINGS];
 static StreamBufferHandle_t s_ring[PCM_RINGS];
 

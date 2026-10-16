@@ -162,6 +162,67 @@ static void soft_decode_end(UBaseType_t prio)
     if (uxTaskPriorityGet(NULL) != prio) vTaskPrioritySet(NULL, prio);
 }
 
+/*
+ * 6147: a decoder that needs more stack than media_task has, run on a
+ * task of its own whose stack is in PSRAM, at idle priority like every
+ * software decode here; the caller waits. Was J40's alone (6139). stb's
+ * GIF reader is the second: stbi__gif_load() keeps its LZW table on the
+ * stack, 8192 entries, a 35 KB frame -- and overran media_task's 16 KB
+ * on the board, a stack protection fault on the first GIF cover.
+ *
+ * One at a time: only media_task decodes covers, so one TCB serves.
+ * The TCB is internal (CLAUDE.md); the stack is the caller's to free,
+ * which is why the task suspends itself rather than deleting itself.
+ */
+typedef void (*bigstack_fn_t)(void *arg);
+typedef struct { bigstack_fn_t fn; void *arg; TaskHandle_t waiter; } bigstack_job_t;
+
+static DRAM_ATTR StaticTask_t s_bigstack_tcb;  /* internal: psram_bss.lf, CLAUDE.md */
+
+static void bigstack_task(void *p)
+{
+    bigstack_job_t *j = p;
+    j->fn(j->arg);
+    xTaskNotifyGive(j->waiter);
+    vTaskSuspend(NULL);
+}
+
+static esp_err_t run_on_big_stack(const char *name, size_t stack_bytes,
+                                  bigstack_fn_t fn, void *arg)
+{
+    StackType_t *stack = heap_caps_malloc(stack_bytes, MALLOC_CAP_SPIRAM | MALLOC_CAP_8BIT);
+    if (!stack) return ESP_ERR_NO_MEM;
+    bigstack_job_t job = { .fn = fn, .arg = arg, .waiter = xTaskGetCurrentTaskHandle() };
+    TaskHandle_t t = xTaskCreateStatic(bigstack_task, name, stack_bytes, &job,
+                                       tskIDLE_PRIORITY, stack, &s_bigstack_tcb);
+    if (!t) {
+        heap_caps_free(stack);
+        return ESP_ERR_NO_MEM;
+    }
+    ulTaskNotifyTake(pdTRUE, portMAX_DELAY);
+    while (eTaskGetState(t) != eSuspended) vTaskDelay(1);
+    vTaskDelete(t);
+    heap_caps_free(stack);
+    return ESP_OK;
+}
+
+/* 35 KB measured for stbi__gif_load() on a 32-bit host (-fstack-usage),
+ * and the frames above it. */
+#define GIF_STACK  (48 * 1024)
+
+typedef struct {
+    const uint8_t *in; size_t len; int box_w, box_h;
+    uint16_t *px; size_t size; int w, h;
+    stbjpeg_err_t err; const char *why;
+} stb_job_t;
+
+static void stb_job(void *arg)
+{
+    stb_job_t *j = arg;
+    j->err = stbjpeg_decode_rgb565(j->in, j->len, j->box_w, j->box_h,
+                                   &j->px, &j->size, &j->w, &j->h, &j->why);
+}
+
 static esp_err_t decode_software(const uint8_t *in, size_t jpeg_len,
                                  const jpeg_decode_picture_info_t *info,
                                  int screen_w, int screen_h,
@@ -313,8 +374,21 @@ static esp_err_t decode_stb(const uint8_t *jpeg, size_t jpeg_len,
     const int64_t t0 = esp_timer_get_time();
     uint16_t *px = NULL;
     const char *why = NULL;
-    const stbjpeg_err_t err = stbjpeg_decode_rgb565(jpeg, jpeg_len, screen_w, screen_h,
-                                                    &px, out_size, out_w, out_h, &why);
+    stbjpeg_err_t err;
+    if (artformat_sniff(jpeg, jpeg_len) == ART_GIF) {            /* 6147 */
+        stb_job_t job = { .in = jpeg, .len = jpeg_len, .box_w = screen_w, .box_h = screen_h,
+                          .err = STBJPEG_FAILED };
+        if (run_on_big_stack("gif", GIF_STACK, stb_job, &job) != ESP_OK) return ESP_ERR_NO_MEM;
+        err = job.err;
+        px = job.px;
+        why = job.why;
+        *out_size = job.size;
+        *out_w = job.w;
+        *out_h = job.h;
+    } else {
+        err = stbjpeg_decode_rgb565(jpeg, jpeg_len, screen_w, screen_h,
+                                    &px, out_size, out_w, out_h, &why);
+    }
     if (err != STBJPEG_OK) {
         ESP_LOGW(TAG, "stb_image: %dx%d %s (%s)", w, h, stbjpeg_err_name(err),
                  why ? why : "no reason given");
@@ -1309,18 +1383,13 @@ typedef struct {
     int w, h;
     jxlimg_err_t err;
     const char *why;
-    TaskHandle_t waiter;
 } jxl_job_t;
 
-static DRAM_ATTR StaticTask_t s_jxl_tcb;   /* internal: psram_bss.lf, CLAUDE.md */
-
-static void jxl_task(void *arg)
+static void jxl_job(void *arg)
 {
     jxl_job_t *j = arg;
     j->err = jxlimg_decode_rgb565(j->in, j->len, j->box_w, j->box_h, UI_BG_RGB565,
                                   &j->px, &j->size, &j->w, &j->h, &j->why);
-    xTaskNotifyGive(j->waiter);
-    vTaskSuspend(NULL);                 /* deleted by the caller, which owns the stack */
 }
 
 static esp_err_t decode_jxl(const uint8_t *in, size_t len, int screen_w, int screen_h,
@@ -1339,22 +1408,10 @@ static esp_err_t decode_jxl(const uint8_t *in, size_t len, int screen_w, int scr
                  w, h, (unsigned)(peak / 1024), (unsigned)(free_ps / 1024));
         return ESP_ERR_NO_MEM;
     }
-    StackType_t *stack = heap_caps_malloc(JXL_STACK, MALLOC_CAP_SPIRAM | MALLOC_CAP_8BIT);
-    if (!stack) return ESP_ERR_NO_MEM;
-
     jxl_job_t job = { .in = in, .len = len, .box_w = screen_w, .box_h = screen_h,
-                      .err = JXLIMG_FAILED, .waiter = xTaskGetCurrentTaskHandle() };
+                      .err = JXLIMG_FAILED };
     const int64_t t0 = esp_timer_get_time();
-    TaskHandle_t t = xTaskCreateStatic(jxl_task, "jxl", JXL_STACK, &job,
-                                       tskIDLE_PRIORITY, stack, &s_jxl_tcb);
-    if (!t) {
-        heap_caps_free(stack);
-        return ESP_ERR_NO_MEM;
-    }
-    ulTaskNotifyTake(pdTRUE, portMAX_DELAY);
-    while (eTaskGetState(t) != eSuspended) vTaskDelay(1);
-    vTaskDelete(t);
-    heap_caps_free(stack);
+    if (run_on_big_stack("jxl", JXL_STACK, jxl_job, &job) != ESP_OK) return ESP_ERR_NO_MEM;
 
     if (job.err != JXLIMG_OK) {
         ESP_LOGW(TAG, "jxl: %dx%d %s (%s)", w, h, jxlimg_err_name(job.err),

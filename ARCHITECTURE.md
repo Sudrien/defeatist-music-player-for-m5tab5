@@ -24866,3 +24866,24 @@ expect an empty strip; 10, 11 and 14 expect their JPEG XL covers, after
 about eight seconds.
 
 Not built here (player.c needs ESP-IDF). Not on the board.
+
+### 6147 -- a GIF is decoded on a stack big enough for it
+
+The board's first GIF cover (test_art_files 15) stopped the player:
+"Stack protection fault" in task "media" at stbi__gif_load(). stb's
+GIF reader keeps its LZW table on the stack, 8192 entries, and the
+frame is 35 KB (-fstack-usage, 32-bit host). media_task's stack is
+16 KB. texttest runs on 8 MB host stacks, so it could not show this,
+which is the gap 5276 and CLAUDE.md's stack rule already warn about.
+
+albumart.c's own-task runner, which was J40's alone since 6139, is now
+general: run_on_big_stack() takes a function, a stack size and an
+argument, and runs it at idle priority on a PSRAM stack with an
+internal TCB while media_task waits. J40 uses it with 24 KB. A GIF
+uses it with 48 KB: decode_stb() sends a GIF there and leaves JPEGs on
+media_task, whose frames in stb are small.
+
+Before 6147 the board also showed 6146 working: 14's JPEG XL cover
+was drawn after 8237 ms, with the next track already decoding.
+
+Not on the board.

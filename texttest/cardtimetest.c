@@ -214,12 +214,14 @@ int main(void)
         CHECK(cardtime_pick(c7, 3, &at) == 0, "a discard corroborated");
         CHECK(cardtime_pick(c7, 0, &at) == 0 && at == -1, "an empty scan gave something");
 
-        /* The player's own root files are not evidence since 5110. */
-        CHECK(cardtime_own("stations.m3u") && cardtime_own("Recordings") &&
-              cardtime_own("STARRED.M3U") && cardtime_own("favorites.m3u"),
-              "the player's own files were not recognised");
-        CHECK(!cardtime_own("Boa") && !cardtime_own("stations.m3u.bak") &&
-              !cardtime_own("Recordings2"), "a foreign entry was taken for the player's own");
+        /* 6133: only the player's own dotfiles are evidence. */
+        CHECK(cardtime_counts(".defeatist.dat") && cardtime_counts(".defeatist.bak") &&
+              cardtime_counts(".defeatist.ix4"), "the player's dotfiles were not counted");
+        CHECK(!cardtime_counts("wifi.bin") && !cardtime_counts("config.conf") &&
+              !cardtime_counts("stations.m3u") && !cardtime_counts("Boa") &&
+              !cardtime_counts(".") && !cardtime_counts("..") &&
+              !cardtime_counts("defeatist.dat") && !cardtime_counts(".defeatist"),
+              "an entry the player does not own was counted");
     }
 
     printf("%d checks, %d failures\n", checks, failures);

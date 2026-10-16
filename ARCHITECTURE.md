@@ -24456,3 +24456,28 @@ To measure on the board: DMA min-ever with a station playing, against
 behind the cache.
 
 Not on the board; not built here (no ESP-IDF in this environment).
+
+### 6133 -- the card's clock evidence is the player's own dotfiles only
+
+A boot log on 2026-10-15 had the clock set to 2028-12-02 from the
+card's `wifi.bin`, written to the RX8130, stamped into
+`.defeatist.dat`, and then corrected by NTP 1.5 s later. With no
+network the player would have stayed in 2028.
+
+`wifi.bin` is the M5 Launcher's. The Launcher runs on this same Tab5,
+so it stamped the file from this same clock when that clock was wrong,
+and the floor read the bad date back as evidence. 5112's two-entry
+corroboration did not help, because one wrong clock stamps several
+files with the same date. Since 5112 the rule was: every root entry
+counts except the player's own non-dot files. Now it is the reverse:
+only `.defeatist.*` entries count (cardtime_counts(), in cardtimetest).
+Anything another program writes is ignored, wherever its clock came
+from.
+
+What is given up: an album folder copied on from a computer no longer
+raises the floor. The player's own files rarely say more than the
+settings record already does, so in practice the card now matters only
+for a card carried over from another player. The RX8130, with its
+backup supply, and NTP keep the time.
+
+Not on the board.

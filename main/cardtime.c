@@ -49,7 +49,7 @@ static void name_of(const char *mount, int64_t ref, int64_t want, char *out, siz
     const struct dirent *e;
     int scanned = 0;
     while ((e = readdir(d)) != NULL && scanned < CARDTIME_SCAN_MAX) {
-        if (e->d_name[0] == '.' || cardtime_own(e->d_name)) continue;
+        if (!cardtime_counts(e->d_name)) continue;
         if (!storage_join_path(s_path, sizeof(s_path), mount, e->d_name)) continue;
         struct stat st;
         if (stat(s_path, &st) != 0) continue;
@@ -87,8 +87,7 @@ int64_t cardtime_root_candidate(const char *mount, int64_t ref)
     const struct dirent *e;
 
     while ((e = readdir(d)) != NULL && scanned < CARDTIME_SCAN_MAX) {
-        if (e->d_name[0] == '.') continue;      /* "." and ".." and hidden */
-        if (cardtime_own(e->d_name)) continue;  /* 5112: stamped from the floor */
+        if (!cardtime_counts(e->d_name)) continue;   /* 6133: ours only */
 
         if (!storage_join_path(s_path, sizeof(s_path), mount, e->d_name)) continue;
 

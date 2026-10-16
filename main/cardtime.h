@@ -45,6 +45,14 @@
  * forever and make every subsequent NTP reply fail the floor. Hence the
  * ceiling in cardtime_filter(), which is the most important line here.
  *
+ * 6133: and on the Tab5 "a computer touched it" could not be told from
+ * "the M5 Launcher, on this board's own wrong clock, touched it". Only
+ * the player's ".defeatist.*" dotfiles are read now (cardtime_counts()).
+ * Per the paragraph above, they rarely say more than settings.c already
+ * knows -- a card carried over from another player, or written by this
+ * one on a later day than the flash record, is what is left for this to
+ * catch. The clock chip and NTP do the rest.
+ *
  * SPDX-License-Identifier: MIT
  */
 #pragma once
@@ -52,6 +60,7 @@
 #include <stdbool.h>
 #include <stdint.h>
 #include <strings.h>
+#include <string.h>
 
 #ifdef __cplusplus
 extern "C" {
@@ -138,25 +147,25 @@ static inline int64_t cardtime_filter(int64_t mtime, int64_t ref)
 }
 
 /*
- * 5112: WHOSE CLOCK WROTE IT, AGAIN.
+ * 6133: ONLY THE PLAYER'S OWN DOTFILES COUNT.
  *
- * Above, the player's own files are called circular and harmless: they
- * were stamped from time(), which was 1970 (so FAT's 1980), and could
- * never raise anything. Since 5110 the system clock follows the floor,
- * so they are stamped FROM the floor -- and a floor raised by one bad
- * file is written back onto them, and read off them at the next mount
- * as though it were evidence. The dotfiles were always skipped; these
- * are the rest of what the player writes at a volume root.
+ * Every root entry used to be evidence except the player's own (5112),
+ * on the theory that a file some other program wrote carries a computer's
+ * clock. On the Tab5 that is not so: the M5 Launcher runs on this same
+ * board and writes wifi.bin and config.conf from this same clock, and a
+ * wrong clock (2028-12-02) stamped them and was read back off them as
+ * evidence. Nothing written by a program the player does not control can
+ * be trusted to say which clock wrote it.
+ *
+ * So the only entries weighed are the player's own ".defeatist.*" files
+ * -- the settings and their backup, the catalogue, the index, the search
+ * file. Their dates are the player's own clock at its last write, which
+ * NTP had usually corrected by then; the corroboration below still wants
+ * two of them close together.
  */
-static inline bool cardtime_own(const char *name)
+static inline bool cardtime_counts(const char *name)
 {
-    static const char *const own[] = {
-        "stations.m3u", "favorites.m3u", "starred.m3u", "Recordings",
-    };
-    for (unsigned i = 0; i < sizeof(own) / sizeof(own[0]); i++) {
-        if (strcasecmp(name, own[i]) == 0) return true;
-    }
-    return false;
+    return strncmp(name, ".defeatist.", 11) == 0;
 }
 
 /*

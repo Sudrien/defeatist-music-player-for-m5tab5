@@ -23771,6 +23771,13 @@ means host-tested or reasoned only.
   -O3 on fx.c and varispeed.c bought nothing (6120) and is not built.
   Everything on at 192 kHz projects to about two thirds of a core.
 
+- **The screen and the web remote** (6125-6129): the signs are pills,
+  and a greyed column's signs are dimmed with it (6125, board-checked:
+  "looking ok"); the web remote's page is sent gzipped, about 44 KB of
+  flash back (6127); its Wi-Fi note says who tests what (6128); the
+  READMEs say the certificate is self-signed and has to be accepted
+  (6129).
+
 Known and left, so they are not rediscovered:
 
 - ECHO's trail is not cleared by a seek.
@@ -23788,6 +23795,10 @@ Known and left, so they are not rediscovered:
   can stop the radio, as 5178, 6027 and 6105 did. The rule 5178 wrote
   -- a task's buffer goes in PSRAM unless something needs it internal --
   is still not in CLAUDE.md.
+- **A power-off on USB power comes back as a watchdog reset.** That is
+  the Tab5 itself: its power cycle ends in a watchdog reset, meant or
+  not, and the player is not the cause. A reset reason of "task
+  watchdog" right after a power-off is not a hang.
 
 Not on the board.
 

@@ -43,6 +43,7 @@
 #include "oggseek.h"
 #include "tsseek.h"
 #include "mp4seek.h"
+#include "imaadpcm.h"
 #include "duration.h"
 #include "cuedir.h"
 
@@ -60,7 +61,10 @@ static const char *TAG = "tab5_dec";
 
 /* ------------------------------------------------------------------ */
 
-typedef enum { BACKEND_MINIMP3, BACKEND_ESP_CODEC } backend_t;
+/* BACKEND_ADPCM is IMA ADPCM WAV, decoded in imaadpcm.h (6151). The
+ * format table never names it: a .wav is chosen for it at open, by its
+ * format tag, and every other WAV goes to esp_audio_codec as before. */
+typedef enum { BACKEND_MINIMP3, BACKEND_ESP_CODEC, BACKEND_ADPCM } backend_t;
 
 /*
  * A cue track: one span of a real file, presented as if it were the
@@ -175,6 +179,18 @@ struct decoder {
      * writing back what it was just given. */
     bool indexed;
     size_t index_count;         /* how many entries were installed */
+
+    /* IMA ADPCM WAV. One block is read into inbuf and decoded whole into
+     * pcm, which decoder_read() drains: a block is up to 32 K samples and
+     * a caller's buffer need not hold one. `skip` is the part of the
+     * block a seek landed before, discarded so the landing is exact. */
+    imawav_t ima;
+    int16_t *pcm;
+    uint32_t pcm_len;           /* int16 decoded from the current block */
+    uint32_t pcm_pos;           /* int16 already handed out */
+    uint32_t skip;              /* samples per channel to discard */
+    uint64_t block;             /* the next block to read */
+    uint64_t done;              /* samples per channel handed out so far */
 };
 
 #define ESP_IN_BUF  (8 * 1024)
@@ -1307,6 +1323,116 @@ static esp_err_t esp_codec_seek(decoder_t *d, uint32_t sec, uint32_t *landed_cs)
 /* Public                                                              */
 /* ------------------------------------------------------------------ */
 
+/* ------------------------------------------------------------------ */
+/* IMA ADPCM WAV                                                       */
+/* ------------------------------------------------------------------ */
+
+/*
+ * Not a .wav that is IMA ADPCM: ESP_ERR_NOT_SUPPORTED, handle closed,
+ * and open_file() goes on to esp_audio_codec exactly as before. The
+ * probe is a dozen small reads at the start of the file, so every WAV
+ * pays that once at open, which is the cost of choosing by what the
+ * file is rather than by its name.
+ */
+static esp_err_t adpcm_open(decoder_t *d, const char *path)
+{
+    d->f = storage_io_open(path, "rb");
+    if (!d->f) return ESP_ERR_NOT_FOUND;
+    if (!imawav_probe(d->f, &d->ima)) {
+        storage_io_close(d->f);
+        d->f = NULL;
+        return ESP_ERR_NOT_SUPPORTED;
+    }
+    const imawav_t *w = &d->ima;
+    d->inbuf = heap_caps_malloc(w->block_align, MALLOC_CAP_SPIRAM | MALLOC_CAP_8BIT);
+    d->pcm = heap_caps_malloc((size_t)w->spb * w->channels * sizeof(int16_t),
+                              MALLOC_CAP_SPIRAM | MALLOC_CAP_8BIT);
+    if (!d->inbuf || !d->pcm || fseek(d->f, (long)w->data_start, SEEK_SET) != 0) {
+        free(d->inbuf);
+        free(d->pcm);
+        d->inbuf = NULL;
+        d->pcm = NULL;
+        storage_io_close(d->f);
+        d->f = NULL;
+        return ESP_ERR_NO_MEM;
+    }
+    d->info.codec = "wav";
+    d->info.trim = DECODER_TRIM_EXACT;
+    d->info.sample_rate = (int)w->sample_rate;
+    d->info.channels = w->channels;
+    d->info.bitrate_kbps = (int)(w->byte_rate * 8 / 1000);
+    d->probed = true;
+    d->probe_sec = (uint32_t)(w->total / w->sample_rate);
+    ESP_LOGI(TAG, "wav is IMA ADPCM: %u ch, %" PRIu32 " Hz, %u B blocks of %"
+                  PRIu32 " samples", (unsigned)w->channels, w->sample_rate,
+             (unsigned)w->block_align, w->spb);
+    return ESP_OK;
+}
+
+static int adpcm_read(decoder_t *d, int16_t *out, int max_int16)
+{
+    const imawav_t *w = &d->ima;
+    const uint32_t ch = w->channels;
+    for (;;) {
+        if (d->pcm_pos < d->pcm_len) {
+            uint32_t n = d->pcm_len - d->pcm_pos;
+            if (n > (uint32_t)max_int16) n = (uint32_t)max_int16 - (uint32_t)max_int16 % ch;
+            /* Never past `fact`: the last block is padded to its size,
+             * and the padding decodes to sound that is not the track. */
+            const uint64_t left = (w->total - d->done) * ch;
+            if (n > left) n = (uint32_t)left;
+            if (!n) return 0;
+            memcpy(out, d->pcm + d->pcm_pos, n * sizeof(int16_t));
+            d->pcm_pos += n;
+            d->done += n / ch;
+            return (int)n;
+        }
+        if (d->done >= w->total) return 0;
+
+        const int64_t at = (int64_t)d->block * w->block_align;
+        if (at >= w->data_len) return 0;
+        uint32_t want = w->block_align;
+        if (w->data_len - at < want) want = (uint32_t)(w->data_len - at);
+        const size_t got = storage_io_fread(d->inbuf, want, d->f, STORAGE_IO_PLAYBACK);
+        d->block++;
+        const uint32_t spc = ima_decode_block(d->inbuf, (uint32_t)got,
+                                              (uint16_t)ch, d->pcm);
+        if (!spc) {
+            /* A truncated file ends here; a damaged header mid-file is
+             * a step index past the table, and is reported, not played. */
+            if (got < want) return 0;
+            ESP_LOGE(TAG, "wav: IMA ADPCM block %" PRIu64 " is damaged", d->block - 1);
+            return -1;
+        }
+        d->pcm_len = spc * ch;
+        d->pcm_pos = 0;
+        if (d->skip) {
+            const uint32_t s = d->skip < spc ? d->skip : spc;
+            d->pcm_pos = s * ch;
+            d->skip -= s;
+        }
+    }
+}
+
+/* Exact: block N starts at sample N * spb, and the rest is a discard. */
+static esp_err_t adpcm_seek(decoder_t *d, uint32_t sec, uint32_t *landed_cs)
+{
+    const imawav_t *w = &d->ima;
+    uint64_t target = (uint64_t)sec * w->sample_rate;
+    if (target >= w->total) target = w->total ? w->total - 1 : 0;
+    const uint64_t blk = target / w->spb;
+    if (fseek(d->f, (long)(w->data_start + (int64_t)blk * w->block_align),
+              SEEK_SET) != 0) {
+        return ESP_FAIL;
+    }
+    d->block = blk;
+    d->skip = (uint32_t)(target - blk * w->spb);
+    d->done = target;
+    d->pcm_len = d->pcm_pos = 0;
+    if (landed_cs) *landed_cs = (uint32_t)(target * 100 / w->sample_rate);
+    return ESP_OK;
+}
+
 decoder_t *decoder_open(const char *path)
 {
     return decoder_open_indexed(path, NULL);
@@ -1333,9 +1459,18 @@ static decoder_t *open_file(const char *path, const decoder_index_t *ix)
     if (!d) return NULL;
     d->backend = k_formats[fmt].backend;
 
-    const esp_err_t ret = (d->backend == BACKEND_MINIMP3)
-                        ? minimp3_open(d, path, ix)
-                        : esp_codec_open(d, path, fmt, ix);
+    esp_err_t ret = ESP_ERR_NOT_SUPPORTED;
+    if (k_formats[fmt].type == ESP_AUDIO_SIMPLE_DEC_TYPE_WAV &&
+        d->backend == BACKEND_ESP_CODEC) {
+        ret = adpcm_open(d, path);
+        if (ret == ESP_OK) d->backend = BACKEND_ADPCM;
+        else if (ret != ESP_ERR_NOT_SUPPORTED) { free(d); return NULL; }
+    }
+    if (d->backend != BACKEND_ADPCM) {
+        ret = (d->backend == BACKEND_MINIMP3)
+            ? minimp3_open(d, path, ix)
+            : esp_codec_open(d, path, fmt, ix);
+    }
     if (ret != ESP_OK) {
         free(d);
         return NULL;
@@ -1345,6 +1480,7 @@ static decoder_t *open_file(const char *path, const decoder_index_t *ix)
 
 static int read_raw(decoder_t *d, int16_t *out, int max_int16)
 {
+    if (d->backend == BACKEND_ADPCM) return adpcm_read(d, out, max_int16);
     return (d->backend == BACKEND_MINIMP3)
          ? minimp3_read(d, out, max_int16)
          : esp_codec_read(d, out, max_int16);
@@ -1430,6 +1566,8 @@ bool decoder_can_seek(decoder_t *d)
 {
     if (!d) return false;
 
+    if (d->backend == BACKEND_ADPCM) return true;
+
     /* minimp3, once its index exists. */
     if (d->backend == BACKEND_MINIMP3) {
         return d->ex.info.hz && d->ex.info.channels;
@@ -1464,6 +1602,7 @@ static esp_err_t seek_raw(decoder_t *d, uint32_t sec, uint32_t *landed_cs)
 {
     if (landed_cs) *landed_cs = sec * 100;
 
+    if (d->backend == BACKEND_ADPCM) return adpcm_seek(d, sec, landed_cs);
     if (d->backend != BACKEND_MINIMP3) return esp_codec_seek(d, sec, landed_cs);
 
     if (!d->ex.info.hz || !d->ex.info.channels) return ESP_ERR_INVALID_STATE;
@@ -1625,6 +1764,7 @@ void decoder_close(decoder_t *d)
         free(d->tbl_off);
         free(d->tbl_frm);
         free(d->inbuf);
+        free(d->pcm);
     }
     if (d->f) storage_io_close(d->f);
     free(d);

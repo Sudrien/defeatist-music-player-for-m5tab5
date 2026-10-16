@@ -25001,6 +25001,46 @@ that assumption comes from.
 
 Flash: a few hundred bytes of code, no new strings for translation.
 
+### 6151 -- IMA ADPCM WAV, decoded here
+
+esp_audio_codec has an IMA ADPCM decoder, but it is a one-frame-per-call
+type and the sliding window cannot feed it (decoder.c says so). For IMA
+the framing is most of the work and the decoder is a step table, so
+both are in main/imaadpcm.h: imawav_probe() walks the RIFF chunks and
+takes format tag 0x0011 at 4 bits, and ima_decode_block() decodes one
+Microsoft-layout block (per-channel header, then 4-byte groups per
+channel, low nibble first).
+
+decoder.c gains BACKEND_ADPCM. The format table does not name it: a
+.wav is probed at open, and only an IMA one leaves the esp_audio_codec
+path. Everything else about WAV is unchanged. A block is decoded whole
+into a PSRAM buffer and drained, since a block (up to 16 KB here) can
+be more samples than a caller asks for. Output stops at `fact`, so the
+last block's padding is not played.
+
+Seeking is exact: block N starts at sample N times samples-per-block,
+and the rest of the block before the target is discarded. Duration is
+`fact`, or the block count.
+
+Rounding is ffmpeg's ((2d + 1) * step) >> 3 rather than the IMA
+recommendation's sum of truncated terms. They differ by a few LSB a
+sample, up to 73 LSB on file 28's audio, reset at each block. ffmpeg's
+is what desktop players produce, and it can be tested exactly:
+imaadpcmtest decodes files 28 (stereo) and 29 (mono, ends mid-block)
+and compares FNV-1a hashes of every sample with ffmpeg's output. It
+also checks block arithmetic, nibble order, the stereo interleave,
+clamping, a damaged step index, and that a block reached by seeking
+decodes the same as one reached by reading.
+
+Known and left: the probe and the seek use fseek() with a long, so an
+ADPCM WAV past 2 GB will not seek (CLAUDE.md's list). RIFF's own 4 GB
+limit is the format's ceiling anyway, and an ADPCM file that size is
+about 50 hours of stereo at 44.1 kHz. 3-bit IMA, IMA4 (Apple's, in
+.aiff/.caf) and MS ADPCM are not handled; they are refused as before.
+
+Not built for the target, not run on the board. Expected log on 28:
+`wav is IMA ADPCM: 2 ch, 44100 Hz, 1024 B blocks of 1017 samples`.
+
 ### 8000 -- CI: host tests after the components they include exist
 
 The v0.7.0 tag's workflow run failed at "Host tests (text layout, USB

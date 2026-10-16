@@ -357,4 +357,17 @@ ffmpeg -loglevel error -y -i bumps.wav -c:a flac "$OUT/27 cue-bumps.flac"
     printf '    INDEX 01 00:50:00\n'
 } > "$OUT/27 cue-bumps.cue"
 
+# ---------------------------------------------------------------- 6151
+# IMA ADPCM, decoded by imaadpcm.h rather than esp_audio_codec.
+
+# 28 -- the whole minute, stereo, ffmpeg's default 1024-byte blocks.
+# Seeks exactly (a block is a multiplication); texttest/imaadpcmtest
+# also decodes it on the host and checks every sample against ffmpeg.
+$F -c:a adpcm_ima_wav "$OUT/28 wav-ima-adpcm.wav"
+
+# 29 -- mono, 22.05 kHz, 7.3 s: a length that is not a whole number of
+# blocks, so the last block is padded and `fact` is what stops the
+# padding being played. Mono also changes the block's interleave.
+$F -t 7.3 -ac 1 -ar 22050 -c:a adpcm_ima_wav "$OUT/29 wav-ima-adpcm-mono.wav"
+
 echo "built into $OUT"

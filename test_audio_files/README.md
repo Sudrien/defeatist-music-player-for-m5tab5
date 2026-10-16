@@ -54,6 +54,8 @@ place; one that is wrong by more is obvious from the beep count.
 | 19 wav-pcm32 | 32-bit integer, folded by its header (6150) | plays, seeks, exact; log says *32-bit integer* |
 | 20 wav-float32 | 32-bit float, indistinguishable from 19 at the decoder, distinguished by its header (6150) | plays, seeks, exact, sounds like 19; log says *32-bit float* |
 | 21 flac-24bit | the fold on a real decoder rather than a PCM chunk | plays, seeks |
+| 28 wav-ima-adpcm | IMA ADPCM, decoded in imaadpcm.h (6151); stereo 1024-byte blocks | plays, seeks, exact; log says *IMA ADPCM* |
+| 29 wav-ima-adpcm-mono | the same, mono at 22.05 kHz, ending mid-block | plays 7.3 s and stops there, not at the end of the padded block |
 | 22 cue-flac-image | cue sheet, one image, six tracks on the marks; UTF-8 BOM, CRLF | six tracks; track N opens with N beeps; track 5 reads *Fünf Signaltöne* |
 | 23 cue-pregap-htoa | INDEX 00, a hidden track, starts off the second; Windows-1252 | four tracks starting 3, 10, 25.49 and 39.99 s; performer *Café Tones* |
 | 24 cue-filename-mismatch | sheet names `CDImage.wav`, which is not there | resolves to the FLAC beside it; tracks at 0, 20, 40 |

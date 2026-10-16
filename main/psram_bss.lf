@@ -19,7 +19,23 @@
 # Initialised statics (.data, about 40 KB) are not moved: IDF has no
 # scheme for that.
 
+# 6136: our own scheme. The "extram_bss" scheme this used at first is
+# defined in esp_wifi's linker.lf, and the P4 has no Wi-Fi of its own:
+# esp_wifi's fragments are not read, the scheme does not exist, and ldgen
+# dropped the mapping without a word. sections.ld had no libmain.a line
+# and the boot heap was byte for byte the same. bss and common are IDF's
+# section sets (esp_common/common.lf), extern_ram the .ext_ram.bss
+# placement in esp_system's sections.ld.
+[scheme:main_extram_bss]
+entries:
+    if SPIRAM_ALLOW_BSS_SEG_EXTERNAL_MEMORY = y:
+        bss -> extern_ram
+        common -> extern_ram
+    else:
+        bss -> dram0_bss
+        common -> dram0_bss
+
 [mapping:main_bss_psram]
 archive: libmain.a
 entries:
-    * (extram_bss)
+    * (main_extram_bss)

@@ -24515,3 +24515,27 @@ back to the time NTP gave, and the next boot without a network finds
 nothing ahead of the clock chip.
 
 Not on the board.
+
+### 6136 -- 6132's fragment, with a scheme that exists
+
+On the board, 6132 changed nothing. With
+CONFIG_SPIRAM_ALLOW_BSS_SEG_EXTERNAL_MEMORY=y, libmain still had 106,874
+bytes of DIRAM, sections.ld had no `libmain.a` line, and the boot heap
+was the same to the byte. The `extram_bss` scheme the fragment named is
+defined in esp_wifi's linker.lf (IDF 6.1). esp_wifi's fragments only
+count when esp_wifi is built for the chip, and the P4 has no Wi-Fi of
+its own; its Wi-Fi is hosted on the C6. So the scheme did not exist and
+ldgen dropped the mapping without an error.
+
+psram_bss.lf now declares its own scheme, `main_extram_bss`: `bss` and
+`common` to `extern_ram` when the option is on, and to `dram0_bss` when
+it is off. The mapping uses that scheme. Nothing else changes; the
+DRAM_ATTR exceptions from 6132 stand.
+
+To check after a build:
+`grep -c libmain.a build/esp-idf/esp_system/ld/sections.ld` is no
+longer 0, libmain's DIRAM drops by about 60 KB in
+`idf.py size-components`, and the boot heap map shows internal free
+well above 60,199.
+
+Not on the board.

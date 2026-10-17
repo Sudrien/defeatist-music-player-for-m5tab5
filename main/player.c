@@ -9617,8 +9617,20 @@ static void ui_task(void *arg)
                 if (idx >= 0) playlist_set_current(idx);
                 request_track(h);
             } else {
-                ESP_LOGI(TAG, "no play history; restarting the track");
-                request_seek(0, "prev x2: no history");
+                /* 6173: nothing heard before the anchor -- the usual case
+                 * after picking a track. The list's track before it is
+                 * still what a double tap means; restarting undid a first
+                 * tap that had already gone back. */
+                const int at = playlist_index_of(s_prev_anchor);
+                if (at >= 0) playlist_set_current(at);
+                const char *p = at >= 0 ? playlist_prev() : NULL;
+                if (p) {
+                    ESP_LOGI(TAG, "no play history; back through the list to %s", p);
+                    request_track(p);
+                } else {
+                    ESP_LOGI(TAG, "no play history and no track before; restarting");
+                    request_seek(0, "prev x2: no history");
+                }
             }
             break;
         }

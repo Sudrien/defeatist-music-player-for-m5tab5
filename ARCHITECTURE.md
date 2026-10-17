@@ -25589,6 +25589,14 @@ pick of one file still left the chooser rows in the art square. The mark
 is now set wherever load_track_visuals() or do_art() refuses because the
 screen is covered, and cleared by a load that is not refused.
 
+### 6173 -- a double tap with no history goes back through the list
+
+History holds only heard tracks (6172), so after a pick it has nothing
+before the anchor. The double tap then restarted the anchor -- undoing a
+first tap that had already gone to the list's previous track. It now
+falls back to the list's track before the anchor, and restarts only when
+there is none.
+
 ### 8000 -- CI: host tests after the components they include exist
 
 The v0.7.0 tag's workflow run failed at "Host tests (text layout, USB

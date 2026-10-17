@@ -25328,6 +25328,35 @@ line stays, since it is what made this findable.
 
 Not built for the target, not run on the board.
 
+### 6160 -- FLAC seek: 18.6 window reads to 1.5
+
+The board timed every FLAC seek at about 3 s: `find 3248 ms` after a
+drag on file 21, and the same on every cue track that does not start at
+zero (first sound 3.5-7 s). The old audio played on through all of it,
+then jumped. flac_seek_find() was a plain bisection: one 16 KB window
+read a round, about 19 rounds a seek, and of each window it used only
+the first frame.
+
+Now:
+- the guess is interpolated, which FLAC's near-steady bitrate makes
+  close. It is aimed one maximum frame early, since the frame found is
+  the first after the guess, and refined from what each round finds;
+- the frames after the first in the same window are walked while they
+  are at or before the target, so a guess a few frames short finishes
+  without another read;
+- from round 4, every other round is a bisection step, so a badly
+  uneven file is never worse than before, and the 24-round bound holds.
+  No total sample count in STREAMINFO means bisection only, as before.
+
+Host: new texttest/flacseektest seeks to every whole second of the seven
+corpus FLACs (330 seeks) and checks each answer against a full walk of
+the file's frames: the same frame the bisection found, every time. Window
+reads a seek: 18.6 before (same harness, old code), 1.5 after, worst 3.
+At the board's measured rate that is about 3.2 s down to roughly 0.25 s.
+decoder.c logs `flac: the find took N window reads` after each seek.
+
+Not built for the target, not run on the board.
+
 ### 8000 -- CI: host tests after the components they include exist
 
 The v0.7.0 tag's workflow run failed at "Host tests (text layout, USB

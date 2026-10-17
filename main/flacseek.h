@@ -99,6 +99,9 @@ bool flac_seek_probe(FILE *f, flac_seek_t *fs);
 long flac_seek_find(FILE *f, const flac_seek_t *fs, uint32_t sec,
                     uint64_t *landed_sample);
 
+/* Window reads the last flac_seek_find() made (6160), for the log. */
+uint32_t flac_seek_last_reads(void);
+
 /* "fLaC" plus the STREAMINFO block, with the last-metadata-block flag
  * set so a fresh decoder goes straight from it to frames. Returns bytes
  * written; `cap` should be at least FLAC_PREAMBLE_BYTES. */

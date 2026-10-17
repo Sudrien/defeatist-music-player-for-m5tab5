@@ -1419,6 +1419,10 @@ static esp_err_t esp_codec_seek(decoder_t *d, uint32_t sec, uint32_t *landed_cs)
              (unsigned)plen,
              (unsigned)((t_found - t0) / 1000),
              (unsigned)((t_done - t_found) / 1000));
+    if (d->flac.ok) {
+        ESP_LOGI(TAG, "flac: the find took %" PRIu32 " window reads",
+                 flac_seek_last_reads());                       /* 6160 */
+    }
     return ESP_OK;
 }
 

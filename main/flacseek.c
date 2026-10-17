@@ -320,9 +320,66 @@ static size_t probe_window(const flac_seek_t *fs)
     return w;
 }
 
+/*
+ * 6160: INTERPOLATE FIRST, THEN BISECT, AND USE THE WHOLE WINDOW.
+ *
+ * This was a plain bisection, one window read per round, about twenty
+ * rounds for a minute of audio. The board timed it at 3 s a seek
+ * ("find 3248 ms"), and every cue track that does not start at zero
+ * paid it before its first sample -- 3 to 4 s of the old position
+ * still playing after a drag, and the same again on every cue track.
+ *
+ * Two things were being thrown away:
+ *
+ *   - Where to look. FLAC's bitrate wanders, but not far: a byte
+ *     offset proportional to the target sample lands within a few
+ *     frames on ordinary music, and each round refines the line from
+ *     what the last one found. So the guess is interpolated, aimed one
+ *     maximum frame early, since the frame found is the first AFTER
+ *     the guess.
+ *   - What was read. A window holds several frames, and the bisection
+ *     looked at the first and discarded the rest. Now the frames after
+ *     it in the same window are walked while they are still at or
+ *     before the target, so a guess that lands a few frames short
+ *     finishes in the buffer, with no further read.
+ *
+ * Interpolation alone can crawl on a file whose bitrate is badly
+ * uneven (silence then noise), so from the fourth round on, every
+ * other round is a plain bisection step: never worse than the old
+ * bound, and the old bound of 24 rounds still holds. A stream that
+ * states no total sample count has nothing to interpolate against and
+ * bisects as before.
+ *
+ * The answer is unchanged: the frame that contains the target, or the
+ * last confirmed frame before it. texttest/flacseektest checks it
+ * against the bisection's for every second of the test FLACs, and
+ * counts the reads.
+ */
+
+/* Confirmed frames after `at` in buf, while still at or before target.
+ * Updates *off_in_buf and *fr to the last one found. */
+static void walk_forward(const uint8_t *buf, size_t avail, const flac_seek_t *fs,
+                         uint64_t target, long *off_in_buf, flac_frame_t *fr)
+{
+    for (int guard = 0; guard < 64; guard++) {
+        const size_t next_from = (size_t)*off_in_buf + (size_t)fr->len;
+        if (next_from + 5 > avail) return;
+        flac_frame_t nx;
+        const long rel = find_frame(buf + next_from, avail - next_from, fs, &nx);
+        if (rel < 0 || nx.sample > target || nx.sample <= fr->sample) return;
+        *off_in_buf = (long)next_from + rel;
+        *fr = nx;
+    }
+}
+
+static uint32_t s_seek_reads;       /* for the log line, and the host test */
+
+uint32_t flac_seek_last_reads(void) { return s_seek_reads; }
+
 long flac_seek_find(FILE *f, const flac_seek_t *fs, uint32_t sec,
                     uint64_t *landed_sample)
 {
+    s_seek_reads = 0;
     if (!f || !fs || !fs->ok || !fs->sample_rate) return -1;
 
     uint64_t target = (uint64_t)sec * fs->sample_rate;
@@ -335,47 +392,57 @@ long flac_seek_find(FILE *f, const flac_seek_t *fs, uint32_t sec,
     if (!buf) return -1;
 
     long lo = fs->first_frame, hi = fs->file_end;
+    uint64_t lo_s = 0, hi_s = fs->total_samples;
     long best = -1;
     uint64_t best_sample = 0;
+    uint32_t best_block = 0;
+    const long early = fs->max_frame ? (long)fs->max_frame : 4096;
 
-    /*
-     * Bounded rather than "until lo >= hi". The invariant that makes a
-     * bisection terminate is that the interval shrinks every round, and
-     * this one shrinks by landing on a frame header whose position is
-     * decided by the data -- so a pathological file could in principle
-     * stall it. Twenty-four rounds is far more than the log2 of any
-     * file a FAT volume can hold, and a bounded loop on the decode loop
-     * is worth more than a proof.
-     */
     for (int round = 0; round < 24 && lo < hi; round++) {
-        long mid = lo + (hi - lo) / 2;
+        long mid;
+        const bool interp = hi_s > lo_s && target >= lo_s &&
+                            (round < 3 || (round & 1) == 0);
+        if (interp) {
+            const uint64_t span = (uint64_t)(hi - lo);
+            mid = lo + (long)((span * (target - lo_s)) / (hi_s - lo_s)) - early;
+        } else {
+            mid = lo + (hi - lo) / 2;
+        }
+        if (mid < lo) mid = lo;
+        if (mid >= hi) mid = hi - 1;
         if (mid < fs->first_frame) mid = fs->first_frame;
 
         long want = fs->file_end - mid;
         if (want > (long)win) want = (long)win;
         if (want < 5) break;
+        s_seek_reads++;
         if (!read_at(f, mid, buf, (size_t)want)) break;
 
         flac_frame_t fr;
-        const long at = find_frame(buf, (size_t)want, fs, &fr);
+        long at = find_frame(buf, (size_t)want, fs, &fr);
         if (at < 0) {
-            /* No header in this window. The audio is not where we
-             * looked -- most likely we are in the last partial frame --
-             * so give up on the upper half. */
+            /* No header in this window: most likely the last partial
+             * frame. Give up on the upper part. */
             hi = mid;
             continue;
         }
 
-        const long off = mid + at;
         if (fr.sample <= target) {
+            walk_forward(buf, (size_t)want, fs, target, &at, &fr);
+            const long off = mid + at;
             best = off;
             best_sample = fr.sample;
-            if (off <= lo) break;                   /* no progress possible */
+            best_block = fr.block;
+            if (target < fr.sample + fr.block) break;   /* this frame holds it */
+            if (off <= lo) break;                       /* no progress possible */
             lo = off + 1;
+            lo_s = fr.sample + fr.block;
         } else {
             hi = mid;
+            hi_s = fr.sample;
         }
     }
+    (void)best_block;
 
     /*
      * Nothing at or before the target, which happens when the target is
@@ -386,6 +453,7 @@ long flac_seek_find(FILE *f, const flac_seek_t *fs, uint32_t sec,
         long want = fs->file_end - fs->first_frame;
         if (want > (long)win) want = (long)win;
         flac_frame_t fr;
+        s_seek_reads++;
         if (want >= 5 && read_at(f, fs->first_frame, buf, (size_t)want)) {
             const long at = find_frame(buf, (size_t)want, fs, &fr);
             if (at >= 0) {

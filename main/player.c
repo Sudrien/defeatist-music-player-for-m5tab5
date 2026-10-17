@@ -3972,6 +3972,10 @@ static void player_force_pause(void)
 }
 
 static void request_seek_at(int pct, int32_t sec, const char *why);
+static void request_track_at(const char *path, int32_t start_sec);
+/* Defined with the other track state below; a tentative definition here
+ * so request_seek_at() can compare the decoder's track with the heard one. */
+static char s_path[512];
 
 static void request_seek(int pct, const char *why)
 {
@@ -3990,6 +3994,43 @@ static void request_seek_at(int pct, int32_t sec, const char *why)
      */
     if (!s_decoding) {
         ESP_LOGI(TAG, "seek (%s) ignored: nothing playing", why);
+        return;
+    }
+
+    /*
+     * 6161: A SEEK IS IN THE TRACK BEING HEARD.
+     *
+     * The decode loop runs up to a ring ahead of the speaker, so in the
+     * last stretch of a track -- and for the whole of any track shorter
+     * than a ring -- the loop is already in the NEXT track while this
+     * one plays out of the queue. A seek handed to the loop then lands
+     * in the wrong track. The board, on cue#01 (ten seconds): a tap at
+     * 56% on #01's bar became `seek to 5s` in #02, the rest of #01 was
+     * flushed, and #02 played from 5 s. Restart-on-prev goes through
+     * here too, and restarted the next track the same way.
+     *
+     * The screen's track is the heard one (it changes when the audio
+     * does, see VISUALS_GATE), and its length is what the bar showed.
+     * When the loop is somewhere else, the target is worked out against
+     * that track and it is started again there, which flushes the queue
+     * the same way a seek does. The playlist goes back with it, so next
+     * from there is the track after this one, not after the one the
+     * loop had reached.
+     */
+    if (s_shown_path[0] && strcmp(s_shown_path, s_path) != 0) {
+        const uint32_t len = s_len_sec;
+        int32_t target = sec;
+        if (target < 0) target = len ? (int32_t)((uint64_t)len * pct / 100) : 0;
+        if (len && (uint32_t)target >= len) target = (int32_t)len - 1;
+        if (target < 0) target = 0;
+        char heard[512];
+        snprintf(heard, sizeof(heard), "%s", s_shown_path);
+        ESP_LOGI(TAG, "seek (%s) is in the track being heard, %s, not the "
+                      "one being decoded; starting it again at %" PRId32 "s",
+                 why, heard, target);
+        const int idx = playlist_index_of(heard);
+        if (idx >= 0) playlist_set_current(idx);
+        request_track_at(heard, target > 0 ? target : -1);
         return;
     }
 

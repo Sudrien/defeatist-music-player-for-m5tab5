@@ -25357,6 +25357,37 @@ decoder.c logs `flac: the find took N window reads` after each seek.
 
 Not built for the target, not run on the board.
 
+### 6161 -- a seek is in the track being heard
+
+Board, after 6160 (FLAC seeks now 1-2 reads, 180-360 ms). On cue#01, a
+ten-second track, a tap at 56% on its bar became `seek to 5s` in cue#02.
+The rest of #01 was flushed and #02 played from 5 s.
+
+The decode loop runs up to a ring (about 20 s) ahead of the speaker.
+For the last stretch of any track, and the whole of any track shorter
+than a ring, the loop is already in the next track while this one plays
+from the queue. request_seek_at() handed the seek to the loop, which
+applied it to the track it had open. The same went for prev's
+restart-the-track, which goes through the same call; an earlier log
+shows it restarting 21 while 20 was heard.
+
+Now request_seek_at() compares the decoder's track (s_path) with the
+screen's (s_shown_path). The screen's is the heard one: since 6157-6159 it
+changes when the audio does. When they differ, the target is worked out
+against the heard track's length (the bar the press was made on), the
+playlist goes back to that track, and it is started again at the target
+with request_track_at(). That flushes the queue as a seek does. A
+track change already starts at a position this way (5268's start_sec,
+used by MPD's seekid), so nothing new is asked of the decode loop.
+
+A forward tentative definition of s_path sits above request_seek_at(),
+because s_path is defined further down with the rest of the track state.
+
+Not built for the target, not run on the board. Expected on the board:
+`seek (…) is in the track being heard, …cue#01, not the one being
+decoded; starting it again at 5s`, then `playing …cue#01` and a FLAC
+seek to 5 s.
+
 ### 8000 -- CI: host tests after the components they include exist
 
 The v0.7.0 tag's workflow run failed at "Host tests (text layout, USB

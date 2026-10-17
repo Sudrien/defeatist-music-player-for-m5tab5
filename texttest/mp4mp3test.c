@@ -62,15 +62,45 @@ static int checks, failures;
 
 static mp3dec_t dec;
 
-/* mp4_mp3_read(), without the decoder_t around it. */
+/*
+ * mp4_mp3_read(), without the decoder_t around it: since 6156 a window
+ * filled by mp4_read_raw() in whole runs, with minimp3 taking a frame
+ * at a time out of it. The window is deliberately small here, to make
+ * the refill and the carry-over happen often.
+ */
+static uint8_t win[6000];
+static int win_len, win_pos;
+static bool win_eof;
+static int refills;
+static uint32_t win_frames;     /* frames consumed since the reset */
+
+static void win_reset(void) { win_len = win_pos = 0; win_eof = false; win_frames = 0; }
+
 static int read_frame(FILE *f, mp4_t *m, uint8_t *in, size_t cap, int16_t *out)
 {
+    (void)in; (void)cap;
     for (;;) {
-        const uint32_t sz = mp4_read_frame(f, m, in, cap);
-        if (!sz) return 0;
+        if (!win_eof && win_len - win_pos < 2881) {
+            const int keep = win_len - win_pos;
+            memmove(win, win + win_pos, (size_t)keep);
+            win_pos = 0;
+            win_len = keep;
+            const size_t got = mp4_read_raw(f, m, win + keep, sizeof(win) - (size_t)keep);
+            if (!got) win_eof = true;
+            win_len += (int)got;
+            refills++;
+        }
+        if (win_pos >= win_len) return 0;
         mp3dec_frame_info_t fi;
         memset(&fi, 0, sizeof(fi));
-        const int spc = mp3dec_decode_frame(&dec, in, (int)sz, out, &fi);
+        const int spc = mp3dec_decode_frame(&dec, win + win_pos, win_len - win_pos, out, &fi);
+        if (fi.frame_bytes <= 0) {
+            if (win_eof) return 0;
+            win_pos++;
+            continue;
+        }
+        win_pos += fi.frame_bytes;
+        win_frames++;
         if (spc <= 0 || fi.channels <= 0) continue;
         return spc * fi.channels;
     }
@@ -100,6 +130,7 @@ int main(void)
 
     printf("  the whole minute\n");
     mp3dec_init(&dec);
+    win_reset();
     for (;;) {
         const int n = read_frame(f, &m, in, m.max_size, pcm + got);
         if (n <= 0) break;
@@ -107,6 +138,10 @@ int main(void)
     }
     CHECK(got == (size_t)m.count * 1152 * 2, "decoded %zu, frames say %zu",
           got, (size_t)m.count * 1152 * 2);
+    /* 2298 frames of 418 bytes through a 6000-byte window: a read every
+     * dozen frames or so, not every frame. */
+    printf("    %d reads for %u frames\n", refills, m.count);
+    CHECK(refills < (int)m.count / 4, "%d reads for %u frames", refills, m.count);
 
     printf("  against file 01\n");
     {
@@ -169,6 +204,7 @@ int main(void)
               (uint32_t)((uint64_t)m.cur * 1152 * 100 / 44100));
         const uint32_t first = m.cur;
         mp3dec_init(&dec);
+        win_reset();
         static int16_t buf[1152 * 2];
         /* Frames whose reservoir reaches before the seek decode to
          * nothing; read_frame() skips them. The first frame that does
@@ -176,7 +212,7 @@ int main(void)
          * overlap-add with, so it differs. From the second on, the
          * output must be the full decode's exactly. */
         const int n = read_frame(f, &m, in, m.max_size, buf);
-        const uint32_t landed = m.cur - 1;
+        const uint32_t landed = first + win_frames - 1;
         CHECK(n == 1152 * 2, "first frame after the seek gave %d", n);
         CHECK(landed - first <= 2, "%u frames lost to the reservoir", landed - first);
         const int16_t *want = pcm + (size_t)landed * 1152 * 2;

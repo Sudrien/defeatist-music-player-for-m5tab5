@@ -1018,20 +1018,46 @@ static esp_err_t esp_codec_open(decoder_t *d, const char *path, int fmt,
  * about rounding, the clamp and the in-place direction went with it.
  */
 
-/* MP3 in MP4: one table sample, one frame, one call. A frame that
- * yields nothing (the bit reservoir after a seek, a damaged frame) is
- * skipped rather than reported as the end. */
+/*
+ * MP3 in MP4. A frame that yields nothing (the bit reservoir after a
+ * seek, a damaged frame) is skipped rather than reported as the end.
+ *
+ * A WINDOW, NOT A FRAME A READ (6156). One sample a read was 2336 reads
+ * for file 31's minute on the board, the shape mp4seek.c already
+ * learned to avoid. mp4_read_raw() fills the window with whole
+ * contiguous samples in one read, and minimp3 takes them a frame at a
+ * time out of it -- each sample is exactly one frame, and minimp3 says
+ * how many bytes it used.
+ */
+#define MP4_MP3_LOW  2881           /* the largest MP3 frame */
+
 static int mp4_mp3_read(decoder_t *d, int16_t *out, int max_int16)
 {
     if (max_int16 < MINIMP3_MAX_SAMPLES_PER_FRAME) return -1;
     for (;;) {
-        const uint32_t sz = mp4_read_frame(d->f, &d->mp4, d->inbuf,
-                                           (size_t)d->in_cap);
-        if (!sz) return 0;
+        if (!d->eof && d->in_len - d->in_pos < MP4_MP3_LOW) {
+            const int keep = d->in_len - d->in_pos;
+            memmove(d->inbuf, d->inbuf + d->in_pos, (size_t)keep);
+            d->in_pos = 0;
+            d->in_len = keep;
+            const size_t got = mp4_read_raw(d->f, &d->mp4, d->inbuf + keep,
+                                            (size_t)(d->in_cap - keep));
+            if (!got) d->eof = true;
+            d->in_len += (int)got;
+        }
+        if (d->in_pos >= d->in_len) return 0;
         mp3dec_frame_info_t fi;
         memset(&fi, 0, sizeof(fi));
-        const int spc = mp3dec_decode_frame(&d->ex.mp3d, d->inbuf, (int)sz,
-                                            out, &fi);
+        const int spc = mp3dec_decode_frame(&d->ex.mp3d, d->inbuf + d->in_pos,
+                                            d->in_len - d->in_pos, out, &fi);
+        if (fi.frame_bytes <= 0) {
+            /* No frame in what is left: at the end that is the end, and
+             * mid-file it is a byte to drop so the next sync is found. */
+            if (d->eof) return 0;
+            d->in_pos++;
+            continue;
+        }
+        d->in_pos += fi.frame_bytes;
         if (spc <= 0 || fi.channels <= 0) continue;
         d->info.sample_rate = fi.hz;
         d->info.channels = fi.channels;
@@ -1421,7 +1447,16 @@ static esp_err_t adpcm_open(decoder_t *d, const char *path)
         return ESP_ERR_NOT_SUPPORTED;
     }
     const imawav_t *w = &d->ima;
-    d->inbuf = heap_caps_malloc(w->block_align, MALLOC_CAP_SPIRAM | MALLOC_CAP_8BIT);
+    /*
+     * SEVERAL BLOCKS A READ (6156). One block a read was 2636 reads for
+     * file 28's minute on the board -- the same shape as the MP4 path's
+     * 2585 reads (mp4seek.c), each an arbiter lease on the decode loop.
+     * About 8 KB at a time instead, and blocks are decoded out of it.
+     */
+    uint32_t per = 8192u / w->block_align;
+    if (!per) per = 1;
+    d->in_cap = (int)(per * w->block_align);
+    d->inbuf = heap_caps_malloc((size_t)d->in_cap, MALLOC_CAP_SPIRAM | MALLOC_CAP_8BIT);
     d->pcm = heap_caps_malloc((size_t)w->spb * w->channels * sizeof(int16_t),
                               MALLOC_CAP_SPIRAM | MALLOC_CAP_8BIT);
     if (!d->inbuf || !d->pcm || fseek(d->f, (long)w->data_start, SEEK_SET) != 0) {
@@ -1466,18 +1501,30 @@ static int adpcm_read(decoder_t *d, int16_t *out, int max_int16)
         }
         if (d->done >= w->total) return 0;
 
-        const int64_t at = (int64_t)d->block * w->block_align;
-        if (at >= w->data_len) return 0;
+        if (d->in_pos >= d->in_len) {
+            /* Refill with whole blocks from where the last one ended. */
+            const int64_t at = (int64_t)d->block * w->block_align;
+            if (at >= w->data_len) return 0;
+            int64_t want = d->in_cap;
+            if (w->data_len - at < want) want = w->data_len - at;
+            d->in_len = (int)storage_io_fread(d->inbuf, (size_t)want, d->f,
+                                              STORAGE_IO_PLAYBACK);
+            d->in_pos = 0;
+            if (d->in_len <= 0) { d->in_len = 0; return 0; }
+        }
         uint32_t want = w->block_align;
-        if (w->data_len - at < want) want = (uint32_t)(w->data_len - at);
-        const size_t got = storage_io_fread(d->inbuf, want, d->f, STORAGE_IO_PLAYBACK);
-        d->block++;
-        const uint32_t spc = ima_decode_block(d->inbuf, (uint32_t)got,
+        if ((uint32_t)(d->in_len - d->in_pos) < want) {
+            want = (uint32_t)(d->in_len - d->in_pos);
+        }
+        const uint32_t got = want;
+        const uint32_t spc = ima_decode_block(d->inbuf + d->in_pos, want,
                                               (uint16_t)ch, d->pcm);
+        d->in_pos += (int)want;
+        d->block++;
         if (!spc) {
             /* A truncated file ends here; a damaged header mid-file is
              * a step index past the table, and is reported, not played. */
-            if (got < want) return 0;
+            if (got < w->block_align) return 0;
             ESP_LOGE(TAG, "wav: IMA ADPCM block %" PRIu64 " is damaged", d->block - 1);
             return -1;
         }
@@ -1503,6 +1550,7 @@ static esp_err_t adpcm_seek(decoder_t *d, uint32_t sec, uint32_t *landed_cs)
         return ESP_FAIL;
     }
     d->block = blk;
+    d->in_len = d->in_pos = 0;          /* the window is the old place's */
     d->skip = (uint32_t)(target - blk * w->spb);
     d->done = target;
     d->pcm_len = d->pcm_pos = 0;
@@ -1519,7 +1567,7 @@ static esp_err_t adpcm_seek(decoder_t *d, uint32_t sec, uint32_t *landed_cs)
 #define AIFF_CHUNK_FRAMES   1024
 
 /*
- * `wav`: the file is a .wav and only G.711 is wanted from it (6155);
+ * `wav`: the file is a .wav and only G.711 or float is wanted from it;
  * ESP_ERR_NOT_SUPPORTED then quietly sends it on to esp_audio_codec, as
  * adpcm_open() does. Otherwise it is an AIFF and a refusal is the end.
  */
@@ -1529,7 +1577,7 @@ static esp_err_t aiff_open(decoder_t *d, const char *path, bool wav)
     if (!d->f) return ESP_ERR_NOT_FOUND;
     int64_t size = -1;
     if (fseek(d->f, 0, SEEK_END) == 0) size = ftell(d->f);
-    if (wav ? !wav_g711_probe(d->f, size, &d->aiff, STORAGE_IO_PLAYBACK)
+    if (wav ? !wav_local_probe(d->f, size, &d->aiff, STORAGE_IO_PLAYBACK)
             : !aiff_probe(d->f, size, &d->aiff, STORAGE_IO_PLAYBACK)) {
         if (!wav) {
             ESP_LOGE(TAG, "not an AIFF this can play (compressed, or more "
@@ -1559,7 +1607,8 @@ static esp_err_t aiff_open(decoder_t *d, const char *path, bool wav)
     ESP_LOGI(TAG, "%s (%s): %u ch, %" PRIu32 " Hz, %u-byte %s%s samples",
              d->info.codec, a->kind, (unsigned)a->channels, a->sample_rate,
              (unsigned)a->layout.bytes, a->layout.fp ? "float " : "",
-             a->layout.big ? "big-endian" : "little-endian");
+             a->layout.law ? "G.711"
+             : a->layout.big ? "big-endian" : "little-endian");
     return ESP_OK;
 }
 
@@ -1628,7 +1677,7 @@ static decoder_t *open_file(const char *path, const decoder_index_t *ix)
         if (ret == ESP_OK) d->backend = BACKEND_ADPCM;
         else if (ret != ESP_ERR_NOT_SUPPORTED) { free(d); return NULL; }
         if (d->backend == BACKEND_ESP_CODEC) {
-            ret = aiff_open(d, path, true);         /* G.711, 6155 */
+            ret = aiff_open(d, path, true);  /* G.711 (6155), float (6156) */
             if (ret == ESP_OK) d->backend = BACKEND_AIFF;
             else if (ret != ESP_ERR_NOT_SUPPORTED) { free(d); return NULL; }
         }

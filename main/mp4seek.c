@@ -1017,6 +1017,43 @@ size_t mp4_read(FILE *f, mp4_t *m, uint8_t *dst, size_t cap)
     return out;
 }
 
+size_t mp4_read_raw(FILE *f, mp4_t *m, uint8_t *dst, size_t cap)
+{
+    if (!f || !m || !m->ok || !dst) return 0;
+    while (m->cur < m->count &&
+           (!m->size[m->cur] || m->size[m->cur] > 0x20000)) {
+        m->cur++;
+    }
+    if (m->cur >= m->count) return 0;
+
+    uint32_t n = 0;
+    size_t bytes = 0;
+    int64_t expect = m->offset[m->cur];
+    while (m->cur + n < m->count) {
+        const uint32_t sz = m->size[m->cur + n];
+        if (!sz || sz > 0x20000) break;
+        if (m->offset[m->cur + n] != expect) break;
+        if (bytes + sz > cap) break;
+        bytes += sz;
+        expect += sz;
+        n++;
+    }
+    if (!n) return 0;
+
+    const int64_t at = m->offset[m->cur];
+    if (m->pos != at) {
+        if (at > (int64_t)LONG_MAX || fseek(f, (long)at, SEEK_SET) != 0) return 0;
+        m->pos = at;
+    }
+    if (storage_io_fread(dst, bytes, f, STORAGE_IO_PLAYBACK) != bytes) {
+        m->pos = -1;
+        return 0;
+    }
+    m->pos += (int64_t)bytes;
+    m->cur += n;
+    return bytes;
+}
+
 uint32_t mp4_read_frame(FILE *f, mp4_t *m, uint8_t *dst, size_t cap)
 {
     if (!f || !m || !m->ok || !dst) return 0;

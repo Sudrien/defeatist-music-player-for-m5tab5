@@ -221,6 +221,14 @@ uint32_t mp4_seek_cs(mp4_t *m, uint32_t sec);
 uint32_t mp4_read_frame(FILE *f, mp4_t *m, uint8_t *dst, size_t cap);
 
 /*
+ * Whole samples as they are, as many contiguous ones as fit in `cap`, in
+ * one read. Returns bytes written, 0 at the end. For codecs whose samples
+ * frame themselves -- MP3 (6156) -- so a run can be handed over without
+ * the sizes.
+ */
+size_t mp4_read_raw(FILE *f, mp4_t *m, uint8_t *dst, size_t cap);
+
+/*
  * Fill `dst` with whole ADTS frames, header synthesised per sample --
  * or for Opus, whole Ogg pages, the two header pages first. Returns
  * bytes written, 0 at the end of the table. Not ALAC, which uses

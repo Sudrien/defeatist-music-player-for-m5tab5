@@ -20,9 +20,9 @@
  * expanded in pcmconv.h). Anything else compressed -- ima4, MAC3/6 --
  * is refused rather than played as noise.
  *
- * wav_g711_probe() below fills the same struct from a WAV holding G.711
- * (format tags 6 and 7), which esp_audio_codec's WAV parser does not
- * take: one layout, one reader, two containers.
+ * wav_local_probe() below fills the same struct from a WAV holding G.711
+ * or float, which esp_audio_codec's WAV parser does not take: one
+ * layout, one reader, two containers.
  *
  * Mono and stereo only, for the reason imaadpcm.h gives.
  *
@@ -180,12 +180,23 @@ static inline bool aiff_probe(FILE *f, int64_t size, aiff_t *a,
 }
 
 /*
- * A WAV whose format tag is 6 (A-law) or 7 (mu-law), 8 bits, mono or
- * stereo, into an aiff_t (6155). False for every other WAV, which then
- * goes the way it always has. Chunks walked, as everywhere.
+ * A WAV this file's reader plays and esp_audio_codec's does not, into an
+ * aiff_t. False for every other WAV, which then goes the way it always
+ * has. Chunks walked, as everywhere.
+ *
+ *   - G.711 (6155): format tag 6 (A-law) or 7 (mu-law), 8 bits.
+ *   - IEEE float (6156): tag 3, 32 or 64 bits -- and either of the above
+ *     inside WAVE_FORMAT_EXTENSIBLE (0xFFFE), named by the first two
+ *     bytes of the subformat GUID. 6150 assumed esp_audio_codec's WAV
+ *     parser passed float through; the board said otherwise, for file 20:
+ *     `WAV_Parser: Not supported audio format fffe`. Its parser takes
+ *     extensible integer PCM (file 19 plays) and not extensible float, so
+ *     float is read here, where the header's word is the whole story.
+ *
+ * Integer PCM stays with esp_audio_codec, which plays it.
  */
-static inline bool wav_g711_probe(FILE *f, int64_t size, aiff_t *a,
-                                  storage_io_class_t cls)
+static inline bool wav_local_probe(FILE *f, int64_t size, aiff_t *a,
+                                   storage_io_class_t cls)
 {
     memset(a, 0, sizeof(*a));
     uint8_t h[12];
@@ -200,17 +211,27 @@ static inline bool wav_g711_probe(FILE *f, int64_t size, aiff_t *a,
         const uint32_t len = (uint32_t)c[4] | (uint32_t)c[5] << 8 |
                              (uint32_t)c[6] << 16 | (uint32_t)c[7] << 24;
         if (!memcmp(c, "fmt ", 4)) {
-            uint8_t m[16];
-            if (len < 16 || !storage_io_read_at(f, pos + 8, m, 16, cls)) return false;
-            const unsigned tag = m[0] | m[1] << 8;
-            if (tag != 6 && tag != 7) return false;
-            if ((m[14] | m[15] << 8) != 8) return false;
+            uint8_t m[26];
+            if (len < 16) return false;
+            const size_t want = len >= 26 ? 26 : 16;
+            if (!storage_io_read_at(f, pos + 8, m, want, cls)) return false;
+            unsigned tag = m[0] | m[1] << 8;
+            if (tag == 0xFFFE && want == 26) tag = m[24] | m[25] << 8;
+            const unsigned bits = m[14] | m[15] << 8;
             a->channels = (uint16_t)(m[2] | m[3] << 8);
             a->sample_rate = (uint32_t)m[4] | (uint32_t)m[5] << 8 |
                              (uint32_t)m[6] << 16 | (uint32_t)m[7] << 24;
-            a->layout.bytes = 1;
-            a->layout.law = tag == 7 ? 'u' : 'a';
-            memcpy(a->kind, tag == 7 ? "ulaw" : "alaw", 4);
+            if ((tag == 6 || tag == 7) && bits == 8) {
+                a->layout.bytes = 1;
+                a->layout.law = tag == 7 ? 'u' : 'a';
+                memcpy(a->kind, tag == 7 ? "ulaw" : "alaw", 4);
+            } else if (tag == 3 && (bits == 32 || bits == 64)) {
+                a->layout.fp = true;
+                a->layout.bytes = (uint8_t)(bits / 8);
+                memcpy(a->kind, bits == 32 ? "fl32" : "fl64", 4);
+            } else {
+                return false;
+            }
             have_fmt = true;
         } else if (!memcmp(c, "data", 4)) {
             if (!have_fmt || a->channels < 1 || a->channels > 2 || !a->sample_rate) {
@@ -221,7 +242,7 @@ static inline bool wav_g711_probe(FILE *f, int64_t size, aiff_t *a,
             if (!len || len == 0xFFFFFFFFu || a->data_start + avail > size) {
                 avail = size - a->data_start;
             }
-            a->frame_bytes = a->channels;
+            a->frame_bytes = (uint16_t)(a->layout.bytes * a->channels);
             a->frames = avail > 0 ? (uint64_t)avail / a->frame_bytes : 0;
             return a->frames > 0;
         }

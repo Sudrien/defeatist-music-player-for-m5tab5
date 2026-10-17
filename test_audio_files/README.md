@@ -52,7 +52,7 @@ place; one that is wrong by more is obvious from the beep count.
 | 17 ts-aac-spliced | tsseek's non-monotonic PTS refusal | **no seek, no duration, empty bar** |
 | 18 ogg-vorbis-chained | oggseek and duration.c where the tail is another stream | 20 s on the bar, seeks within it, clamps at the chain |
 | 19 wav-pcm32 | 32-bit integer, folded by its header (6150) | plays, seeks, exact; log says *32-bit integer* |
-| 20 wav-float32 | 32-bit float, indistinguishable from 19 at the decoder, distinguished by its header (6150) | plays, seeks, exact, sounds like 19; log says *32-bit float* |
+| 20 wav-float32 | 32-bit float, extensible; read in aiff.h/pcmconv.h since 6156 (esp_audio_codec's parser refused it on the board) | plays, seeks, sounds like 19; log says *wav (fl32)* |
 | 21 flac-24bit | the fold on a real decoder rather than a PCM chunk | plays, seeks |
 | 28 wav-ima-adpcm | IMA ADPCM, decoded in imaadpcm.h (6151); stereo 1024-byte blocks | plays, seeks, exact; log says *IMA ADPCM* |
 | 29 wav-ima-adpcm-mono | the same, mono at 22.05 kHz, ending mid-block | plays 7.3 s and stops there, not at the end of the padded block |

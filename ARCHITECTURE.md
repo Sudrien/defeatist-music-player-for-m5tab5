@@ -25189,6 +25189,53 @@ every frame is layer 2, and the length is right.
 
 Not built for the target, not run on the board.
 
+### 6156 -- float WAV read here; fewer reads for IMA ADPCM and MP3-in-MP4
+
+From the first board run of 6150-6155 (2026-10-16). Everything in files
+19-40 played except 20.
+
+FILE 20. 6150 assumed esp_audio_codec's WAV parser passes float through
+and only the fold was missing. It does not. `WAV_Parser: Not supported
+audio format fffe`, then decode error -7. Its parser takes extensible
+integer PCM (19 played, folded) and refuses extensible float. So float
+now goes the way G.711 does: wav_g711_probe() becomes wav_local_probe(),
+which also takes tag 3 at 32 or 64 bits, and tags 3, 6 and 7 inside
+WAVE_FORMAT_EXTENSIBLE (subformat GUID's first two bytes). The file then
+plays through BACKEND_AIFF and pcm_conv(). Integer PCM, 32-bit included,
+stays with esp_audio_codec. 6150's float branch in decoder.c and its
+`is_float` in cbrseek are now unreachable for files. They are left in,
+since nothing is wrong with them and the stream path may meet a float
+WAV one day. aifftest: 20 decodes to file 01's samples exactly, and 19
+is not taken.
+
+READS. The board's per-track I/O line showed two of the new paths reading
+one unit at a time: file 28 (IMA ADPCM) took 2636 reads for 2602 KB, one
+per 1 KB block, and file 31 (MP3 in MP4) took 2336 reads, one per
+frame. That is the pattern mp4seek.c's comment records costing 1545 ms
+of arbiter time a minute. Now:
+- adpcm_read() fills about 8 KB of whole blocks at a time and decodes
+  them out of the buffer; a seek empties it.
+- mp4_mp3_read() keeps a window that mp4_read_raw() (new: whole
+  contiguous samples, no headers, one read) fills, and minimp3 takes a
+  frame at a time out of it by frame_bytes.
+mp4mp3test now runs through that window (deliberately 6000 bytes): 288
+reads for 2298 frames, the same samples, and the seek check unchanged.
+The ADPCM change is in decoder.c and has no host test of its own; the
+block decode it calls is imaadpcmtest's.
+
+LOG. G.711 announced itself as "1-byte little-endian samples"; it now
+says G.711.
+
+Seen in the same run and not from these patches, for the record:
+- every cue track that starts past 0 on file 22-27's FLAC spends about
+  3 s in flac_seek_find() ("find 3207 ms") and logs `decoder_read
+  blocked 3292 ms`. Each is a first-sound time of 3.5-7 s.
+- `AUD_Dec_Parse: Not found frame in max frame size 2219` at the end of
+  27 cue-bumps.cue#03.
+- three `DSI underruns` while 32 (AIFF) played.
+
+Not built for the target, not run on the board.
+
 ### 8000 -- CI: host tests after the components they include exist
 
 The v0.7.0 tag's workflow run failed at "Host tests (text layout, USB

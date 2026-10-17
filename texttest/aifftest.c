@@ -79,7 +79,7 @@ static int16_t *decode(const char *path, aiff_t *a, size_t *n)
     fseek(f, 0, SEEK_END);
     const int64_t size = ftell(f);
     const bool wav = strstr(path, ".wav") != NULL;
-    if (wav ? !wav_g711_probe(f, size, a, STORAGE_IO_PLAYBACK)
+    if (wav ? !wav_local_probe(f, size, a, STORAGE_IO_PLAYBACK)
             : !aiff_probe(f, size, a, STORAGE_IO_PLAYBACK)) {
         fclose(f);
         return NULL;
@@ -222,6 +222,37 @@ int main(void)
         against_01("35 aifc-fl32.aifc", 220500, "fl32");
     }
 
+    /*
+     * 6156: float WAV. 6150 sent file 20 to esp_audio_codec, whose WAV
+     * parser refused it on the board ("Not supported audio format
+     * fffe"); it is read here now. Same audio as 19, so 01's samples.
+     */
+    if (ref) {
+        printf("  20, float WAV, against file 01\n");
+        aiff_t a;
+        size_t n;
+        int16_t *s20 = decode(DIR "20 wav-float32.wav", &a, &n);
+        CHECK(s20 != NULL, "20 did not probe as float");
+        if (s20) {
+            CHECK(a.layout.fp && a.layout.bytes == 4 && !a.layout.big &&
+                  a.channels == 2 && a.frames == 441000,
+                  "20: fp %d, %u bytes, %u ch, %llu frames", a.layout.fp,
+                  a.layout.bytes, a.channels, (unsigned long long)a.frames);
+            size_t bad = 0;
+            for (size_t i = 0; i < n && i < ref_n; i++) if (s20[i] != ref[i]) bad++;
+            CHECK(n == 882000 && bad == 0, "20: %zu samples, %zu differ", n, bad);
+            free(s20);
+        }
+        /* And 19, integer, stays with esp_audio_codec, which plays it. */
+        FILE *f = fopen(DIR "19 wav-pcm32.wav", "rb");
+        if (f) {
+            fseek(f, 0, SEEK_END);
+            CHECK(!wav_local_probe(f, ftell(f), &a, STORAGE_IO_PLAYBACK),
+                  "19, integer, was taken from esp_audio_codec");
+            fclose(f);
+        }
+    }
+
     printf("  36, 8-bit mono\n");
     {
         aiff_t a;
@@ -288,8 +319,8 @@ int main(void)
         if (f) {
             aiff_t a;
             fseek(f, 0, SEEK_END);
-            CHECK(!wav_g711_probe(f, ftell(f), &a, STORAGE_IO_PLAYBACK),
-                  "PCM WAV was taken as G.711");
+            CHECK(!wav_local_probe(f, ftell(f), &a, STORAGE_IO_PLAYBACK),
+                  "PCM WAV was taken as G.711 or float");
             fclose(f);
         }
     }

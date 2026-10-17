@@ -3987,17 +3987,6 @@ static void request_seek(int pct, const char *why)
 static void request_seek_at(int pct, int32_t sec, const char *why)
 {
     /*
-     * Refused rather than queued when there is nothing to seek in. A
-     * request with no reader is not pending, it is lost -- and a lost
-     * request that fires later, against a different song, is worse than
-     * one that never fires at all.
-     */
-    if (!s_decoding) {
-        ESP_LOGI(TAG, "seek (%s) ignored: nothing playing", why);
-        return;
-    }
-
-    /*
      * 6161: A SEEK IS IN THE TRACK BEING HEARD.
      *
      * The decode loop runs up to a ring ahead of the speaker, so in the
@@ -4016,6 +4005,14 @@ static void request_seek_at(int pct, int32_t sec, const char *why)
      * the same way a seek does. The playlist goes back with it, so next
      * from there is the track after this one, not after the one the
      * loop had reached.
+     *
+     * 6163: ahead of the "nothing playing" refusal below. Between two
+     * tracks the loop is not decoding -- it has finished one and is
+     * opening the next -- while the finished one still plays out of the
+     * queue for seconds. The board: `seek (slider) ignored: nothing
+     * playing` on a tap at 65% of cue#01, heard and on screen, while
+     * the loop opened #02. The heard track is the answer to "is there
+     * anything to seek in", not the loop.
      */
     if (s_shown_path[0] && strcmp(s_shown_path, s_path) != 0) {
         const uint32_t len = s_len_sec;
@@ -4033,6 +4030,18 @@ static void request_seek_at(int pct, int32_t sec, const char *why)
         request_track_at(heard, target > 0 ? target : -1);
         return;
     }
+
+    /*
+     * Refused rather than queued when there is nothing to seek in. A
+     * request with no reader is not pending, it is lost -- and a lost
+     * request that fires later, against a different song, is worse than
+     * one that never fires at all.
+     */
+    if (!s_decoding) {
+        ESP_LOGI(TAG, "seek (%s) ignored: nothing playing", why);
+        return;
+    }
+
 
     if (s_seek_pct >= 0) {
         /* The previous request never made it to the decoder. Said out

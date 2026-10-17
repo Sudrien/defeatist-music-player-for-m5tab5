@@ -25413,6 +25413,28 @@ and that was right all along. This was drawing only.
 
 Not built for the target, not run on the board.
 
+### 6163 -- a seek between two tracks is not "nothing playing"
+
+Board, after 6162. A tap at 65% of cue#01, heard and on screen, logged
+`seek (slider) ignored: nothing playing`. The loop had finished #01's
+decode and was opening #02, so s_decoding was false while #01 played on
+from the queue for another three seconds. request_seek_at() refused on
+s_decoding before 6161's heard-track redirect could run.
+
+The redirect now comes first. When the screen's track is not the loop's,
+that is the track being sought, whether or not the loop is decoding at
+that moment. The refusal still covers the case it was written for:
+nothing heard and nothing decoding.
+
+The same run shows every other seek in a decode-ahead landing where it
+was asked (24% of #01 -> 1.98 s, 51% of #02 -> 14.94 s in the image),
+by 6161's route of starting the heard track again at the target. That
+route re-commits the screen and takes about 0.6 s to first sound, so on
+screen it looks like the track restarting. It is the cost of seeking a
+track the loop has already left.
+
+Not built for the target, not run on the board.
+
 ### 8000 -- CI: host tests after the components they include exist
 
 The v0.7.0 tag's workflow run failed at "Host tests (text layout, USB

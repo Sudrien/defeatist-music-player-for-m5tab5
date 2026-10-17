@@ -25597,6 +25597,13 @@ first tap that had already gone to the list's previous track. It now
 falls back to the list's track before the anchor, and restarts only when
 there is none.
 
+### 6174 -- the double tap walks the list, not the history
+
+A double tap on prev now always means the list's track before the one
+heard at the first tap. The play-history walk could lead forwards after
+any jumping around (a board run went #04 -> #05). History is still kept
+(6172) but no longer consulted by prev.
+
 ### 8000 -- CI: host tests after the components they include exist
 
 The v0.7.0 tag's workflow run failed at "Host tests (text layout, USB

@@ -4507,7 +4507,7 @@ static void history_push(const char *path)
  * The anchor is the track that was playing when the FIRST tap landed, so
  * the answer does not depend on what happened in between.
  */
-static const char *history_back_from(const char *anchor)
+__attribute__((unused)) static const char *history_back_from(const char *anchor)
 {
     if (!anchor || !*anchor) return NULL;
 
@@ -9607,30 +9607,18 @@ static void ui_task(void *arg)
              * makes the second arrival free. Under shuffle they differ,
              * which is the case worth having.
              */
-            const char *h = history_back_from(s_prev_anchor);
-            if (h) {
-                ESP_LOGI(TAG, "back through history to %s", h);
-                /* Keep the list pointing at where playback actually is,
-                 * so the track after this one follows from here rather
-                 * than from wherever the first tap left the index. */
-                const int idx = playlist_index_of(h);
-                if (idx >= 0) playlist_set_current(idx);
-                request_track(h);
+            /* 6174: back through the LIST from the track heard when the
+             * first tap landed -- not through the play history, which
+             * after any jumping around can lead forwards. */
+            const int at = playlist_index_of(s_prev_anchor);
+            if (at >= 0) playlist_set_current(at);
+            const char *p = at >= 0 ? playlist_prev() : NULL;
+            if (p) {
+                ESP_LOGI(TAG, "prev x2: back through the list to %s", p);
+                request_track(p);
             } else {
-                /* 6173: nothing heard before the anchor -- the usual case
-                 * after picking a track. The list's track before it is
-                 * still what a double tap means; restarting undid a first
-                 * tap that had already gone back. */
-                const int at = playlist_index_of(s_prev_anchor);
-                if (at >= 0) playlist_set_current(at);
-                const char *p = at >= 0 ? playlist_prev() : NULL;
-                if (p) {
-                    ESP_LOGI(TAG, "no play history; back through the list to %s", p);
-                    request_track(p);
-                } else {
-                    ESP_LOGI(TAG, "no play history and no track before; restarting");
-                    request_seek(0, "prev x2: no history");
-                }
+                ESP_LOGI(TAG, "prev x2: no track before; restarting");
+                request_seek(0, "prev x2: first track");
             }
             break;
         }

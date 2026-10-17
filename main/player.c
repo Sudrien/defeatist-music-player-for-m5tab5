@@ -3998,8 +3998,16 @@ static void bar_log(uint32_t pos, uint32_t len, const char *shown)
     if (pos == last) return;
     last = pos;
     const char *base = strrchr(shown, '/');
+    /* 6167: and what pos_publish() computed it from, for the ring it
+     * reads -- the bar went 5 -> 0 at the handoff on the board and the
+     * three numbers that make the position are the ones that say why. */
+    const int r = s_ring_play;
     ESP_LOGI(TAG, "bar: %" PRIu32 " of %" PRIu32 " s, %s, %" PRIu32
-                  " ms after the seek", pos, len, base ? base + 1 : shown, ms);
+                  " ms after the seek; ring %d: decoded %" PRIu64
+                  " queued %u rate %" PRIu32 " (fill %d)",
+             pos, len, base ? base + 1 : shown, ms, r, s_frames_out[r],
+             (unsigned)(xStreamBufferBytesAvailable(s_ring[r]) / PCM_BYTES_PER_FRAME),
+             s_frames_rate[r], s_ring_fill);
 }
 
 static void request_seek_at(int pct, int32_t sec, const char *why);
@@ -11782,6 +11790,8 @@ static track_end_t play_file(const char *path)
                 s_frames_out[s_ring_fill] =
                     ring_frames_of(frames_out, cur_rate, ring_rate);
                 frames_at_seek = frames_out;
+                ESP_LOGI(TAG, "seek anchored at the first block: %" PRIu64
+                              " frames on ring %d", frames_out, s_ring_fill);
                 anchor_cs = -1;
             }
         }

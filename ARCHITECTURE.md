@@ -25481,6 +25481,26 @@ follows it is now right too.
 
 Not built for the target, not run on the board.
 
+### 6167 -- the bar log says what the position was made of
+
+6165's log, paused on cue#03 with a seek to 5 s: `bar: 5 of 10 s` from
+the seek's own anchor at 443 ms, then `bar: 0 of 10 s` at 944 ms, just
+after the screen commit and the writer's handoff onto the new ring. The
+same at 3 s. On screen the 5 shows red and then the bar drops to 0. The
+landing itself was right (`flac: seek to 25s … landed 24.97s`).
+
+pos_publish() is decoded minus queued on the play ring, and paused,
+everything decoded is still queued. So 0 means the ring's decoded count
+never got the anchor -- which turned out to be because the anchor fix,
+handed over as 6164, was never pushed (now 6166). This stays as the
+check that it works: the bar line carries the ring it reads, its decoded
+count, its queued frames, its rate and the fill ring. The decode loop
+also logs `seek anchored at the first block: N frames on ring R` when
+6166's deferred anchor is applied, so the next run shows whether that
+ran, on which ring, and what the writer then read.
+
+Logging only. Not built for the target.
+
 ### 8000 -- CI: host tests after the components they include exist
 
 The v0.7.0 tag's workflow run failed at "Host tests (text layout, USB

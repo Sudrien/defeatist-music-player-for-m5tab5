@@ -4747,6 +4747,9 @@ static bool track_commit_due(void)
 /* Defined with s_late below; this function is its one early caller. */
 static void late_commit_drop(void);
 
+/* 6177: the cue track whose sheet length was put up at the press. */
+static char s_preview_path[512];
+
 static void track_change_begin(const char *path)
 {
     s_track_gen++;
@@ -4824,9 +4827,10 @@ static void track_change_begin(const char *path)
      * the sound change together.
      */
     if (!tail_playing() && !same) {
+        const bool previewed = strcmp(path, s_preview_path) == 0;   /* 6177 */
         s_stats_valid = false;
         s_pos_sec = 0;
-        s_len_sec = 0;
+        if (!previewed) s_len_sec = 0;
         s_can_seek = false;
     }
     s_fmt_known = false;
@@ -6882,6 +6886,31 @@ static void request_track_at(const char *path, int32_t start_sec)
     snprintf(s_pending, sizeof(s_pending), "%s", path);
     s_pending_start_sec = start_sec;                                /* 5268 */
     s_pending_ready = true;
+
+    /*
+     * 6177: a cue track's title and length are in the sheet, a few KB
+     * that cuedir already parses for the list -- so show them now, at the
+     * press, instead of when the decode loop gets there. That can be most
+     * of a second away: the loop is often inside the previous target's
+     * open, finding a FLAC frame in the shared image, and cannot be
+     * interrupted until it is done. The commit redraws the same text
+     * when the audio arrives; nothing here touches the audio side.
+     */
+    if (path && cue_vpath_split(path, NULL)) {
+        static tag_extra_t x;                 /* not on the ui stack */
+        uint32_t sec = 0;
+        load_tags(path);
+        s_text_release = true;
+        if (cuedir_extra(path, &x, &sec) && sec > 0) {
+            s_len_sec = sec;
+            snprintf(s_preview_path, sizeof(s_preview_path), "%s", path);
+            /* Held, as a seek's target is (6169), so the outgoing track's
+             * counters do not paint over it before the commit. */
+            s_rg_hold_active = s_rg_hold_measuring = false;
+            s_pos_hold_at = xTaskGetTickCount();
+            s_pos_hold = start_sec > 0 ? start_sec : 0;
+        }
+    }
 }
 
 static void request_track(const char *path)

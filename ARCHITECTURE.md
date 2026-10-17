@@ -25624,6 +25624,17 @@ run's target has not reached the screen and the last tap was under
 PREV_RUN_MS (2.5 s) ago. A track reached by such a run that plays nothing
 is skipped backwards rather than forwards.
 
+### 6177 -- a cue track's title and length at the press
+
+request_track_at() now puts up a cue track's sheet title and length (and
+holds the bar at its start, as 6169 does for a seek) on the ui task, at
+the press. The decode loop can be most of a second from getting there:
+it is often still inside the previous target's open, finding a FLAC
+frame in the shared image, which cannot be interrupted. track_change_
+begin() keeps the previewed length rather than zeroing it, and the
+commit redraws the same text when the audio arrives. Files that are not
+cue tracks are unchanged: their tags need a read of the audio file.
+
 ### 8000 -- CI: host tests after the components they include exist
 
 The v0.7.0 tag's workflow run failed at "Host tests (text layout, USB

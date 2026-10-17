@@ -3971,6 +3971,37 @@ static void player_force_pause(void)
     s_pause_epoch++;
 }
 
+/*
+ * 6165: what the bar says after a seek. The log could show where a seek
+ * LANDED and never where the bar then stood, which is the half a
+ * listener sees. For a few seconds after any seek press, ui_task logs
+ * the bar's position each time it changes, with the track and how long
+ * after the press -- enough to put next to the `landed` line.
+ */
+#define BAR_LOG_MS  (5000)
+static volatile TickType_t s_bar_log_from;
+static volatile bool       s_bar_log_on;
+
+static void bar_log_arm(void)
+{
+    s_bar_log_from = xTaskGetTickCount();
+    s_bar_log_on = true;
+}
+
+static void bar_log(uint32_t pos, uint32_t len, const char *shown)
+{
+    static uint32_t last = UINT32_MAX;
+    if (!s_bar_log_on) { last = UINT32_MAX; return; }
+    const uint32_t ms =
+        (uint32_t)pdTICKS_TO_MS(xTaskGetTickCount() - s_bar_log_from);
+    if (ms > BAR_LOG_MS) { s_bar_log_on = false; last = UINT32_MAX; return; }
+    if (pos == last) return;
+    last = pos;
+    const char *base = strrchr(shown, '/');
+    ESP_LOGI(TAG, "bar: %" PRIu32 " of %" PRIu32 " s, %s, %" PRIu32
+                  " ms after the seek", pos, len, base ? base + 1 : shown, ms);
+}
+
 static void request_seek_at(int pct, int32_t sec, const char *why);
 static void request_track_at(const char *path, int32_t start_sec);
 /* Defined with the other track state below; a tentative definition here
@@ -3986,6 +4017,7 @@ static void request_seek(int pct, const char *why)
  * pending flag's value. */
 static void request_seek_at(int pct, int32_t sec, const char *why)
 {
+    bar_log_arm();                                                  /* 6165 */
     /*
      * 6161: A SEEK IS IN THE TRACK BEING HEARD.
      *
@@ -8981,6 +9013,7 @@ static void ui_task(void *arg)
         st.can_seek = s_can_seek;
         st.screen_off = s_screen_off;
         st.stats_valid = s_stats_valid;
+        bar_log(st.pos_sec, st.len_sec, s_shown_path);              /* 6165 */
 
         /*
          * Paused, or between tracks with nothing open -- shut the
@@ -9640,6 +9673,7 @@ static void ui_task(void *arg)
         st.can_seek = s_can_seek;
         st.screen_off = s_screen_off;
         st.stats_valid = s_stats_valid;
+        bar_log(st.pos_sec, st.len_sec, s_shown_path);              /* 6165 */
         st.battery_pct = battery_pct();
         st.battery_charging = battery_charging();
         st.ext_power = battery_external();

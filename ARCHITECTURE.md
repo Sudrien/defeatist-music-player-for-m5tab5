@@ -25435,6 +25435,22 @@ track the loop has already left.
 
 Not built for the target, not run on the board.
 
+### 6165 -- log where the bar stands after a seek
+
+After 6164 the log showed every seek landing where it was asked, and the
+board still looked wrong. The log said where the decoder landed and
+never where the bar then stood, which is what the listener sees.
+
+Every request_seek_at() call (slider, prev's restart, MPD) now arms five
+seconds of `bar: <pos> of <len> s, <track>, <ms> ms after the seek`
+from ui_task. One line is logged each time the published position
+changes, on both of the transport bar's publish sites. A healthy seek
+reads like its `landed` line and then counts up a second at a time. A
+bar that drops to 0 first, or jumps at the handoff, shows as exactly
+that.
+
+Logging only. Not built for the target.
+
 ### 8000 -- CI: host tests after the components they include exist
 
 The v0.7.0 tag's workflow run failed at "Host tests (text layout, USB

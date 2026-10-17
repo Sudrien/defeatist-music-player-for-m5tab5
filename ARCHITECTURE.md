@@ -25564,6 +25564,16 @@ The ReplayGain badge is snapshotted with the 6169 position hold and
 published from the snapshot while the hold is live, so the teardown/commit
 pair of a restart no longer blinks it off and on.
 
+### 6171 -- a pick repaints the art the way cancel does
+
+Cancel closed the chooser and repainted the art square; a pick of the
+track already on screen closed it and never did. The repaint flag was
+spent by the play_file() loop being torn down, and track_commit skipped
+the visuals for a same-track restart (6168). A pick now sets s_art_dirty,
+which track_commit honours even for the same track. The cover's ring
+wait also returns at once while paused: nothing drains the ring, so there
+is nothing to protect, and it was costing ~6 s before the art appeared.
+
 ### 8000 -- CI: host tests after the components they include exist
 
 The v0.7.0 tag's workflow run failed at "Host tests (text layout, USB

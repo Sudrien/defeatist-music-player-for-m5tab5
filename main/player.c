@@ -5012,6 +5012,12 @@ static void load_track_visuals(const char *path)
  * Deferring the number and publishing the indicator with the rest of the
  * screen is what makes the badge appear on the track it is about.
  */
+/* 6171: the chooser drew over the art square and closed on a pick. The
+ * repaint flag is spent by whichever play_file() loop sees it first, often
+ * the one about to be torn down, so the pick carries its own mark that
+ * only a load of the visuals clears. */
+static volatile bool s_art_dirty;
+
 static void track_commit(const track_commit_t *tc)
 {
     /* 6168: before s_shown_path is overwritten below. */
@@ -5058,7 +5064,11 @@ static void track_commit(const track_commit_t *tc)
     track_change_show(tc->path);
     /* 6168: the title, tags and art of the track already on screen are
      * already drawn; reloading them is the flash, not the change. */
-    if (!same_as_shown) load_track_visuals(tc->path);
+    if (!same_as_shown || s_art_dirty) {
+        if (same_as_shown) ESP_LOGI(TAG, "screen: same track, but the art square was drawn over; repainting");
+        s_art_dirty = false;
+        load_track_visuals(tc->path);
+    }
 }
 
 /*
@@ -6219,6 +6229,10 @@ static bool media_settle_for(uint32_t gen, int delay_ms, int floor_pct,
         /* Nothing is producing and nothing is about to be. Waiting for a
          * level is waiting for a task that does not exist. */
         if (!s_decoding && !s_track_changing) return true;
+        /* 6171: paused, the writer is not draining the ring, so there is
+         * no underrun to protect -- and decode-ahead may keep the level
+         * where it is for the whole wait. Draw now. */
+        if (!s_playing) return true;
 
         const int pct = ring_headroom_pct();
         if (pct < 0 || pct >= floor_pct) return true;
@@ -8803,6 +8817,7 @@ static void ui_task(void *arg)
                 browser_close();
                 touch_swallow();        /* mirror image: see touch_swallow() */
                 s_repaint_art = true;
+                s_art_dirty = true;                 /* 6171 */
                 break;
             case BROWSER_PLAY_STREAM: {
                 /*

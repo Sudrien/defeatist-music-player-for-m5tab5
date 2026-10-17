@@ -4767,7 +4767,11 @@ static volatile bool    s_skip_run;
 static void skip_tap(void)
 {
     const int64_t now = esp_timer_get_time() / 1000;
-    s_skip_run = s_skip_tap_ms && now - s_skip_tap_ms < SKIP_RUN_MS;
+    /* 6180: every tap settles, not only the second of a run. Taps in the
+     * board log came 0.7-1.1 s apart -- right at the edge of SKIP_RUN_MS
+     * -- so a run's first tap often opened at once and the next tap then
+     * waited out the open it had started (a chained Ogg's 600 ms). */
+    s_skip_run = true;
     s_skip_tap_ms = now;
 }
 

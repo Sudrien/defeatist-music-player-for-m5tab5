@@ -25669,6 +25669,16 @@ Not a format-version bump, as with the fade section: firmware without
 it drops the section on its next rewrite, and the next open finds it
 again.
 
+### 6180 -- every skip tap settles
+
+6178 settled only a tap that followed another within SKIP_RUN_MS (1 s).
+A board run had next taps 0.7-1.1 s apart, so the first of a run often
+opened at once -- a chained Ogg, 563 ms -- and the next tap then waited
+for that open to finish before anything moved. Every prev/next tap now
+waits SKIP_SETTLE_MS (300 ms) of quiet before the decode loop opens its
+target: 300 ms on a lone press, in exchange for never opening a track
+the next tap is about to throw away. SKIP_RUN_MS is now unused.
+
 ### 8000 -- CI: host tests after the components they include exist
 
 The v0.7.0 tag's workflow run failed at "Host tests (text layout, USB

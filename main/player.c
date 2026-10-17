@@ -3979,6 +3979,31 @@ static void player_force_pause(void)
  * after the press -- enough to put next to the `landed` line.
  */
 #define BAR_LOG_MS  (5000)
+
+/*
+ * 6169: where the bar stays while a seek restarts the heard track.
+ *
+ * Between the press and the restarted track taking the screen, the
+ * interrupted track's teardown zeroes the position and the new ring has
+ * nothing to report, so the bar read the target, then 0, then the
+ * target again (`bar: 4`, `bar: 0`, `bar: 4` on the board, 150 ms
+ * apart). The press already knows where the bar belongs, so it is held
+ * there until track_commit() hands the bar back to the counters, and
+ * dropped after POS_HOLD_MS in case that commit never comes (a file
+ * that will not open).
+ */
+#define POS_HOLD_MS (3000)
+static volatile int32_t    s_pos_hold = -1;
+static volatile TickType_t s_pos_hold_at;
+
+static uint32_t pos_shown(void)
+{
+    const int32_t h = s_pos_hold;
+    if (h >= 0 && pdTICKS_TO_MS(xTaskGetTickCount() - s_pos_hold_at) < POS_HOLD_MS) {
+        return (uint32_t)h;
+    }
+    return s_pos_sec;
+}
 static volatile TickType_t s_bar_log_from;
 static volatile bool       s_bar_log_on;
 
@@ -4071,6 +4096,8 @@ static void request_seek_at(int pct, int32_t sec, const char *why)
          * restart reaches its seek a few hundred ms later. */
         s_pos_sec = (uint32_t)target;
         request_track_at(heard, target > 0 ? target : -1);
+        s_pos_hold_at = xTaskGetTickCount();                      /* 6169 */
+        s_pos_hold = target;
         return;
     }
 
@@ -4974,6 +5001,7 @@ static void track_commit(const track_commit_t *tc)
 {
     /* 6168: before s_shown_path is overwritten below. */
     const bool same_as_shown = strcmp(tc->path, s_shown_path) == 0;
+    s_pos_hold = -1;            /* 6169: the counters have the bar again */
 
     s_len_sec      = tc->len_sec;
     s_can_seek     = tc->can_seek;
@@ -6781,6 +6809,7 @@ static void request_track_at(const char *path, int32_t start_sec)
         s_seek_pct = -1;
     }
 
+    s_pos_hold = -1;                                                /* 6169 */
     snprintf(s_pending, sizeof(s_pending), "%s", path);
     s_pending_start_sec = start_sec;                                /* 5268 */
     s_pending_ready = true;
@@ -9039,7 +9068,7 @@ static void ui_task(void *arg)
         st.rg_gain_db = s_rg_gain_db;
         st.muted = audio_out_muted();
         st.route = audio_out_route();
-        st.pos_sec = s_pos_sec;
+        st.pos_sec = pos_shown();                                   /* 6169 */
         st.len_sec = s_len_sec;
         st.can_seek = s_can_seek;
         st.screen_off = s_screen_off;
@@ -9699,7 +9728,7 @@ static void ui_task(void *arg)
         st.rg_gain_db = s_rg_gain_db;
         st.muted = audio_out_muted();
         st.route = audio_out_route();
-        st.pos_sec = s_pos_sec;
+        st.pos_sec = pos_shown();                                   /* 6169 */
         st.len_sec = s_len_sec;
         st.can_seek = s_can_seek;
         st.screen_off = s_screen_off;
@@ -11708,6 +11737,16 @@ static track_end_t play_file(const char *path)
                         service_favorite_toggle();
                         service_star_toggle();
                         service_notices();
+                        /* 6169: and the repaint, which 6157 left out. The
+                         * chooser closed while paused here and its file
+                         * list stayed in the art band until play. */
+                        if (s_repaint_art && !recorder_active()) {
+                            s_repaint_art = false;
+                            const char *const repaint = visuals_pending
+                                ? s_shown_path : path;
+                            if (repaint[0]) load_track_visuals(repaint);
+                            else            clear_art();
+                        }
                         vTaskDelay(pdMS_TO_TICKS(RING_WAIT_STEP_MS));
                         continue;
                     }

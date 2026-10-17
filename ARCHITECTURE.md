@@ -25527,6 +25527,31 @@ change.
 
 Not built for the target, not run on the board.
 
+### 6169 -- the bar holds at the tap; the paused ring wait repaints
+
+Board, after 6168, paused throughout.
+
+THE 0:00 FLASH. Each seek into a track the loop had left logged the bar
+at the target from the press, then `0 of 10` 150 ms later, then the
+target again: `bar: 4`, `bar: 0`, `bar: 4`. The 0 is the interrupted
+track's teardown zeroing s_pos_sec while the new ring, with rate 0, has
+nothing to publish. The press already knows where the bar belongs, so
+request_seek_at() now holds it there (s_pos_hold), both publish sites
+draw pos_shown(), and track_commit() releases the hold when the
+restarted track takes the screen and its own counters (anchored by 6166)
+take over. Any other track request drops the hold, and it expires after
+3 s in case the restart never commits.
+
+THE FILE LIST IN THE ART BAND. Choosing a track from the chooser while
+paused left the chooser's rows in the art area until play. The repaint
+the chooser's exit asks for (s_repaint_art) is serviced at the top of
+the decode loop and in the paused send. While paused it was not
+serviced in 6157's ring wait, which is where a paused loop with full
+rings sits. 6157's entry named this gap; the wait now does the same
+repaint the paused send does.
+
+Not built for the target, not run on the board.
+
 ### 8000 -- CI: host tests after the components they include exist
 
 The v0.7.0 tag's workflow run failed at "Host tests (text layout, USB

@@ -2999,7 +2999,7 @@ ui_action_t ui_touch(const ui_state_t *st, bool down, int x, int y)
         const bool again = s_prev_tick &&
             (now - s_prev_tick) < pdMS_TO_TICKS(DOUBLE_TAP_MS);
 
-        s_prev_tick = again ? 0 : now;   /* a triple tap is two doubles */
+        s_prev_tick = now;   /* 6175: every tap in a run is AGAIN, so a run walks back */
         act.kind = again ? UI_ACTION_PREV_AGAIN : UI_ACTION_PREV;
         return act;
     }

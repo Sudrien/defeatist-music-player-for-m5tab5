@@ -4524,6 +4524,9 @@ __attribute__((unused)) static const char *history_back_from(const char *anchor)
 
 /* Where the current double-tap pair started. */
 static char s_prev_anchor[512];
+/* 6175: where the last tap of a rapid run sent playback. Each further tap
+ * steps one back from here, so tapping on walks to the album's start. */
+static char s_prev_target[512];
 static const char *s_display_name = "";
 
 /*
@@ -9580,12 +9583,17 @@ static void ui_task(void *arg)
                 if (at >= 0) playlist_set_current(at);
             }
 
+            snprintf(s_prev_target, sizeof(s_prev_target), "%s", s_prev_anchor);
             if (s_len_sec > 0 && s_pos_sec >= 3) {
                 request_seek(0, "prev: restart");
             } else {
                 const char *p = playlist_prev();
-                if (p) request_track(p);
-                else   request_seek(0, "prev: first track");
+                if (p) {
+                    snprintf(s_prev_target, sizeof(s_prev_target), "%s", p);
+                    request_track(p);
+                } else {
+                    request_seek(0, "prev: first track");
+                }
             }
             break;
 
@@ -9607,18 +9615,27 @@ static void ui_task(void *arg)
              * makes the second arrival free. Under shuffle they differ,
              * which is the case worth having.
              */
-            /* 6174: back through the LIST from the track heard when the
-             * first tap landed -- not through the play history, which
-             * after any jumping around can lead forwards. */
-            const int at = playlist_index_of(s_prev_anchor);
-            if (at >= 0) playlist_set_current(at);
-            const char *p = at >= 0 ? playlist_prev() : NULL;
-            if (p) {
-                ESP_LOGI(TAG, "prev x2: back through the list to %s", p);
+            /* 6174/6175: back through the LIST, one track per tap, from
+             * wherever the previous tap of this run sent playback. A run
+             * of taps walks to the folder's first track and stops there:
+             * no wrap to the end. */
+            const int at = playlist_index_of(s_prev_target[0] ? s_prev_target
+                                                               : s_prev_anchor);
+            if (at > 0) {
+                playlist_set_current(at - 1);
+                const char *p = playlist_path(at - 1);
+                if (!p) { request_seek(0, "prev again: list changed"); break; }
+                snprintf(s_prev_target, sizeof(s_prev_target), "%s", p);
+                ESP_LOGI(TAG, "prev again: back through the list to %s", p);
                 request_track(p);
             } else {
-                ESP_LOGI(TAG, "prev x2: no track before; restarting");
-                request_seek(0, "prev x2: first track");
+                ESP_LOGI(TAG, "prev again: at the first track");
+                if (at == 0) {
+                    playlist_set_current(0);
+                    request_track(playlist_path(0));
+                } else {
+                    request_seek(0, "prev again: not in the list");
+                }
             }
             break;
         }

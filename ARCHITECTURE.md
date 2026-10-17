@@ -25604,6 +25604,14 @@ heard at the first tap. The play-history walk could lead forwards after
 any jumping around (a board run went #04 -> #05). History is still kept
 (6172) but no longer consulted by prev.
 
+### 6175 -- rapid taps on prev walk back to the album's start
+
+Every tap within DOUBLE_TAP_MS of the one before is now PREV_AGAIN (it
+was pairs: a triple tap was two doubles). The player remembers where the
+last tap sent playback (s_prev_target) and each further tap steps one
+back in the list from there, stopping at the folder's first track rather
+than wrapping. The first tap keeps its 3-second restart rule.
+
 ### 8000 -- CI: host tests after the components they include exist
 
 The v0.7.0 tag's workflow run failed at "Host tests (text layout, USB

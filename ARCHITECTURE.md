@@ -25635,6 +25635,16 @@ begin() keeps the previewed length rather than zeroing it, and the
 commit redraws the same text when the audio arrives. Files that are not
 cue tracks are unchanged: their tags need a read of the audio file.
 
+### 6178 -- a run of skip taps settles before anything opens
+
+Opens cannot be interrupted (a cue track's FLAC frame find is 200-400 ms,
+a chained Ogg's walk ~600 ms), so each tap of a run paid for an open the
+next tap discarded. A prev/next tap within SKIP_RUN_MS (1 s) of the last
+marks a run, and the decode loop waits until taps have been quiet for
+SKIP_SETTLE_MS (300 ms) before opening the run's target. A lone tap
+opens at once, as before; a cue track's text is already on screen from
+the press (6177).
+
 ### 8000 -- CI: host tests after the components they include exist
 
 The v0.7.0 tag's workflow run failed at "Host tests (text layout, USB

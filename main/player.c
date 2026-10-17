@@ -4747,6 +4747,30 @@ static bool track_commit_due(void)
 /* Defined with s_late below; this function is its one early caller. */
 static void late_commit_drop(void);
 
+/*
+ * 6178: settle a run of skip taps before opening anything.
+ *
+ * An open cannot be interrupted once started -- a cue track's FLAC frame
+ * find is 200-400 ms, a chained Ogg's walk ~600 ms -- so in a run of taps
+ * each one paid for an open the next one threw away. The first tap of a
+ * run opens at once, as before; a tap that follows another within
+ * SKIP_RUN_MS marks a run, and the decode loop then waits until the taps
+ * have been quiet for SKIP_SETTLE_MS before it opens the run's target.
+ * The screen does not wait: 6177 already shows a cue track's text at the
+ * press.
+ */
+#define SKIP_RUN_MS     (1000)
+#define SKIP_SETTLE_MS  (300)
+static volatile int64_t s_skip_tap_ms;
+static volatile bool    s_skip_run;
+
+static void skip_tap(void)
+{
+    const int64_t now = esp_timer_get_time() / 1000;
+    s_skip_run = s_skip_tap_ms && now - s_skip_tap_ms < SKIP_RUN_MS;
+    s_skip_tap_ms = now;
+}
+
 /* 6177: the cue track whose sheet length was put up at the press. */
 static char s_preview_path[512];
 
@@ -9603,6 +9627,7 @@ static void ui_task(void *arg)
             request_seek_at(0, act.value < 0 ? 0 : act.value, "mpd");
             break;
         case UI_ACTION_PREV:
+            skip_tap();                                          /* 6178 */
             /*
              * A station, and with none of the restart-first behaviour
              * below: there is no position in a live stream to return to,
@@ -9668,6 +9693,7 @@ static void ui_task(void *arg)
             break;
 
         case UI_ACTION_PREV_AGAIN: {
+            skip_tap();                                          /* 6178 */
             /*
              * A second tap within the double-tap window: go back through
              * what was actually played, rather than back through the
@@ -9689,6 +9715,7 @@ static void ui_task(void *arg)
             break;
         }
         case UI_ACTION_NEXT: {
+            skip_tap();                                          /* 6178 */
             /*
              * A station, not a track. Ahead of the playlist entirely:
              * playlist_next() answers about files in a folder and there
@@ -15512,6 +15539,14 @@ static void player_loop(void)
          */
         wifi_apply_settings();
 
+        if (s_skip_run) {                                           /* 6178 */
+            while (esp_timer_get_time() / 1000 - s_skip_tap_ms < SKIP_SETTLE_MS &&
+                   !s_pending_ready) {
+                vTaskDelay(pdMS_TO_TICKS(20));
+            }
+            if (s_pending_ready) continue;      /* a later tap: take that */
+            s_skip_run = false;
+        }
         ESP_LOGI(TAG, "playing %s", s_path);
         const track_end_t why = play_file(s_path);
         have = false;

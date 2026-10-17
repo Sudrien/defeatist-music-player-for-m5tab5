@@ -78,6 +78,7 @@ Claude, do not touch this README unless explicitly asked to. Use your own file.
 - Starred Favorites
 - Ethernet to usb dongles: CDC-ECM (Realtek RTL8152 tested; RTL8153 same path, untested) and [ASIX AX88772](https://github.com/Sudrien/esp_usbh_asix) port, both confirmed on the board
 - Cue sheets
+  - Caching cue sheets, even 
 - m3u/m3u8 - at least through MPD
 - Oh right, [Music Player Daemon](https://mpd.readthedocs.io/en/stable/user.html) support - yes, this should mean home assistant control too.
 - https web ui (it's a self signed certificate, you'll have to accept it)

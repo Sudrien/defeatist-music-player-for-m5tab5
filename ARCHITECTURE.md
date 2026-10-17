@@ -25778,3 +25778,70 @@ at connect, and the page does not load. From a page on another site,
 via a phone on the same Wi-Fi: `refused a request from a page from
 another site`. The remote's own page, on the same network, as before.
 Not yet run on the board.
+
+### 8002 -- a browser is allowed on the player before it is answered
+
+8001 made the network the boundary. This makes the listener the
+boundary: of the browsers on the network, the remote answers only the
+ones allowed on the player's own screen. Still no password.
+
+**What is remembered is the browser, as a cookie.** Not its MAC: phones
+rotate theirs, and the player only sees a MAC on its own link anyway.
+Not its address: a new lease would be a new device, and whoever got the
+old lease would inherit the approval. On Allow, the asking page is given
+`dmp_ok`, sixteen random bytes as hex, `Secure; HttpOnly;
+SameSite=Strict`, ten years. NVS keeps SHA-256 of each token (key
+`rmt_ok` in the `defeatist` namespace, eight of them, oldest replaced),
+so what a flash dump holds cannot be replayed as a cookie. Clearing the
+browser's site data forgets it from that side.
+
+**The asking.** h_gate() (8001) now also wants the cookie, except for
+`/`, the favicon and `/pair`. The page asks `GET /pair` first:
+"approved", and it starts as before; anything else, and it shows an
+overlay with "Ask the player". That button is `POST /pair`, which gets
+a ticket cookie (`dmp_ask`, three minutes) and a four-digit code taken
+from the ticket. The player lights its screen and shows the asking
+address, the same code, and Allow and Deny. The page polls `GET /pair`
+each second; on Allow that answer carries `dmp_ok` and the page
+reloads.
+
+**One request at a time, with a code, on purpose (approvelist.h).** A
+queue would let a stranger's request sit behind the listener's own, so
+that the tap meant for one allows the other; the code on both screens
+is the check that the right one is being allowed. A second asker is told
+the player is busy. A request waits two minutes; an answer waits one
+minute to be collected and then the slot is free. A Deny also refuses
+that address for ten minutes, so a neighbour cannot keep the prompt on
+the screen. On the player only Allow and Deny answer: a tap that misses
+both does nothing, because a deny costs ten minutes.
+
+**Threads.** The httpd task asks and collects; ui_task draws, answers
+and saves. NVS is written only by ui_task: the httpd task's stack is in
+PSRAM (6005), and a PSRAM-stack task must not run with the cache off.
+One mutex in approve.c covers the list and the request and is released
+before the write.
+
+**Where the prompt shows.** Over the main screen, in the confirm modal
+the power and exit icons use, ahead of the speed and Fx popups (which it
+closes) and behind a power-off already being confirmed. The panel, the
+chooser and the sleep page keep the glass until closed -- they `continue`
+before ui_draw() -- so the asking page says to close them.
+
+**WebSocket.** esp_http_server sends the 101 before it calls the
+handler, so an unallowed browser's socket completes the handshake and is
+then closed by h_gate() before a frame is read. Frames carry no cookie
+and reach the handler with method 0 and the handshake's user_ctx; they
+are held to the subnet only.
+
+An evicted browser (the ninth) or one forgotten later finds its socket
+closed; the page asks `/pair` on every close and, if it is no longer
+allowed, shows the overlay rather than reconnecting forever.
+
+On the board: `I tab5_remote: a browser asked to be allowed; code NNNN
+on the player`, then `I tab5_mp3: a browser is asking to be allowed`, then
+`I tab5_approve: request allowed`; after a reboot, `I tab5_approve: 1
+browser allowed`. A browser not allowed: `W tab5_remote: refused a
+request from a browser not allowed on the player`.
+
+Translations for the nine new strings (four on the screen, five on the
+page) were written by Claude and have not been read by a native speaker.

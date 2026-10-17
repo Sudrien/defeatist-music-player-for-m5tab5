@@ -186,6 +186,14 @@ svg { display: block; width: 100%; height: 100%; }
 .gone { position: absolute; inset: 0; display: none; place-items: center;
   background: #111c; color: var(--album); font-size: max(16px, 3cqw); text-align: center; }
 .gone.on { display: grid; }
+/* 8002: this browser, not yet allowed on the player. Over everything
+   the stage shows, like .gone, and in the same place. */
+.pair { z-index: 2; }
+.pair > div { max-width: 28em; padding: 1em; }
+.pair .code { font-size: 2.4em; letter-spacing: .25em; font-variant-numeric: tabular-nums;
+  color: var(--thumb); margin: .4em 0; }
+.pair button { padding: .6em 1.2em; border-radius: 999px; background: var(--play);
+  color: #111; font-weight: 600; }
 </style>
 <!--i18n-->
 </head>
@@ -236,6 +244,11 @@ svg { display: block; width: 100%; height: 100%; }
 
   <div class="card" id="card"><b id="cardh"></b><span id="cardb"></span></div>
   <div class="gone on" id="gone" data-t>Connecting to the player…</div>
+  <div class="gone pair" id="pair"><div>
+    <p id="pairm"></p>
+    <p class="code" id="pairc"></p>
+    <button id="pairb" data-t hidden>Ask the player</button>
+  </div></div>
 </main>
 </div>
 <div class="fold" id="fold">&#9662; <span data-t>queue, files, settings, stations</span></div>
@@ -363,8 +376,60 @@ function connect() {
   ws.onclose = () => {
     $("gone").textContent = T("Lost the player. Reconnecting…");
     $("gone").classList.add("on");
-    setTimeout(connect, backoff); backoff = Math.min(backoff * 2, 8000);
+    /* 8002: a socket refused because this browser is no longer allowed
+       looks like any other close. Ask, rather than reconnect forever. */
+    pairState().then(st => {
+      if (st.state === "approved" || st.state === "") {
+        setTimeout(connect, backoff); backoff = Math.min(backoff * 2, 8000);
+      } else pairStart(st);
+    });
   };
+}
+
+/* ---- 8002: this browser, allowed on the player ----
+   The player answers only browsers the listener has allowed on its own
+   screen. One that is not yet asks (POST /pair), shows the code the
+   player shows, and asks again each second (GET /pair) until the
+   listener has tapped Allow or Deny; on Allow the answer carries the
+   cookie that is this browser from then on, and the page reloads. */
+let pairMsg = null, pairCode = "", pairT = 0;   // pairMsg: () => T(...), redrawn on a language change
+async function pairState(method) {
+  try {
+    const r = await fetch("/pair", { method: method || "GET", cache: "no-store" });
+    return await r.json();
+  } catch { return { state: "" }; }
+}
+function pairShow(msg, code, ask) {
+  pairMsg = msg; pairCode = code || "";
+  $("pairm").textContent = msg();
+  $("pairc").textContent = pairCode;
+  $("pairb").hidden = !ask;
+  $("gone").classList.remove("on");
+  $("pair").classList.add("on");
+}
+function pairStart(st) {
+  clearTimeout(pairT);
+  if (st.state === "waiting") {
+    pairShow(() => T("On the player, tap Allow if it shows this code. Close its settings or file list first if one is open."), st.code, false);
+    pairT = setTimeout(async () => {
+      const n = await pairState();
+      if (n.state === "approved") location.reload(); else pairStart(n);
+    }, 1000);
+  } else if (st.state === "busy") {
+    pairShow(() => T("The player is asking about another browser. Try again in a moment."), "", true);
+  } else if (st.state === "denied") {
+    pairShow(() => T("The player said no. Try again in ten minutes."), "", true);
+  } else if (st.state === "") {
+    pairShow(() => T("The player did not answer."), "", true);
+  } else {
+    pairShow(() => T("This browser has not been allowed on the player yet."), "", true);
+  }
+}
+$("pairb").onclick = async () => { $("pairb").hidden = true; pairStart(await pairState("POST")); };
+async function start() {
+  const st = await pairState();
+  if (st.state === "approved") { loadStations(); connect(); }
+  else pairStart(st);
 }
 function send(s) { if (ws && ws.readyState === 1) ws.send(s); }
 
@@ -756,13 +821,12 @@ wLoad();
     if (fPath) renderFiles();
     renderQueue();
     if (wLast) wShow(wLast);
-    loadStations();
+    if (pairMsg) $("pairm").textContent = pairMsg();   /* 8002 */
+    if (!$("pair").classList.contains("on")) loadStations();
   };
 }
 addEventListener("scroll", () => { $("fold").style.opacity = scrollY > 40 ? 0 : 1; }, { passive: true });
-loadStations();
-
-connect();
+start();                    /* 8002: was loadStations(); connect(); */
 </script>
 </body>
 </html>

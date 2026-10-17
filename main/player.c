@@ -125,6 +125,7 @@
 #include "streamplan.h"
 #include "recorder.h"
 #include "remote.h"          /* 5117 */
+#include "approve.h"         /* 8002 */
 #include "mpd.h"             /* 5158 */
 #include "uireq.h"           /* MPD.md step 5 */
 #include "m3uline.h"         /* 5198 */
@@ -8227,6 +8228,24 @@ static void ui_task(void *arg)
          * address it was waiting for.
          */
         remote_poll(settings_remote_enabled());
+        /*
+         * 8002: a browser asking to be allowed lights the screen, once
+         * per request, so the prompt is seen with the player in a
+         * pocket. ui.c draws the prompt itself -- over the main screen
+         * only: the panel, the chooser and the sleep page keep the glass
+         * until they are closed, and the asking page says where to look.
+         */
+        {
+            bool fresh = false;
+            if (approve_prompt(NULL, NULL, 0, NULL, &fresh) && fresh) {
+                s_last_input_us = s_last_active_us = esp_timer_get_time();
+                if (s_screen_off) {
+                    s_screen_off = false;
+                    lcd_backlight_set(screen_on_duty());
+                }
+                ESP_LOGI(TAG, "a browser is asking to be allowed");
+            }
+        }
         /* 5158: the MPD server, on the same edges and for the same
          * reason -- its switch is on the panel too. */
         mpd_poll(settings_mpd_enabled());
@@ -16114,6 +16133,7 @@ void app_main(void)
      * old size overflowed on the first folder with a long name in it. */
     playlist_init();                /* 5172: before any task reads the list */
     uireq_init();                   /* MPD.md step 5: before both servers */
+    approve_init();                 /* 8002: before the remote asks it */
     remote_init();                  /* 5117: before the task that polls it */
     mpd_init();                     /* 5158: likewise */
     xTaskCreate(ui_task, "ui", 8192, NULL, 4, NULL);

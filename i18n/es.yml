@@ -22,6 +22,8 @@ es:
     "%s refused the password.": "%s rechazó la contraseña."
     # remote.c
     "%s was not found. Is it in range?": "No se encontró %s. ¿Está al alcance?"
+    # ui.c
+    "%s, code %s": "%s, código %s"
     # panel.c
     "%s: %d mean, %d peak kbit/s": "%s: media %d, pico %d kbit/s"
     # panel.c
@@ -84,12 +86,18 @@ es:
     "After this long with nothing playing, recording or touched. Not while music plays.": "Tras este tiempo sin reproducir, grabar ni tocar nada. Nunca con música sonando."
     # sleeppage.c
     "After this long without a touch the screen drops to half brightness. Any touch puts it back.": "Tras este tiempo sin tocarla, la pantalla baja a la mitad de brillo. Cualquier toque la restaura."
+    # ui.c
+    "Allow": "Permitir"
+    # ui.c
+    "Allow this browser?": "¿Permitir este navegador?"
     # remote.html
     "Already on the card (%d of %d):": "Ya en la tarjeta (%d de %d):"
     # portal.c
     "Already on the card (%d):": "Ya en la tarjeta (%d):"
     # recorder.c
     "Already recording.": "Ya se está grabando."
+    # remote.html
+    "Ask the player": "Preguntar al reproductor"
     # panel.c
     "Auto: USB, jack, mono. Off: no record.": "Auto: USB, toma, mono. No: sin grabar."
     # ui.c
@@ -182,6 +190,8 @@ es:
     "DUST": "POLVO"
     # portal.c
     "Defeatist setup": "Configuración de Defeatist"
+    # ui.c
+    "Deny": "Denegar"
     # sleeppage.c
     "Dim screen": "Atenuar pantalla"
     # browser.c
@@ -348,6 +358,8 @@ es:
     "Off while network setup has the page.": "Apagado mientras se configura la red."
     # panel.c
     "On a phone, open http://%s/": "En un teléfono, abre http://%s/"
+    # remote.html
+    "On the player, tap Allow if it shows this code. Close its settings or file list first if one is open.": "En el reproductor, toca Permitir si muestra este código. Si tiene abiertos los ajustes o la lista de archivos, ciérralos primero."
     # panel.c
     "One folder counts as one album.": "Una carpeta cuenta como un álbum."
     # panel.c
@@ -549,6 +561,8 @@ es:
     # remote.html
     "The player did not answer.": "El reproductor no respondió."
     # remote.html
+    "The player is asking about another browser. Try again in a moment.": "El reproductor está preguntando por otro navegador. Inténtalo de nuevo en un momento."
+    # remote.html
     "The player is on %s, and you are on its cable.": "El reproductor está en %s, y tú estás en su cable."
     # remote.html
     "The player is on %s.": "El reproductor está en %s."
@@ -556,6 +570,8 @@ es:
     "The player is on its cable only.": "El reproductor solo está en su cable."
     # remote.c
     "The player is out of memory for that.": "Al reproductor no le queda memoria para eso."
+    # remote.html
+    "The player said no. Try again in ten minutes.": "El reproductor dijo que no. Inténtalo de nuevo en diez minutos."
     # remote.html
     "The player tests the network and password before saving them. The password is only ever sent over this encrypted connection.": "El reproductor prueba la red y la contraseña antes de guardarlas. La contraseña solo se envía por esta conexión cifrada."
     # portal.c, remote.c
@@ -572,6 +588,8 @@ es:
     "Then it shows the address to open.": "Luego muestra la dirección que abrir."
     # panel.c
     "Then it shows the address to use.": "Luego muestra la dirección que usar."
+    # remote.html
+    "This browser has not been allowed on the player yet.": "Este navegador aún no está permitido en el reproductor."
     # bench.c
     "Timed out connecting.": "Tiempo de conexión agotado."
     # portal.c

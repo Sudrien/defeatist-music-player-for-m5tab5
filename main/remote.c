@@ -50,6 +50,7 @@
 #include "wifi.h"
 #include "i18n.h"          /* 6025 */
 #include "lanpeer.h"        /* 8001 */
+#include "approve.h"        /* 8002 */
 
 static const char *TAG = "tab5_remote";
 
@@ -1112,7 +1113,21 @@ static esp_err_t open_plain(httpd_handle_t hd, int fd)
 typedef struct {
     esp_err_t (*fn)(httpd_req_t *req);
     bool ws;
+    bool open;                  /* 8002: served to a browser not yet allowed */
 } gated_t;
+
+/*
+ * 8002: whether this request comes from a browser the listener allowed
+ * on the player (approve.h). The cookie is the browser; see
+ * approvelist.h for why not its MAC or its address.
+ */
+static bool browser_allowed(httpd_req_t *req)
+{
+    char hex[APPROVE_HEX + 1];
+    size_t n = sizeof(hex);
+    if (httpd_req_get_cookie_val(req, APPROVE_COOKIE, hex, &n) != ESP_OK) return false;
+    return approve_browser_ok(hex);
+}
 
 static esp_err_t h_gate(httpd_req_t *req)
 {
@@ -1129,6 +1144,16 @@ static esp_err_t h_gate(httpd_req_t *req)
             if (httpd_req_get_hdr_value_str(req, "Host", host, sizeof(host)) != ESP_OK) host[0] = '\0';
             if (!lanpeer_origin_ok(origin, host)) why = "a page from another site";
         }
+    }
+    /*
+     * 8002: and allowed on the player, unless this is the page or the
+     * request to be allowed. A WebSocket's frames carry no cookie; the
+     * handshake did, and a socket that got past it is the browser that
+     * sent it.
+     */
+    const bool frame = g->ws && req->method != HTTP_GET;
+    if (!why && !g->open && !frame && !browser_allowed(req)) {
+        why = "a browser not allowed on the player";
     }
     if (!why) return g->fn(req);
     /* Not the URI: it is the peer's text, and this is the peer refused. */
@@ -1192,6 +1217,111 @@ static void plain_stop(void)
     s_plain = NULL;
 }
 
+/* ---- 8002: asking to be allowed ------------------------------------- */
+
+/*
+ * GET /pair: how this browser stands. {"state":"approved"} with the
+ * cookie that says so already held, or set now if the listener has just
+ * allowed this browser's request; "waiting" with the code; "denied";
+ * or "none" -- never asked, or the request expired.
+ *
+ * POST /pair: ask. The ticket is a short-lived cookie of its own, so the
+ * answer goes to the browser that asked and no other; a page that asks
+ * again keeps its ticket, which approvelist.h treats as the same
+ * request. "busy" when someone else is already waiting on the player.
+ *
+ * Both run behind h_gate(): the same network and, from a browser, the
+ * remote's own page. SameSite=Strict on both cookies says the same thing
+ * from the browser's side.
+ */
+#define PAIR_COOKIE_ATTRS "; Path=/; Secure; HttpOnly; SameSite=Strict"
+
+static bool pair_ticket(httpd_req_t *req, uint8_t ticket[APPROVE_TICKET])
+{
+    char hex[2 * APPROVE_TICKET + 1];
+    size_t n = sizeof(hex);
+    if (httpd_req_get_cookie_val(req, APPROVE_TICKET_COOKIE, hex, &n) != ESP_OK) return false;
+    if (strlen(hex) != 2 * APPROVE_TICKET) return false;
+    /* Lower-case hex and nothing else: it is what POST /pair wrote. */
+    for (size_t i = 0; i < 2 * APPROVE_TICKET; i++) {
+        const char c = hex[i];
+        const int d = (c >= '0' && c <= '9') ? c - '0' : (c >= 'a' && c <= 'f') ? c - 'a' + 10 : -1;
+        if (d < 0) return false;
+        if (i % 2 == 0) ticket[i / 2] = (uint8_t)(d << 4);
+        else            ticket[i / 2] |= (uint8_t)d;
+    }
+    return true;
+}
+
+static esp_err_t pair_reply(httpd_req_t *req, const char *state, const char *code)
+{
+    char body[64];
+    if (code) snprintf(body, sizeof(body), "{\"state\":\"%s\",\"code\":\"%s\"}", state, code);
+    else      snprintf(body, sizeof(body), "{\"state\":\"%s\"}", state);
+    httpd_resp_set_type(req, "application/json");
+    httpd_resp_set_hdr(req, "Cache-Control", "no-store");
+    return httpd_resp_sendstr(req, body);
+}
+
+static esp_err_t h_pair_get(httpd_req_t *req)
+{
+    if (browser_allowed(req)) return pair_reply(req, "approved", NULL);
+    uint8_t ticket[APPROVE_TICKET];
+    if (!pair_ticket(req, ticket)) return pair_reply(req, "none", NULL);
+
+    char hex[APPROVE_HEX + 1], code[5];
+    const approve_state_t s = approve_browser_collect(ticket, hex, code);
+    if (s == APPROVE_YES) {
+        /* Ten years: until the listener forgets it, or the browser does. */
+        static char ok[sizeof(APPROVE_COOKIE) + APPROVE_HEX + 64];
+        snprintf(ok, sizeof(ok), APPROVE_COOKIE "=%s; Max-Age=315360000" PAIR_COOKIE_ATTRS, hex);
+        memset(hex, 0, sizeof(hex));
+        httpd_resp_set_hdr(req, "Set-Cookie", ok);
+        httpd_resp_set_hdr(req, "Set-Cookie", APPROVE_TICKET_COOKIE "=; Max-Age=0" PAIR_COOKIE_ATTRS);
+        const esp_err_t r = pair_reply(req, "approved", NULL);
+        memset(ok, 0, sizeof(ok));
+        return r;
+    }
+    if (s == APPROVE_WAITING) return pair_reply(req, "waiting", code);
+    if (s == APPROVE_NO)      return pair_reply(req, "denied", NULL);
+    return pair_reply(req, "none", NULL);
+}
+
+static esp_err_t h_pair_post(httpd_req_t *req)
+{
+    if (browser_allowed(req)) return pair_reply(req, "approved", NULL);
+
+    uint8_t addr[APPROVE_ADDR] = { 0 };
+    struct sockaddr_storage p;
+    socklen_t pl = sizeof(p);
+    bool v4 = false;
+    if (getpeername(httpd_req_to_sockfd(req), (struct sockaddr *)&p, &pl) != 0 ||
+        !addr_bytes(&p, addr, &v4)) {
+        return pair_reply(req, "none", NULL);
+    }
+    if (v4) {
+        /* Mapped, so one address type is stored and compared. */
+        memmove(addr + 12, addr, 4);
+        memset(addr, 0, 10);
+        addr[10] = addr[11] = 0xff;
+    }
+
+    uint8_t ticket[APPROVE_TICKET];
+    if (!pair_ticket(req, ticket)) approve_new_ticket(ticket);
+    char code[5];
+    const approve_ask_t a = approve_browser_ask(addr, ticket, code);
+    if (a == APPROVE_ASK_BUSY)    return pair_reply(req, "busy", NULL);
+    if (a == APPROVE_ASK_REFUSED) return pair_reply(req, "denied", NULL);
+
+    char hex[2 * APPROVE_TICKET + 1];
+    for (size_t i = 0; i < APPROVE_TICKET; i++) snprintf(hex + 2 * i, 3, "%02x", ticket[i]);
+    static char ask[sizeof(APPROVE_TICKET_COOKIE) + 2 * APPROVE_TICKET + 64];
+    snprintf(ask, sizeof(ask), APPROVE_TICKET_COOKIE "=%s; Max-Age=180" PAIR_COOKIE_ATTRS, hex);
+    httpd_resp_set_hdr(req, "Set-Cookie", ask);
+    ESP_LOGI(TAG, "a browser asked to be allowed; code %s on the player", code);
+    return pair_reply(req, "waiting", code);
+}
+
 static void start(void)
 {
     const char *crt, *key;
@@ -1205,7 +1335,7 @@ static void start(void)
     cfg.httpd.ctrl_port = REMOTE_CTRL_PORT;
     cfg.httpd.max_open_sockets = REMOTE_SOCKETS;
     cfg.httpd.lru_purge_enable = true;
-    cfg.httpd.max_uri_handlers = 10;
+    cfg.httpd.max_uri_handlers = 12;    /* 8002: the two /pair */
     /*
      * 6005: the server task's 10 KB stack in PSRAM, not internal RAM --
      * the remote coming up took internal free from 27343 to 15915 on the
@@ -1240,11 +1370,16 @@ static void start(void)
         { .uri = "/wifi/scan", .method = HTTP_POST, .handler = h_wifi_scan },
         { .uri = "/wifi/join", .method = HTTP_POST, .handler = h_wifi_join },
         { .uri = "/ws",  .method = HTTP_GET, .handler = h_ws, .is_websocket = true },
+        { .uri = "/pair", .method = HTTP_GET,  .handler = h_pair_get  },    /* 8002 */
+        { .uri = "/pair", .method = HTTP_POST, .handler = h_pair_post },
     };
     /* 8001: each behind h_gate(). Static: httpd keeps the pointer. */
     static gated_t gated[sizeof(uris) / sizeof(uris[0])];
     for (size_t i = 0; i < sizeof(uris) / sizeof(uris[0]); i++) {
-        gated[i] = (gated_t){ .fn = uris[i].handler, .ws = uris[i].is_websocket };
+        gated[i] = (gated_t){ .fn = uris[i].handler, .ws = uris[i].is_websocket,
+                              .open = uris[i].handler == h_page || uris[i].handler == h_icon ||
+                                      uris[i].handler == h_pair_get ||
+                                      uris[i].handler == h_pair_post };
         httpd_uri_t u = uris[i];
         u.handler  = h_gate;
         u.user_ctx = &gated[i];

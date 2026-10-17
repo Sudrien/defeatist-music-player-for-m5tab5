@@ -22,6 +22,7 @@
 #include "waveform.h"
 #include "varispeed.h"       /* 6076 */
 #include "fx.h"              /* 6097 */
+#include "approve.h"         /* 8002 */
 
 static const char *TAG = "tab5_ui";
 
@@ -363,7 +364,8 @@ static int  s_notice_x, s_notice_y, s_notice_w, s_notice_h;
  * captures all input while up; s_confirm says which action it will take,
  * and the two button boxes are set when it is drawn. See draw_power()/
  * draw_rocket()/draw_confirm() and ui_touch(). */
-enum { CONFIRM_NONE = 0, CONFIRM_EXIT, CONFIRM_POWER };
+enum { CONFIRM_NONE = 0, CONFIRM_EXIT, CONFIRM_POWER,
+       CONFIRM_APPROVE };       /* 8002: a browser asking to be allowed */
 static int  s_confirm;
 static int  s_ex_ok_x, s_ex_ok_y, s_ex_ok_w, s_ex_ok_h;
 static int  s_ex_cancel_x, s_ex_cancel_y, s_ex_cancel_w, s_ex_cancel_h;
@@ -2095,17 +2097,34 @@ static void draw_confirm(void)
     const int bh = 72;
     const int x = bar_x0() + inset;
     const int w = (bar_x1() - bar_x0()) - 2 * inset;
-    const int h = pad + GFX_GLYPH_H(NOTICE_BODY_SC) + gap + bh + pad;
+    /* 8002: a request to be allowed has a second line -- who is asking,
+     * and the code their page shows, which the listener checks agrees
+     * before allowing (approvelist.h). */
+    char sub[96] = "";
+    if (s_confirm == CONFIRM_APPROVE) {
+        char who[48], code[5];
+        if (approve_prompt(NULL, who, sizeof(who), code, NULL)) {
+            snprintf(sub, sizeof(sub), _("%s, code %s"), who, code);
+        }
+    }
+    const int sub_h = sub[0] ? gap + GFX_GLYPH_H(NOTICE_BODY_SC) : 0;
+    const int h = pad + GFX_GLYPH_H(NOTICE_BODY_SC) + sub_h + gap + bh + pad;
     const int y = s_bar_top + (UI_SQUARE - h) / 2;
 
     gfx_fill_rect(x, y, w, h, C_NOTICE_EDGE);
     gfx_fill_rect(x + 2, y + 2, w - 4, h - 4, C_NOTICE_BG);
 
-    const char *head = (s_confirm == CONFIRM_POWER) ? _("Power off?")
-                                                    : _("Exit to Launcher?");
+    const char *head = (s_confirm == CONFIRM_POWER)   ? _("Power off?")
+                     : (s_confirm == CONFIRM_APPROVE) ? _("Allow this browser?")
+                                                      : _("Exit to Launcher?");
     const int hw = gfx_text_w(head, NOTICE_BODY_SC);
     gfx_draw_text(x + (w - hw) / 2, y + pad, head, NOTICE_BODY_SC,
                   w - 2 * pad, C_THUMB);
+    if (sub[0]) {
+        const int sw = gfx_text_w(sub, NOTICE_BODY_SC);
+        gfx_draw_text(x + (w - sw) / 2, y + pad + GFX_GLYPH_H(NOTICE_BODY_SC) + gap,
+                      sub, NOTICE_BODY_SC, w - 2 * pad, C_THUMB);
+    }
 
     const int bw = (w - 2 * pad - gap) / 2;
     const int by = y + h - pad - bh;
@@ -2116,8 +2135,9 @@ static void draw_confirm(void)
 
     gfx_fill_rect(s_ex_cancel_x, by, bw, bh, C_NOTICE_EDGE);
     gfx_fill_rect(s_ex_ok_x,     by, bw, bh, C_FILL);
-    const char *cancel = _("Cancel");
-    const char *go = (s_confirm == CONFIRM_POWER) ? _("Power off") : _("Exit");
+    const char *cancel = (s_confirm == CONFIRM_APPROVE) ? _("Deny") : _("Cancel");
+    const char *go = (s_confirm == CONFIRM_POWER)   ? _("Power off")
+                   : (s_confirm == CONFIRM_APPROVE) ? _("Allow") : _("Exit");
     gfx_draw_text(s_ex_cancel_x + (bw - gfx_text_w(cancel, NOTICE_BODY_SC)) / 2,
                   by + (bh - GFX_GLYPH_H(NOTICE_BODY_SC)) / 2, cancel,
                   NOTICE_BODY_SC, bw, C_THUMB);
@@ -2735,6 +2755,20 @@ void ui_draw(const ui_state_t *st)
     s_rec_off = st->rec_off;                            /* 5217 */
     draw_play_pause(st->playing, st->recording, st->rec_ok);
 
+    /*
+     * 8002: a browser asking to be allowed takes the modal when nothing
+     * else holds it (a power-off being confirmed finishes first), over
+     * the speed and Fx popups, which it closes. It goes again when the
+     * request does -- answered, or two minutes unanswered.
+     */
+    if (s_confirm == CONFIRM_APPROVE && !approve_prompt(NULL, NULL, 0, NULL, NULL)) {
+        s_confirm = CONFIRM_NONE;
+    }
+    if (s_confirm == CONFIRM_NONE && approve_prompt(NULL, NULL, 0, NULL, NULL)) {
+        s_confirm = CONFIRM_APPROVE;
+        s_spd_pop = false;
+        s_fx_pop = false;
+    }
     if (s_confirm) draw_confirm();                      /* over everything */
     if (s_spd_pop && st->live) s_spd_pop = false;      /* 6082 */
     if (s_spd_pop) {                                    /* 6078 */
@@ -2802,6 +2836,21 @@ ui_action_t ui_touch(const ui_state_t *st, bool down, int x, int y)
         if (tapped) {
             const bool ok = x >= s_ex_ok_x && x < s_ex_ok_x + s_ex_ok_w &&
                             y >= s_ex_ok_y && y < s_ex_ok_y + s_ex_ok_h;
+            /*
+             * 8002: Allow or Deny, and nothing else. A deny also refuses
+             * that address for ten minutes (approvelist.h), which is not
+             * what a tap that missed both buttons should cost.
+             */
+            if (s_confirm == CONFIRM_APPROVE) {
+                const bool no = x >= s_ex_cancel_x && x < s_ex_cancel_x + s_ex_cancel_w &&
+                                y >= s_ex_cancel_y && y < s_ex_cancel_y + s_ex_cancel_h;
+                if (ok || no) {
+                    approve_answer(ok);
+                    s_confirm = CONFIRM_NONE;
+                    ui_draw(st);
+                }
+                return act;
+            }
             const int which = s_confirm;
             s_confirm = CONFIRM_NONE;
             if (ok && which == CONFIRM_EXIT) {

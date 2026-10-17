@@ -22,6 +22,8 @@ en:
     "%s refused the password.": ~
     # remote.c
     "%s was not found. Is it in range?": ~
+    # ui.c
+    "%s, code %s": ~
     # panel.c
     "%s: %d mean, %d peak kbit/s": ~
     # panel.c
@@ -84,12 +86,18 @@ en:
     "After this long with nothing playing, recording or touched. Not while music plays.": ~
     # sleeppage.c
     "After this long without a touch the screen drops to half brightness. Any touch puts it back.": ~
+    # ui.c
+    "Allow": ~
+    # ui.c
+    "Allow this browser?": ~
     # remote.html
     "Already on the card (%d of %d):": ~
     # portal.c
     "Already on the card (%d):": ~
     # recorder.c
     "Already recording.": ~
+    # remote.html
+    "Ask the player": ~
     # panel.c
     "Auto: USB, jack, mono. Off: no record.": ~
     # ui.c
@@ -182,6 +190,8 @@ en:
     "DUST": ~
     # portal.c
     "Defeatist setup": ~
+    # ui.c
+    "Deny": ~
     # sleeppage.c
     "Dim screen": ~
     # browser.c
@@ -348,6 +358,8 @@ en:
     "Off while network setup has the page.": ~
     # panel.c
     "On a phone, open http://%s/": ~
+    # remote.html
+    "On the player, tap Allow if it shows this code. Close its settings or file list first if one is open.": ~
     # panel.c
     "One folder counts as one album.": ~
     # panel.c
@@ -549,6 +561,8 @@ en:
     # remote.html
     "The player did not answer.": ~
     # remote.html
+    "The player is asking about another browser. Try again in a moment.": ~
+    # remote.html
     "The player is on %s, and you are on its cable.": ~
     # remote.html
     "The player is on %s.": ~
@@ -556,6 +570,8 @@ en:
     "The player is on its cable only.": ~
     # remote.c
     "The player is out of memory for that.": ~
+    # remote.html
+    "The player said no. Try again in ten minutes.": ~
     # remote.html
     "The player tests the network and password before saving them. The password is only ever sent over this encrypted connection.": ~
     # portal.c, remote.c
@@ -572,6 +588,8 @@ en:
     "Then it shows the address to open.": ~
     # panel.c
     "Then it shows the address to use.": ~
+    # remote.html
+    "This browser has not been allowed on the player yet.": ~
     # bench.c
     "Timed out connecting.": ~
     # portal.c

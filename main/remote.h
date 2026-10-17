@@ -22,7 +22,9 @@
  * is why it is off by default and why the panel says so under the
  * switch. And only them (8001): a peer outside the subnet of the
  * interface it reached is refused, and so is a request whose Origin is
- * not the remote's own page -- see lanpeer.h.
+ * not the remote's own page -- see lanpeer.h. And of them, only a
+ * browser the listener has allowed on the player's own screen (8002,
+ * approve.h); any other gets the page, which asks.
  *
  * PORT 80, taking turns with the setup portal (5120; it was 8080 in
  * 5117): see REMOTE_PORT. Separate httpd instances with separate control

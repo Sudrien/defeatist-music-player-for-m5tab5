@@ -9,7 +9,7 @@
 #include <stddef.h>
 #include "i18n.h"
 
-const unsigned i18n_count = 381;
+const unsigned i18n_count = 390;
 const char *const i18n_keys[] = {
     "%.32s did not work. Try again.",
     "%d h",
@@ -19,6 +19,7 @@ const char *const i18n_keys[] = {
     "%s left",
     "%s refused the password.",
     "%s was not found. Is it in range?",
+    "%s, code %s",
     "%s: %d mean, %d peak kbit/s",
     "%u KB free",
     "%u bytes",
@@ -50,9 +51,12 @@ const char *const i18n_keys[] = {
     "Adding…",
     "After this long with nothing playing, recording or touched. Not while music plays.",
     "After this long without a touch the screen drops to half brightness. Any touch puts it back.",
+    "Allow",
+    "Allow this browser?",
     "Already on the card (%d of %d):",
     "Already on the card (%d):",
     "Already recording.",
+    "Ask the player",
     "Auto: USB, jack, mono. Off: no record.",
     "BASS",
     "BATT",
@@ -99,6 +103,7 @@ const char *const i18n_keys[] = {
     "DONE",
     "DUST",
     "Defeatist setup",
+    "Deny",
     "Dim screen",
     "EAT",
     "EAT1",
@@ -182,6 +187,7 @@ const char *const i18n_keys[] = {
     "Off keeps deliberate segues intact: live sets, mixes, and movements that are meant to run into each other.",
     "Off while network setup has the page.",
     "On a phone, open http://%s/",
+    "On the player, tap Allow if it shows this code. Close its settings or file list first if one is open.",
     "One folder counts as one album.",
     "Open %s",
     "Open networks are not supported yet.",
@@ -282,10 +288,12 @@ const char *const i18n_keys[] = {
     "The password has a character a Wi-Fi password cannot have -- often a phone's smart punctuation. Retype it with that turned off.",
     "The player could not start that. Try again.",
     "The player did not answer.",
+    "The player is asking about another browser. Try again in a moment.",
     "The player is on %s, and you are on its cable.",
     "The player is on %s.",
     "The player is on its cable only.",
     "The player is out of memory for that.",
+    "The player said no. Try again in ten minutes.",
     "The player tests the network and password before saving them. The password is only ever sent over this encrypted connection.",
     "The station could not be saved. The card may be full, absent, or write-protected, or the list may already be full.",
     "The station did not answer.",
@@ -294,6 +302,7 @@ const char *const i18n_keys[] = {
     "The stream stopped before it started.",
     "Then it shows the address to open.",
     "Then it shows the address to use.",
+    "This browser has not been allowed on the player yet.",
     "Timed out connecting.",
     "To change Wi-Fi networks instead, use Network setup on the player's screen. This page closes itself after %d minutes.",
     "Touch anywhere to wake it.",
@@ -405,6 +414,7 @@ const unsigned char i18n_on_screen[] = {
     0,  /* '%s left' */
     0,  /* '%s refused the password.' */
     0,  /* '%s was not found. Is it in range?' */
+    1,  /* '%s, code %s' */
     1,  /* '%s: %d mean, %d peak kbit/s' */
     1,  /* '%u KB free' */
     1,  /* '%u bytes' */
@@ -436,9 +446,12 @@ const unsigned char i18n_on_screen[] = {
     0,  /* 'Adding…' */
     1,  /* 'After this long with nothing playing, re' */
     1,  /* 'After this long without a touch the scre' */
+    1,  /* 'Allow' */
+    1,  /* 'Allow this browser?' */
     0,  /* 'Already on the card (%d of %d):' */
     0,  /* 'Already on the card (%d):' */
     1,  /* 'Already recording.' */
+    0,  /* 'Ask the player' */
     1,  /* 'Auto: USB, jack, mono. Off: no record.' */
     1,  /* 'BASS' */
     1,  /* 'BATT' */
@@ -485,6 +498,7 @@ const unsigned char i18n_on_screen[] = {
     1,  /* 'DONE' */
     1,  /* 'DUST' */
     0,  /* 'Defeatist setup' */
+    1,  /* 'Deny' */
     1,  /* 'Dim screen' */
     1,  /* 'EAT' */
     1,  /* 'EAT1' */
@@ -568,6 +582,7 @@ const unsigned char i18n_on_screen[] = {
     1,  /* 'Off keeps deliberate segues intact: live' */
     1,  /* 'Off while network setup has the page.' */
     1,  /* 'On a phone, open http://%s/' */
+    0,  /* 'On the player, tap Allow if it shows thi' */
     1,  /* 'One folder counts as one album.' */
     1,  /* 'Open %s' */
     0,  /* 'Open networks are not supported yet.' */
@@ -668,10 +683,12 @@ const unsigned char i18n_on_screen[] = {
     0,  /* 'The password has a character a Wi-Fi pas' */
     0,  /* 'The player could not start that. Try aga' */
     0,  /* 'The player did not answer.' */
+    0,  /* 'The player is asking about another brows' */
     0,  /* 'The player is on %s, and you are on its ' */
     0,  /* 'The player is on %s.' */
     0,  /* 'The player is on its cable only.' */
     0,  /* 'The player is out of memory for that.' */
+    0,  /* 'The player said no. Try again in ten min' */
     0,  /* 'The player tests the network and passwor' */
     0,  /* 'The station could not be saved. The card' */
     1,  /* 'The station did not answer.' */
@@ -680,6 +697,7 @@ const unsigned char i18n_on_screen[] = {
     1,  /* 'The stream stopped before it started.' */
     1,  /* 'Then it shows the address to open.' */
     1,  /* 'Then it shows the address to use.' */
+    0,  /* 'This browser has not been allowed on the' */
     1,  /* 'Timed out connecting.' */
     0,  /* 'To change Wi-Fi networks instead, use Ne' */
     1,  /* 'Touch anywhere to wake it.' */
@@ -863,6 +881,10 @@ const char *const i18n_vals[] = {
     NULL,
     NULL,
     NULL,
+    NULL,
+    NULL,
+    NULL,
+    NULL,
     "Could not create the\012recording file.",
     NULL,
     "Could not make the\012Recordings folder.",
@@ -870,6 +892,7 @@ const char *const i18n_vals[] = {
     NULL,
     NULL,
     "Could not start\012the file.",
+    NULL,
     NULL,
     NULL,
     NULL,
@@ -1002,6 +1025,7 @@ const char *const i18n_vals[] = {
     NULL,
     NULL,
     NULL,
+    NULL,
     "Recording is off\012(AUDIO, Record from).",
     NULL,
     NULL,
@@ -1059,6 +1083,9 @@ const char *const i18n_vals[] = {
     NULL,
     NULL,
     "The microphones did\012not start.",
+    NULL,
+    NULL,
+    NULL,
     NULL,
     NULL,
     NULL,
@@ -1183,6 +1210,7 @@ const char *const i18n_vals[] = {
     "剩余 %s",
     "%s 拒绝了密码。",
     "找不到 %s。是否在范围内？",
+    "%s，代码 %s",
     "%s: 平均 %d, 峰值 %d kbit/s",
     "可用 %u KB",
     "%u 字节",
@@ -1214,9 +1242,12 @@ const char *const i18n_vals[] = {
     "正在添加…",
     "在无播放、无录音、无触摸达到该时长后。播放音乐时不会关机。",
     "在无触摸达到该时长后，屏幕亮度降为一半。触摸就能恢复。",
+    "允许",
+    "允许此浏览器？",
     "卡上已有（%d / %d）：",
     "卡上已有（%d）：",
     "正在录音。",
+    "询问播放器",
     "自动：USB、插孔、单声道。关：不录音。",
     "低音",
     "电池",
@@ -1263,6 +1294,7 @@ const char *const i18n_vals[] = {
     "完成",
     "底噪",
     "Defeatist 设置",
+    "拒绝",
     "屏幕变暗",
     "播完删除",
     "删除1",
@@ -1346,6 +1378,7 @@ const char *const i18n_vals[] = {
     "关闭可保留刻意的衔接：现场演出、混音以及本应连续播放的乐章。",
     "网络设置占用页面时关闭。",
     "在手机上打开 http://%s/",
+    "如果播放器显示此代码，请在播放器上点“允许”。若其设置或文件列表已打开，请先关闭。",
     "一个文件夹算作一张专辑。",
     "打开 %s",
     "暂不支持开放网络。",
@@ -1446,10 +1479,12 @@ const char *const i18n_vals[] = {
     "密码中有 Wi-Fi 密码不能使用的字符——通常是手机的智能标点。请关闭后重新输入。",
     "播放器无法开始。请重试。",
     "播放器没有响应。",
+    "播放器正在询问另一个浏览器。请稍后再试。",
     "播放器连接在 %s，你通过它的网线连接。",
     "播放器连接在 %s。",
     "播放器仅通过网线连接。",
     "播放器内存不足，无法完成。",
+    "播放器拒绝了。请十分钟后再试。",
     "播放器会在保存前先测试网络和密码。密码只通过这个加密连接发送。",
     "无法保存电台。卡可能已满、未插入或写保护，或者列表已满。",
     "电台无响应。",
@@ -1458,6 +1493,7 @@ const char *const i18n_vals[] = {
     "音频流未开始就停止了。",
     "之后会显示要打开的地址。",
     "之后会显示要使用的地址。",
+    "此浏览器尚未在播放器上获得允许。",
     "连接超时。",
     "如需改用其他 Wi-Fi 网络，请在本机屏幕上使用“添加网络”。此页面会在 %d 分钟后自动关闭。",
     "触摸任意处就能唤醒。",
@@ -1565,6 +1601,7 @@ const char *const i18n_vals[] = {
     "残り %s",
     "%s がパスワードを拒否しました。",
     "%s が見つかりません。範囲内ですか？",
+    "%s、コード %s",
     "%s: 平均 %d, 最大 %d kbit/s",
     "空き %u KB",
     "%u バイト",
@@ -1596,9 +1633,12 @@ const char *const i18n_vals[] = {
     "追加中…",
     "再生・録音・タッチがない状態がこの時間続いたとき。音楽の再生中は切れない。",
     "この時間タッチがないと画面が半分の明るさになる。タッチで元に戻る。",
+    "許可",
+    "このブラウザを許可しますか？",
     "カードに登録済み（%d / %d）：",
     "カードに登録済み（%d）：",
     "録音中です。",
+    "プレーヤーに尋ねる",
     "自動：USB、端子、モノラル。オフ：録音しない。",
     "低音",
     "電池",
@@ -1645,6 +1685,7 @@ const char *const i18n_vals[] = {
     "完了",
     "パチパチ",
     "Defeatist の設定",
+    "拒否",
     "画面を暗く",
     "消費",
     "消費1",
@@ -1728,6 +1769,7 @@ const char *const i18n_vals[] = {
     "オフなら意図された曲間がそのまま残る。ライブ、ミックス、続けて聴く楽章など。",
     "ネット設定がページを使う間はオフ。",
     "スマホで http://%s/ を開く",
+    "プレーヤーにこのコードが表示されたら「許可」をタップしてください。設定やファイル一覧が開いている場合は、先に閉じてください。",
     "1つのフォルダを1枚のアルバムとみなす。",
     "%s を開く",
     "パスワードなしのネットワークにはまだ対応していません。",
@@ -1828,10 +1870,12 @@ const char *const i18n_vals[] = {
     "パスワードにWi-Fiのパスワードに使えない文字があります。多くはスマホのスマート句読点です。オフにして入力し直してください。",
     "プレーヤーで開始できませんでした。もう一度お試しください。",
     "プレーヤーから応答がありません。",
+    "プレーヤーは別のブラウザについて確認中です。少し待ってからもう一度お試しください。",
     "プレーヤーは %s に接続中で、あなたはそのケーブル経由です。",
     "プレーヤーは %s に接続中です。",
     "プレーヤーはケーブルだけで接続しています。",
     "プレーヤーのメモリが足りません。",
+    "プレーヤーに拒否されました。10分後にもう一度お試しください。",
     "プレーヤーは保存する前にネットワークとパスワードを試します。パスワードはこの暗号化された接続でのみ送られます。",
     "局を保存できませんでした。カードがいっぱい、未挿入、書き込み禁止か、リストがすでにいっぱいの可能性があります。",
     "局が応答しない。",
@@ -1840,6 +1884,7 @@ const char *const i18n_vals[] = {
     "開始前にストリームが止まった。",
     "その後、開くアドレスが出る。",
     "その後、使うアドレスが出る。",
+    "このブラウザはまだプレーヤーで許可されていません。",
     "接続がタイムアウト。",
     "Wi-Fiネットワークを変える場合は、機器の画面の「ネットワーク追加」を使ってください。このページは %d 分後に閉じます。",
     "どこかに触れると戻る。",
@@ -1947,6 +1992,7 @@ const char *const i18n_vals[] = {
     "quedan %s",
     "%s rechazó la contraseña.",
     "No se encontró %s. ¿Está al alcance?",
+    "%s, código %s",
     "%s: media %d, pico %d kbit/s",
     "%u KB libres",
     "%u bytes",
@@ -1978,9 +2024,12 @@ const char *const i18n_vals[] = {
     "Añadiendo…",
     "Tras este tiempo sin reproducir, grabar ni tocar nada. Nunca con música sonando.",
     "Tras este tiempo sin tocarla, la pantalla baja a la mitad de brillo. Cualquier toque la restaura.",
+    "Permitir",
+    "¿Permitir este navegador?",
     "Ya en la tarjeta (%d de %d):",
     "Ya en la tarjeta (%d):",
     "Ya se está grabando.",
+    "Preguntar al reproductor",
     "Auto: USB, toma, mono. No: sin grabar.",
     "GRAV",
     "BAT",
@@ -2027,6 +2076,7 @@ const char *const i18n_vals[] = {
     "HECHO",
     "POLVO",
     "Configuración de Defeatist",
+    "Denegar",
     "Atenuar pantalla",
     "BORRAR",
     "BORRAR1",
@@ -2110,6 +2160,7 @@ const char *const i18n_vals[] = {
     "Apagado respeta las transiciones buscadas: directos, mezclas y movimientos que van seguidos.",
     "Apagado mientras se configura la red.",
     "En un teléfono, abre http://%s/",
+    "En el reproductor, toca Permitir si muestra este código. Si tiene abiertos los ajustes o la lista de archivos, ciérralos primero.",
     "Una carpeta cuenta como un álbum.",
     "Abre %s",
     "Las redes abiertas aún no son compatibles.",
@@ -2210,10 +2261,12 @@ const char *const i18n_vals[] = {
     "La contraseña tiene un carácter que una contraseña Wi-Fi no admite; suele ser la puntuación inteligente del teléfono. Vuelve a escribirla con eso desactivado.",
     "El reproductor no pudo empezar. Inténtalo otra vez.",
     "El reproductor no respondió.",
+    "El reproductor está preguntando por otro navegador. Inténtalo de nuevo en un momento.",
     "El reproductor está en %s, y tú estás en su cable.",
     "El reproductor está en %s.",
     "El reproductor solo está en su cable.",
     "Al reproductor no le queda memoria para eso.",
+    "El reproductor dijo que no. Inténtalo de nuevo en diez minutos.",
     "El reproductor prueba la red y la contraseña antes de guardarlas. La contraseña solo se envía por esta conexión cifrada.",
     "No se pudo guardar la emisora. La tarjeta puede estar llena, ausente o protegida, o la lista ya llena.",
     "La emisora no respondió.",
@@ -2222,6 +2275,7 @@ const char *const i18n_vals[] = {
     "El flujo se detuvo antes de empezar.",
     "Luego muestra la dirección que abrir.",
     "Luego muestra la dirección que usar.",
+    "Este navegador aún no está permitido en el reproductor.",
     "Tiempo de conexión agotado.",
     "Para cambiar de red Wi-Fi, usa «Añadir red» en la pantalla del reproductor. Esta página se cierra sola tras %d minutos.",
     "Toca en cualquier sitio para despertarla.",
@@ -2329,6 +2383,7 @@ const char *const i18n_vals[] = {
     "faltam %s",
     "%s recusou a senha.",
     "%s não foi encontrada. Está ao alcance?",
+    "%s, código %s",
     "%s: média %d, pico %d kbit/s",
     "%u KB livres",
     "%u bytes",
@@ -2360,9 +2415,12 @@ const char *const i18n_vals[] = {
     "Adicionando…",
     "Depois desse tempo sem tocar, gravar nem ser tocado. Nunca com música tocando.",
     "Depois desse tempo sem toque, a tela cai para meio brilho. Qualquer toque a restaura.",
+    "Permitir",
+    "Permitir este navegador?",
     "Já no cartão (%d de %d):",
     "Já no cartão (%d):",
     "Já está gravando.",
+    "Perguntar ao player",
     "Auto: USB, P2, mono. Não: sem gravar.",
     "GRAV",
     "BAT",
@@ -2409,6 +2467,7 @@ const char *const i18n_vals[] = {
     "OK",
     "PÓ",
     "Configuração do Defeatist",
+    "Negar",
     "Escurecer tela",
     "COMER",
     "COMER1",
@@ -2492,6 +2551,7 @@ const char *const i18n_vals[] = {
     "Desligado respeita as transições feitas de propósito: shows ao vivo, mixes e movimentos que emendam um no outro.",
     "Desligado durante a configuração de rede.",
     "No celular, abra http://%s/",
+    "No player, toque em Permitir se ele mostrar este código. Se os ajustes ou a lista de arquivos estiverem abertos, feche-os antes.",
     "Uma pasta conta como um álbum.",
     "Abra %s",
     "Redes abertas ainda não são suportadas.",
@@ -2592,10 +2652,12 @@ const char *const i18n_vals[] = {
     "A senha tem um caractere que uma senha de Wi-Fi não aceita; geralmente é a pontuação inteligente do celular. Digite de novo com isso desligado.",
     "O player não conseguiu iniciar. Tente de novo.",
     "O player não respondeu.",
+    "O player está perguntando sobre outro navegador. Tente de novo daqui a pouco.",
     "O player está em %s, e você está no cabo dele.",
     "O player está em %s.",
     "O player está só no cabo.",
     "O player está sem memória para isso.",
+    "O player disse não. Tente de novo daqui a dez minutos.",
     "O player testa a rede e a senha antes de salvá-las. A senha só é enviada por esta conexão criptografada.",
     "Não foi possível salvar a rádio. O cartão pode estar cheio, ausente ou protegido contra gravação, ou a lista já cheia.",
     "A rádio não respondeu.",
@@ -2604,6 +2666,7 @@ const char *const i18n_vals[] = {
     "O stream parou antes de começar.",
     "Depois mostra o endereço a abrir.",
     "Depois mostra o endereço a usar.",
+    "Este navegador ainda não foi permitido no player.",
     "Tempo de conexão esgotado.",
     "Para trocar de rede Wi-Fi, use \"Adicionar rede\" na tela do player. Esta página fecha sozinha após %d minutos.",
     "Toque em qualquer lugar para acordá-la.",
@@ -2711,6 +2774,7 @@ const char *const i18n_vals[] = {
     "reste %s",
     "%s a refusé le mot de passe.",
     "%s introuvable. Est-il à portée?",
+    "%s, code %s",
     "%s : moy. %d, pic %d kbit/s",
     "%u Ko libres",
     "%u octets",
@@ -2742,9 +2806,12 @@ const char *const i18n_vals[] = {
     "Ajout…",
     "Après ce délai sans lecture, enregistrement ni toucher. Jamais pendant la musique.",
     "Après ce délai sans toucher, l'écran passe à mi-luminosité. Un toucher la rétablit.",
+    "Autoriser",
+    "Autoriser ce navigateur ?",
     "Déjà sur la carte (%d sur %d) :",
     "Déjà sur la carte (%d) :",
     "Déjà en cours.",
+    "Demander au lecteur",
     "Auto : USB, prise, mono. Non : pas d'enregistrement.",
     "GRAV",
     "BATT",
@@ -2791,6 +2858,7 @@ const char *const i18n_vals[] = {
     "OK",
     "CRAQ",
     "Configuration de Defeatist",
+    "Refuser",
     "Assombrir l'écran",
     "MANGER",
     "MANGER1",
@@ -2874,6 +2942,7 @@ const char *const i18n_vals[] = {
     "Désactivé respecte les enchaînements voulus : concerts, mixes et mouvements faits pour se suivre.",
     "Coupé pendant la configuration réseau.",
     "Sur un téléphone, ouvrez http://%s/",
+    "Sur le lecteur, touchez Autoriser s'il affiche ce code. Fermez d'abord ses réglages ou sa liste de fichiers s’ils sont ouverts.",
     "Un dossier compte comme un album.",
     "Ouvrez %s",
     "Les réseaux ouverts ne sont pas encore pris en charge.",
@@ -2974,10 +3043,12 @@ const char *const i18n_vals[] = {
     "Le mot de passe contient un caractère interdit en Wi-Fi, souvent la ponctuation intelligente du téléphone. Ressaisissez-le après l'avoir désactivée.",
     "Le lecteur n'a pas pu lancer cela. Réessayez.",
     "Le lecteur n'a pas répondu.",
+    "Le lecteur traite la demande d'un autre navigateur. Réessayez dans un instant.",
     "Le lecteur est sur %s, et vous êtes sur son câble.",
     "Le lecteur est sur %s.",
     "Le lecteur n'est que sur son câble.",
     "Le lecteur manque de mémoire pour cela.",
+    "Le lecteur a refusé. Réessayez dans dix minutes.",
     "Le lecteur essaie le réseau et le mot de passe avant de les enregistrer. Le mot de passe n'est envoyé que par cette connexion chiffrée.",
     "La radio n'a pas pu être enregistrée. La carte est peut-être pleine, absente ou protégée en écriture, ou la liste déjà pleine.",
     "La radio n'a pas répondu.",
@@ -2986,6 +3057,7 @@ const char *const i18n_vals[] = {
     "Le flux s'est arrêté avant de commencer.",
     "Puis il affiche l'adresse à ouvrir.",
     "Puis il affiche l'adresse à utiliser.",
+    "Ce navigateur n'est pas encore autorisé sur le lecteur.",
     "Délai de connexion dépassé.",
     "Pour changer plutôt de réseau Wi-Fi, utilisez « Ajouter un réseau » sur l'écran du lecteur. Cette page se ferme d'elle-même après %d minutes.",
     "Touchez n'importe où pour la réveiller.",
@@ -3093,6 +3165,7 @@ const char *const i18n_vals[] = {
     "mancano %s",
     "%s ha rifiutato la password.",
     "%s non trovata. È nel raggio?",
+    "%s, codice %s",
     "%s: media %d, picco %d kbit/s",
     "%u KB liberi",
     "%u byte",
@@ -3124,9 +3197,12 @@ const char *const i18n_vals[] = {
     "Aggiunta…",
     "Dopo questo tempo senza riprodurre, registrare né toccare. Mai con la musica in corso.",
     "Dopo questo tempo senza tocchi lo schermo scende a metà luminosità. Un tocco la ripristina.",
+    "Consenti",
+    "Consentire questo browser?",
     "Già sulla scheda (%d di %d):",
     "Già sulla scheda (%d):",
     "Già in corso.",
+    "Chiedi al lettore",
     "Auto: USB, jack, mono. No: non registra.",
     "BASSI",
     "BATT",
@@ -3173,6 +3249,7 @@ const char *const i18n_vals[] = {
     "FATTO",
     "FRUS",
     "Configurazione di Defeatist",
+    "Nega",
     "Attenua schermo",
     "MANGIA",
     "MANGIA1",
@@ -3256,6 +3333,7 @@ const char *const i18n_vals[] = {
     "Spento rispetta i passaggi voluti: live, mix e movimenti fatti per susseguirsi.",
     "Spento durante la configurazione di rete.",
     "Sul telefono, apri http://%s/",
+    "Sul lettore, tocca Consenti se mostra questo codice. Se sono aperte le impostazioni o l'elenco dei file, chiudile prima.",
     "Una cartella vale un album.",
     "Apri %s",
     "Le reti aperte non sono ancora supportate.",
@@ -3356,10 +3434,12 @@ const char *const i18n_vals[] = {
     "La password ha un carattere non ammesso in una password Wi-Fi, spesso la punteggiatura intelligente del telefono. Riscrivila dopo averla disattivata.",
     "Il lettore non è riuscito ad avviarlo. Riprova.",
     "Il lettore non ha risposto.",
+    "Il lettore sta chiedendo di un altro browser. Riprova tra un momento.",
     "Il lettore è su %s, e tu sei sul suo cavo.",
     "Il lettore è su %s.",
     "Il lettore è solo sul cavo.",
     "Il lettore non ha memoria per questo.",
+    "Il lettore ha detto di no. Riprova tra dieci minuti.",
     "Il lettore prova la rete e la password prima di salvarle. La password viene inviata solo tramite questa connessione cifrata.",
     "Impossibile salvare la radio. La scheda può essere piena, assente o protetta da scrittura, o l'elenco già pieno.",
     "La radio non ha risposto.",
@@ -3368,6 +3448,7 @@ const char *const i18n_vals[] = {
     "Lo stream si è fermato prima di iniziare.",
     "Poi mostra l'indirizzo da aprire.",
     "Poi mostra l'indirizzo da usare.",
+    "Questo browser non è ancora consentito sul lettore.",
     "Connessione scaduta.",
     "Per cambiare rete Wi-Fi, usa \"Aggiungi rete\" sullo schermo del lettore. Questa pagina si chiude da sola dopo %d minuti.",
     "Tocca ovunque per risvegliarla.",

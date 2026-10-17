@@ -22,6 +22,8 @@ zh-CN:
     "%s refused the password.": "%s 拒绝了密码。"
     # remote.c
     "%s was not found. Is it in range?": "找不到 %s。是否在范围内？"
+    # ui.c
+    "%s, code %s": "%s，代码 %s"
     # panel.c
     "%s: %d mean, %d peak kbit/s": "%s: 平均 %d, 峰值 %d kbit/s"
     # panel.c
@@ -84,12 +86,18 @@ zh-CN:
     "After this long with nothing playing, recording or touched. Not while music plays.": "在无播放、无录音、无触摸达到该时长后。播放音乐时不会关机。"
     # sleeppage.c
     "After this long without a touch the screen drops to half brightness. Any touch puts it back.": "在无触摸达到该时长后，屏幕亮度降为一半。触摸就能恢复。"
+    # ui.c
+    "Allow": "允许"
+    # ui.c
+    "Allow this browser?": "允许此浏览器？"
     # remote.html
     "Already on the card (%d of %d):": "卡上已有（%d / %d）："
     # portal.c
     "Already on the card (%d):": "卡上已有（%d）："
     # recorder.c
     "Already recording.": "正在录音。"
+    # remote.html
+    "Ask the player": "询问播放器"
     # panel.c
     "Auto: USB, jack, mono. Off: no record.": "自动：USB、插孔、单声道。关：不录音。"
     # ui.c
@@ -182,6 +190,8 @@ zh-CN:
     "DUST": "底噪"
     # portal.c
     "Defeatist setup": "Defeatist 设置"
+    # ui.c
+    "Deny": "拒绝"
     # sleeppage.c
     "Dim screen": "屏幕变暗"
     # browser.c
@@ -348,6 +358,8 @@ zh-CN:
     "Off while network setup has the page.": "网络设置占用页面时关闭。"
     # panel.c
     "On a phone, open http://%s/": "在手机上打开 http://%s/"
+    # remote.html
+    "On the player, tap Allow if it shows this code. Close its settings or file list first if one is open.": "如果播放器显示此代码，请在播放器上点“允许”。若其设置或文件列表已打开，请先关闭。"
     # panel.c
     "One folder counts as one album.": "一个文件夹算作一张专辑。"
     # panel.c
@@ -549,6 +561,8 @@ zh-CN:
     # remote.html
     "The player did not answer.": "播放器没有响应。"
     # remote.html
+    "The player is asking about another browser. Try again in a moment.": "播放器正在询问另一个浏览器。请稍后再试。"
+    # remote.html
     "The player is on %s, and you are on its cable.": "播放器连接在 %s，你通过它的网线连接。"
     # remote.html
     "The player is on %s.": "播放器连接在 %s。"
@@ -556,6 +570,8 @@ zh-CN:
     "The player is on its cable only.": "播放器仅通过网线连接。"
     # remote.c
     "The player is out of memory for that.": "播放器内存不足，无法完成。"
+    # remote.html
+    "The player said no. Try again in ten minutes.": "播放器拒绝了。请十分钟后再试。"
     # remote.html
     "The player tests the network and password before saving them. The password is only ever sent over this encrypted connection.": "播放器会在保存前先测试网络和密码。密码只通过这个加密连接发送。"
     # portal.c, remote.c
@@ -572,6 +588,8 @@ zh-CN:
     "Then it shows the address to open.": "之后会显示要打开的地址。"
     # panel.c
     "Then it shows the address to use.": "之后会显示要使用的地址。"
+    # remote.html
+    "This browser has not been allowed on the player yet.": "此浏览器尚未在播放器上获得允许。"
     # bench.c
     "Timed out connecting.": "连接超时。"
     # portal.c

@@ -22,6 +22,8 @@ ja:
     "%s refused the password.": "%s がパスワードを拒否しました。"
     # remote.c
     "%s was not found. Is it in range?": "%s が見つかりません。範囲内ですか？"
+    # ui.c
+    "%s, code %s": "%s、コード %s"
     # panel.c
     "%s: %d mean, %d peak kbit/s": "%s: 平均 %d, 最大 %d kbit/s"
     # panel.c
@@ -84,12 +86,18 @@ ja:
     "After this long with nothing playing, recording or touched. Not while music plays.": "再生・録音・タッチがない状態がこの時間続いたとき。音楽の再生中は切れない。"
     # sleeppage.c
     "After this long without a touch the screen drops to half brightness. Any touch puts it back.": "この時間タッチがないと画面が半分の明るさになる。タッチで元に戻る。"
+    # ui.c
+    "Allow": "許可"
+    # ui.c
+    "Allow this browser?": "このブラウザを許可しますか？"
     # remote.html
     "Already on the card (%d of %d):": "カードに登録済み（%d / %d）："
     # portal.c
     "Already on the card (%d):": "カードに登録済み（%d）："
     # recorder.c
     "Already recording.": "録音中です。"
+    # remote.html
+    "Ask the player": "プレーヤーに尋ねる"
     # panel.c
     "Auto: USB, jack, mono. Off: no record.": "自動：USB、端子、モノラル。オフ：録音しない。"
     # ui.c
@@ -182,6 +190,8 @@ ja:
     "DUST": "パチパチ"
     # portal.c
     "Defeatist setup": "Defeatist の設定"
+    # ui.c
+    "Deny": "拒否"
     # sleeppage.c
     "Dim screen": "画面を暗く"
     # browser.c
@@ -348,6 +358,8 @@ ja:
     "Off while network setup has the page.": "ネット設定がページを使う間はオフ。"
     # panel.c
     "On a phone, open http://%s/": "スマホで http://%s/ を開く"
+    # remote.html
+    "On the player, tap Allow if it shows this code. Close its settings or file list first if one is open.": "プレーヤーにこのコードが表示されたら「許可」をタップしてください。設定やファイル一覧が開いている場合は、先に閉じてください。"
     # panel.c
     "One folder counts as one album.": "1つのフォルダを1枚のアルバムとみなす。"
     # panel.c
@@ -549,6 +561,8 @@ ja:
     # remote.html
     "The player did not answer.": "プレーヤーから応答がありません。"
     # remote.html
+    "The player is asking about another browser. Try again in a moment.": "プレーヤーは別のブラウザについて確認中です。少し待ってからもう一度お試しください。"
+    # remote.html
     "The player is on %s, and you are on its cable.": "プレーヤーは %s に接続中で、あなたはそのケーブル経由です。"
     # remote.html
     "The player is on %s.": "プレーヤーは %s に接続中です。"
@@ -556,6 +570,8 @@ ja:
     "The player is on its cable only.": "プレーヤーはケーブルだけで接続しています。"
     # remote.c
     "The player is out of memory for that.": "プレーヤーのメモリが足りません。"
+    # remote.html
+    "The player said no. Try again in ten minutes.": "プレーヤーに拒否されました。10分後にもう一度お試しください。"
     # remote.html
     "The player tests the network and password before saving them. The password is only ever sent over this encrypted connection.": "プレーヤーは保存する前にネットワークとパスワードを試します。パスワードはこの暗号化された接続でのみ送られます。"
     # portal.c, remote.c
@@ -572,6 +588,8 @@ ja:
     "Then it shows the address to open.": "その後、開くアドレスが出る。"
     # panel.c
     "Then it shows the address to use.": "その後、使うアドレスが出る。"
+    # remote.html
+    "This browser has not been allowed on the player yet.": "このブラウザはまだプレーヤーで許可されていません。"
     # bench.c
     "Timed out connecting.": "接続がタイムアウト。"
     # portal.c

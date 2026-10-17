@@ -25574,6 +25574,21 @@ which track_commit honours even for the same track. The cover's ring
 wait also returns at once while paused: nothing drains the ring, so there
 is nothing to protect, and it was costing ~6 s before the art appeared.
 
+### 6172 -- prev and its double tap work from the heard track
+
+Prev anchored on s_path and asked playlist_prev() from wherever the
+decoder had got to, a track or two ahead of what was heard: one press
+landed on the track already playing, and the double tap's history walk
+started from a track nobody had heard. history_push() also ran at decode
+start, so history was the decoder's. Now history is pushed in
+track_commit(), and prev anchors on s_shown_path and moves the playlist
+cursor there before choosing.
+
+6171's s_art_dirty was set in the folder case, not the file case, so a
+pick of one file still left the chooser rows in the art square. The mark
+is now set wherever load_track_visuals() or do_art() refuses because the
+screen is covered, and cleared by a load that is not refused.
+
 ### 8000 -- CI: host tests after the components they include exist
 
 The v0.7.0 tag's workflow run failed at "Host tests (text layout, USB

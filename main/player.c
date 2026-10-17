@@ -4314,6 +4314,13 @@ static void wave_clear(void)
  * s_repaint_art is what brings the artwork back, and both screens set it
  * on the way out.
  */
+/* 6171/6172: the art square was drawn over and no load of the visuals
+ * has reached the screen since. The repaint flag is spent by whichever
+ * play_file() loop sees it first, often one about to be torn down; this
+ * mark is cleared only by a load that was not refused, and
+ * track_commit() honours it even for the track already shown. */
+static volatile bool s_art_dirty;
+
 static bool screen_covered(void)
 {
     return browser_is_open() || panel_is_open() || sleeppage_is_open();
@@ -4965,8 +4972,10 @@ static void load_track_visuals(const char *path)
      */
     if (screen_covered() || recorder_active()) {
         s_repaint_art = true;
+        s_art_dirty = true;                                       /* 6172 */
         return;
     }
+    s_art_dirty = false;
 
     /*
      * No invalidation here any more -- track_change_begin() did it, at
@@ -5012,12 +5021,6 @@ static void load_track_visuals(const char *path)
  * Deferring the number and publishing the indicator with the rest of the
  * screen is what makes the badge appear on the track it is about.
  */
-/* 6171: the chooser drew over the art square and closed on a pick. The
- * repaint flag is spent by whichever play_file() loop sees it first, often
- * the one about to be torn down, so the pick carries its own mark that
- * only a load of the visuals clears. */
-static volatile bool s_art_dirty;
-
 static void track_commit(const track_commit_t *tc)
 {
     /* 6168: before s_shown_path is overwritten below. */
@@ -5059,6 +5062,7 @@ static void track_commit(const track_commit_t *tc)
 
     settings_set_track(tc->path);
     browser_set_playing(tc->path);
+    history_push(tc->path);     /* 6172: what was heard, not what was decoded */
     snprintf(s_shown_path, sizeof(s_shown_path), "%s", tc->path);
 
     track_change_show(tc->path);
@@ -5066,7 +5070,6 @@ static void track_commit(const track_commit_t *tc)
      * already drawn; reloading them is the flash, not the change. */
     if (!same_as_shown || s_art_dirty) {
         if (same_as_shown) ESP_LOGI(TAG, "screen: same track, but the art square was drawn over; repainting");
-        s_art_dirty = false;
         load_track_visuals(tc->path);
     }
 }
@@ -5441,6 +5444,7 @@ static void do_art(const char *path, uint32_t gen)
      */
     if (screen_covered() || recorder_active()) {
         s_repaint_art = true;
+        s_art_dirty = true;                                       /* 6172 */
         return;
     }
 
@@ -9565,7 +9569,16 @@ static void ui_task(void *arg)
             /* Remembered before anything moves, so a second tap can ask
              * "before THIS one" regardless of what the first tap started
              * in the meantime. */
-            snprintf(s_prev_anchor, sizeof(s_prev_anchor), "%s", s_path);
+            /* 6172: the track being HEARD. s_path is the decoder's, which
+             * runs a track or two ahead, so prev from it landed on the
+             * track already playing, and the double tap's history walk
+             * started from a track nobody had heard yet. */
+            snprintf(s_prev_anchor, sizeof(s_prev_anchor), "%s",
+                     s_shown_path[0] ? s_shown_path : s_path);
+            {
+                const int at = playlist_index_of(s_prev_anchor);
+                if (at >= 0) playlist_set_current(at);
+            }
 
             if (s_len_sec > 0 && s_pos_sec >= 3) {
                 request_seek(0, "prev: restart");
@@ -15434,7 +15447,6 @@ static void player_loop(void)
         wifi_apply_settings();
 
         ESP_LOGI(TAG, "playing %s", s_path);
-        history_push(s_path);
         const track_end_t why = play_file(s_path);
         have = false;
         s_starting = false;                                         /* 5246 */

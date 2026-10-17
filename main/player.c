@@ -4770,7 +4770,11 @@ static void track_change_begin(const char *path)
             }
         } else {
             if (!tail_playing()) wave_clear();
-            else                 s_env_pending = ENV_PENDING_CLEAR;
+            else {
+                s_env_pending = ENV_PENDING_CLEAR;
+                /* 6162: whose clear it is, as SET says whose envelope. */
+                snprintf(s_env_path, sizeof(s_env_path), "%s", path);
+            }
         }
     }
 
@@ -4797,10 +4801,33 @@ static void track_change_begin(const char *path)
  * the flag it consumes rather than inside the gate macro so there is one
  * place to look for what a deferred change still owes the screen.
  */
-static void track_change_show(void)
+static void track_change_show(const char *path)
 {
+    /*
+     * 6162: ONLY THE COMMITTED TRACK'S.
+     *
+     * The pending envelope is whatever the decode loop's latest track
+     * start left, and the decode loop is not always on the track being
+     * committed. A seek in the heard track while the loop was ahead
+     * (6161) restarts the heard one, and track_change_begin() skips the
+     * envelope when it is already the one on screen, so the pending
+     * slot still held the track the loop had reached. The board: cue#02
+     * restarted at 1 s while the loop was on #04, and #02's commit drew
+     * #04's envelope -- four beeps under "Two Beeps".
+     *
+     * So a pending envelope for some other path is stale and dropped.
+     * If the screen is not already this track's, it is looked up here
+     * rather than left as whatever was there.
+     */
+    if (s_env_pending != ENV_PENDING_NONE && strcmp(s_env_path, path) != 0) {
+        s_env_pending = ENV_PENDING_NONE;
+    }
     if (s_env_pending == ENV_PENDING_SET)        wave_show(&s_walk_pending, s_env_path);
     else if (s_env_pending == ENV_PENDING_CLEAR) wave_clear();
+    else if (strcmp(path, s_wave_shown) != 0) {
+        if (mediacache_walk_copy(path, &s_walk_pending)) wave_show(&s_walk_pending, path);
+        else                                            wave_clear();
+    }
     s_env_pending = ENV_PENDING_NONE;
 }
 
@@ -4915,7 +4942,7 @@ static void track_commit(const track_commit_t *tc)
     browser_set_playing(tc->path);
     snprintf(s_shown_path, sizeof(s_shown_path), "%s", tc->path);
 
-    track_change_show();
+    track_change_show(tc->path);
     load_track_visuals(tc->path);
 }
 

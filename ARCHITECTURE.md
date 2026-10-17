@@ -25388,6 +25388,31 @@ Not built for the target, not run on the board. Expected on the board:
 decoded; starting it again at 5s`, then `playing …cue#01` and a FLAC
 seek to 5 s.
 
+### 6162 -- the commit draws its own track's envelope, not the pending one
+
+Board, after 6161. "Two Beeps" (cue#02) showed a waveform with four
+marks. Decoding 10-20 s of file 22 gives one bump at the start (the two
+beeps) and level after it. Four separate marks are cue#04's four beeps
+at 20 ms a column. So #02's commit drew #04's envelope.
+
+How: the pending envelope slot (s_env_pending, s_walk_pending,
+s_env_path) holds whatever the decode loop's latest track start put
+there. The loop had reached #04, with its envelope pending, when a seek
+in #02 restarted #02 (6161). track_change_begin() skips the envelope
+when the path is already the one on screen, which #02 was, so it left
+#04's in the slot. #02's commit then ran track_change_show(), which drew
+whatever was pending.
+
+track_change_show() now takes the committed path. A pending envelope or
+clear for any other path is dropped. If the screen does not already show
+this track's envelope, it is copied from the cache (wave_clear() if
+there is none). The CLEAR case now records its path as SET does, so the
+comparison covers both. The sidecars on the card are not affected: the
+envelope is written from the decode pass under the decoder's own path,
+and that was right all along. This was drawing only.
+
+Not built for the target, not run on the board.
+
 ### 8000 -- CI: host tests after the components they include exist
 
 The v0.7.0 tag's workflow run failed at "Host tests (text layout, USB

@@ -285,7 +285,7 @@ typedef enum {
     UI_ACTION_SCREEN_OFF,
     UI_ACTION_SCREEN_ON,
     UI_ACTION_PREV,         /* start of track, or the track before it */
-    UI_ACTION_PREV_AGAIN,   /* double tap: back through play history */
+    UI_ACTION_PREV_AGAIN,   /* a tap in a run: one further back in the list */
     UI_ACTION_NEXT,
     UI_ACTION_SEEK,         /* value = target percent 0..100 */
     UI_ACTION_VOLUME,       /* value = target percent 0..100 */

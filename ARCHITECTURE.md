@@ -229,6 +229,31 @@ previous *index*, not the previously played track, for the reason
 `playlist_prev()` already gives: undoing a random choice needs a stack,
 and the button is there to skip back one track.
 
+Taps in a row walk back through the list (6175, 6176). Every tap within
+`DOUBLE_TAP_MS` of the last is `UI_ACTION_PREV_AGAIN`, which steps one
+further back from wherever the previous tap sent playback
+(`s_prev_target`), so tapping on reaches the folder's first track and
+stops there; it does not wrap. The 3-second restart rule applies only to
+the first tap. A slower tap still continues the run while the run's
+target has not reached the screen, for up to `PREV_RUN_MS`: a cue track
+or a chained Ogg can take most of a second to open, and a tap during that
+wait means "further back", not "the track before the one still showing".
+A track reached this way that will not play is skipped backwards.
+
+Both buttons work from the track being *heard* -- `s_shown_path` --
+not the one being decoded, which runs a track or two ahead (6172).
+`history_push()` still records heard tracks at `track_commit()`, but
+nothing consults it since 6174; it is kept for a later shuffle-back.
+
+Neither button opens anything at the press (6178, 6180). The decode loop
+waits for `SKIP_SETTLE_MS` (300 ms) with no further tap before it opens
+the target, because an open cannot be interrupted once started and a
+run of taps otherwise paid for every open the next tap discarded. That
+is a fixed 300 ms on every press, chosen over a delay that depended on
+what the previous tap had started. A cue track's title and length go up
+at the press regardless, from the sheet (6177), and its start offset in
+the image comes from the sidecar after the first visit (6179).
+
 ## The title bounces
 
 A title too long for 720 px slides left, pauses, slides back, pauses, and

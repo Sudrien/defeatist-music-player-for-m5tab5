@@ -2993,7 +2993,9 @@ ui_action_t ui_touch(const ui_state_t *st, bool down, int x, int y)
          * every single press to serve the rarer one; instead both fire
          * and the player treats the second as a correction. That is why
          * the second action is PREV_AGAIN rather than PREV: the player
-         * needs to know it is undoing its own last move.
+         * needs to know it is undoing its own last move -- and, since
+         * 6175, every later tap of the run is AGAIN too, each one step
+         * further back in the list.
          */
         const TickType_t now = xTaskGetTickCount();
         const bool again = s_prev_tick &&

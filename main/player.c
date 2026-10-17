@@ -9699,21 +9699,16 @@ static void ui_task(void *arg)
         case UI_ACTION_PREV_AGAIN: {
             skip_tap();                                          /* 6178 */
             /*
-             * A second tap within the double-tap window: go back through
-             * what was actually played, rather than back through the
-             * list.
+             * A later tap of a run (6175): one further back in the list
+             * than the last tap went. Until 6174 this walked the play
+             * history instead, which after any jumping around led
+             * forwards.
              *
              * Position is not consulted here. The 3-second rule exists to
              * disambiguate one press; a deliberate second press has
              * already said which of the two was meant, so applying the
              * rule again would make a double tap restart the track --
              * the one thing it certainly does not mean.
-             *
-             * The first tap of the pair has already acted, and under
-             * PLAY_ORDER_ALL it usually did the same thing this will.
-             * That is fine: it lands on the same track and the cache
-             * makes the second arrival free. Under shuffle they differ,
-             * which is the case worth having.
              */
             prev_step_back();
             break;

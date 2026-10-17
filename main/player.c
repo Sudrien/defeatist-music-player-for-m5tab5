@@ -10480,6 +10480,16 @@ static track_end_t play_file(const char *path)
      * put the decoder within a moment of it. See s_prev_ended_clean.
      */
     uint64_t frames_at_seek = 0;
+    /*
+     * 6166 (handed over as 6164, never pushed): a landing to anchor once
+     * the rate is known, in hundredths,
+     * or -1. A seek before the first block -- a start position, which
+     * 6161 now uses for every seek into a track the loop had left --
+     * has no rate to turn hundredths into frames with, and anchoring at
+     * a rate of 1 put the clock two frames in: the bar at the start of
+     * the track while the audio played from the target.
+     */
+    int64_t anchor_cs = -1;
     bool     seeked = false;
 
     /*
@@ -10934,6 +10944,7 @@ static track_end_t play_file(const char *path)
                      * is between ten and forty frames of error handed
                      * to a clock that never corrects itself.
                      */
+                    if (!cur_rate) anchor_cs = landed_cs;           /* 6166 */
                     frames_out = ((uint64_t)landed_cs
                                   * (cur_rate ? cur_rate : 1)) / 100;
                     s_frames_out[s_ring_fill] =
@@ -11761,6 +11772,18 @@ static track_end_t play_file(const char *path)
             }
             cur_rate = (uint32_t)info.sample_rate;
             cur_chans = info.channels;
+
+            /* 6166: the anchor a pre-first-block seek could not set. Here
+             * the ring has been taken and its counters cleared, and the
+             * rate is this block's, so this is the first moment it can
+             * be right -- and before the block is counted. */
+            if (anchor_cs >= 0 && cur_rate) {
+                frames_out = ((uint64_t)anchor_cs * cur_rate) / 100;
+                s_frames_out[s_ring_fill] =
+                    ring_frames_of(frames_out, cur_rate, ring_rate);
+                frames_at_seek = frames_out;
+                anchor_cs = -1;
+            }
         }
 
         /* The I2S slot config is stereo, so mono is duplicated into both

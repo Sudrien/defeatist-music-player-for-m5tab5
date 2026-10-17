@@ -25450,6 +25450,36 @@ bar that drops to 0 first, or jumps at the handoff, shows as exactly
 that.
 
 Logging only. Not built for the target.
+### 6166 -- a seek before the first block anchors the clock when the rate is known
+
+(Handed over as 6164 and never pushed: origin went from 6163 to 6165,
+and the board run that showed the bar dropping to 0 after a seek was
+built without it. Reissued under the next free number, unchanged, and
+placed after 6165 in this file to match the history.)
+
+
+Board, after 6163. Seeks into a cue track landed in the right place by
+ear and in the log (`landed 1.98s`), but the bar went to the start of
+the track and counted up from there.
+
+6161 turns a seek into a track the loop has left into a start position
+on the heard track (5268's start_sec). That seek runs before the first
+block, when cur_rate is still 0. The anchor was
+`landed_cs * (cur_rate ? cur_rate : 1) / 100`, a rate of 1: two frames
+for a 2 s landing. The first block then took the ring and cleared its
+counters. So the position counter started from about nothing while the
+audio started from the target. This predates 6161 (it is how MPD's
+seek of a song not yet playing has always anchored), but 6161 made it
+the path every decode-ahead seek takes.
+
+A seek with no rate yet now leaves `anchor_cs`. The block that sets
+cur_rate, after the ring is taken and its counters cleared and before
+the block is counted, turns it into frames and sets frames_out,
+s_frames_out for the ring, and frames_at_seek. s_pos_sec was already
+set from the landing, so the first published second was right; what
+follows it is now right too.
+
+Not built for the target, not run on the board.
 
 ### 8000 -- CI: host tests after the components they include exist
 

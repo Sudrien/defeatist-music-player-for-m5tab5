@@ -4067,6 +4067,9 @@ static void request_seek_at(int pct, int32_t sec, const char *why)
                  why, heard, target);
         const int idx = playlist_index_of(heard);
         if (idx >= 0) playlist_set_current(idx);
+        /* 6168: the bar goes where the finger did now, not when the
+         * restart reaches its seek a few hundred ms later. */
+        s_pos_sec = (uint32_t)target;
         request_track_at(heard, target > 0 ? target : -1);
         return;
     }
@@ -4690,6 +4693,21 @@ static void track_change_begin(const char *path)
 {
     s_track_gen++;
 
+    /*
+     * 6168: THE SAME TRACK AGAIN KEEPS THE SCREEN.
+     *
+     * 6161 seeks a track the loop has left by starting it again at the
+     * target, and that went through every reset a new track gets: the
+     * bar to `0 of 0`, the title and tags reloaded, the art cleared and
+     * redrawn, all for a track that never left the screen. The board
+     * logged it as `bar: 10 of 0`, then `0 of 0`, then the target, on
+     * every such seek, with the tags and art read twice. When the path
+     * is the one on screen, the screen is already right: the bar keeps
+     * its length, the title and art stay, and the position is replaced
+     * by the seek's own anchor when that lands.
+     */
+    const bool same = s_shown_path[0] && strcmp(path, s_shown_path) == 0;
+
     s_scan_abort = true;
     s_prefetch_abort = true;
     s_wave_ready = false;
@@ -4747,7 +4765,7 @@ static void track_change_begin(const char *path)
      * gate replaces them at the handoff, which is when the screen and
      * the sound change together.
      */
-    if (!tail_playing()) {
+    if (!tail_playing() && !same) {
         s_stats_valid = false;
         s_pos_sec = 0;
         s_len_sec = 0;
@@ -4836,7 +4854,7 @@ static void track_change_begin(const char *path)
      * the one still playing. load_track_visuals() calls load_tags() at
      * the handoff and the cache makes that call free, so nothing is lost
      * but the twenty seconds of lying. */
-    if (!tail_playing()) {
+    if (!tail_playing() && !same) {                                 /* 6168 */
         load_tags(path);
         clear_art();                                                /* 5265 */
     }
@@ -4954,6 +4972,9 @@ static void load_track_visuals(const char *path)
  */
 static void track_commit(const track_commit_t *tc)
 {
+    /* 6168: before s_shown_path is overwritten below. */
+    const bool same_as_shown = strcmp(tc->path, s_shown_path) == 0;
+
     s_len_sec      = tc->len_sec;
     s_can_seek     = tc->can_seek;
     s_stats_valid  = true;
@@ -4992,7 +5013,9 @@ static void track_commit(const track_commit_t *tc)
     snprintf(s_shown_path, sizeof(s_shown_path), "%s", tc->path);
 
     track_change_show(tc->path);
-    load_track_visuals(tc->path);
+    /* 6168: the title, tags and art of the track already on screen are
+     * already drawn; reloading them is the flash, not the change. */
+    if (!same_as_shown) load_track_visuals(tc->path);
 }
 
 /*

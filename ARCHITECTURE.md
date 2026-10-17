@@ -25501,6 +25501,32 @@ ran, on which ring, and what the writer then read.
 
 Logging only. Not built for the target.
 
+### 6168 -- restarting the track on screen keeps the screen
+
+6167's log confirmed 6166: after each seek, `seek anchored at the first
+block: 220500 frames on ring 0` (5 s), and the bar held. It also showed
+what 6161's restart costs on screen. Every seek into a track the loop
+had left logged `bar: 10 of 0`, then `0 of 0`, then the target, and read
+the title, tags, sidecar and art again for a track that never left the
+screen. That is the flashing.
+
+track_change_begin() now notes when the path is the one already on
+screen. It then skips the new-track resets (stats, position, length,
+can-seek) and the tag load and art clear. track_commit() skips
+load_track_visuals() for the same path. The seek's own anchor replaces
+the position, and request_seek_at() sets the bar to the target at the
+press, so the bar moves when the finger does rather than ~300 ms later.
+The same applies to any re-request of the shown track (RPT1, play after
+a paused resume, choosing it again), all of which had the same redraw
+for nothing.
+
+Still whole seconds: the slider and decoder_seek_sec_at_cs() both take
+seconds, so on a 10 s cue track a tap lands on the second boundary at
+or before it. Hundredths through every backend's seek is a separate
+change.
+
+Not built for the target, not run on the board.
+
 ### 8000 -- CI: host tests after the components they include exist
 
 The v0.7.0 tag's workflow run failed at "Host tests (text layout, USB

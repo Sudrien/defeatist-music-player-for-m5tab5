@@ -4527,6 +4527,12 @@ static char s_prev_anchor[512];
 /* 6175: where the last tap of a rapid run sent playback. Each further tap
  * steps one back from here, so tapping on walks to the album's start. */
 static char s_prev_target[512];
+/* 6176: when the last tap of the run landed. A run continues past the
+ * 400 ms double-tap window for as long as its target has not reached the
+ * screen: a cue track takes ~420 ms to open, and a tap during that wait
+ * is still "further back", not "previous of what is showing". */
+static int64_t s_prev_tap_ms;
+#define PREV_RUN_MS (2500)
 static const char *s_display_name = "";
 
 /*
@@ -6881,6 +6887,33 @@ static void request_track_at(const char *path, int32_t start_sec)
 static void request_track(const char *path)
 {
     request_track_at(path, -1);
+}
+
+static void prev_step_back(void)
+{
+    /* 6174/6175: back through the LIST, one track per tap, from
+     * wherever the previous tap of this run sent playback. A run
+     * of taps walks to the folder's first track and stops there:
+     * no wrap to the end. */
+    const int at = playlist_index_of(s_prev_target[0] ? s_prev_target
+                                                       : s_prev_anchor);
+    if (at > 0) {
+        playlist_set_current(at - 1);
+        const char *p = playlist_path(at - 1);
+        if (!p) { request_seek(0, "prev again: list changed"); return; }
+        snprintf(s_prev_target, sizeof(s_prev_target), "%s", p);
+        ESP_LOGI(TAG, "prev again: back through the list to %s", p);
+        request_track(p);
+    } else {
+        ESP_LOGI(TAG, "prev again: at the first track");
+        if (at == 0) {
+            playlist_set_current(0);
+            request_track(playlist_path(0));
+        } else {
+            request_seek(0, "prev again: not in the list");
+        }
+    }
+    s_prev_tap_ms = esp_timer_get_time() / 1000;
 }
 
 /*
@@ -9572,6 +9605,13 @@ static void ui_task(void *arg)
             /* Remembered before anything moves, so a second tap can ask
              * "before THIS one" regardless of what the first tap started
              * in the meantime. */
+            if (s_prev_target[0] && strcmp(s_prev_target, s_shown_path) != 0 &&
+                esp_timer_get_time() / 1000 - s_prev_tap_ms < PREV_RUN_MS) {
+                ESP_LOGI(TAG, "prev: %s not on screen yet; continuing the run",
+                         s_prev_target);
+                prev_step_back();                                /* 6176 */
+                break;
+            }
             /* 6172: the track being HEARD. s_path is the decoder's, which
              * runs a track or two ahead, so prev from it landed on the
              * track already playing, and the double tap's history walk
@@ -9584,6 +9624,7 @@ static void ui_task(void *arg)
             }
 
             snprintf(s_prev_target, sizeof(s_prev_target), "%s", s_prev_anchor);
+            s_prev_tap_ms = esp_timer_get_time() / 1000;
             if (s_len_sec > 0 && s_pos_sec >= 3) {
                 request_seek(0, "prev: restart");
             } else {
@@ -9615,28 +9656,7 @@ static void ui_task(void *arg)
              * makes the second arrival free. Under shuffle they differ,
              * which is the case worth having.
              */
-            /* 6174/6175: back through the LIST, one track per tap, from
-             * wherever the previous tap of this run sent playback. A run
-             * of taps walks to the folder's first track and stops there:
-             * no wrap to the end. */
-            const int at = playlist_index_of(s_prev_target[0] ? s_prev_target
-                                                               : s_prev_anchor);
-            if (at > 0) {
-                playlist_set_current(at - 1);
-                const char *p = playlist_path(at - 1);
-                if (!p) { request_seek(0, "prev again: list changed"); break; }
-                snprintf(s_prev_target, sizeof(s_prev_target), "%s", p);
-                ESP_LOGI(TAG, "prev again: back through the list to %s", p);
-                request_track(p);
-            } else {
-                ESP_LOGI(TAG, "prev again: at the first track");
-                if (at == 0) {
-                    playlist_set_current(0);
-                    request_track(playlist_path(0));
-                } else {
-                    request_seek(0, "prev again: not in the list");
-                }
-            }
+            prev_step_back();
             break;
         }
         case UI_ACTION_NEXT: {
@@ -15532,6 +15552,22 @@ static void player_loop(void)
                 continue;
             }
             ESP_LOGW(TAG, "%s played nothing; skipping", s_path);
+            /* 6176: a track reached by prev is skipped backwards, so an
+             * unplayable one does not throw a walk to the album's start
+             * forwards again. */
+            const int at = playlist_index_of(s_path);
+            if (at > 0 && strcmp(s_path, s_prev_target) == 0 &&
+                esp_timer_get_time() / 1000 - s_prev_tap_ms < PREV_RUN_MS &&
+                playlist_path_copy(at - 1, s_path, sizeof(s_path))) {
+                playlist_set_current(at - 1);
+                snprintf(s_prev_target, sizeof(s_prev_target), "%s", s_path);
+                s_prev_tap_ms = esp_timer_get_time() / 1000;
+                ESP_LOGI(TAG, "skipping backwards (prev run) to %s", s_path);
+                s_track_changing = true;
+                have = true;
+                s_starting = true;
+                continue;
+            }
         } else {
             fails = 0;
         }

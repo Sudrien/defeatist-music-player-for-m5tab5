@@ -25612,6 +25612,18 @@ last tap sent playback (s_prev_target) and each further tap steps one
 back in the list from there, stopping at the folder's first track rather
 than wrapping. The first tap keeps its 3-second restart rule.
 
+### 6176 -- a prev run outlives the double-tap window
+
+A cue track takes ~420 ms to open and a chained Ogg ~600 ms, so taps a
+little slower than DOUBLE_TAP_MS arrived as fresh single presses. Each
+anchored on the track still on screen and asked for the same target
+again, restarting the slow open every time: the board showed #03 opened
+five times running and the Ogg four, about a second each, which read as
+a hang. A single prev now continues the run (one further back) while the
+run's target has not reached the screen and the last tap was under
+PREV_RUN_MS (2.5 s) ago. A track reached by such a run that plays nothing
+is skipped backwards rather than forwards.
+
 ### 8000 -- CI: host tests after the components they include exist
 
 The v0.7.0 tag's workflow run failed at "Host tests (text layout, USB

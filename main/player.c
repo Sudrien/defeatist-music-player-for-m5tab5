@@ -4842,6 +4842,19 @@ static void track_commit(const track_commit_t *tc)
         settings_set_speed(settings_speed_cut(), settings_speed_cut());
     }
 
+    /*
+     * 6158: the screen changing is an event the log never showed. A
+     * board run after 6157 had the writer on the right ring and nothing
+     * reset, and the screen still read 20 and then 21 with 19 unheard --
+     * and there was no line saying when it changed or why. This is that
+     * line: what the gate saw at the moment it let the track through.
+     */
+    ESP_LOGI(TAG, "screen: %s (play ring %d%s, fill %d, tail %s, %s)",
+             tc->path, s_ring_play,
+             xStreamBufferIsEmpty(s_ring[s_ring_play]) ? " empty" : "",
+             s_ring_fill, s_tail_pending ? "pending" : "none",
+             s_playing ? "playing" : "paused");
+
     settings_set_track(tc->path);
     browser_set_playing(tc->path);
     snprintf(s_shown_path, sizeof(s_shown_path), "%s", tc->path);

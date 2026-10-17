@@ -25282,6 +25282,25 @@ Not done: the paused ring wait does not service `s_repaint_art` the way
 the paused send does, so a panel closed during that wait repaints when
 playback resumes. Not built for the target, not run on the board.
 
+### 6158 -- log the screen changing
+
+After 6157 the board logged what 6157 was meant to fix as fixed. Choosing
+19 while paused gave `writer: ring 0 -> 1 (fill 1)` with the amplifier
+off, and 20 and 21 decoded ahead with no `resetting`. The screen still
+read 20 and then 21. Nothing in the log says when the screen changes:
+track_commit() published the title, the bar, the chooser marker and
+the saved track without a line. Reading the gate, it should not have let
+20 or 21 through (the play ring held 19's 1722 KB and the release was
+down), so either the gate let it through some way the code reading
+missed, or what changed on screen is not the commit.
+
+track_commit() now logs `screen: <path> (play ring N [empty], fill M,
+tail pending|none, playing|paused)`. late_commit_poll() already logged
+`screen caught up`. Between them, every way the screen moves to a new
+track is in the log, with the state the gate saw.
+
+Logging only. Not built for the target.
+
 ### 8000 -- CI: host tests after the components they include exist
 
 The v0.7.0 tag's workflow run failed at "Host tests (text layout, USB

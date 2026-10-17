@@ -25301,6 +25301,33 @@ track is in the log, with the state the gate saw.
 
 Logging only. Not built for the target.
 
+### 6159 -- the filename title was reading the decoder
+
+6158's log answered it. Paused on 19, with 20 and 21 decoded ahead,
+there was exactly one `screen:` commit, for 19, and the gate held for
+both of the others. The main screen still read "21 flac-24bit.flac",
+with 19's ten-second bar and no waveform, and the chooser marked 19.
+
+When a file has no title tag the title row shows its name, and
+load_tags() set that by pointing s_display_name into `path`. `path` is
+s_path, which the decode loop rewrites at the start of every track. So
+once the commit started waiting for the track to be heard (rather than
+following the decoder), a filename title showed whatever the decoder
+had open. Tagged files never showed this: their title is copied into
+s_tags.
+
+The name is now copied into a buffer of its own at load_tags() time,
+the commit's moment, like the tags. s_path's comment ("s_display_name
+points into it") is now history. The pointer it describes is gone, and
+s_path is only the decode loop's.
+
+This is why 6157 looked like it had not worked. After 6157 the writer
+and the rings were right, and the screen's commit was right after 6158
+showed it. Only the filename was wrong. 6157 and 6158 both stand. 6158's
+line stays, since it is what made this findable.
+
+Not built for the target, not run on the board.
+
 ### 8000 -- CI: host tests after the components they include exist
 
 The v0.7.0 tag's workflow run failed at "Host tests (text layout, USB

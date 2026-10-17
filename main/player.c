@@ -4492,10 +4492,25 @@ static void load_tags(const char *path)
     s_text_release = false;
     s_text_staged_at = xTaskGetTickCount();
 
-    /* Only now, and only if there is nothing better. */
+    /*
+     * Only now, and only if there is nothing better.
+     *
+     * 6159: COPIED, NOT POINTED. This used to point s_display_name into
+     * `path`, which is s_path -- the decode loop's path, rewritten at
+     * every track start. That was safe while the screen and the decoder
+     * changed track together. Since the commit waits for the track to be
+     * heard, they do not: the board, paused on 19 with 20 and 21 decoded
+     * ahead, logged one `screen:` commit, for 19, and showed "21
+     * flac-24bit.flac" over 19's ten-second bar. The title was reading
+     * the decoder through the pointer. The name is the track's, so it is
+     * kept with the track's other text, in a buffer only this function
+     * writes.
+     */
+    static char s_display_buf[256];
     if (!s_tags.title[0]) {
-        s_display_name = strrchr(path, '/');
-        s_display_name = s_display_name ? s_display_name + 1 : path;
+        const char *base = strrchr(path, '/');
+        snprintf(s_display_buf, sizeof(s_display_buf), "%s", base ? base + 1 : path);
+        s_display_name = s_display_buf;
     } else {
         s_display_name = "";
     }

@@ -9,7 +9,7 @@
 #include <stddef.h>
 #include "i18n.h"
 
-const unsigned i18n_count = 390;
+const unsigned i18n_count = 394;
 const char *const i18n_keys[] = {
     "%.32s did not work. Try again.",
     "%d h",
@@ -53,6 +53,7 @@ const char *const i18n_keys[] = {
     "After this long without a touch the screen drops to half brightness. Any touch puts it back.",
     "Allow",
     "Allow this browser?",
+    "Allowed browsers",
     "Already on the card (%d of %d):",
     "Already on the card (%d):",
     "Already recording.",
@@ -116,6 +117,7 @@ const char *const i18n_keys[] = {
     "FLDR",
     "FLTR",
     "FOCUSED",
+    "FORGET",
     "Fades out, pauses, and turns the screen off.",
     "Favourites are full",
     "Files",
@@ -170,10 +172,12 @@ const char *const i18n_keys[] = {
     "No memory for the recording task.",
     "No memory to measure with.",
     "No password: anyone on it can use it.",
+    "No password: each browser is allowed on the player.",
     "No saved networks to import",
     "No signal",
     "No station selected.",
     "None on the card yet.",
+    "None yet. A browser asks when it opens the page.",
     "Not enough memory to record.",
     "Nothing is plugged into the headset jack.",
     "Nothing playable here.",
@@ -448,6 +452,7 @@ const unsigned char i18n_on_screen[] = {
     1,  /* 'After this long without a touch the scre' */
     1,  /* 'Allow' */
     1,  /* 'Allow this browser?' */
+    1,  /* 'Allowed browsers' */
     0,  /* 'Already on the card (%d of %d):' */
     0,  /* 'Already on the card (%d):' */
     1,  /* 'Already recording.' */
@@ -511,6 +516,7 @@ const unsigned char i18n_on_screen[] = {
     1,  /* 'FLDR' */
     1,  /* 'FLTR' */
     1,  /* 'FOCUSED' */
+    1,  /* 'FORGET' */
     1,  /* 'Fades out, pauses, and turns the screen ' */
     1,  /* 'Favourites are full' */
     0,  /* 'Files' */
@@ -565,10 +571,12 @@ const unsigned char i18n_on_screen[] = {
     1,  /* 'No memory for the recording task.' */
     1,  /* 'No memory to measure with.' */
     1,  /* 'No password: anyone on it can use it.' */
+    1,  /* 'No password: each browser is allowed on ' */
     1,  /* 'No saved networks to import' */
     1,  /* 'No signal' */
     1,  /* 'No station selected.' */
     0,  /* 'None on the card yet.' */
+    1,  /* 'None yet. A browser asks when it opens t' */
     1,  /* 'Not enough memory to record.' */
     1,  /* 'Nothing is plugged into the headset jack' */
     0,  /* 'Nothing playable here.' */
@@ -799,6 +807,7 @@ const unsigned char i18n_on_screen[] = {
 };
 const unsigned char i18n_pon_screen[] = {
     1,
+    1,
     0,
     1,
     0,
@@ -811,6 +820,7 @@ const unsigned char i18n_pon_screen[] = {
 /* [lang * i18n_count + key] */
 const char *const i18n_vals[] = {
     /* en */
+    NULL,
     NULL,
     NULL,
     NULL,
@@ -931,6 +941,7 @@ const char *const i18n_vals[] = {
     NULL,
     NULL,
     NULL,
+    NULL,
     "Insert a card or a USB\012drive to record to.",
     NULL,
     "It reached 4 GB, the\012most one file can hold.",
@@ -968,6 +979,8 @@ const char *const i18n_vals[] = {
     NULL,
     NULL,
     "No memory for the\012recording task.",
+    NULL,
+    NULL,
     NULL,
     NULL,
     NULL,
@@ -1244,6 +1257,7 @@ const char *const i18n_vals[] = {
     "在无触摸达到该时长后，屏幕亮度降为一半。触摸就能恢复。",
     "允许",
     "允许此浏览器？",
+    "已允许的浏览器",
     "卡上已有（%d / %d）：",
     "卡上已有（%d）：",
     "正在录音。",
@@ -1307,6 +1321,7 @@ const char *const i18n_vals[] = {
     "播放目录",
     "快抖",
     "定向",
+    "清除",
     "淡出、暂停并关闭屏幕。",
     "收藏已满",
     "文件",
@@ -1361,10 +1376,12 @@ const char *const i18n_vals[] = {
     "录音任务内存不足。",
     "内存不足，无法测量。",
     "没有密码：同一网络中的任何人都能使用。",
+    "无密码：每个浏览器都需在播放器上允许。",
     "没有可导入的网络",
     "无信号",
     "未选择电台。",
     "卡上还没有。",
+    "暂无。浏览器打开页面时会请求允许。",
     "内存不足，无法录音。",
     "耳麦插孔未插入设备。",
     "这里没有可播放的内容。",
@@ -1635,6 +1652,7 @@ const char *const i18n_vals[] = {
     "この時間タッチがないと画面が半分の明るさになる。タッチで元に戻る。",
     "許可",
     "このブラウザを許可しますか？",
+    "許可済みブラウザ",
     "カードに登録済み（%d / %d）：",
     "カードに登録済み（%d）：",
     "録音中です。",
@@ -1698,6 +1716,7 @@ const char *const i18n_vals[] = {
     "フォルダ",
     "フラッター",
     "フォーカス",
+    "消去",
     "フェードアウトして一時停止し、画面を消す。",
     "お気に入りが満杯",
     "ファイル",
@@ -1752,10 +1771,12 @@ const char *const i18n_vals[] = {
     "録音タスクのメモリ不足。",
     "測定するメモリがない。",
     "パスワードなし：同じネットワークの誰でも使える。",
+    "パスワードなし：ブラウザごとにプレーヤーで許可する。",
     "取り込むネットワークがありません",
     "信号なし",
     "局が選ばれていない。",
     "カードにはまだありません。",
+    "まだない。ブラウザはページを開くと許可を求める。",
     "録音するメモリが足りない。",
     "ヘッドセット端子に\012何もつながっていない。",
     "ここには再生できるものがありません。",
@@ -2026,6 +2047,7 @@ const char *const i18n_vals[] = {
     "Tras este tiempo sin tocarla, la pantalla baja a la mitad de brillo. Cualquier toque la restaura.",
     "Permitir",
     "¿Permitir este navegador?",
+    "Navegadores",
     "Ya en la tarjeta (%d de %d):",
     "Ya en la tarjeta (%d):",
     "Ya se está grabando.",
@@ -2089,6 +2111,7 @@ const char *const i18n_vals[] = {
     "CARPETA",
     "TRÉM",
     "ENFOCADO",
+    "OLVIDAR",
     "Baja el volumen, pausa y apaga la pantalla.",
     "Favoritos llenos",
     "Archivos",
@@ -2143,10 +2166,12 @@ const char *const i18n_vals[] = {
     "Sin memoria para la\012tarea de grabación.",
     "Sin memoria para medir.",
     "Sin contraseña: cualquiera en la red lo usa.",
+    "Sin contraseña: cada navegador se permite en el reproductor.",
     "No hay redes guardadas",
     "Sin señal",
     "No hay emisora elegida.",
     "Aún no hay ninguna en la tarjeta.",
+    "Ninguno aún. Un navegador pregunta al abrir la página.",
     "No hay memoria\012para grabar.",
     "No hay nada en la\012toma de auriculares.",
     "Aquí no hay nada reproducible.",
@@ -2417,6 +2442,7 @@ const char *const i18n_vals[] = {
     "Depois desse tempo sem toque, a tela cai para meio brilho. Qualquer toque a restaura.",
     "Permitir",
     "Permitir este navegador?",
+    "Navegadores",
     "Já no cartão (%d de %d):",
     "Já no cartão (%d):",
     "Já está gravando.",
@@ -2480,6 +2506,7 @@ const char *const i18n_vals[] = {
     "PASTA",
     "FLUT",
     "FOCADO",
+    "ESQUECER",
     "Abaixa o som, pausa e desliga a tela.",
     "Favoritos cheios",
     "Arquivos",
@@ -2534,10 +2561,12 @@ const char *const i18n_vals[] = {
     "Sem memória para a\012tarefa de gravação.",
     "Sem memória para medir.",
     "Sem senha: qualquer um na rede usa.",
+    "Sem senha: cada navegador é permitido no player.",
     "Nenhuma rede salva",
     "Sem sinal",
     "Nenhuma rádio escolhida.",
     "Nenhuma no cartão ainda.",
+    "Nenhum ainda. Um navegador pede ao abrir a página.",
     "Memória insuficiente\012para gravar.",
     "Nada conectado na\012entrada de fone.",
     "Nada para tocar aqui.",
@@ -2808,6 +2837,7 @@ const char *const i18n_vals[] = {
     "Après ce délai sans toucher, l'écran passe à mi-luminosité. Un toucher la rétablit.",
     "Autoriser",
     "Autoriser ce navigateur ?",
+    "Navigateurs",
     "Déjà sur la carte (%d sur %d) :",
     "Déjà sur la carte (%d) :",
     "Déjà en cours.",
@@ -2871,6 +2901,7 @@ const char *const i18n_vals[] = {
     "DOSSIER",
     "SCINT",
     "DIRIGÉ",
+    "OUBLIER",
     "Baisse le son, met en pause et éteint l'écran.",
     "Favoris pleins",
     "Fichiers",
@@ -2925,10 +2956,12 @@ const char *const i18n_vals[] = {
     "Pas de mémoire pour la\012tâche d'enregistrement.",
     "Pas de mémoire pour mesurer.",
     "Sans mot de passe : ouvert à tout le réseau.",
+    "Sans mot de passe : chaque navigateur est autorisé sur le lecteur.",
     "Aucun réseau à importer",
     "Pas de signal",
     "Aucune radio choisie.",
     "Aucune sur la carte pour l'instant.",
+    "Aucun pour l'instant. Un navigateur demande en ouvrant la page.",
     "Pas assez de mémoire\012pour enregistrer.",
     "Rien n'est branché sur\012la prise casque.",
     "Rien à lire ici.",
@@ -3199,6 +3232,7 @@ const char *const i18n_vals[] = {
     "Dopo questo tempo senza tocchi lo schermo scende a metà luminosità. Un tocco la ripristina.",
     "Consenti",
     "Consentire questo browser?",
+    "Browser",
     "Già sulla scheda (%d di %d):",
     "Già sulla scheda (%d):",
     "Già in corso.",
@@ -3262,6 +3296,7 @@ const char *const i18n_vals[] = {
     "CARTELLA",
     "FLUT",
     "DIRETTO",
+    "AZZERA",
     "Abbassa il suono, mette in pausa e spegne lo schermo.",
     "Preferiti pieni",
     "File",
@@ -3316,10 +3351,12 @@ const char *const i18n_vals[] = {
     "Memoria insufficiente per\012la registrazione.",
     "Memoria insufficiente per misurare.",
     "Senza password: chiunque in rete lo usa.",
+    "Senza password: ogni browser va consentito sul lettore.",
     "Nessuna rete salvata",
     "Nessun segnale",
     "Nessuna radio scelta.",
     "Ancora nessuna sulla scheda.",
+    "Nessuno per ora. Un browser chiede quando apre la pagina.",
     "Memoria insufficiente\012per registrare.",
     "Niente collegato al\012jack delle cuffie.",
     "Niente da riprodurre qui.",
@@ -3549,8 +3586,9 @@ const char *const i18n_vals[] = {
     "danneggiato; reindicizza lo rifà",
 };
 
-const unsigned i18n_pcount = 8;
+const unsigned i18n_pcount = 9;
 const char *const i18n_pkeys[] = {
+    "%d allowed. FORGET makes each ask again.",
     "%d apps connected.",
     "%d hidden networks nearby. A hidden network's name has to be typed.",
     "%d stations from %s",
@@ -3565,6 +3603,7 @@ const char *const i18n_pkeys[] = {
  * categories en, zh, ja and es use between them. */
 const char *const i18n_pvals[] = {
     /* en */
+    "%d allowed. FORGET makes it ask again.", NULL,
     "%d app connected.", NULL,
     "%d hidden network nearby. A hidden network's name has to be typed.", NULL,
     "%d station from %s", NULL,
@@ -3574,6 +3613,7 @@ const char *const i18n_pvals[] = {
     "%u phone joined, %u:%02u left", NULL,
     "Not connected. %d network saved.", NULL,
     /* zh-CN */
+    NULL, "已允许 %d 个。清除后需重新请求。",
     NULL, "已有 %d 个应用连接。",
     NULL, "附近有 %d 个隐藏网络。隐藏网络的名称需要手动输入。",
     NULL, "%d 个电台，来自 %s",
@@ -3583,6 +3623,7 @@ const char *const i18n_pvals[] = {
     NULL, "%u 台手机已连接，剩余 %u:%02u",
     NULL, "未连接。已保存 %d 个网络。",
     /* ja */
+    NULL, "%d 件を許可済み。消去すると再度の許可が必要。",
     NULL, "%d 個のアプリが接続中。",
     NULL, "近くに非公開のネットワークが %d 件あります。非公開のネットワーク名は入力が必要です。",
     NULL, "%d 局、%s から",
@@ -3592,6 +3633,7 @@ const char *const i18n_pvals[] = {
     NULL, "%u 台が接続、残り %u:%02u",
     NULL, "未接続。保存済み %d 件。",
     /* es */
+    "%d permitido. OLVIDAR hace que vuelva a preguntar.", "%d permitidos. OLVIDAR hace que cada uno vuelva a preguntar.",
     "%d app conectada.", "%d apps conectadas.",
     "%d red oculta cerca. El nombre de una red oculta hay que escribirlo.", "%d redes ocultas cerca. El nombre de una red oculta hay que escribirlo.",
     "%d emisora de %s", "%d emisoras de %s",
@@ -3601,6 +3643,7 @@ const char *const i18n_pvals[] = {
     "%u teléfono conectado, quedan %u:%02u", "%u teléfonos conectados, quedan %u:%02u",
     "Sin conexión. %d red guardada.", "Sin conexión. %d redes guardadas.",
     /* pt */
+    "%d permitido. ESQUECER faz ele pedir de novo.", "%d permitidos. ESQUECER faz cada um pedir de novo.",
     "%d app conectado.", "%d apps conectados.",
     "%d rede oculta por perto. O nome de uma rede oculta precisa ser digitado.", "%d redes ocultas por perto. O nome de uma rede oculta precisa ser digitado.",
     "%d rádio de %s", "%d rádios de %s",
@@ -3610,6 +3653,7 @@ const char *const i18n_pvals[] = {
     "%u celular conectado, faltam %u:%02u", "%u celulares conectados, faltam %u:%02u",
     "Desconectado. %d rede salva.", "Desconectado. %d redes salvas.",
     /* fr */
+    "%d autorisé. OUBLIER l'oblige à redemander.", "%d autorisés. OUBLIER oblige chacun à redemander.",
     "%d app connectée.", "%d apps connectées.",
     "%d réseau masqué à proximité. Le nom d'un réseau masqué doit être saisi.", "%d réseaux masqués à proximité. Le nom d'un réseau masqué doit être saisi.",
     "%d radio de %s", "%d radios de %s",
@@ -3619,6 +3663,7 @@ const char *const i18n_pvals[] = {
     "%u téléphone connecté, reste %u:%02u", "%u téléphones connectés, reste %u:%02u",
     "Non connecté. %d réseau enregistré.", "Non connecté. %d réseaux enregistrés.",
     /* it */
+    "%d consentito. AZZERA lo fa richiedere.", "%d consentiti. AZZERA li fa richiedere tutti.",
     "%d app collegata.", "%d app collegate.",
     "%d rete nascosta vicina. Il nome di una rete nascosta va scritto.", "%d reti nascoste vicine. Il nome di una rete nascosta va scritto.",
     "%d radio da %s", "%d radio da %s",

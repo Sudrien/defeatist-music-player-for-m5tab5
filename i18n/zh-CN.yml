@@ -90,6 +90,8 @@ zh-CN:
     "Allow": "允许"
     # ui.c
     "Allow this browser?": "允许此浏览器？"
+    # panel.c
+    "Allowed browsers": "已允许的浏览器"
     # remote.html
     "Already on the card (%d of %d):": "卡上已有（%d / %d）："
     # portal.c
@@ -216,6 +218,8 @@ zh-CN:
     "FLTR": "快抖"
     # panel.c
     "FOCUSED": "定向"
+    # panel.c
+    "FORGET": "清除"
     # sleeppage.c
     "Fades out, pauses, and turns the screen off.": "淡出、暂停并关闭屏幕。"
     # player.c
@@ -324,6 +328,8 @@ zh-CN:
     "No memory to measure with.": "内存不足，无法测量。"
     # panel.c
     "No password: anyone on it can use it.": "没有密码：同一网络中的任何人都能使用。"
+    # panel.c
+    "No password: each browser is allowed on the player.": "无密码：每个浏览器都需在播放器上允许。"
     # launcher_import.c
     "No saved networks to import": "没有可导入的网络"
     # streamplan.h
@@ -332,6 +338,8 @@ zh-CN:
     "No station selected.": "未选择电台。"
     # remote.html
     "None on the card yet.": "卡上还没有。"
+    # panel.c
+    "None yet. A browser asks when it opens the page.": "暂无。浏览器打开页面时会请求允许。"
     # recorder.c
     "Not enough memory to record.": "内存不足，无法录音。"
     # recorder.c
@@ -787,6 +795,8 @@ zh-CN:
     # panel.c
     "was damaged; reindex rebuilds it": "已损坏；重新索引可重建"
   plural:
+    "%d allowed. FORGET makes each ask again.":
+      other: "已允许 %d 个。清除后需重新请求。"
     "%d apps connected.":
       other: "已有 %d 个应用连接。"
     "%d hidden networks nearby. A hidden network's name has to be typed.":

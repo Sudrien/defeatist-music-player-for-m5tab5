@@ -142,6 +142,7 @@ Todas as gravações são FLAC, em `Recordings/` no cartão SD (no pendrive se n
 |---|---|---|
 | Wi-Fi | sim / não | |
 | Controle remoto | sim / não | O controle remoto pelo navegador, via HTTPS. |
+| Navegadores | `ESQUECER` | Os navegadores permitidos no controle remoto pela tela do player. `ESQUECER` apaga todos e fecha as páginas deles; cada um pede de novo. |
 | Servidor MPD | sim / não | Para clientes MPD e Home Assistant. |
 | Hora da rede | sim / não | NTP, por Wi-Fi ou por um cabo Ethernet USB. |
 | Adicionar rede | `START` / `STOP` | Abre um portal cativo para conectar a uma rede Wi-Fi pelo celular. |

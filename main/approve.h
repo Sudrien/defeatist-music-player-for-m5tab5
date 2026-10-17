@@ -70,6 +70,11 @@ bool approve_prompt(approve_kind_t *kind, char *who, size_t who_size,
 /* The listener's tap. On yes, a browser's token is made and saved here. */
 void approve_answer(bool yes);
 
+/* 8003: how many are allowed, and forgetting them all. Each forgotten
+ * browser asks again the next time it opens the page. */
+int  approve_count(void);
+void approve_forget_all(void);
+
 #ifdef __cplusplus
 }
 #endif

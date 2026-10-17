@@ -90,6 +90,8 @@ it:
     "Allow": "Consenti"
     # ui.c
     "Allow this browser?": "Consentire questo browser?"
+    # panel.c
+    "Allowed browsers": "Browser"
     # remote.html
     "Already on the card (%d of %d):": "Già sulla scheda (%d di %d):"
     # portal.c
@@ -216,6 +218,8 @@ it:
     "FLTR": "FLUT"
     # panel.c
     "FOCUSED": "DIRETTO"
+    # panel.c
+    "FORGET": "AZZERA"
     # sleeppage.c
     "Fades out, pauses, and turns the screen off.": "Abbassa il suono, mette in pausa e spegne lo schermo."
     # player.c
@@ -324,6 +328,8 @@ it:
     "No memory to measure with.": "Memoria insufficiente per misurare."
     # panel.c
     "No password: anyone on it can use it.": "Senza password: chiunque in rete lo usa."
+    # panel.c
+    "No password: each browser is allowed on the player.": "Senza password: ogni browser va consentito sul lettore."
     # launcher_import.c
     "No saved networks to import": "Nessuna rete salvata"
     # streamplan.h
@@ -332,6 +338,8 @@ it:
     "No station selected.": "Nessuna radio scelta."
     # remote.html
     "None on the card yet.": "Ancora nessuna sulla scheda."
+    # panel.c
+    "None yet. A browser asks when it opens the page.": "Nessuno per ora. Un browser chiede quando apre la pagina."
     # recorder.c
     "Not enough memory to record.": "Memoria insufficiente\nper registrare."
     # recorder.c
@@ -787,6 +795,9 @@ it:
     # panel.c
     "was damaged; reindex rebuilds it": "danneggiato; reindicizza lo rifà"
   plural:
+    "%d allowed. FORGET makes each ask again.":
+      one: "%d consentito. AZZERA lo fa richiedere."
+      other: "%d consentiti. AZZERA li fa richiedere tutti."
     "%d apps connected.":
       one: "%d app collegata."
       other: "%d app collegate."

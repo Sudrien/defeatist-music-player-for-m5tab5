@@ -142,6 +142,7 @@ Tous les enregistrements sont en FLAC, dans `Recordings/` sur la carte SD (sur l
 |---|---|---|
 | Wi-Fi | oui / non | |
 | Télécommande | oui / non | La télécommande par navigateur, en HTTPS. |
+| Navigateurs | `OUBLIER` | Les navigateurs autorisés sur la télécommande depuis l'écran du lecteur. `OUBLIER` les efface tous et ferme leurs pages ; chacun redemande. |
 | Serveur MPD | oui / non | Pour les clients MPD et Home Assistant. |
 | Heure réseau | oui / non | NTP, par Wi-Fi ou par un câble Ethernet USB. |
 | Ajouter un réseau | `START` / `STOP` | Ouvre un portail captif pour connecter un réseau Wi-Fi depuis un téléphone. |

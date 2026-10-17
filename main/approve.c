@@ -184,6 +184,28 @@ bool approve_prompt(approve_kind_t *kind, char *who, size_t who_size,
     return true;
 }
 
+int approve_count(void)
+{
+    if (!s_mu) return 0;
+    xSemaphoreTake(s_mu, portMAX_DELAY);
+    const int n = approve_list_count(&s_browsers);
+    xSemaphoreGive(s_mu);
+    return n;
+}
+
+/* 8003: ui_task only, as approve_answer() is: it writes NVS. */
+void approve_forget_all(void)
+{
+    if (!s_mu) return;
+    approve_list_t copy;
+    xSemaphoreTake(s_mu, portMAX_DELAY);
+    approve_list_clear(&s_browsers);
+    copy = s_browsers;
+    xSemaphoreGive(s_mu);
+    store(&copy);
+    ESP_LOGI(TAG, "every browser forgotten");
+}
+
 void approve_answer(bool yes)
 {
     if (!s_mu) return;

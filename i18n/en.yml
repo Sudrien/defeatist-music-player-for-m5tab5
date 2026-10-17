@@ -90,6 +90,8 @@ en:
     "Allow": ~
     # ui.c
     "Allow this browser?": ~
+    # panel.c
+    "Allowed browsers": ~
     # remote.html
     "Already on the card (%d of %d):": ~
     # portal.c
@@ -216,6 +218,8 @@ en:
     "FLTR": ~
     # panel.c
     "FOCUSED": ~
+    # panel.c
+    "FORGET": ~
     # sleeppage.c
     "Fades out, pauses, and turns the screen off.": ~
     # player.c
@@ -324,6 +328,8 @@ en:
     "No memory to measure with.": ~
     # panel.c
     "No password: anyone on it can use it.": ~
+    # panel.c
+    "No password: each browser is allowed on the player.": ~
     # launcher_import.c
     "No saved networks to import": ~
     # streamplan.h
@@ -332,6 +338,8 @@ en:
     "No station selected.": ~
     # remote.html
     "None on the card yet.": ~
+    # panel.c
+    "None yet. A browser asks when it opens the page.": ~
     # recorder.c
     "Not enough memory to record.": "Not enough memory\nto record."
     # recorder.c
@@ -787,6 +795,9 @@ en:
     # panel.c
     "was damaged; reindex rebuilds it": ~
   plural:
+    "%d allowed. FORGET makes each ask again.":
+      one: "%d allowed. FORGET makes it ask again."
+      other: ~
     "%d apps connected.":
       one: "%d app connected."
       other: ~

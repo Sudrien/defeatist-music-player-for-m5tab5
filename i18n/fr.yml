@@ -90,6 +90,8 @@ fr:
     "Allow": "Autoriser"
     # ui.c
     "Allow this browser?": "Autoriser ce navigateur ?"
+    # panel.c
+    "Allowed browsers": "Navigateurs"
     # remote.html
     "Already on the card (%d of %d):": "Déjà sur la carte (%d sur %d) :"
     # portal.c
@@ -216,6 +218,8 @@ fr:
     "FLTR": "SCINT"
     # panel.c
     "FOCUSED": "DIRIGÉ"
+    # panel.c
+    "FORGET": "OUBLIER"
     # sleeppage.c
     "Fades out, pauses, and turns the screen off.": "Baisse le son, met en pause et éteint l'écran."
     # player.c
@@ -324,6 +328,8 @@ fr:
     "No memory to measure with.": "Pas de mémoire pour mesurer."
     # panel.c
     "No password: anyone on it can use it.": "Sans mot de passe : ouvert à tout le réseau."
+    # panel.c
+    "No password: each browser is allowed on the player.": "Sans mot de passe : chaque navigateur est autorisé sur le lecteur."
     # launcher_import.c
     "No saved networks to import": "Aucun réseau à importer"
     # streamplan.h
@@ -332,6 +338,8 @@ fr:
     "No station selected.": "Aucune radio choisie."
     # remote.html
     "None on the card yet.": "Aucune sur la carte pour l'instant."
+    # panel.c
+    "None yet. A browser asks when it opens the page.": "Aucun pour l'instant. Un navigateur demande en ouvrant la page."
     # recorder.c
     "Not enough memory to record.": "Pas assez de mémoire\npour enregistrer."
     # recorder.c
@@ -787,6 +795,9 @@ fr:
     # panel.c
     "was damaged; reindex rebuilds it": "endommagé ; réindexer le reconstruit"
   plural:
+    "%d allowed. FORGET makes each ask again.":
+      one: "%d autorisé. OUBLIER l'oblige à redemander."
+      other: "%d autorisés. OUBLIER oblige chacun à redemander."
     "%d apps connected.":
       one: "%d app connectée."
       other: "%d apps connectées."

@@ -86,6 +86,11 @@ bool remote_url(char *out, size_t out_size);
  * one. For the idle power-off: web-remote interaction keeps it awake. */
 int remote_ws_clients(void);
 
+/* 8003: close every open connection, after approve_forget_all(), so a
+ * forgotten browser's open page finds out now and asks again. ui_task;
+ * the closes are queued onto the httpd task. */
+void remote_drop_clients(void);
+
 /*
  * The state ui_draw() is about to draw, plus what ui_state_t does not
  * carry: the path whose cover /art serves, and the record countdown.

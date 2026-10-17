@@ -25845,3 +25845,37 @@ request from a browser not allowed on the player`.
 
 Translations for the nine new strings (four on the screen, five on the
 page) were written by Claude and have not been read by a native speaker.
+
+### 8003 -- forget every allowed browser
+
+A row under the remote's switch on the NET tab: "Allowed browsers",
+dimmed when there are none, with a FORGET pill and a note that says how
+many there are. FORGET clears the list in NVS (approve_forget_all(), on
+ui_task like every write there) and closes every open connection to the
+remote (remote_drop_clients(): httpd_sess_trigger_close() on each fd
+httpd_get_client_list() returns, queued onto the httpd task). A page
+that was open finds its socket closed, asks /pair, is told it is no
+longer allowed, and shows "Ask the player" (8002's page side).
+
+All of them, not one at a time: per-browser forgetting needs a list of
+names to choose from, and a browser has no name the player can trust --
+its User-Agent is whatever it says. A phone lost or handed on is the
+case this is for, and "forget them all, allow the ones I still have" is
+one tap plus one tap per phone.
+
+The pill, not the row, is the target. Every other row on the tab is a
+switch, where a mistaken tap is undone by tapping again; this one is
+not undone by anything but asking from each browser again. The pill is
+168 px rather than the switches' 132: OLVIDAR and ESQUECER do not fit
+in six letters' width.
+
+The remote's own note no longer says "anyone on it can use it": since
+8002 that is not true. The MPD server's note still does; 8004 changes
+it.
+
+On the board: `I tab5_approve: every browser forgotten`, then `I
+tab5_remote: closed N connections` when pages were open, and a page that
+was open shows the "not allowed yet" overlay within a second.
+
+Five new strings and the ABBREVIATIONS row in all six languages, by
+Claude, not yet read by a native speaker.

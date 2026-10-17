@@ -90,6 +90,8 @@ ja:
     "Allow": "許可"
     # ui.c
     "Allow this browser?": "このブラウザを許可しますか？"
+    # panel.c
+    "Allowed browsers": "許可済みブラウザ"
     # remote.html
     "Already on the card (%d of %d):": "カードに登録済み（%d / %d）："
     # portal.c
@@ -216,6 +218,8 @@ ja:
     "FLTR": "フラッター"
     # panel.c
     "FOCUSED": "フォーカス"
+    # panel.c
+    "FORGET": "消去"
     # sleeppage.c
     "Fades out, pauses, and turns the screen off.": "フェードアウトして一時停止し、画面を消す。"
     # player.c
@@ -324,6 +328,8 @@ ja:
     "No memory to measure with.": "測定するメモリがない。"
     # panel.c
     "No password: anyone on it can use it.": "パスワードなし：同じネットワークの誰でも使える。"
+    # panel.c
+    "No password: each browser is allowed on the player.": "パスワードなし：ブラウザごとにプレーヤーで許可する。"
     # launcher_import.c
     "No saved networks to import": "取り込むネットワークがありません"
     # streamplan.h
@@ -332,6 +338,8 @@ ja:
     "No station selected.": "局が選ばれていない。"
     # remote.html
     "None on the card yet.": "カードにはまだありません。"
+    # panel.c
+    "None yet. A browser asks when it opens the page.": "まだない。ブラウザはページを開くと許可を求める。"
     # recorder.c
     "Not enough memory to record.": "録音するメモリが足りない。"
     # recorder.c
@@ -787,6 +795,8 @@ ja:
     # panel.c
     "was damaged; reindex rebuilds it": "破損。再索引で作り直す"
   plural:
+    "%d allowed. FORGET makes each ask again.":
+      other: "%d 件を許可済み。消去すると再度の許可が必要。"
     "%d apps connected.":
       other: "%d 個のアプリが接続中。"
     "%d hidden networks nearby. A hidden network's name has to be typed.":

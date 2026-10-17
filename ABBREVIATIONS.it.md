@@ -142,6 +142,7 @@ Tutte le registrazioni sono FLAC, in `Recordings/` sulla scheda SD (sulla chiave
 |---|---|---|
 | Wi-Fi | sì / no | |
 | Telecomando | sì / no | Il telecomando da browser, in HTTPS. |
+| Browser | `AZZERA` | I browser consentiti sul telecomando dallo schermo del lettore. `AZZERA` li cancella tutti e chiude le loro pagine; ognuno richiede di nuovo. |
 | Server MPD | sì / no | Per i client MPD e Home Assistant. |
 | Ora di rete | sì / no | NTP, via Wi-Fi o con un cavo Ethernet USB. |
 | Aggiungi rete | `START` / `STOP` | Apre un portale captive per collegarsi a una rete Wi-Fi dal telefono. |

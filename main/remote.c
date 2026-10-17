@@ -1469,6 +1469,17 @@ int remote_ws_clients(void)
     return ws;
 }
 
+void remote_drop_clients(void)
+{
+    httpd_handle_t srv = s_srv;
+    if (!srv) return;
+    int fds[REMOTE_SOCKETS];
+    size_t n = REMOTE_SOCKETS;
+    if (httpd_get_client_list(srv, &n, fds) != ESP_OK) return;
+    for (size_t i = 0; i < n; i++) (void)httpd_sess_trigger_close(srv, fds[i]);
+    if (n) ESP_LOGI(TAG, "closed %u connection%s", (unsigned)n, n == 1 ? "" : "s");
+}
+
 bool remote_url(char *out, size_t out_size)
 {
     char ip[20];

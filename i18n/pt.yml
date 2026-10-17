@@ -90,6 +90,8 @@ pt:
     "Allow": "Permitir"
     # ui.c
     "Allow this browser?": "Permitir este navegador?"
+    # panel.c
+    "Allowed browsers": "Navegadores"
     # remote.html
     "Already on the card (%d of %d):": "Já no cartão (%d de %d):"
     # portal.c
@@ -216,6 +218,8 @@ pt:
     "FLTR": "FLUT"
     # panel.c
     "FOCUSED": "FOCADO"
+    # panel.c
+    "FORGET": "ESQUECER"
     # sleeppage.c
     "Fades out, pauses, and turns the screen off.": "Abaixa o som, pausa e desliga a tela."
     # player.c
@@ -324,6 +328,8 @@ pt:
     "No memory to measure with.": "Sem memória para medir."
     # panel.c
     "No password: anyone on it can use it.": "Sem senha: qualquer um na rede usa."
+    # panel.c
+    "No password: each browser is allowed on the player.": "Sem senha: cada navegador é permitido no player."
     # launcher_import.c
     "No saved networks to import": "Nenhuma rede salva"
     # streamplan.h
@@ -332,6 +338,8 @@ pt:
     "No station selected.": "Nenhuma rádio escolhida."
     # remote.html
     "None on the card yet.": "Nenhuma no cartão ainda."
+    # panel.c
+    "None yet. A browser asks when it opens the page.": "Nenhum ainda. Um navegador pede ao abrir a página."
     # recorder.c
     "Not enough memory to record.": "Memória insuficiente\npara gravar."
     # recorder.c
@@ -787,6 +795,9 @@ pt:
     # panel.c
     "was damaged; reindex rebuilds it": "danificado; reindexar refaz"
   plural:
+    "%d allowed. FORGET makes each ask again.":
+      one: "%d permitido. ESQUECER faz ele pedir de novo."
+      other: "%d permitidos. ESQUECER faz cada um pedir de novo."
     "%d apps connected.":
       one: "%d app conectado."
       other: "%d apps conectados."

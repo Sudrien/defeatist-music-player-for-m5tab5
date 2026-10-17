@@ -30,6 +30,7 @@
 #include "settings.h"
 #include "devcert.h"         /* 5121 */
 #include "remote.h"          /* 5117 */
+#include "approve.h"         /* 8003 */
 #include "mpd.h"             /* 5158 */
 #include "wifi.h"
 #include "wifistore.h"
@@ -793,12 +794,20 @@ static int remote_y(void) { return wifi_y() + AUDIO_SWITCH_H
                                    + AUDIO_NOTE_GAP
                                    + NET_WIFI_NOTE_LINES * AUDIO_NOTE_STEP
                                    + AUDIO_GAP; }
+/* 8003: the browsers allowed on the remote (approve.h), under the
+ * remote's switch, with the one thing to do about them: forget them. */
+#define NET_ALLOWED_NOTE_LINES (2)
+#define ALLOWED_PILL_W (168)        /* OLVIDAR, ESQUECER: wider than ON/OFF */
+static int allowed_y(void) { return remote_y() + AUDIO_SWITCH_H
+                                    + AUDIO_NOTE_GAP
+                                    + NET_REMOTE_NOTE_LINES * AUDIO_NOTE_STEP
+                                    + AUDIO_GAP; }
 /* 5158: the MPD server, under the remote because it is the same kind of
  * thing -- control from another device -- for a different kind of client. */
 #define NET_MPD_NOTE_LINES (3)
-static int mpd_y(void)  { return remote_y() + AUDIO_SWITCH_H
+static int mpd_y(void)  { return allowed_y() + AUDIO_SWITCH_H
                                  + AUDIO_NOTE_GAP
-                                 + NET_REMOTE_NOTE_LINES * AUDIO_NOTE_STEP
+                                 + NET_ALLOWED_NOTE_LINES * AUDIO_NOTE_STEP
                                  + AUDIO_GAP; }
 static int ntp_y(void)  { return mpd_y() + AUDIO_SWITCH_H
                                  + AUDIO_NOTE_GAP
@@ -807,6 +816,10 @@ static int ntp_y(void)  { return mpd_y() + AUDIO_SWITCH_H
 static void remote_box(int *x, int *y, int *w, int *h)
 {
     *x = 0; *y = remote_y(); *w = gfx_w(); *h = AUDIO_SWITCH_H;
+}
+static void allowed_box(int *x, int *y, int *w, int *h)
+{
+    *x = 0; *y = allowed_y(); *w = gfx_w(); *h = AUDIO_SWITCH_H;
 }
 static void mpd_box(int *x, int *y, int *w, int *h)
 {
@@ -1134,9 +1147,33 @@ static int draw_net(void)
                        "on the same network.");
             rn[1] = NULL;
         }
-        rn[2] = N_("No password: anyone on it can use it.");
+        /* 8002: no longer "anyone on it" -- each browser is allowed. */
+        rn[2] = N_("No password: each browser is allowed on the player.");
         (void)draw_paras(y + bh + AUDIO_NOTE_GAP, rn, NET_REMOTE_NOTE_LINES,
                          NET_REMOTE_NOTE_LINES);
+    }
+
+    /* --- Allowed browsers (8003) ------------------------------------ */
+    allowed_box(&x, &y, &bw, &bh);
+    gfx_fill_rect(x, y, bw, bh, C_ROW);
+    {
+        const int n = approve_count();
+        gfx_draw_text(24, y + (bh - GFX_GLYPH_H(NAME_SCALE)) / 2, _("Allowed browsers"),
+                      NAME_SCALE, 400, n ? C_TEXT : C_DISABLED);
+        const int pw = ALLOWED_PILL_W, ph = 56;
+        draw_state_pill(w - 24 - pw, y + (bh - ph) / 2, pw, ph,
+                        _("FORGET"), false, n > 0, NAME_SCALE);
+        static char count_line[96];
+        const char *an[NET_ALLOWED_NOTE_LINES] = { NULL, NULL };
+        if (n) {
+            snprintf(count_line, sizeof(count_line),
+                     _p("%d allowed. FORGET makes each ask again.", n), n);
+            an[0] = count_line;
+        } else {
+            an[0] = N_("None yet. A browser asks when it opens the page.");
+        }
+        (void)draw_paras(y + bh + AUDIO_NOTE_GAP, an, NET_ALLOWED_NOTE_LINES,
+                         NET_ALLOWED_NOTE_LINES);
     }
 
     /* --- MPD server (5158) ------------------------------------------ */
@@ -1734,6 +1771,22 @@ bool panel_touch(bool down, int x, int y)
             settings_set_remote_enabled(on);
             ESP_LOGI(TAG, "remote control %s", on ? "on" : "off");
             s_dirty = true;
+            return false;
+        }
+
+        /*
+         * 8003: the pill, not the row -- unlike the switches, this one
+         * cannot be tapped back. Forgotten, and every open page closed,
+         * so a forgotten browser asks again now rather than on its next
+         * reconnect. Nothing when none are allowed.
+         */
+        allowed_box(&bx, &by, &bw, &bh);
+        if (y >= by && y < by + bh) {
+            if (x >= gfx_w() - 24 - ALLOWED_PILL_W && approve_count() > 0) {
+                approve_forget_all();
+                remote_drop_clients();
+                s_dirty = true;
+            }
             return false;
         }
 

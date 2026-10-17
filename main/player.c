@@ -8237,13 +8237,15 @@ static void ui_task(void *arg)
          */
         {
             bool fresh = false;
-            if (approve_prompt(NULL, NULL, 0, NULL, &fresh) && fresh) {
+            approve_kind_t kind = APPROVE_FOR_BROWSER;
+            if (approve_prompt(&kind, NULL, 0, NULL, &fresh) && fresh) {
                 s_last_input_us = s_last_active_us = esp_timer_get_time();
                 if (s_screen_off) {
                     s_screen_off = false;
                     lcd_backlight_set(screen_on_duty());
                 }
-                ESP_LOGI(TAG, "a browser is asking to be allowed");
+                ESP_LOGI(TAG, "%s is asking to be allowed",              /* 8004 */
+                         kind == APPROVE_FOR_MPD ? "an MPD app" : "a browser");
             }
         }
         /* 5158: the MPD server, on the same edges and for the same

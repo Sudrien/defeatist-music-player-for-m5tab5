@@ -157,7 +157,7 @@ if there is no card).
 |---|---|---|
 | Wi-Fi | on / off | |
 | Remote control | on / off | The browser remote, over HTTPS. |
-| Allowed browsers | `FORGET` | The browsers allowed on the remote from the player's own screen. `FORGET` clears them all and closes their pages; each asks again. |
+| Allowed devices | `FORGET` | The browsers and MPD app addresses allowed from the player's own screen. `FORGET` clears them all and closes the remote's pages; each asks again. |
 | MPD server | on / off | For MPD clients and Home Assistant. |
 | Network time | on / off | NTP, over Wi-Fi or a USB Ethernet cable. |
 | Add a network | `START` / `STOP` | Opens a captive portal to join a Wi-Fi network from a phone. |

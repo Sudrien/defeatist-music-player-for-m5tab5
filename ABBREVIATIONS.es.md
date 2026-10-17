@@ -142,7 +142,7 @@ Todas las grabaciones son FLAC, en `Recordings/` de la tarjeta SD (la unidad USB
 |---|---|---|
 | Wi-Fi | sí / no | |
 | Control remoto | sí / no | El remoto por navegador, sobre HTTPS. |
-| Navegadores | `OLVIDAR` | Los navegadores permitidos en el remoto desde la pantalla del reproductor. `OLVIDAR` los borra todos y cierra sus páginas; cada uno vuelve a preguntar. |
+| Dispositivos | `OLVIDAR` | Los navegadores y las direcciones de apps MPD permitidos desde la pantalla del reproductor. `OLVIDAR` los borra todos y cierra las páginas del remoto; cada uno vuelve a preguntar. |
 | Servidor MPD | sí / no | Para clientes MPD y Home Assistant. |
 | Hora de red | sí / no | NTP, por Wi-Fi o por un cable Ethernet USB. |
 | Añadir una red | `START` / `STOP` | Abre un portal cautivo para unirse a una red Wi-Fi desde un móvil. |

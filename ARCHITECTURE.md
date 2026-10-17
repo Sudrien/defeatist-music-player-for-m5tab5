@@ -25879,3 +25879,47 @@ was open shows the "not allowed yet" overlay within a second.
 
 Five new strings and the ABBREVIATIONS row in all six languages, by
 Claude, not yet read by a native speaker.
+
+### 8004 -- an MPD app is allowed by its address, on the player
+
+The browser remote's prompt (8002), for the MPD server. An MPD client
+cannot carry a cookie and has no page to show a code on, so it is
+allowed by the address it connects from, and the prompt shows that
+address alone ("Allow this MPD app?"). The address is the request's
+ticket, so a client that reconnects while the prompt is up is the same
+request rather than a busy one.
+
+**Held, not refused.** A connection from an address not on the list is
+accepted -- left in the backlog, a client hangs rather than failing --
+but not greeted, not read (it is left out of the select() set) and not
+counted in mpd_clients(), so a waiting app neither shows as connected on
+the NET tab nor holds off the idle power-off. Each pass of the loop
+(MPD_SELECT_MS) looks at it: allowed, it is greeted as any other; still
+waiting, left; refused or two minutes unanswered, closed. A second
+connection from an address already held replaces the first, so a client
+retrying while it waits cannot take every slot. Another address asking
+while one waits is closed at once ("the player is asking about
+another"), as a second browser is told "busy".
+
+**Allowed at the tap.** approve_answer() adds the address to the list
+when the listener taps Allow, on ui_task, not when the held connection
+collects the answer. Most MPD apps give up on a silent server in a few
+seconds, long before a tap; the next connection from that address is
+greeted at once. The list is `mpd_ok` in NVS, eight addresses, oldest
+replaced, as 16 bytes IPv4-mapped (the listener is IPv4 only). Not
+hashed: an address is not a secret.
+
+**Addresses move.** A lease that changes makes an allowed app ask again;
+a device that is given an allowed address inherits it. That is the cost
+of allowing by address, and why browsers are not (8002). The NET tab's
+row is "Allowed devices" now, counts both lists, and FORGET clears both.
+
+The MPD note says "each address is allowed on the player" instead of
+"anyone on it can use it"; the three replaced strings are pruned from
+the YAML, as the committed files carry no retired keys.
+
+On the board: `I tab5_mpd: client N: A.B.C.D is not allowed yet; asking
+on the player`, `I tab5_mp3: an MPD app is asking to be allowed`, `I
+tab5_approve: request allowed`, then on the app's next try `client N:
+connected from A.B.C.D (1 of K)`. At boot: `I tab5_approve: 1 browser
+and 1 MPD address allowed`.

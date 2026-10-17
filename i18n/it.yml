@@ -89,9 +89,11 @@ it:
     # ui.c
     "Allow": "Consenti"
     # ui.c
+    "Allow this MPD app?": "Consentire questa app MPD?"
+    # ui.c
     "Allow this browser?": "Consentire questo browser?"
     # panel.c
-    "Allowed browsers": "Browser"
+    "Allowed devices": "Dispositivi"
     # remote.html
     "Already on the card (%d of %d):": "Già sulla scheda (%d di %d):"
     # portal.c
@@ -327,7 +329,7 @@ it:
     # bench.c
     "No memory to measure with.": "Memoria insufficiente per misurare."
     # panel.c
-    "No password: anyone on it can use it.": "Senza password: chiunque in rete lo usa."
+    "No password: each address is allowed on the player.": "Senza password: ogni indirizzo va consentito sul lettore."
     # panel.c
     "No password: each browser is allowed on the player.": "Senza password: ogni browser va consentito sul lettore."
     # launcher_import.c
@@ -339,7 +341,7 @@ it:
     # remote.html
     "None on the card yet.": "Ancora nessuna sulla scheda."
     # panel.c
-    "None yet. A browser asks when it opens the page.": "Nessuno per ora. Un browser chiede quando apre la pagina."
+    "None yet. A browser or MPD app asks when it connects.": "Nessuno per ora. Un browser o un'app MPD chiede quando si collega."
     # recorder.c
     "Not enough memory to record.": "Memoria insufficiente\nper registrare."
     # recorder.c

@@ -89,9 +89,11 @@ es:
     # ui.c
     "Allow": "Permitir"
     # ui.c
+    "Allow this MPD app?": "¿Permitir esta app MPD?"
+    # ui.c
     "Allow this browser?": "¿Permitir este navegador?"
     # panel.c
-    "Allowed browsers": "Navegadores"
+    "Allowed devices": "Dispositivos"
     # remote.html
     "Already on the card (%d of %d):": "Ya en la tarjeta (%d de %d):"
     # portal.c
@@ -327,7 +329,7 @@ es:
     # bench.c
     "No memory to measure with.": "Sin memoria para medir."
     # panel.c
-    "No password: anyone on it can use it.": "Sin contraseña: cualquiera en la red lo usa."
+    "No password: each address is allowed on the player.": "Sin contraseña: cada dirección se permite en el reproductor."
     # panel.c
     "No password: each browser is allowed on the player.": "Sin contraseña: cada navegador se permite en el reproductor."
     # launcher_import.c
@@ -339,7 +341,7 @@ es:
     # remote.html
     "None on the card yet.": "Aún no hay ninguna en la tarjeta."
     # panel.c
-    "None yet. A browser asks when it opens the page.": "Ninguno aún. Un navegador pregunta al abrir la página."
+    "None yet. A browser or MPD app asks when it connects.": "Ninguno aún. Un navegador o una app MPD pregunta al conectarse."
     # recorder.c
     "Not enough memory to record.": "No hay memoria\npara grabar."
     # recorder.c

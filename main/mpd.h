@@ -38,7 +38,9 @@
  * and say so. No IPv6 listener.
  *
  * NO PASSWORD, as the remote has none, and for the same reason it is off
- * by default and the panel says so under the switch.
+ * by default and the panel says so under the switch. 8004: instead, an
+ * address is allowed on the player's own screen before its first
+ * greeting (approve.h); until then its connection is held, unread.
  *
  * THREADS. mpd_poll() and mpd_publish() are ui_task's. The server task
  * owns every socket and never calls into the player: it reads a

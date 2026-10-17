@@ -32,12 +32,20 @@
 
 static const char *TAG = "tab5_approve";
 
+/* 8004: an MPD client's address is its request's ticket. */
+_Static_assert(APPROVE_TICKET == APPROVE_ADDR, "an address must fit a ticket");
+
 /* In DEFEATIST_NVS_NS, beside nvsns.h's list: the allowed browsers, as
  * the SHA-256 of each token. */
 #define NVS_KEY_BROWSERS "rmt_ok"
+/* 8004: the allowed MPD addresses, each 16 bytes (IPv4-mapped) and
+ * zero to the list's key length. Not hashed: an address is not a
+ * secret, and the prompt shows it anyway. */
+#define NVS_KEY_MPD      "mpd_ok"
 
 static SemaphoreHandle_t  s_mu;
 static approve_list_t     s_browsers;
+static approve_list_t     s_mpd;            /* 8004 */
 static approve_pending_t  s_pend;
 static uint8_t            s_shown[APPROVE_TICKET];   /* ui_task's: last prompt woken for */
 
@@ -77,29 +85,40 @@ static void tohex(const uint8_t *in, size_t n, char *out)
     out[2 * n] = '\0';
 }
 
+static void load_one(nvs_handle_t h, const char *key, approve_list_t *l)
+{
+    size_t n = sizeof(*l);
+    if (nvs_get_blob(h, key, l, &n) != ESP_OK || n != sizeof(*l)) approve_list_clear(l);
+}
+
 static void load(void)
 {
     nvs_handle_t h;
     if (nvs_open(DEFEATIST_NVS_NS, NVS_READONLY, &h) != ESP_OK) return;
-    size_t n = sizeof(s_browsers);
-    if (nvs_get_blob(h, NVS_KEY_BROWSERS, &s_browsers, &n) != ESP_OK || n != sizeof(s_browsers)) {
-        approve_list_clear(&s_browsers);
-    }
+    load_one(h, NVS_KEY_BROWSERS, &s_browsers);
+    load_one(h, NVS_KEY_MPD, &s_mpd);                           /* 8004 */
     nvs_close(h);
 }
 
 /* ui_task only (approve.h). From a copy: the mutex is not held here. */
-static void store(const approve_list_t *l)
+static void store(const char *key, const approve_list_t *l)
 {
     nvs_handle_t h;
     if (nvs_open(DEFEATIST_NVS_NS, NVS_READWRITE, &h) != ESP_OK) {
         ESP_LOGE(TAG, "could not open NVS; the approval lasts until power off");
         return;
     }
-    if (nvs_set_blob(h, NVS_KEY_BROWSERS, l, sizeof(*l)) != ESP_OK || nvs_commit(h) != ESP_OK) {
+    if (nvs_set_blob(h, key, l, sizeof(*l)) != ESP_OK || nvs_commit(h) != ESP_OK) {
         ESP_LOGE(TAG, "could not save; the approval lasts until power off");
     }
     nvs_close(h);
+}
+
+/* 8004: an address as a list key. */
+static void addr_key(const uint8_t addr[APPROVE_ADDR], uint8_t key[APPROVE_KEY])
+{
+    memset(key, 0, APPROVE_KEY);
+    memcpy(key, addr, APPROVE_ADDR);
 }
 
 void approve_init(void)
@@ -107,8 +126,9 @@ void approve_init(void)
     if (s_mu) return;
     s_mu = xSemaphoreCreateMutex();
     load();
-    ESP_LOGI(TAG, "%d browser%s allowed", approve_list_count(&s_browsers),
-             approve_list_count(&s_browsers) == 1 ? "" : "s");
+    ESP_LOGI(TAG, "%d browser%s and %d MPD address%s allowed",
+             approve_list_count(&s_browsers), approve_list_count(&s_browsers) == 1 ? "" : "s",
+             approve_list_count(&s_mpd), approve_list_count(&s_mpd) == 1 ? "" : "es");
 }
 
 void approve_new_ticket(uint8_t ticket[APPROVE_TICKET])
@@ -188,7 +208,7 @@ int approve_count(void)
 {
     if (!s_mu) return 0;
     xSemaphoreTake(s_mu, portMAX_DELAY);
-    const int n = approve_list_count(&s_browsers);
+    const int n = approve_list_count(&s_browsers) + approve_list_count(&s_mpd);   /* 8004 */
     xSemaphoreGive(s_mu);
     return n;
 }
@@ -200,10 +220,12 @@ void approve_forget_all(void)
     approve_list_t copy;
     xSemaphoreTake(s_mu, portMAX_DELAY);
     approve_list_clear(&s_browsers);
+    approve_list_clear(&s_mpd);                                 /* 8004 */
     copy = s_browsers;
     xSemaphoreGive(s_mu);
-    store(&copy);
-    ESP_LOGI(TAG, "every browser forgotten");
+    store(NVS_KEY_BROWSERS, &copy);
+    store(NVS_KEY_MPD, &copy);          /* the same empty list */
+    ESP_LOGI(TAG, "every browser and MPD address forgotten");
 }
 
 void approve_answer(bool yes)
@@ -221,15 +243,56 @@ void approve_answer(bool yes)
     const bool answered = approve_pend_answer(&s_pend, hashed, hashed ? tok : NULL,
                                               esp_timer_get_time());
     approve_list_t copy;
-    const bool save = answered && hashed && kind == APPROVE_FOR_BROWSER;
-    if (save) {
+    const bool save = answered && hashed;
+    if (save && kind == APPROVE_FOR_BROWSER) {
         approve_list_add(&s_browsers, key);
         copy = s_browsers;
+    } else if (save) {
+        /* 8004: an MPD client is allowed by the address it asked from,
+         * at the tap -- not when the client collects the answer, which
+         * one that has already timed out and gone never will. */
+        uint8_t ak[APPROVE_KEY];
+        addr_key(s_pend.addr, ak);
+        approve_list_add(&s_mpd, ak);
+        copy = s_mpd;
     }
     xSemaphoreGive(s_mu);
     memset(tok, 0, sizeof(tok));
 
     if (!waiting || !answered) return;
     ESP_LOGI(TAG, "request %s", hashed ? "allowed" : "refused");
-    if (save) store(&copy);
+    if (save) store(kind == APPROVE_FOR_BROWSER ? NVS_KEY_BROWSERS : NVS_KEY_MPD, &copy);
+}
+
+/* ---- 8004: MPD ---------------------------------------------------------- */
+
+bool approve_mpd_ok(const uint8_t addr[APPROVE_ADDR])
+{
+    if (!s_mu) return false;
+    uint8_t k[APPROVE_KEY];
+    addr_key(addr, k);
+    xSemaphoreTake(s_mu, portMAX_DELAY);
+    const bool ok = approve_list_find(&s_mpd, k) >= 0;
+    xSemaphoreGive(s_mu);
+    return ok;
+}
+
+approve_ask_t approve_mpd_ask(const uint8_t addr[APPROVE_ADDR])
+{
+    if (!s_mu) return APPROVE_ASK_BUSY;
+    xSemaphoreTake(s_mu, portMAX_DELAY);
+    const approve_ask_t r = approve_pend_ask(&s_pend, APPROVE_FOR_MPD, addr, addr,
+                                             esp_timer_get_time());
+    xSemaphoreGive(s_mu);
+    return r;
+}
+
+approve_state_t approve_mpd_collect(const uint8_t addr[APPROVE_ADDR])
+{
+    if (!s_mu) return APPROVE_IDLE;
+    xSemaphoreTake(s_mu, portMAX_DELAY);
+    const approve_state_t s = approve_pend_collect(&s_pend, APPROVE_FOR_MPD, addr,
+                                                   esp_timer_get_time(), NULL);
+    xSemaphoreGive(s_mu);
+    return s;
 }

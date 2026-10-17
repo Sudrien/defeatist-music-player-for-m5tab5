@@ -9,7 +9,7 @@
 #include <stddef.h>
 #include "i18n.h"
 
-const unsigned i18n_count = 394;
+const unsigned i18n_count = 395;
 const char *const i18n_keys[] = {
     "%.32s did not work. Try again.",
     "%d h",
@@ -52,8 +52,9 @@ const char *const i18n_keys[] = {
     "After this long with nothing playing, recording or touched. Not while music plays.",
     "After this long without a touch the screen drops to half brightness. Any touch puts it back.",
     "Allow",
+    "Allow this MPD app?",
     "Allow this browser?",
-    "Allowed browsers",
+    "Allowed devices",
     "Already on the card (%d of %d):",
     "Already on the card (%d):",
     "Already recording.",
@@ -171,13 +172,13 @@ const char *const i18n_keys[] = {
     "No app connected.",
     "No memory for the recording task.",
     "No memory to measure with.",
-    "No password: anyone on it can use it.",
+    "No password: each address is allowed on the player.",
     "No password: each browser is allowed on the player.",
     "No saved networks to import",
     "No signal",
     "No station selected.",
     "None on the card yet.",
-    "None yet. A browser asks when it opens the page.",
+    "None yet. A browser or MPD app asks when it connects.",
     "Not enough memory to record.",
     "Nothing is plugged into the headset jack.",
     "Nothing playable here.",
@@ -451,8 +452,9 @@ const unsigned char i18n_on_screen[] = {
     1,  /* 'After this long with nothing playing, re' */
     1,  /* 'After this long without a touch the scre' */
     1,  /* 'Allow' */
+    1,  /* 'Allow this MPD app?' */
     1,  /* 'Allow this browser?' */
-    1,  /* 'Allowed browsers' */
+    1,  /* 'Allowed devices' */
     0,  /* 'Already on the card (%d of %d):' */
     0,  /* 'Already on the card (%d):' */
     1,  /* 'Already recording.' */
@@ -570,13 +572,13 @@ const unsigned char i18n_on_screen[] = {
     1,  /* 'No app connected.' */
     1,  /* 'No memory for the recording task.' */
     1,  /* 'No memory to measure with.' */
-    1,  /* 'No password: anyone on it can use it.' */
+    1,  /* 'No password: each address is allowed on ' */
     1,  /* 'No password: each browser is allowed on ' */
     1,  /* 'No saved networks to import' */
     1,  /* 'No signal' */
     1,  /* 'No station selected.' */
     0,  /* 'None on the card yet.' */
-    1,  /* 'None yet. A browser asks when it opens t' */
+    1,  /* 'None yet. A browser or MPD app asks when' */
     1,  /* 'Not enough memory to record.' */
     1,  /* 'Nothing is plugged into the headset jack' */
     0,  /* 'Nothing playable here.' */
@@ -820,6 +822,7 @@ const unsigned char i18n_pon_screen[] = {
 /* [lang * i18n_count + key] */
 const char *const i18n_vals[] = {
     /* en */
+    NULL,
     NULL,
     NULL,
     NULL,
@@ -1256,8 +1259,9 @@ const char *const i18n_vals[] = {
     "在无播放、无录音、无触摸达到该时长后。播放音乐时不会关机。",
     "在无触摸达到该时长后，屏幕亮度降为一半。触摸就能恢复。",
     "允许",
+    "允许此 MPD 应用？",
     "允许此浏览器？",
-    "已允许的浏览器",
+    "已允许的设备",
     "卡上已有（%d / %d）：",
     "卡上已有（%d）：",
     "正在录音。",
@@ -1375,13 +1379,13 @@ const char *const i18n_vals[] = {
     "没有应用连接。",
     "录音任务内存不足。",
     "内存不足，无法测量。",
-    "没有密码：同一网络中的任何人都能使用。",
+    "无密码：每个地址都需在播放器上允许。",
     "无密码：每个浏览器都需在播放器上允许。",
     "没有可导入的网络",
     "无信号",
     "未选择电台。",
     "卡上还没有。",
-    "暂无。浏览器打开页面时会请求允许。",
+    "暂无。浏览器或 MPD 应用连接时会请求允许。",
     "内存不足，无法录音。",
     "耳麦插孔未插入设备。",
     "这里没有可播放的内容。",
@@ -1651,8 +1655,9 @@ const char *const i18n_vals[] = {
     "再生・録音・タッチがない状態がこの時間続いたとき。音楽の再生中は切れない。",
     "この時間タッチがないと画面が半分の明るさになる。タッチで元に戻る。",
     "許可",
+    "この MPD アプリを許可しますか？",
     "このブラウザを許可しますか？",
-    "許可済みブラウザ",
+    "許可済み機器",
     "カードに登録済み（%d / %d）：",
     "カードに登録済み（%d）：",
     "録音中です。",
@@ -1770,13 +1775,13 @@ const char *const i18n_vals[] = {
     "接続中のアプリなし。",
     "録音タスクのメモリ不足。",
     "測定するメモリがない。",
-    "パスワードなし：同じネットワークの誰でも使える。",
+    "パスワードなし：アドレスごとにプレーヤーで許可する。",
     "パスワードなし：ブラウザごとにプレーヤーで許可する。",
     "取り込むネットワークがありません",
     "信号なし",
     "局が選ばれていない。",
     "カードにはまだありません。",
-    "まだない。ブラウザはページを開くと許可を求める。",
+    "まだない。ブラウザや MPD アプリは接続時に許可を求める。",
     "録音するメモリが足りない。",
     "ヘッドセット端子に\012何もつながっていない。",
     "ここには再生できるものがありません。",
@@ -2046,8 +2051,9 @@ const char *const i18n_vals[] = {
     "Tras este tiempo sin reproducir, grabar ni tocar nada. Nunca con música sonando.",
     "Tras este tiempo sin tocarla, la pantalla baja a la mitad de brillo. Cualquier toque la restaura.",
     "Permitir",
+    "¿Permitir esta app MPD?",
     "¿Permitir este navegador?",
-    "Navegadores",
+    "Dispositivos",
     "Ya en la tarjeta (%d de %d):",
     "Ya en la tarjeta (%d):",
     "Ya se está grabando.",
@@ -2165,13 +2171,13 @@ const char *const i18n_vals[] = {
     "Ninguna app conectada.",
     "Sin memoria para la\012tarea de grabación.",
     "Sin memoria para medir.",
-    "Sin contraseña: cualquiera en la red lo usa.",
+    "Sin contraseña: cada dirección se permite en el reproductor.",
     "Sin contraseña: cada navegador se permite en el reproductor.",
     "No hay redes guardadas",
     "Sin señal",
     "No hay emisora elegida.",
     "Aún no hay ninguna en la tarjeta.",
-    "Ninguno aún. Un navegador pregunta al abrir la página.",
+    "Ninguno aún. Un navegador o una app MPD pregunta al conectarse.",
     "No hay memoria\012para grabar.",
     "No hay nada en la\012toma de auriculares.",
     "Aquí no hay nada reproducible.",
@@ -2441,8 +2447,9 @@ const char *const i18n_vals[] = {
     "Depois desse tempo sem tocar, gravar nem ser tocado. Nunca com música tocando.",
     "Depois desse tempo sem toque, a tela cai para meio brilho. Qualquer toque a restaura.",
     "Permitir",
+    "Permitir este app MPD?",
     "Permitir este navegador?",
-    "Navegadores",
+    "Dispositivos",
     "Já no cartão (%d de %d):",
     "Já no cartão (%d):",
     "Já está gravando.",
@@ -2560,13 +2567,13 @@ const char *const i18n_vals[] = {
     "Nenhum app conectado.",
     "Sem memória para a\012tarefa de gravação.",
     "Sem memória para medir.",
-    "Sem senha: qualquer um na rede usa.",
+    "Sem senha: cada endereço é permitido no player.",
     "Sem senha: cada navegador é permitido no player.",
     "Nenhuma rede salva",
     "Sem sinal",
     "Nenhuma rádio escolhida.",
     "Nenhuma no cartão ainda.",
-    "Nenhum ainda. Um navegador pede ao abrir a página.",
+    "Nenhum ainda. Um navegador ou app MPD pede ao se conectar.",
     "Memória insuficiente\012para gravar.",
     "Nada conectado na\012entrada de fone.",
     "Nada para tocar aqui.",
@@ -2836,8 +2843,9 @@ const char *const i18n_vals[] = {
     "Après ce délai sans lecture, enregistrement ni toucher. Jamais pendant la musique.",
     "Après ce délai sans toucher, l'écran passe à mi-luminosité. Un toucher la rétablit.",
     "Autoriser",
+    "Autoriser cette app MPD ?",
     "Autoriser ce navigateur ?",
-    "Navigateurs",
+    "Appareils",
     "Déjà sur la carte (%d sur %d) :",
     "Déjà sur la carte (%d) :",
     "Déjà en cours.",
@@ -2955,13 +2963,13 @@ const char *const i18n_vals[] = {
     "Aucune app connectée.",
     "Pas de mémoire pour la\012tâche d'enregistrement.",
     "Pas de mémoire pour mesurer.",
-    "Sans mot de passe : ouvert à tout le réseau.",
+    "Sans mot de passe : chaque adresse est autorisée sur le lecteur.",
     "Sans mot de passe : chaque navigateur est autorisé sur le lecteur.",
     "Aucun réseau à importer",
     "Pas de signal",
     "Aucune radio choisie.",
     "Aucune sur la carte pour l'instant.",
-    "Aucun pour l'instant. Un navigateur demande en ouvrant la page.",
+    "Aucun pour l'instant. Un navigateur ou une app MPD demande en se connectant.",
     "Pas assez de mémoire\012pour enregistrer.",
     "Rien n'est branché sur\012la prise casque.",
     "Rien à lire ici.",
@@ -3231,8 +3239,9 @@ const char *const i18n_vals[] = {
     "Dopo questo tempo senza riprodurre, registrare né toccare. Mai con la musica in corso.",
     "Dopo questo tempo senza tocchi lo schermo scende a metà luminosità. Un tocco la ripristina.",
     "Consenti",
+    "Consentire questa app MPD?",
     "Consentire questo browser?",
-    "Browser",
+    "Dispositivi",
     "Già sulla scheda (%d di %d):",
     "Già sulla scheda (%d):",
     "Già in corso.",
@@ -3350,13 +3359,13 @@ const char *const i18n_vals[] = {
     "Nessuna app collegata.",
     "Memoria insufficiente per\012la registrazione.",
     "Memoria insufficiente per misurare.",
-    "Senza password: chiunque in rete lo usa.",
+    "Senza password: ogni indirizzo va consentito sul lettore.",
     "Senza password: ogni browser va consentito sul lettore.",
     "Nessuna rete salvata",
     "Nessun segnale",
     "Nessuna radio scelta.",
     "Ancora nessuna sulla scheda.",
-    "Nessuno per ora. Un browser chiede quando apre la pagina.",
+    "Nessuno per ora. Un browser o un'app MPD chiede quando si collega.",
     "Memoria insufficiente\012per registrare.",
     "Niente collegato al\012jack delle cuffie.",
     "Niente da riprodurre qui.",

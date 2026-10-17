@@ -2101,10 +2101,13 @@ static void draw_confirm(void)
      * and the code their page shows, which the listener checks agrees
      * before allowing (approvelist.h). */
     char sub[96] = "";
+    approve_kind_t ak = APPROVE_FOR_BROWSER;
     if (s_confirm == CONFIRM_APPROVE) {
         char who[48], code[5];
-        if (approve_prompt(NULL, who, sizeof(who), code, NULL)) {
-            snprintf(sub, sizeof(sub), _("%s, code %s"), who, code);
+        if (approve_prompt(&ak, who, sizeof(who), code, NULL)) {
+            /* 8004: an MPD app has no page to show a code on. */
+            if (ak == APPROVE_FOR_MPD) snprintf(sub, sizeof(sub), "%s", who);
+            else snprintf(sub, sizeof(sub), _("%s, code %s"), who, code);
         }
     }
     const int sub_h = sub[0] ? gap + GFX_GLYPH_H(NOTICE_BODY_SC) : 0;
@@ -2115,7 +2118,9 @@ static void draw_confirm(void)
     gfx_fill_rect(x + 2, y + 2, w - 4, h - 4, C_NOTICE_BG);
 
     const char *head = (s_confirm == CONFIRM_POWER)   ? _("Power off?")
-                     : (s_confirm == CONFIRM_APPROVE) ? _("Allow this browser?")
+                     : (s_confirm == CONFIRM_APPROVE)
+                       ? (ak == APPROVE_FOR_MPD ? _("Allow this MPD app?")      /* 8004 */
+                                                : _("Allow this browser?"))
                                                       : _("Exit to Launcher?");
     const int hw = gfx_text_w(head, NOTICE_BODY_SC);
     gfx_draw_text(x + (w - hw) / 2, y + pad, head, NOTICE_BODY_SC,

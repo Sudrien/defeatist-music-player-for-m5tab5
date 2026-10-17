@@ -795,7 +795,8 @@ static int remote_y(void) { return wifi_y() + AUDIO_SWITCH_H
                                    + NET_WIFI_NOTE_LINES * AUDIO_NOTE_STEP
                                    + AUDIO_GAP; }
 /* 8003: the browsers allowed on the remote (approve.h), under the
- * remote's switch, with the one thing to do about them: forget them. */
+ * remote's switch, with the one thing to do about them: forget them.
+ * 8004: and the MPD addresses, counted and forgotten with them. */
 #define NET_ALLOWED_NOTE_LINES (2)
 #define ALLOWED_PILL_W (168)        /* OLVIDAR, ESQUECER: wider than ON/OFF */
 static int allowed_y(void) { return remote_y() + AUDIO_SWITCH_H
@@ -1158,7 +1159,7 @@ static int draw_net(void)
     gfx_fill_rect(x, y, bw, bh, C_ROW);
     {
         const int n = approve_count();
-        gfx_draw_text(24, y + (bh - GFX_GLYPH_H(NAME_SCALE)) / 2, _("Allowed browsers"),
+        gfx_draw_text(24, y + (bh - GFX_GLYPH_H(NAME_SCALE)) / 2, _("Allowed devices"),
                       NAME_SCALE, 400, n ? C_TEXT : C_DISABLED);
         const int pw = ALLOWED_PILL_W, ph = 56;
         draw_state_pill(w - 24 - pw, y + (bh - ph) / 2, pw, ph,
@@ -1170,7 +1171,7 @@ static int draw_net(void)
                      _p("%d allowed. FORGET makes each ask again.", n), n);
             an[0] = count_line;
         } else {
-            an[0] = N_("None yet. A browser asks when it opens the page.");
+            an[0] = N_("None yet. A browser or MPD app asks when it connects.");
         }
         (void)draw_paras(y + bh + AUDIO_NOTE_GAP, an, NET_ALLOWED_NOTE_LINES,
                          NET_ALLOWED_NOTE_LINES);
@@ -1209,7 +1210,8 @@ static int draw_net(void)
                        "such as MALP or mpc.");
             mn[1] = NULL;
         }
-        mn[2] = N_("No password: anyone on it can use it.");
+        /* 8004: each address is allowed on the player now. */
+        mn[2] = N_("No password: each address is allowed on the player.");
         (void)draw_paras(y + bh + AUDIO_NOTE_GAP, mn, NET_MPD_NOTE_LINES,
                          NET_MPD_NOTE_LINES);
     }

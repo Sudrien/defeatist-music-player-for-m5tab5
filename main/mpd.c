@@ -97,6 +97,7 @@
 #include "mpdqueue.h"         /* 5166 */
 #include "playlist.h"         /* 5166 */
 #include "mpdproto.h"
+#include "approve.h"        /* 8004 */
 #include "mpdfilter.h"          /* 5239 */
 #include "mpduri.h"
 #include "m3uline.h"            /* 5198 */
@@ -338,6 +339,10 @@ typedef struct {
     uint32_t    pending;        /* 5230: idle events for this connection only */
     uint8_t     tags;           /* 5241: TAG_* this client wants (tagtypes) */
     uint32_t    binlimit;       /* 5249: binarylimit, the most binary per answer */
+    /* 8004: waiting for the listener to allow this address on the
+     * player. Not greeted, not read, not counted; see conn_held_poll(). */
+    bool        held;
+    uint8_t     addr[APPROVE_ADDR];
 } conn_t;
 
 /* 5249: MPD's default binary chunk and the least `binarylimit` takes. */
@@ -4991,9 +4996,13 @@ static void conn_close(conn_t *c, const char *why)
     }
     b->nsubs = 0;
     b->nmsgs = 0;
+    /* 8004: a held connection was never counted. */
+    if (c->held) { c->held = false; return; }
     if (s_nclients > 0) s_nclients--;
     if (s_nclients == 0) pic_forget();                              /* 5249 */
 }
+
+static void conn_greet(conn_t *c);
 
 static void conn_accept(int ls)
 {
@@ -5038,8 +5047,70 @@ static void conn_accept(int ls)
     s_box[c - s_conn].nmsgs = 0;
     c->broken = false;
     c->last_us = esp_timer_get_time();
+    c->held = false;
+
+    /*
+     * 8004: AN ADDRESS THE LISTENER HAS NOT ALLOWED WAITS. MPD has no
+     * cookie for a client to carry and the client has no screen to show
+     * a code on, so it is allowed by address, on the player's own
+     * screen, in the prompt the browser remote uses (approve.h). Until
+     * then it is held: accepted, so the client is not left in the
+     * backlog, but not greeted, not read and not counted. Most clients
+     * time out first; the address is allowed at the tap, so the next
+     * connection is greeted at once.
+     */
+    memset(c->addr, 0, sizeof(c->addr));
+    c->addr[10] = c->addr[11] = 0xff;
+    memcpy(c->addr + 12, &from.sin_addr, 4);
+    if (!approve_mpd_ok(c->addr)) {
+        /* A client that gave up and reconnected while waiting replaces
+         * its own older connection, so retries cannot fill every slot. */
+        for (int i = 0; i < MPD_CLIENTS; i++) {
+            conn_t *o = &s_conn[i];
+            if (o != c && o->fd >= 0 && o->held && memcmp(o->addr, c->addr, sizeof(c->addr)) == 0) {
+                conn_close(o, "replaced by its own new connection");
+            }
+        }
+        const approve_ask_t a = approve_mpd_ask(c->addr);
+        c->held = true;                 /* uncounted, whatever happens next */
+        if (a != APPROVE_ASK_OK) {
+            conn_close(c, a == APPROVE_ASK_BUSY ? "not allowed; the player is asking about another"
+                                                : "not allowed; refused on the player lately");
+            return;
+        }
+        ESP_LOGI(TAG, "client %d: %s is not allowed yet; asking on the player", fd, ip);
+        return;
+    }
+    conn_greet(c);
+}
+
+/*
+ * 8004: a held connection, each pass of the loop. Allowed: greeted, as
+ * any other. Still waiting: left. Refused, or two minutes unanswered:
+ * closed. The list is asked before the request, because two held
+ * connections from one address share one request, and only the first to
+ * collect it would see the yes.
+ */
+static void conn_held_poll(conn_t *c)
+{
+    if (approve_mpd_ok(c->addr)) {
+        (void)approve_mpd_collect(c->addr);
+        c->held = false;
+        c->last_us = esp_timer_get_time();
+        conn_greet(c);
+        return;
+    }
+    const approve_state_t s = approve_mpd_collect(c->addr);
+    if (s == APPROVE_WAITING) return;
+    conn_close(c, s == APPROVE_NO ? "refused on the player" : "not allowed in time");
+}
+
+static void conn_greet(conn_t *c)
+{
+    const int fd = c->fd;
     s_nclients++;
-    ESP_LOGI(TAG, "client %d: connected from %s (%d of %d)", fd, ip, s_nclients, MPD_CLIENTS);
+    ESP_LOGI(TAG, "client %d: connected from %u.%u.%u.%u (%d of %d)", fd,
+             c->addr[12], c->addr[13], c->addr[14], c->addr[15], s_nclients, MPD_CLIENTS);
 
     /*
      * 5235: THE FIRST CLIENT WAITS FOR A PUBLISH. Behind a page (the
@@ -5133,7 +5204,7 @@ static void deliver_events(void)
 
     for (int i = 0; i < MPD_CLIENTS; i++) {
         conn_t *c = &s_conn[i];
-        if (c->fd < 0) continue;
+        if (c->fd < 0 || c->held) continue;     /* 8004: not greeted, not told */
         /* 5230: and what was raised for this connection alone. */
         const uint32_t e = ev | c->pending;
         c->pending = 0;
@@ -5184,7 +5255,7 @@ static void mpd_task(void *arg)
         FD_SET(ls, &rd);
         int maxfd = ls;
         for (int i = 0; i < MPD_CLIENTS; i++) {
-            if (s_conn[i].fd < 0) continue;
+            if (s_conn[i].fd < 0 || s_conn[i].held) continue;       /* 8004: not read */
             FD_SET(s_conn[i].fd, &rd);
             if (s_conn[i].fd > maxfd) maxfd = s_conn[i].fd;
         }
@@ -5205,6 +5276,7 @@ static void mpd_task(void *arg)
         for (int i = 0; i < MPD_CLIENTS; i++) {
             conn_t *c = &s_conn[i];
             if (c->fd < 0) continue;
+            if (c->held) { conn_held_poll(c); continue; }            /* 8004 */
             if (n > 0 && FD_ISSET(c->fd, &rd)) conn_read(c);
             /* 5160: not while idling -- MPD cancels the timeout for
              * as long as a client waits, which may be all night. */

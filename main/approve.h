@@ -71,9 +71,20 @@ bool approve_prompt(approve_kind_t *kind, char *who, size_t who_size,
 void approve_answer(bool yes);
 
 /* 8003: how many are allowed, and forgetting them all. Each forgotten
- * browser asks again the next time it opens the page. */
+ * browser asks again the next time it opens the page. 8004: MPD
+ * addresses are counted and forgotten with them. */
 int  approve_count(void);
 void approve_forget_all(void);
+
+/* ---- 8004: the MPD task ----
+ *
+ * An MPD client is allowed by its address: it has no cookie to carry and
+ * no screen to show a code on, so the prompt shows only the address.
+ * `addr` is 16 bytes, IPv4-mapped. The address is the request's ticket
+ * too, so a client that reconnects while waiting is the same request. */
+bool            approve_mpd_ok(const uint8_t addr[APPROVE_ADDR]);
+approve_ask_t   approve_mpd_ask(const uint8_t addr[APPROVE_ADDR]);
+approve_state_t approve_mpd_collect(const uint8_t addr[APPROVE_ADDR]);
 
 #ifdef __cplusplus
 }

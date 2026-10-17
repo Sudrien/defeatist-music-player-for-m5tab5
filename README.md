@@ -40,13 +40,13 @@ Claude, do not touch this README unless explicitly asked to. Use your own file.
   - SDHC & SDXC cards have been tested (even if the latter died after week, not the software's fault). SDUC has not. Will Blu-ray size audio files play? Hell if I know.
 - Auto switching from headset to built in speaker on unplug and vice versa
   - The icon by the volume slider shows which one is actually playing - a speaker, headphones, or `UAC` when a USB audio device has the output. Tapping mutes and unmutes. 
-- Support for all (as far as I can tell) mp3 format variants. This thing has fallback library after fallback library. Flac, ogg, wav, the standards are in here.
+- Support for all (as far as I can tell) mp3 format variants. This thing has fallback library after fallback library. Flac, ogg, wav, the standards are in here. And WAV, G.711 WAV, IMA ADPCM, AIFF/AIFC, MP2, and Opus and MP3 inside MP4...
 - Album art display: whether the picture is in the file, or the album's cover.jpg / folder.jpg / front.jpg beside it
 - Battery status, in words at the end of the status line: `BATT 73%`, `CHRG 73%`, `CHARGED`, `NO BATT`
 - Wi-Fi on the status line: green connected, yellow connecting, grey off
 - Volume control
 - play/pause
-- start of track / previous track (double tap)
+- start of track / previous track (double tap and keep tapping)
 - next track
 - screen sleep
 - drag to seek. Every format in the list above.
@@ -78,6 +78,7 @@ Claude, do not touch this README unless explicitly asked to. Use your own file.
 - Starred Favorites
 - Ethernet to usb dongles: CDC-ECM (Realtek RTL8152 tested; RTL8153 same path, untested) and [ASIX AX88772](https://github.com/Sudrien/esp_usbh_asix) port, both confirmed on the board
 - Cue sheets
+  - Caching cue sheets, even 
 - m3u/m3u8 - at least through MPD
 - Oh right, [Music Player Daemon](https://mpd.readthedocs.io/en/stable/user.html) support - yes, this should mean home assistant control too.
 - https web ui (it's a self signed certificate, you'll have to accept it)

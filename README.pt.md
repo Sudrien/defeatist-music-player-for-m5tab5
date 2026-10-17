@@ -39,13 +39,13 @@ O objetivo deste projeto é tirar o máximo deste hardware sem modificá-lo. Sem
   - Cartões SDHC e SDXC foram testados (mesmo que o segundo tenha morrido depois de uma semana, não foi culpa do software). SDUC não. Arquivos de áudio do tamanho de um Blu-ray vão tocar? Sei lá.
 - Troca automática do headset para o alto-falante interno ao desconectar, e vice-versa
   - O ícone ao lado do controle de volume mostra o que está tocando de verdade — um alto-falante, fones, ou `UAC` quando um dispositivo de áudio USB tem a saída. Tocar nele silencia e volta o som.
-- Suporte a todas as variantes do formato MP3 (até onde sei). Essa coisa tem biblioteca reserva atrás de biblioteca reserva. FLAC, Ogg, WAV, os padrões estão aqui.
+- Suporte a todas as variantes do formato MP3 (até onde sei). Essa coisa tem biblioteca reserva atrás de biblioteca reserva. FLAC, Ogg, WAV, os padrões estão aqui. E WAV, WAV G.711, IMA ADPCM, AIFF/AIFC, MP2, e Opus e MP3 dentro de MP4...
 - Exibição da capa: seja a imagem dentro do arquivo, seja o cover.jpg / folder.jpg / front.jpg do álbum ao lado dele.
 - Estado da bateria, por extenso no fim da linha de status: `BATT 73%`, `CHRG 73%`, `CHARGED`, `NO BATT`.
 - Wi-Fi na linha de status: verde conectado, amarelo conectando, cinza desligado.
 - Controle de volume
 - Tocar/pausar
-- Início da faixa / faixa anterior (toque duplo)
+- Início da faixa / faixa anterior (toque duplo, e continue tocando)
 - Próxima faixa
 - Desligamento da tela
 - Arrastar para avançar ou voltar. Em todos os formatos da lista acima.
@@ -77,6 +77,7 @@ O objetivo deste projeto é tirar o máximo deste hardware sem modificá-lo. Sem
 - Favoritos com estrela.
 - Adaptadores Ethernet USB: CDC-ECM (Realtek RTL8152 testado; RTL8153 mesmo caminho, não testado) e uma adaptação do [ASIX AX88772](https://github.com/Sudrien/esp_usbh_asix), ambos confirmados na placa.
 - Arquivos cue.
+  - Até com cache.
 - m3u/m3u8 — pelo menos via MPD.
 - Ah, é, suporte ao [Music Player Daemon](https://mpd.readthedocs.io/en/stable/user.html) — sim, isso deve significar controle pelo Home Assistant também.
 - Interface web em HTTPS (o certificado é autoassinado, você vai precisar aceitá-lo).

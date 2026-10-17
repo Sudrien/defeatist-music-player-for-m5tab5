@@ -39,13 +39,13 @@ El objetivo de este proyecto es exprimir al máximo el potencial de este hardwar
   - Se han probado tarjetas SDHC y SDXC (aunque esta última murió tras una semana; no es culpa del software). SDUC no se ha probado. ¿Reproducirá archivos de audio del tamaño de un Blu-ray? Ni idea.
 - Conmutación automática entre headset y altavoz interno al desconectar y viceversa
   - El icono junto al control de volumen muestra qué salida está sonando realmente — un altavoz, auriculares, o `UAC` cuando un dispositivo de audio USB tiene la salida. Al tocarlo se silencia y se reactiva.
-- Compatibilidad con (hasta donde sé) todas las variantes del formato MP3. Esta cosa tiene biblioteca de reserva tras biblioteca de reserva. Flac, ogg, wav, los estándares están aquí.
+- Compatibilidad con (hasta donde sé) todas las variantes del formato MP3. Esta cosa tiene biblioteca de reserva tras biblioteca de reserva. Flac, ogg, wav, los estándares están aquí. Y WAV, WAV G.711, IMA ADPCM, AIFF/AIFC, MP2, y Opus y MP3 dentro de MP4...
 - Visualización de carátula: ya sea la imagen incrustada en el archivo, o el cover.jpg / folder.jpg / front.jpg del álbum junto a él.
 - Estado de la batería, en palabras al final de la línea de estado: `BATT 73%`, `CHRG 73%`, `CHARGED`, `NO BATT`.
 - Wi-Fi en la línea de estado: verde conectado, amarillo conectando, gris apagado.
 - Control de volumen
 - Reproducir/pausar
-- Inicio de la pista / pista anterior (doble toque)
+- Inicio de la pista / pista anterior (doble toque, y sigue tocando)
 - Pista siguiente
 - Apagado de pantalla
 - Arrastrar para buscar posición. En todos los formatos de la lista anterior.
@@ -77,6 +77,7 @@ El objetivo de este proyecto es exprimir al máximo el potencial de este hardwar
 - Favoritos (Starred Favorites).
 - Adaptadores Ethernet por USB: CDC-ECM (Realtek RTL8152 probado; RTL8153 misma ruta, sin probar) y la adaptación de [ASIX AX88772](https://github.com/Sudrien/esp_usbh_asix), ambos confirmados en la placa.
 - Hojas Cue.
+  - Incluso se guardan en caché.
 - m3u/m3u8 — al menos a través de MPD.
 - Ah, sí, compatibilidad con [Music Player Daemon](https://mpd.readthedocs.io/en/stable/user.html) — sí, esto debería significar también control desde Home Assistant.
 - Interfaz web por HTTPS (el certificado es autofirmado, así que tendrás que aceptarlo).

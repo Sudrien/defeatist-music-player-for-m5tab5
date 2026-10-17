@@ -39,13 +39,13 @@
   - SDHC 与 SDXC 卡都测过（后者用了一周就挂了，但不是软件的锅）。SDUC 没测过。蓝光大小的音频文件能不能播？天知道。
 - 拔插时在耳机与内置扬声器之间自动切换
   - 音量滑块旁的图标显示当前实际在响的输出——扬声器、耳机，或 USB 音频设备占用输出时显示 `UAC`。点按即可静音/取消静音。
-- 支持（据我所知）所有 MP3 格式变体。这东西一层接一层地堆了无数后备库。Flac、ogg、wav 这些标准格式也都在。
+- 支持（据我所知）所有 MP3 格式变体。这东西一层接一层地堆了无数后备库。Flac、ogg、wav 这些标准格式也都在。还有 WAV、G.711 WAV、IMA ADPCM、AIFF/AIFC、MP2，以及 MP4 里的 Opus 和 MP3……
 - 封面显示：无论图片是嵌在文件里，还是以 cover.jpg / folder.jpg / front.jpg 放在专辑旁边。
 - 电池状态，以文字显示在状态行末尾：`BATT 73%`、`CHRG 73%`、`CHARGED`、`NO BATT`。
 - 状态行上的 Wi-Fi：绿色已连接，黄色连接中，灰色关闭。
 - 音量控制
 - 播放/暂停
-- 回到曲首 / 上一曲（双击）
+- 回到曲首 / 上一曲（双击，并继续点按）
 - 下一曲
 - 息屏
 - 拖动定位。上面列出的每种格式都支持。
@@ -77,6 +77,7 @@
 - 收藏（Starred Favorites）。
 - USB 以太网转接头：CDC-ECM（已测 Realtek RTL8152；RTL8153 走同一路径，未测）与 [ASIX AX88772](https://github.com/Sudrien/esp_usbh_asix) 移植，两者都已在板上确认可用。
 - Cue 表单。
+  - 甚至会缓存。
 - m3u/m3u8——至少通过 MPD 可用。
 - 对了，还有 [Music Player Daemon](https://mpd.readthedocs.io/en/stable/user.html) 支持——也就是说应该能用 Home Assistant 控制。
 - 基于 HTTPS 的网页界面（证书是自签名的，需要在浏览器中接受它）。

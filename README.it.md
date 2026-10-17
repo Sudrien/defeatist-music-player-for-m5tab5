@@ -39,13 +39,13 @@ L'obiettivo di questo progetto è spremere tutto il potenziale di questo hardwar
   - Provate schede SDHC e SDXC (anche se la seconda è morta dopo una settimana, non per colpa del software). SDUC no. File audio grandi come un Blu-ray suoneranno? Boh.
 - Passaggio automatico dalle cuffie all'altoparlante interno allo scollegamento, e viceversa
   - L'icona accanto al cursore del volume mostra cosa sta suonando davvero — un altoparlante, delle cuffie, o `UAC` quando un dispositivo audio USB ha l'uscita. Toccarla toglie e ridà l'audio.
-- Supporto per tutte le varianti del formato MP3 (per quanto ne so). Questo coso ha libreria di riserva dopo libreria di riserva. FLAC, Ogg, WAV, i classici ci sono.
+- Supporto per tutte le varianti del formato MP3 (per quanto ne so). Questo coso ha libreria di riserva dopo libreria di riserva. FLAC, Ogg, WAV, i classici ci sono. E WAV, WAV G.711, IMA ADPCM, AIFF/AIFC, MP2, e Opus e MP3 dentro MP4...
 - Copertina: che l'immagine sia nel file, o il cover.jpg / folder.jpg / front.jpg dell'album accanto.
 - Stato della batteria, a parole in fondo alla riga di stato: `BATT 73%`, `CHRG 73%`, `CHARGED`, `NO BATT`.
 - Wi-Fi sulla riga di stato: verde connesso, giallo in connessione, grigio spento.
 - Controllo del volume
 - Riproduci/pausa
-- Inizio brano / brano precedente (doppio tocco)
+- Inizio brano / brano precedente (doppio tocco, e continua a toccare)
 - Brano successivo
 - Spegnimento dello schermo
 - Trascina per spostarti nel brano. In tutti i formati della lista sopra.
@@ -77,6 +77,7 @@ L'obiettivo di questo progetto è spremere tutto il potenziale di questo hardwar
 - Preferiti con la stella.
 - Adattatori Ethernet USB: CDC-ECM (Realtek RTL8152 provato; RTL8153 stessa strada, non provato) e un porting dell'[ASIX AX88772](https://github.com/Sudrien/esp_usbh_asix), entrambi confermati sulla scheda.
 - File cue.
+  - Perfino messi in cache.
 - m3u/m3u8 — almeno tramite MPD.
 - Ah già, il supporto a [Music Player Daemon](https://mpd.readthedocs.io/en/stable/user.html) — sì, dovrebbe voler dire anche controllo da Home Assistant.
 - Interfaccia web in HTTPS (il certificato è autofirmato, dovrai accettarlo).

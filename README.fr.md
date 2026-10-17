@@ -39,13 +39,13 @@ Le but de ce projet est de tirer tout le potentiel de ce matériel sans le modif
   - Des cartes SDHC et SDXC ont été testées (même si la seconde est morte au bout d'une semaine, ce n'est pas la faute du logiciel). Pas les SDUC. Des fichiers audio de la taille d'un Blu-ray passeront-ils ? Aucune idée.
 - Bascule automatique du casque au haut-parleur intégré quand on débranche, et inversement
   - L'icône à côté du curseur de volume montre ce qui joue vraiment — un haut-parleur, des écouteurs, ou `UAC` quand un appareil audio USB a la sortie. La toucher coupe et rétablit le son.
-- Prise en charge de toutes les variantes du format MP3 (pour autant que je sache). Ce truc a bibliothèque de secours sur bibliothèque de secours. FLAC, Ogg, WAV, les classiques sont là.
+- Prise en charge de toutes les variantes du format MP3 (pour autant que je sache). Ce truc a bibliothèque de secours sur bibliothèque de secours. FLAC, Ogg, WAV, les classiques sont là. Et WAV, WAV G.711, IMA ADPCM, AIFF/AIFC, MP2, et Opus et MP3 dans du MP4...
 - Affichage de la pochette : que l'image soit dans le fichier, ou le cover.jpg / folder.jpg / front.jpg de l'album à côté.
 - État de la batterie, en toutes lettres au bout de la ligne d'état : `BATT 73%`, `CHRG 73%`, `CHARGED`, `NO BATT`.
 - Le Wi-Fi sur la ligne d'état : vert connecté, jaune en connexion, gris coupé.
 - Réglage du volume
 - Lecture/pause
-- Début de piste / piste précédente (double toucher)
+- Début de piste / piste précédente (double toucher, et continuez à toucher)
 - Piste suivante
 - Mise en veille de l'écran
 - Glisser pour se déplacer dans la piste. Dans tous les formats de la liste ci-dessus.
@@ -77,6 +77,7 @@ Le but de ce projet est de tirer tout le potentiel de ce matériel sans le modif
 - Favoris étoilés.
 - Adaptateurs Ethernet USB : CDC-ECM (Realtek RTL8152 testé ; RTL8153 même chemin, non testé) et un portage de l'[ASIX AX88772](https://github.com/Sudrien/esp_usbh_asix), tous deux confirmés sur la carte.
 - Fichiers cue.
+  - Même mis en cache.
 - m3u/m3u8 — au moins via MPD.
 - Ah oui, la prise en charge de [Music Player Daemon](https://mpd.readthedocs.io/en/stable/user.html) — oui, ça devrait aussi vouloir dire contrôle par Home Assistant.
 - Interface web en HTTPS (le certificat est auto-signé, il faudra l'accepter).

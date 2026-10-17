@@ -25236,6 +25236,52 @@ Seen in the same run and not from these patches, for the record:
 
 Not built for the target, not run on the board.
 
+### 6157 -- choosing a track while paused: the writer follows, and nothing is thrown away
+
+Board, 2026-10-17. With the player paused (as it boots, `ready to resume
+… (paused)`), choosing 19 in the chooser put 19 on screen for about a
+second, then 20, then 21, and none of it played. A longer paused run
+logged `incoming ring N held … KB; resetting` once a track, with the
+cue tracks after it opened, decoded and discarded unheard.
+
+Two causes, both in the hand-off between the decode loop and the writer.
+
+THE WRITER WAS PARKED ON AN EMPTY RING. A track request flushes the
+rings without moving either index. The decode then takes the next ring,
+but a paused writer sits in its pause branch and never reaches the
+dry-ring handoff, so `s_ring_play` stays on an empty ring. Three tracks
+later the decode wraps onto that same ring. VISUALS_GATE's `my_ring ==
+s_ring_play` then held for 21, and it took the screen. Unpausing, the
+first handoff would have been ring_advance_play()'s out-of-turn skip,
+straight to the fill ring and past 19 and 20. The paused branch now
+makes the dry-ring handoff too. It sends no sample, so it moves the
+writer to the place playing will start from and plays nothing.
+
+THE RING WAIT GAVE UP ON A PAUSE. The wait for a free ring broke on
+`!s_playing`, on the grounds that a paused writer drains nothing and
+waiting would hang the loop that reads the controls. ui_task reads the
+controls and sets s_playing, though, and a track change and a seek
+still break the wait. Breaking meant taking the ring anyway and resetting
+it: the audio was discarded and the playlist advanced unheard, track
+after track, for as long as the pause lasted. A pause now waits there,
+servicing stars, favourites and notices as the paused send does, and
+paused time does not count towards RING_WAIT_MAX_MS.
+
+The screen rule is unchanged and this restores it: the next track takes
+the screen when it is heard, at the crossfade's midpoint, or at the
+handoff with crossfade off. With the writer on the right ring, a tail
+slot taken over while paused no longer lets a later track through,
+because the gate also requires the ring being heard to be empty.
+
+Expected on the board, choosing 19 while paused: `playing 19`, a
+`writer: ring a -> b` with no amplifier, 20 and 21 decoded ahead with
+no `resetting`, and 19 on screen until play is pressed. Then 19, 20, 21
+are heard in order, each named as it starts.
+
+Not done: the paused ring wait does not service `s_repaint_art` the way
+the paused send does, so a panel closed during that wait repaints when
+playback resumes. Not built for the target, not run on the board.
+
 ### 8000 -- CI: host tests after the components they include exist
 
 The v0.7.0 tag's workflow run failed at "Host tests (text layout, USB

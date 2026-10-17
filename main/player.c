@@ -2785,6 +2785,32 @@ static void i2s_writer_task(void *arg)
                 fx_edge_go(&s_fx_edge, false, 0, fx_rate());
             }
             if (fx_edge_silent(&s_fx_edge)) {
+                /*
+                 * 6157: PAUSED IS NOT PARKED ON AN EMPTY RING.
+                 *
+                 * A pause holds the ring being heard. It must not hold
+                 * the writer on a ring with nothing in it, which is
+                 * where a track chosen while paused leaves it: the
+                 * request flushes the queue without moving either index
+                 * (see ring_advance_play()), the decode takes the next
+                 * ring, and the writer -- parked here -- never makes the
+                 * handoff onto it. The board, choosing 19 from paused:
+                 * the decode filled three rings with 19, 20 and 21, the
+                 * last of them the very ring the writer was parked on,
+                 * so 21 passed VISUALS_GATE's `my_ring == s_ring_play`
+                 * and took the screen while nothing had played. Unpaused,
+                 * ring_advance_play()'s out-of-turn skip would have gone
+                 * straight to the fill ring and past 19 and 20.
+                 *
+                 * The handoff off a dry ring sends no sample, so it is
+                 * not playing: it is only standing where the next sample
+                 * will come from, which is what a pause means. Not
+                 * during an overlap, whose exits are the writer's own.
+                 */
+                if (!s_xfade_active && s_ring_play != s_ring_fill &&
+                    ring_dry(s_ring_play)) {
+                    ring_advance_play();
+                }
                 vTaskDelay(pdMS_TO_TICKS(20));
                 continue;
             }
@@ -11472,9 +11498,38 @@ static track_end_t play_file(const char *path)
                              (unsigned)(xStreamBufferBytesAvailable(s_ring[1]) / 1024),
                              (unsigned)(xStreamBufferBytesAvailable(s_ring[2]) / 1024));
                 }
+                /*
+                 * 6157: NOT WHILE PAUSED, EITHER.
+                 *
+                 * This used to break on a pause as well, on the reasoning
+                 * above that a paused writer drains nothing and waiting
+                 * would hang the loop that reads the controls. The
+                 * controls are read by ui_task, which sets s_playing, a
+                 * track change and a seek both still break this wait, and
+                 * a send into a full ring already waits out a pause the
+                 * same way (servicing the screen as it does, below). What
+                 * the break actually did, paused, was take the ring
+                 * anyway and reset it: the board logged `incoming ring 1
+                 * held 3007 KB; resetting` three times in a row on a
+                 * paused player, each one a decoded track thrown away and
+                 * the playlist advanced past it unheard. So a pause waits
+                 * here, and the time spent paused is not counted against
+                 * RING_WAIT_MAX_MS, which bounds a writer that has
+                 * stopped, not one somebody stopped.
+                 */
                 while (!xStreamBufferIsEmpty(s_ring[next_ring]) ||
                        s_ring_play == next_ring) {
-                    if (!s_playing || s_pending_ready || s_seek_pct >= 0) break;
+                    if (s_pending_ready || s_seek_pct >= 0) break;
+                    if (!s_playing) {
+                        /* The same servicing the paused send does, for
+                         * the same reason: this is the only loop running
+                         * while paused. */
+                        service_favorite_toggle();
+                        service_star_toggle();
+                        service_notices();
+                        vTaskDelay(pdMS_TO_TICKS(RING_WAIT_STEP_MS));
+                        continue;
+                    }
                     if (ring_wait_ms >= RING_WAIT_MAX_MS) {
                         ESP_LOGW(TAG, "ring %d still busy after %" PRIu32
                                       " ms; taking it anyway",

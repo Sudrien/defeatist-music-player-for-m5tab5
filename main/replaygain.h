@@ -301,6 +301,25 @@ typedef struct {
     float    depth_lu;
 } replaygain_fade_t;
 
+/*
+ * 6179: where a cue track's start was found in the real file, as
+ * decoder_cue_start_found() reported it -- the seek's second, the byte
+ * offset of the frame it landed on (-1 where the format's seek does not
+ * say), and where that frame starts. Kept for every cue track; only FLAC
+ * reads it back today (decoder_cue_start_hint()).
+ *
+ * Valid for the file it was found in, which the record's filesize and
+ * mtime already pin: for a cue track those are the image's (rg_stat()).
+ * Not a format bump, for the reason the fade section gives.
+ */
+typedef struct {
+    bool     present;
+    uint32_t sec;
+    int64_t  off;
+    uint32_t cs;
+    uint64_t sample;
+} replaygain_cue_start_t;
+
 typedef struct {
     uint32_t filesize;
     int64_t  mtime;
@@ -312,6 +331,7 @@ typedef struct {
     replaygain_index_t    index;
     replaygain_attempts_t attempts;
     replaygain_fade_t     fade;
+    replaygain_cue_start_t cue_start;   /* 6179 */
 } replaygain_t;
 
 /*

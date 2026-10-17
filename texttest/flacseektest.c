@@ -96,6 +96,14 @@ static void one_file(const char *name, uint32_t *total_reads, uint32_t *seeks)
               "%s at %us: offset %ld sample %llu, the frame is at %ld (%llu)",
               name, s, off, (unsigned long long)landed, ref[want].off,
               (unsigned long long)ref[want].sample);
+        /* 6179: the remembered answer checks out, and a wrong one does
+         * not -- off by a byte, or the right frame with the wrong sample. */
+        CHECK(flac_seek_check(f, &fs, off, landed),
+              "%s at %us: check rejected its own answer", name, s);
+        CHECK(!flac_seek_check(f, &fs, off + 1, landed),
+              "%s at %us: check took a frame a byte late", name, s);
+        CHECK(!flac_seek_check(f, &fs, off, landed + 1),
+              "%s at %us: check took the wrong sample", name, s);
     }
     printf("    %-28s %3u s, %u frames: %.1f reads a seek, worst %u\n",
            name, secs, nref, (double)reads / (secs + 1), worst);

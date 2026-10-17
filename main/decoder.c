@@ -95,6 +95,10 @@ struct decoder {
     FILE *f;
     decoder_info_t info;
     cue_span_t cue;
+    decoder_cue_start_t cue_hint;      /* 6179: given by the player */
+    decoder_cue_start_t cue_found;     /* 6179: what reaching the start took */
+    int64_t  last_off;                 /* 6179: the last seek's byte offset */
+    uint64_t last_sample;              /*       and sample, where known */
 
     /* minimp3 */
     mp3dec_ex_t ex;
@@ -1275,7 +1279,16 @@ static esp_err_t esp_codec_seek(decoder_t *d, uint32_t sec, uint32_t *landed_cs)
         }
     } else if (d->flac.ok) {
         uint64_t landed_sample = 0;
-        off = flac_seek_find(d->f, &d->flac, sec, &landed_sample);
+        const decoder_cue_start_t *h = &d->cue_hint;
+        if (h->set && h->sec == sec && h->off >= 0 &&
+            flac_seek_check(d->f, &d->flac, (long)h->off, h->sample)) {
+            off = (long)h->off;                                 /* 6179 */
+            landed_sample = h->sample;
+            ESP_LOGI(TAG, "flac: seek to %" PRIu32 "s from the sidecar", sec);
+        } else {
+            off = flac_seek_find(d->f, &d->flac, sec, &landed_sample);
+        }
+        d->last_sample = landed_sample;
         if (off >= 0 && d->flac.sample_rate) {
             at_cs = (uint32_t)((landed_sample * 100) / d->flac.sample_rate);
         }
@@ -1407,6 +1420,7 @@ static esp_err_t esp_codec_seek(decoder_t *d, uint32_t sec, uint32_t *landed_cs)
     }
 
     if (landed_cs) *landed_cs = at_cs;
+    d->last_off = off;                                          /* 6179 */
     const int64_t t_done = esp_timer_get_time();
     ESP_LOGI(TAG, "%s: seek to %" PRIu32 "s -> offset %ld, landed %" PRIu32
                   ".%02" PRIu32 "s (+%u B header; find %u ms, reopen %u ms)",
@@ -2066,6 +2080,8 @@ static bool cue_goto(decoder_t *d, uint64_t target)
     d->cue.want = target;
     if (!rate || !decoder_can_seek(d)) return false;   /* discard forward */
     uint32_t landed = 0;
+    d->last_off = -1;                                           /* 6179 */
+    d->last_sample = 0;
     if (seek_raw(d, (uint32_t)(target / rate), &landed) != ESP_OK) return false;
     d->cue.pos = (uint64_t)landed * rate / 100;
     /* A mechanism that lands after the ask (CBR lands on the first
@@ -2109,6 +2125,14 @@ static int cue_read(decoder_t *d, int16_t *out, int max_int16)
             c->want = target;
             if (target > frames && cue_goto(d, target)) {
                 t_seek = esp_timer_get_time();
+                if (target == c->lo) {                          /* 6179 */
+                    d->cue_found = (decoder_cue_start_t){
+                        .set = true, .sec = (uint32_t)(target / rate),
+                        .off = d->last_off,
+                        .cs = (uint32_t)(c->pos * 100 / rate),
+                        .sample = d->last_sample ? d->last_sample : c->pos,
+                    };
+                }
                 continue;               /* seeked: this buffer is stale */
             }
         }
@@ -2135,6 +2159,18 @@ static int cue_read(decoder_t *d, int16_t *out, int max_int16)
         }
         return (int)keep;
     }
+}
+
+void decoder_cue_start_hint(decoder_t *d, const decoder_cue_start_t *h)
+{
+    if (d && h) d->cue_hint = *h;
+}
+
+bool decoder_cue_start_found(const decoder_t *d, decoder_cue_start_t *out)
+{
+    if (!d || !d->cue.on || !d->cue_found.set) return false;
+    if (out) *out = d->cue_found;
+    return true;
 }
 
 static uint32_t cue_duration_sec(decoder_t *d)

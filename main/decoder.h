@@ -164,6 +164,32 @@ decoder_t *decoder_open(const char *path);
 decoder_t *decoder_open_indexed(const char *path, const decoder_index_t *ix);
 
 /*
+ * 6179: where a cue track's start was found in the real file.
+ *
+ * Reaching a cue track's start is a seek inside the image -- for FLAC a
+ * frame search, 180-360 ms in every board log. The answer never changes
+ * for a given file, so the player keeps it in the track's sidecar and
+ * hands it back: decoder_cue_start_hint() before the first read, and
+ * decoder_cue_start_found() after it to learn what to keep.
+ *
+ * Recorded for every format whose seek reports a byte offset; `off` is
+ * -1 where it does not. Only FLAC uses a hint today, and only after
+ * flac_seek_check() has confirmed a frame header starting at `sample`
+ * sits at `off` -- so a stale or wrong hint costs one 32-byte read and
+ * falls back to the search.
+ */
+typedef struct {
+    bool     set;
+    uint32_t sec;       /* the whole second the seek was asked for */
+    int64_t  off;       /* byte offset of the frame landed on, or -1 */
+    uint32_t cs;        /* where it landed, hundredths of a second */
+    uint64_t sample;    /* where it landed, samples (FLAC: exact) */
+} decoder_cue_start_t;
+
+void decoder_cue_start_hint(decoder_t *d, const decoder_cue_start_t *h);
+bool decoder_cue_start_found(const decoder_t *d, decoder_cue_start_t *out);
+
+/*
  * Decimate whatever index the decoder is holding into caller storage,
  * so it can be written to a sidecar and handed back next time.
  *

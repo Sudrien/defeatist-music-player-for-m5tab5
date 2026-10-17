@@ -360,10 +360,27 @@ static bool parse_line(const char *line, uint32_t filesize, int64_t mtime,
         }
     }
 
+    const cJSON *cs = cJSON_GetObjectItemCaseSensitive(root, "cue_start");
+    if (cJSON_IsObject(cs)) {                                       /* 6179 */
+        const cJSON *sc = cJSON_GetObjectItemCaseSensitive(cs, "sec");
+        const cJSON *of = cJSON_GetObjectItemCaseSensitive(cs, "off");
+        const cJSON *ce = cJSON_GetObjectItemCaseSensitive(cs, "cs");
+        const cJSON *sm = cJSON_GetObjectItemCaseSensitive(cs, "sample");
+        if (cJSON_IsNumber(sc) && cJSON_IsNumber(of) &&
+            cJSON_IsNumber(ce) && cJSON_IsNumber(sm) && sm->valuedouble >= 0) {
+            out->cue_start.present = true;
+            out->cue_start.sec    = (uint32_t)sc->valuedouble;
+            out->cue_start.off    = (int64_t)of->valuedouble;
+            out->cue_start.cs     = (uint32_t)ce->valuedouble;
+            out->cue_start.sample = (uint64_t)sm->valuedouble;
+        }
+    }
+
     ok = out->waveform.present || out->loudness.present ||
          out->art.present || out->format.present ||
          out->tags.present || out->index.present ||
-         out->attempts.present || out->fade.present;
+         out->attempts.present || out->fade.present ||
+         out->cue_start.present;
 
 done:
     cJSON_Delete(root);
@@ -591,6 +608,16 @@ static esp_err_t append_record(const char *path, const replaygain_t *rg,
                 cJSON_AddNumberToObject(fd, "depth_lu",
                                         (double)lrintf(rg->fade.depth_lu * 10.0f) / 10.0);
             }
+        }
+    }
+
+    if (rg->cue_start.present) {                                    /* 6179 */
+        cJSON *cs = cJSON_AddObjectToObject(root, "cue_start");
+        if (cs) {
+            cJSON_AddNumberToObject(cs, "sec", (double)rg->cue_start.sec);
+            cJSON_AddNumberToObject(cs, "off", (double)rg->cue_start.off);
+            cJSON_AddNumberToObject(cs, "cs", (double)rg->cue_start.cs);
+            cJSON_AddNumberToObject(cs, "sample", (double)rg->cue_start.sample);
         }
     }
 

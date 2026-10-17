@@ -25645,6 +25645,30 @@ SKIP_SETTLE_MS (300 ms) before opening the run's target. A lone tap
 opens at once, as before; a cue track's text is already on screen from
 the press (6177).
 
+### 6179 -- a cue track's start, remembered in its sidecar
+
+Reaching a cue track's start in a FLAC image is a frame search, 180-360
+ms of every open in the board logs, and the answer never changes for a
+given file. The decoder now records where the start was found (the
+seek's second, the frame's byte offset -- -1 where a format's seek does
+not report one -- and its sample) for every cue track, and the player
+keeps it in a new optional `cue_start` sidecar section. The record's
+filesize and mtime are the image's (rg_stat()), so re-ripping the image
+invalidates it like everything else.
+
+On the next open the player hands it back with decoder_cue_start_hint().
+Only FLAC uses it: flac_seek_check() reads 32 bytes at the offset and
+requires a frame header of this stream starting at exactly that sample,
+else the search runs as before and the new answer replaces the old.
+Log: `flac: seek to Ns from the sidecar` on a hit, `cue start kept for
+next time` when one is written. texttest/flacseektest checks the check
+against every answer flac_seek_find() gives, and against the same answer
+a byte late and a sample off.
+
+Not a format-version bump, as with the fade section: firmware without
+it drops the section on its next rewrite, and the next open finds it
+again.
+
 ### 8000 -- CI: host tests after the components they include exist
 
 The v0.7.0 tag's workflow run failed at "Host tests (text layout, USB

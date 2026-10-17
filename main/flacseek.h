@@ -99,6 +99,14 @@ bool flac_seek_probe(FILE *f, flac_seek_t *fs);
 long flac_seek_find(FILE *f, const flac_seek_t *fs, uint32_t sec,
                     uint64_t *landed_sample);
 
+/*
+ * 6179: is there a frame header of this stream at `off` that starts at
+ * `sample`? For a remembered seek answer (a cue track's start, from its
+ * sidecar): one 32-byte read in place of a search. False sends the
+ * caller back to flac_seek_find().
+ */
+bool flac_seek_check(FILE *f, const flac_seek_t *fs, long off, uint64_t sample);
+
 /* Window reads the last flac_seek_find() made (6160), for the log. */
 uint32_t flac_seek_last_reads(void);
 

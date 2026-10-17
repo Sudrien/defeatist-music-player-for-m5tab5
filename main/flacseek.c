@@ -469,6 +469,15 @@ long flac_seek_find(FILE *f, const flac_seek_t *fs, uint32_t sec,
     return best;
 }
 
+bool flac_seek_check(FILE *f, const flac_seek_t *fs, long off, uint64_t sample)
+{
+    uint8_t hdr[32];
+    flac_frame_t fr;
+    if (!f || !fs || off < 0) return false;
+    if (!read_at(f, off, hdr, sizeof(hdr))) return false;
+    return frame_at(hdr, sizeof(hdr), fs, &fr) && fr.sample == sample;
+}
+
 size_t flac_seek_preamble(const flac_seek_t *fs, uint8_t *buf, size_t cap)
 {
     if (!fs || !fs->ok || !buf || cap < FLAC_PREAMBLE_BYTES) return 0;

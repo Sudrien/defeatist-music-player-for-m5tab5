@@ -10181,6 +10181,15 @@ static track_end_t play_file(const char *path)
     ESP_LOGI(TAG, "open took %" PRIu32 " ms", open_ms);
     storage_io_report("open");
 
+    /* 6179: where this cue track's start was found last time. */
+    if (rg_holding(path) && s_rg.cue_start.present) {
+        const decoder_cue_start_t h = {
+            .set = true, .sec = s_rg.cue_start.sec, .off = s_rg.cue_start.off,
+            .cs = s_rg.cue_start.cs, .sample = s_rg.cue_start.sample,
+        };
+        decoder_cue_start_hint(dec, &h);
+    }
+
     /*
      * Set after the open succeeds, not before: decoder_open() on a
      * Xing-less MP3 scans the whole file, and a seek accepted during
@@ -12429,6 +12438,20 @@ static track_end_t play_file(const char *path)
          * Logged once per track, on the first block only.
          */
         if (blocks == 0) {
+            /* 6179: keep where the start was found, for the next visit. */
+            decoder_cue_start_t cf;
+            if (decoder_cue_start_found(dec, &cf) && rg_holding(path) &&
+                (!s_rg.cue_start.present || s_rg.cue_start.off != cf.off ||
+                 s_rg.cue_start.sample != cf.sample || s_rg.cue_start.sec != cf.sec)) {
+                s_rg.cue_start.present = true;
+                s_rg.cue_start.sec = cf.sec;
+                s_rg.cue_start.off = cf.off;
+                s_rg.cue_start.cs = cf.cs;
+                s_rg.cue_start.sample = cf.sample;
+                s_rg_dirty = true;
+                ESP_LOGI(TAG, "cue start kept for next time: %" PRIu32 " s, offset %lld",
+                         cf.sec, (long long)cf.off);
+            }
             /* The ring gauge at the moment sound starts. The decode loop
              * has had the whole open to fill it and the writer has not
              * started draining, so a low number here is the decoder

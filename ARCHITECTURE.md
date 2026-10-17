@@ -25552,6 +25552,18 @@ repaint the paused send does.
 
 Not built for the target, not run on the board.
 
+### 6170 -- art and RG badge survive a same-track seek restart
+
+media_task's cover wait and the format card abandoned their work whenever
+s_track_gen moved.  Decode-ahead bumps it at every track start (constantly
+while paused), so the cover never landed and the art area kept showing the
+chooser rows.  Staleness for the cover path is now cover_still_wanted():
+stale only when the screen itself has moved to another track.
+
+The ReplayGain badge is snapshotted with the 6169 position hold and
+published from the snapshot while the hold is live, so the teardown/commit
+pair of a restart no longer blinks it off and on.
+
 ### 8000 -- CI: host tests after the components they include exist
 
 The v0.7.0 tag's workflow run failed at "Host tests (text layout, USB

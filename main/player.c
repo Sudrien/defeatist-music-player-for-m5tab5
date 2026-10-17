@@ -3996,6 +3996,18 @@ static void player_force_pause(void)
 static volatile int32_t    s_pos_hold = -1;
 static volatile TickType_t s_pos_hold_at;
 
+/* 6170: the ReplayGain badge is held with the bar, for the same reason:
+ * the interrupted track's teardown clears it and the restarted track's
+ * commit sets it again, so it blinked off and on at every such seek. */
+static volatile bool  s_rg_hold_active, s_rg_hold_measuring;
+static volatile float s_rg_hold_db;
+
+static bool pos_holding(void)
+{
+    return s_pos_hold >= 0 &&
+           pdTICKS_TO_MS(xTaskGetTickCount() - s_pos_hold_at) < POS_HOLD_MS;
+}
+
 static uint32_t pos_shown(void)
 {
     const int32_t h = s_pos_hold;
@@ -4096,6 +4108,9 @@ static void request_seek_at(int pct, int32_t sec, const char *why)
          * restart reaches its seek a few hundred ms later. */
         s_pos_sec = (uint32_t)target;
         request_track_at(heard, target > 0 ? target : -1);
+        s_rg_hold_active    = s_rg_active;                        /* 6170 */
+        s_rg_hold_measuring = s_rg_measuring;
+        s_rg_hold_db        = s_rg_gain_db;
         s_pos_hold_at = xTaskGetTickCount();                      /* 6169 */
         s_pos_hold = target;
         return;
@@ -5195,12 +5210,14 @@ static void container_name(const char *path, char *out, size_t out_len)
 #define FMT_WAIT_SLICE_MS   (50)
 #define FMT_WAIT_MAX_MS     (600)
 
+static bool cover_still_wanted(const char *path, uint32_t gen);   /* 6170 */
+
 static void show_format_card(const char *path, long bytes, uint32_t gen)
 {
     for (int waited = 0; !s_fmt_known && waited < FMT_WAIT_MAX_MS;
          waited += FMT_WAIT_SLICE_MS) {
         vTaskDelay(pdMS_TO_TICKS(FMT_WAIT_SLICE_MS));
-        if (gen != s_track_gen) return;
+        if (!cover_still_wanted(path, gen)) return;                 /* 6170 */
         /* The chooser can be opened during the wait, which on a
          * Xing-less MP3 is seconds long. Checked every slice for the
          * same reason gen is: this loop is the one place in the art path
@@ -5210,7 +5227,7 @@ static void show_format_card(const char *path, long bytes, uint32_t gen)
             return;
         }
     }
-    if (gen != s_track_gen) return;
+    if (!cover_still_wanted(path, gen)) return;                     /* 6170 */
 
     /*
      * And again on the way out, because the two tests above cover
@@ -5522,7 +5539,7 @@ static void do_art(const char *path, uint32_t gen)
             }
         }
 
-        if (gen == s_track_gen) show_format_card(path, fsize, gen);
+        if (cover_still_wanted(path, gen)) show_format_card(path, fsize, gen);  /* 6170 */
         return;
     }
 
@@ -6163,15 +6180,39 @@ static void ring_publish(void)
  * would release the cover read into the middle of an index scan, which
  * is precisely the contention this function exists to avoid.
  */
+/*
+ * 6170: `art_path` is the cover's path, for the cover's wait only (NULL
+ * for the others). A decode-ahead starts a new track -- and bumps
+ * s_track_gen -- every few seconds on short tracks, and while paused it
+ * does nothing else, so a cover that bailed on any generation change
+ * never got drawn: the board left the chooser's rows in the art band for
+ * as long as the pause lasted. The cover is stale when the SCREEN moves
+ * on, which is cover_still_wanted()'s rule, not when the decoder does.
+ */
+static bool media_stale(uint32_t gen, const char *art_path)
+{
+    if (art_path) return !cover_still_wanted(art_path, gen);
+    return gen != s_track_gen;
+}
+
+static bool media_settle_for(uint32_t gen, int delay_ms, int floor_pct,
+                             const char *what, const char *art_path);
+
 static bool media_settle(uint32_t gen, int delay_ms, int floor_pct,
                          const char *what)
+{
+    return media_settle_for(gen, delay_ms, floor_pct, what, NULL);
+}
+
+static bool media_settle_for(uint32_t gen, int delay_ms, int floor_pct,
+                             const char *what, const char *art_path)
 {
     int waited = 0;
 
     while (waited < delay_ms) {
         vTaskDelay(pdMS_TO_TICKS(MEDIA_WAIT_SLICE_MS));
         waited += MEDIA_WAIT_SLICE_MS;
-        if (gen != s_track_gen) return false;
+        if (media_stale(gen, art_path)) return false;
     }
 
     while (waited < MEDIA_WAIT_MAX_MS) {
@@ -6183,7 +6224,7 @@ static bool media_settle(uint32_t gen, int delay_ms, int floor_pct,
         if (pct < 0 || pct >= floor_pct) return true;
         vTaskDelay(pdMS_TO_TICKS(MEDIA_WAIT_SLICE_MS));
         waited += MEDIA_WAIT_SLICE_MS;
-        if (gen != s_track_gen) return false;
+        if (media_stale(gen, art_path)) return false;
     }
 
     ESP_LOGW(TAG, "%s: ring never reached %d%% in %d ms; going ahead anyway",
@@ -6593,7 +6634,8 @@ static void media_task(void *arg)
         const bool art_in_hand = mediacache_art(path, &cached_len) != NULL ||
                                  (mediacache_no_art(path) && folderart_in_hand(path));
 
-        if (!art_in_hand && !media_settle(gen, MEDIA_ART_DELAY_MS, MEDIA_MIN_RING_PCT, "cover")) {
+        if (!art_in_hand && !media_settle_for(gen, MEDIA_ART_DELAY_MS, MEDIA_MIN_RING_PCT,
+                                              "cover", path)) {                 /* 6170 */
             s_art_busy = false;
             continue;
         }
@@ -9063,9 +9105,9 @@ static void ui_task(void *arg)
         }
         st.playing = s_playing;
         st.volume = s_volume;
-        st.rg_active = s_rg_active;
-        st.rg_measuring = s_rg_measuring;
-        st.rg_gain_db = s_rg_gain_db;
+        st.rg_active = pos_holding() ? s_rg_hold_active : s_rg_active;          /* 6170 */
+        st.rg_measuring = pos_holding() ? s_rg_hold_measuring : s_rg_measuring;
+        st.rg_gain_db = pos_holding() ? s_rg_hold_db : s_rg_gain_db;
         st.muted = audio_out_muted();
         st.route = audio_out_route();
         st.pos_sec = pos_shown();                                   /* 6169 */
@@ -9723,9 +9765,9 @@ static void ui_task(void *arg)
          * forty times a second for nothing. */
         st.playing = s_playing;
         st.volume = s_volume;
-        st.rg_active = s_rg_active;
-        st.rg_measuring = s_rg_measuring;
-        st.rg_gain_db = s_rg_gain_db;
+        st.rg_active = pos_holding() ? s_rg_hold_active : s_rg_active;          /* 6170 */
+        st.rg_measuring = pos_holding() ? s_rg_hold_measuring : s_rg_measuring;
+        st.rg_gain_db = pos_holding() ? s_rg_hold_db : s_rg_gain_db;
         st.muted = audio_out_muted();
         st.route = audio_out_route();
         st.pos_sec = pos_shown();                                   /* 6169 */

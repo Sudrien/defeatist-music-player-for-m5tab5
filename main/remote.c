@@ -17,6 +17,7 @@
 #include "esp_heap_caps.h"
 #include "esp_http_server.h"
 #include "esp_https_server.h"
+#include "esp_netif.h"           /* 8001: the interface a peer reached */
 #include "esp_log.h"
 #include "esp_timer.h"
 #include "esp_wifi.h"          /* ESP_ERR_WIFI_PASSWORD */
@@ -48,6 +49,7 @@
 #include "wifistore.h"
 #include "wifi.h"
 #include "i18n.h"          /* 6025 */
+#include "lanpeer.h"        /* 8001 */
 
 static const char *TAG = "tab5_remote";
 
@@ -990,6 +992,152 @@ static bool have_ip(char *ip, size_t n)
 }
 
 /*
+ * 8001: the network is the password (remote.h), so only a peer on the
+ * network the player is on gets an answer -- on the subnet of the
+ * interface it connected to, by that interface's mask, or on its IPv6
+ * link (lanpeer.h). Not "any address that can route here": a port
+ * forward, a VPN or the far side of a router is refused.
+ *
+ * The address the peer connected TO picks the interface, so a player
+ * with Wi-Fi and a cable judges each peer by the network it came in on.
+ * The search and the comparison happen together inside
+ * esp_netif_find_if(), which holds the interface list: a USB Ethernet
+ * dongle leaving takes its netif with it, and nothing here holds a
+ * pointer to one past that call.
+ */
+typedef struct {
+    bool    v4;
+    uint8_t local[16], peer[16];
+    bool    ok;
+} peer_find_t;
+
+static bool peer_match(esp_netif_t *nif, void *ctx)
+{
+    peer_find_t *f = ctx;
+    if (f->v4) {
+        esp_netif_ip_info_t ii;
+        if (esp_netif_get_ip_info(nif, &ii) != ESP_OK) return false;
+        if (memcmp(&ii.ip.addr, f->local, 4) != 0) return false;
+        f->ok = lanpeer_v4_on_link(f->peer, (const uint8_t *)&ii.ip.addr,
+                                   (const uint8_t *)&ii.netmask.addr);
+        return true;
+    }
+#if CONFIG_LWIP_IPV6
+    esp_ip6_addr_t a[LWIP_IPV6_NUM_ADDRESSES];
+    uint8_t mine[LWIP_IPV6_NUM_ADDRESSES][16];
+    const int n = esp_netif_get_all_ip6(nif, a);
+    bool here = false;
+    for (int i = 0; i < n; i++) {
+        memcpy(mine[i], a[i].addr, 16);
+        if (memcmp(mine[i], f->local, 16) == 0) here = true;
+    }
+    if (!here) return false;
+    f->ok = lanpeer_v6_on_link(f->peer, (const uint8_t (*)[16])mine, n);
+    return true;
+#else
+    return false;
+#endif
+}
+
+/* An address as bytes; an IPv4-mapped IPv6 one comes back as IPv4. */
+static bool addr_bytes(const struct sockaddr_storage *a, uint8_t out[16], bool *v4)
+{
+    if (a->ss_family == AF_INET) {
+        memcpy(out, &((const struct sockaddr_in *)a)->sin_addr, 4);
+        *v4 = true;
+        return true;
+    }
+    if (a->ss_family == AF_INET6) {
+        const uint8_t *b = ((const struct sockaddr_in6 *)a)->sin6_addr.s6_addr;
+        const uint8_t *m = lanpeer_v4_mapped(b);
+        if (m) { memcpy(out, m, 4); *v4 = true; }
+        else   { memcpy(out, b, 16); *v4 = false; }
+        return true;
+    }
+    return false;
+}
+
+static bool peer_on_link(int fd)
+{
+    struct sockaddr_storage l, p;
+    socklen_t ll = sizeof(l), pl = sizeof(p);
+    if (getsockname(fd, (struct sockaddr *)&l, &ll) != 0) return false;
+    if (getpeername(fd, (struct sockaddr *)&p, &pl) != 0) return false;
+    peer_find_t f = { 0 };
+    bool lv4, pv4;
+    if (!addr_bytes(&l, f.local, &lv4) || !addr_bytes(&p, f.peer, &pv4)) return false;
+    if (lv4 != pv4) return false;
+    f.v4 = lv4;
+    (void)esp_netif_find_if(peer_match, &f);
+    return f.ok;
+}
+
+/*
+ * At accept, before anything is read. On the TLS server this runs after
+ * the handshake and its return is ignored (esp_https_server calls it
+ * from its own open function), so the close is asked for instead and
+ * h_gate() below refuses whatever arrives before it happens. On port 80
+ * the return is honoured and the session is deleted on the spot -- which
+ * is why that one must NOT also queue a close: the queued close would
+ * land on whatever session reuses the slot.
+ */
+static esp_err_t open_tls(httpd_handle_t hd, int fd)
+{
+    if (peer_on_link(fd)) return ESP_OK;
+    ESP_LOGW(TAG, "refused a connection from outside this network (socket %d)", fd);
+    (void)httpd_sess_trigger_close(hd, fd);
+    return ESP_FAIL;
+}
+
+static esp_err_t open_plain(httpd_handle_t hd, int fd)
+{
+    (void)hd;
+    if (peer_on_link(fd)) return ESP_OK;
+    ESP_LOGW(TAG, "refused a connection from outside this network (socket %d)", fd);
+    return ESP_FAIL;
+}
+
+/*
+ * Every handler on the TLS server runs behind this. The subnet again,
+ * for a request that beat the close open_tls() asked for; then Origin,
+ * for a page from another site using a browser on this network as its
+ * way in (lanpeer.h). Host is what the browser was sent to, so the
+ * remote's own page passes at any name or address that reached it.
+ *
+ * A WebSocket's handshake carries Origin; its frames reach the handler
+ * with no headers, and are checked against the subnet only. A refusal
+ * on one gets no 403, because after the 101 there is no HTTP to send
+ * one in: the socket is closed.
+ */
+typedef struct {
+    esp_err_t (*fn)(httpd_req_t *req);
+    bool ws;
+} gated_t;
+
+static esp_err_t h_gate(httpd_req_t *req)
+{
+    const gated_t *g = req->user_ctx;
+    const char *why = NULL;
+    if (!peer_on_link(httpd_req_to_sockfd(req))) {
+        why = "outside this network";
+    } else {
+        char origin[128] = "", host[96] = "";
+        const esp_err_t oe = httpd_req_get_hdr_value_str(req, "Origin", origin, sizeof(origin));
+        if (oe != ESP_OK && oe != ESP_ERR_NOT_FOUND) {
+            why = "an Origin too long to be this page";
+        } else if (oe == ESP_OK) {
+            if (httpd_req_get_hdr_value_str(req, "Host", host, sizeof(host)) != ESP_OK) host[0] = '\0';
+            if (!lanpeer_origin_ok(origin, host)) why = "a page from another site";
+        }
+    }
+    if (!why) return g->fn(req);
+    /* Not the URI: it is the peer's text, and this is the peer refused. */
+    ESP_LOGW(TAG, "refused a request from %s (socket %d)", why, httpd_req_to_sockfd(req));
+    if (!g->ws) httpd_resp_send_err(req, HTTPD_403_FORBIDDEN, NULL);
+    return ESP_FAIL;
+}
+
+/*
  * 5121: port 80 answers everything with a redirect to the same path on
  * https://. Nothing else is served in the clear -- a page that loaded
  * over HTTP could post a password over HTTP, which is the thing 5121
@@ -1031,6 +1179,7 @@ static void plain_start(void)
     cfg.stack_size = 4096;
     cfg.max_uri_handlers = 1;
     cfg.uri_match_fn = httpd_uri_match_wildcard;
+    cfg.open_fn = open_plain;           /* 8001 */
     if (httpd_start(&s_plain, &cfg) != ESP_OK) { s_plain = NULL; return; }
     const httpd_uri_t any = { .uri = "/*", .method = HTTP_GET, .handler = h_redirect };
     httpd_register_uri_handler(s_plain, &any);
@@ -1069,6 +1218,7 @@ static void start(void)
      * internal RAM is likelier to get its memory with 10 KB more free.
      */
     cfg.httpd.task_caps = MALLOC_CAP_SPIRAM | MALLOC_CAP_8BIT;
+    cfg.httpd.open_fn = open_tls;       /* 8001 */
     cfg.port_secure = REMOTE_PORT;
     cfg.servercert = (const uint8_t *)crt;
     cfg.servercert_len = crt_len;
@@ -1091,8 +1241,14 @@ static void start(void)
         { .uri = "/wifi/join", .method = HTTP_POST, .handler = h_wifi_join },
         { .uri = "/ws",  .method = HTTP_GET, .handler = h_ws, .is_websocket = true },
     };
+    /* 8001: each behind h_gate(). Static: httpd keeps the pointer. */
+    static gated_t gated[sizeof(uris) / sizeof(uris[0])];
     for (size_t i = 0; i < sizeof(uris) / sizeof(uris[0]); i++) {
-        httpd_register_uri_handler(s_srv, &uris[i]);
+        gated[i] = (gated_t){ .fn = uris[i].handler, .ws = uris[i].is_websocket };
+        httpd_uri_t u = uris[i];
+        u.handler  = h_gate;
+        u.user_ctx = &gated[i];
+        httpd_register_uri_handler(s_srv, &u);
     }
     char url[48];
     if (remote_url(url, sizeof(url))) ESP_LOGI(TAG, "up at %s", url);

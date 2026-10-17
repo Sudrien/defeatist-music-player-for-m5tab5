@@ -25727,3 +25727,54 @@ v0.7.0's firmware build never ran on CI, because the job stopped at
 the host tests. The tag's binaries need a rerun after this (workflow
 dispatch on the tag, which takes the workflow file from the default
 branch).
+
+### 8001 -- the remote answers its own network, and its own page
+
+The remote has no password (remote.h): the network was the password.
+But nothing checked the network. The HTTPS server and its port-80
+redirect answered any peer that could route to them -- a port forward,
+a VPN, the far side of a router -- and any page in a browser on the
+network could post to `/wifi/join` or `/station`, or open `/ws`.
+
+Two checks now, both decided in main/lanpeer.h and tested in
+texttest/lanpeertest.c:
+
+- **Same network.** The peer must be on the subnet of the interface it
+  connected to, by that interface's own netmask -- or, over IPv6,
+  link-local or in the same /64 as one of the interface's addresses.
+  The address the peer connected TO picks the interface, so Wi-Fi and a
+  cable are each judged by their own mask. The lookup and the compare
+  run together inside esp_netif_find_if(), which holds the interface
+  list, so a USB Ethernet dongle leaving cannot free a netif under it.
+- **Same origin.** When a request carries Origin (a browser's
+  WebSocket handshake or POST), it must be `https://` plus the Host the
+  browser sent it to. No Origin is allowed: that is not a browser, and
+  the subnet is what applies to it.
+
+Where the subnet is enforced, and why in two places: esp_https_server
+calls a user `open_fn` only after the TLS handshake and ignores what it
+returns (https_server.c, httpd_ssl_open). So on 443 the open function
+asks for the close with httpd_sess_trigger_close(), and every handler is
+registered behind h_gate(), which checks again for a request that beat
+the close. On port 80 the plain server honours `open_fn`'s ESP_FAIL and
+deletes the session on the spot, so that open function must not also
+queue a close -- it would land on whatever session reuses the slot.
+Hence open_tls() and open_plain(), not one function.
+
+A refused WebSocket frame gets no 403 -- after the 101 there is no HTTP
+to send one in -- the socket is just closed. Its frames carry no
+headers, so they are held to the subnet only; Origin was checked at the
+handshake.
+
+Not covered: DNS rebinding passes the Origin check by construction
+(Origin and Host both name the attacker's domain). What stops it is the
+certificate, whose only name is defeatist-xxxx.local: a rebound name
+gets a fresh certificate warning rather than the exception the listener
+accepted for the player's own name or address.
+
+On the board, from another subnet (or through a port forward): `W
+tab5_remote: refused a connection from outside this network (socket N)`
+at connect, and the page does not load. From a page on another site,
+via a phone on the same Wi-Fi: `refused a request from a page from
+another site`. The remote's own page, on the same network, as before.
+Not yet run on the board.

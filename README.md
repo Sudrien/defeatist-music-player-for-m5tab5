@@ -201,8 +201,8 @@ If you wish to contribute code, please reas CONTRIBUTING.md and CLAUDE.md for fo
 - Yes, installing a ESP32-PICO-D4 module will get you access to classic bluetooth
 - I'm writing with the expectation that most people don't want to modify their hardware permanently
 - I still can't recommend them until
-  - they have an actual public source code repo - it doesn't have to be git
-  - they publish licence information (because the libraries they are using require that)
+  - ~~they have an actual public source code repo - it doesn't have to be git~~ https://github.com/UNIZERSION/aurora-player
+  - ~~they publish licence information (because the libraries they are using require that)~~
   - they have a better url than https://frolicking-bonbon-c32cfa.netlify.app/
   - 'feedback welcome' ACTUALLY LINKS TO SOME PLACE TO GIVE FEEDBACK
   - they have release notes that are actually release notes

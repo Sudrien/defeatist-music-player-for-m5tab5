@@ -696,6 +696,8 @@ en:
     "connected": ~
     # panel.c
     "drive": ~
+    # browser.c
+    "episodes - Podcast Index did not answer; UP, then try again": ~
     # panel.c
     "failed; the log says why": ~
     # player.c
@@ -736,6 +738,8 @@ en:
     "no card in the slot": ~
     # player.c
     "no cover art": ~
+    # browser.c
+    "no episodes listed": ~
     # player.c
     "no network - check Wi-Fi or the cable, then tap again": "no network - check Wi-Fi or cable, tap again"
     # player.c
@@ -774,6 +778,8 @@ en:
     "podcasts - asking Podcast Index for %s": ~
     # browser.c
     "podcasts - asking Podcast Index for its categories": ~
+    # browser.c
+    "podcasts - asking Podcast Index for the episodes": ~
     # browser.c
     "podcasts - checking the Podcast Index key": ~
     # browser.c
@@ -852,6 +858,9 @@ en:
       other: ~
     "%d apps connected.":
       one: "%d app connected."
+      other: ~
+    "%d episodes, newest first":
+      one: ~
       other: ~
     "%d hidden networks nearby. A hidden network's name has to be typed.":
       one: "%d hidden network nearby. A hidden network's name has to be typed."

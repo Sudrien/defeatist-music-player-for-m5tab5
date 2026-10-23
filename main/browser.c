@@ -178,11 +178,17 @@ static bool     s_pod_wait;
  * category's podcasts. s_pod_cat is the category's row in s_pod_cats;
  * the podcasts are copied in as the categories are, row i IS podcast i.
  */
-static int       s_pod_level;        /* 0 categories, 1 podcasts */
+static int       s_pod_level;        /* 0 categories, 1 podcasts, 2 episodes (8019) */
 static int       s_pod_cat;
 static podfeed_t s_pod_feeds[PODFEEDS_MAX];
 static int       s_pod_fn;
 static uint32_t  s_pod_fgen;
+/* 8019: the third level, one podcast's episodes; s_pod_feed is the
+ * podcast's row in s_pod_feeds. */
+static int       s_pod_feed;
+static podep_t   s_pod_eps[PODEPS_MAX];
+static int       s_pod_en;
+static uint32_t  s_pod_egen;
 
 /*
  * The station list, loaded into the same rows the files use.
@@ -771,6 +777,34 @@ static void load_pod_feed_rows(void)
     s_dirty = true;
 }
 
+/* 8019: the episode rows, from podindex.c's list for s_pod_feed. */
+static void load_pod_ep_rows(void)
+{
+    entries_free();
+    if (!s_entries) {
+        s_entries = heap_caps_calloc(MAX_ENTRIES, sizeof(entry_t), MALLOC_CAP_SPIRAM);
+        if (!s_entries) {
+            ESP_LOGE(TAG, "no PSRAM for the episode rows");
+            return;
+        }
+    }
+    (void)podindex_eps(s_pod_eps, PODEPS_MAX, &s_pod_en, NULL, &s_pod_egen);
+    for (int i = 0; i < s_pod_en && s_count < MAX_ENTRIES; i++) {
+        s_entries[s_count].name = strdup(s_pod_eps[i].title);
+        if (!s_entries[s_count].name) break;
+        s_entries[s_count].is_dir = false;      /* each is a thing to play */
+        s_count++;
+    }
+    s_top = 0;
+    s_dirty = true;
+}
+
+/* 8019: ask for a podcast's episodes, waiting as pod_fetch_feeds() does. */
+static void pod_fetch_eps(void)
+{
+    s_pod_wait = !net_online() || !podindex_eps_fetch(s_pod_feeds[s_pod_feed].id);
+}
+
 /* 8018: ask for a category's podcasts now, or when there is a network. */
 static void pod_fetch_feeds(void)
 {
@@ -931,6 +965,17 @@ static const char *status_line(void)
 {
     if (s_pod) {                        /* 8008 */
         const podindex_state_t st = podindex_state(NULL, 0, NULL);
+        if (st == PODINDEX_WORKING && s_pod_level == 2) {      /* 8019 */
+            static char eline[96];
+            const podindex_cats_t es = podindex_eps(NULL, 0, NULL, NULL, NULL);
+            if (s_pod_wait) return _("podcasts - waiting for a network");
+            if (es == PODINDEX_CATS_LOADING) return _("podcasts - asking Podcast Index for the episodes");
+            if (es == PODINDEX_CATS_FAILED && s_count == 0)
+                return _("episodes - Podcast Index did not answer; UP, then try again");
+            if (s_count == 0) return _("no episodes listed");
+            snprintf(eline, sizeof(eline), _p("%d episodes, newest first", s_count), s_count);
+            return eline;
+        }
         if (st == PODINDEX_WORKING && s_pod_level == 1) {      /* 8018 */
             static char fline[160];
             const char *cat = s_pod_cats[s_pod_cat].name;
@@ -1288,7 +1333,9 @@ void browser_draw(void)
                       (s_pod && (s_pod_wait ||                                     /* 8016 */
                                  (s_pod_level == 0                                 /* 8018 */
                                   ? podindex_cats(NULL, 0, NULL, NULL)
-                                  : podindex_feeds(NULL, 0, NULL, NULL, NULL)) == PODINDEX_CATS_LOADING));  /* 8014 */
+                                  : s_pod_level == 1                               /* 8019 */
+                                  ? podindex_feeds(NULL, 0, NULL, NULL, NULL)
+                                  : podindex_eps(NULL, 0, NULL, NULL, NULL)) == PODINDEX_CATS_LOADING));  /* 8014 */
     if (spin) {
         const uint32_t step = (uint32_t)(esp_timer_get_time() / 100000);
         if (step != s_spin_frame) {
@@ -1303,11 +1350,17 @@ void browser_draw(void)
         /* 8016: the network the tab was waiting for. */
         if (s_pod_wait && net_online()) {
             s_pod_wait = false;
-            if (s_pod_level == 1) s_pod_wait = !podindex_feeds_fetch(s_pod_cats[s_pod_cat].id);  /* 8018 */
-            else                  (void)podindex_cats_fetch();
+            if (s_pod_level == 2)      s_pod_wait = !podindex_eps_fetch(s_pod_feeds[s_pod_feed].id);  /* 8019 */
+            else if (s_pod_level == 1) s_pod_wait = !podindex_feeds_fetch(s_pod_cats[s_pod_cat].id);  /* 8018 */
+            else                       (void)podindex_cats_fetch();
             s_dirty = true;
         }
         /* 8018: a category's podcasts arrived, or their state moved. */
+        /* 8019: a podcast's episodes arrived, or their state moved. */
+        if (s_pod_level == 2 && podindex_eps_gen() != s_pod_egen) {
+            load_pod_ep_rows();
+            s_dirty = true;
+        }
         if (s_pod_level == 1 && podindex_feeds_gen() != s_pod_fgen) {
             load_pod_feed_rows();
             s_dirty = true;
@@ -1409,7 +1462,7 @@ void browser_draw(void)
          * to sit at the playing station's index. */
         const bool playing = s_radio
             ? (!s_radio_menu && i == s_playing_station)
-            : (!s_entries[i].is_dir && is_current(s_entries[i].name));
+            : (!s_pod && !s_entries[i].is_dir && is_current(s_entries[i].name));  /* 8019: not an episode */
 
         if (s_entries[i].is_dir) {
             draw_folder_icon(48, y + ROW_H / 2, C_DIM);
@@ -1532,7 +1585,7 @@ void browser_draw(void)
     } else {
         /* 8018: on PODCAST, UP is back to the categories. */
         draw_button(bx + 4, fy + 8, bw - 8, FOOT_H - 16, _("UP"),
-                    s_pod ? s_pod_level == 1 : (!at_root() && s_dir[0]));
+                    s_pod ? s_pod_level >= 1 : (!at_root() && s_dir[0]));     /* 8019: >= */
     }
     foot_box(1, &bx, &bw); draw_button(bx + 4, fy + 8, bw - 8, FOOT_H - 16, _("FLDR"), !s_radio && s_dir[0] != '\0');
     foot_box(2, &bx, &bw); draw_button(bx + 4, fy + 8, bw - 8, FOOT_H - 16, _("UP^"), s_top > 0);
@@ -1664,7 +1717,13 @@ browser_result_t browser_touch(bool down, int x, int y)
         /* 8018: slot 0 on PODCAST is back to the categories, and does
          * nothing on them; go_up() has no directory to go up from. */
         if (s_pod && which == 0) {
-            if (s_pod_level == 1) {
+            /* 8019: from the episodes back to the podcasts, which are
+             * still held, so no request. */
+            if (s_pod_level == 2) {
+                s_pod_level = 1;
+                s_pod_wait = false;
+                load_pod_feed_rows();
+            } else if (s_pod_level == 1) {
                 s_pod_level = 0;
                 s_pod_wait = false;
                 load_pod_rows();
@@ -1748,7 +1807,7 @@ browser_result_t browser_touch(bool down, int x, int y)
     if (i >= s_count) return res;
 
     ESP_LOGI(TAG, "button: row %d (%s) \"%s\"", i,
-             s_pod ? (s_pod_level ? "podcast" : "category")      /* 8018 */
+             s_pod ? (s_pod_level == 2 ? "episode" : s_pod_level ? "podcast" : "category")  /* 8018, 8019 */
                    : s_radio ? "station" : s_entries[i].is_dir ? "dir" : "file",
              s_entries[i].name);
 
@@ -1767,11 +1826,24 @@ browser_result_t browser_touch(bool down, int x, int y)
             pod_fetch_feeds();
             return res;
         }
-        /* A podcast row. Its episodes are the next step; until then the
-         * tap is logged and does nothing. */
-        if (i < s_pod_fn)
-            ESP_LOGI(TAG, "podcast %lld: its episodes are not listed yet",
-                     (long long)s_pod_feeds[i].id);
+        if (s_pod_level == 1) {
+            /* 8019: a podcast row opens into its episodes, as a category
+             * row opens into its podcasts. */
+            if (i >= s_pod_fn) return res;
+            s_pod_feed = i;
+            s_pod_level = 2;
+            entries_free();
+            s_top = 0;
+            s_dirty = true;
+            ESP_LOGI(TAG, "podcast %lld: asking for its episodes", (long long)s_pod_feeds[i].id);
+            pod_fetch_eps();
+            return res;
+        }
+        /* An episode row. Playing it is the next step; until then the tap
+         * is logged and does nothing. */
+        if (i < s_pod_en)
+            ESP_LOGI(TAG, "episode %lld (%d s): playing it is not done yet",
+                     (long long)s_pod_eps[i].id, (int)s_pod_eps[i].duration);
         return res;
     }
 

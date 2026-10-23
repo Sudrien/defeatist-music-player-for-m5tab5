@@ -696,6 +696,8 @@ es:
     "connected": "conectado"
     # panel.c
     "drive": "unidad"
+    # browser.c
+    "episodes - Podcast Index did not answer; UP, then try again": ~
     # panel.c
     "failed; the log says why": "falló; el registro dice por qué"
     # player.c
@@ -736,6 +738,8 @@ es:
     "no card in the slot": "no hay tarjeta en la ranura"
     # player.c
     "no cover art": "sin portada"
+    # browser.c
+    "no episodes listed": ~
     # player.c
     "no network - check Wi-Fi or the cable, then tap again": "sin red - revisa Wi-Fi o cable y vuelve a tocar"
     # player.c
@@ -774,6 +778,8 @@ es:
     "podcasts - asking Podcast Index for %s": ~
     # browser.c
     "podcasts - asking Podcast Index for its categories": ~
+    # browser.c
+    "podcasts - asking Podcast Index for the episodes": ~
     # browser.c
     "podcasts - checking the Podcast Index key": ~
     # browser.c
@@ -853,6 +859,9 @@ es:
     "%d apps connected.":
       one: "%d app conectada."
       other: "%d apps conectadas."
+    "%d episodes, newest first":
+      one: ~
+      other: ~
     "%d hidden networks nearby. A hidden network's name has to be typed.":
       one: "%d red oculta cerca. El nombre de una red oculta hay que escribirlo."
       other: "%d redes ocultas cerca. El nombre de una red oculta hay que escribirlo."

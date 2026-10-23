@@ -9,7 +9,7 @@
 #include <stddef.h>
 #include "i18n.h"
 
-const unsigned i18n_count = 420;
+const unsigned i18n_count = 423;
 const char *const i18n_keys[] = {
     "%.32s did not work. Try again.",
     "%d h",
@@ -356,6 +356,7 @@ const char *const i18n_keys[] = {
     "coming up",
     "connected",
     "drive",
+    "episodes - Podcast Index did not answer; UP, then try again",
     "failed; the log says why",
     "fetching %s…",
     "from NTP",
@@ -376,6 +377,7 @@ const char *const i18n_keys[] = {
     "no %s on the card",
     "no card in the slot",
     "no cover art",
+    "no episodes listed",
     "no network - check Wi-Fi or the cable, then tap again",
     "no network - the directory needs Wi-Fi or a cable",
     "none",
@@ -395,6 +397,7 @@ const char *const i18n_keys[] = {
     "podcasts - Podcast Index key saved",
     "podcasts - asking Podcast Index for %s",
     "podcasts - asking Podcast Index for its categories",
+    "podcasts - asking Podcast Index for the episodes",
     "podcasts - checking the Podcast Index key",
     "podcasts - waiting for a network",
     "podcasts need a Podcast Index key",
@@ -781,6 +784,7 @@ const unsigned char i18n_on_screen[] = {
     1,  /* 'coming up' */
     1,  /* 'connected' */
     1,  /* 'drive' */
+    1,  /* 'episodes - Podcast Index did not answer;' */
     1,  /* 'failed; the log says why' */
     1,  /* 'fetching %s…' */
     1,  /* 'from NTP' */
@@ -801,6 +805,7 @@ const unsigned char i18n_on_screen[] = {
     1,  /* 'no %s on the card' */
     1,  /* 'no card in the slot' */
     1,  /* 'no cover art' */
+    1,  /* 'no episodes listed' */
     1,  /* 'no network - check Wi-Fi or the cable, t' */
     1,  /* 'no network - the directory needs Wi-Fi o' */
     1,  /* 'none' */
@@ -820,6 +825,7 @@ const unsigned char i18n_on_screen[] = {
     1,  /* 'podcasts - Podcast Index key saved' */
     1,  /* 'podcasts - asking Podcast Index for %s' */
     1,  /* 'podcasts - asking Podcast Index for its ' */
+    1,  /* 'podcasts - asking Podcast Index for the ' */
     1,  /* 'podcasts - checking the Podcast Index ke' */
     1,  /* 'podcasts - waiting for a network' */
     1,  /* 'podcasts need a Podcast Index key' */
@@ -858,6 +864,7 @@ const unsigned char i18n_on_screen[] = {
     1,  /* 'was damaged; reindex rebuilds it' */
 };
 const unsigned char i18n_pon_screen[] = {
+    1,
     1,
     1,
     0,
@@ -1228,6 +1235,7 @@ const char *const i18n_vals[] = {
     NULL,
     NULL,
     NULL,
+    NULL,
     "it played, then ran\012out of buffer",
     NULL,
     NULL,
@@ -1239,7 +1247,9 @@ const char *const i18n_vals[] = {
     NULL,
     NULL,
     NULL,
+    NULL,
     "no network - check Wi-Fi or cable, tap again",
+    NULL,
     NULL,
     NULL,
     NULL,
@@ -1640,6 +1650,7 @@ const char *const i18n_vals[] = {
     "启动中",
     "已连接",
     "驱动器",
+    NULL,
     "失败；原因见日志",
     "正在获取 %s…",
     "来自 NTP",
@@ -1660,6 +1671,7 @@ const char *const i18n_vals[] = {
     "卡上没有 %s",
     "卡槽中无卡",
     "无封面",
+    NULL,
     "无网络 - 请检查 Wi-Fi 或网线后再点",
     "无网络 - 目录需要 Wi-Fi 或网线",
     "无",
@@ -1675,6 +1687,7 @@ const char *const i18n_vals[] = {
     "可选",
     "播放已停止",
     "请接上电源继续播放",
+    NULL,
     NULL,
     NULL,
     NULL,
@@ -2061,6 +2074,7 @@ const char *const i18n_vals[] = {
     "起動中",
     "接続済み",
     "ドライブ",
+    NULL,
     "失敗。理由はログに",
     "%s を取得中…",
     "NTPより",
@@ -2081,6 +2095,7 @@ const char *const i18n_vals[] = {
     "カードに %s がない",
     "スロットにカードなし",
     "カバーなし",
+    NULL,
     "ネットなし - Wi-Fiかケーブルを確認して再タップ",
     "ネットなし - ディレクトリにはWi-Fiかケーブルが必要",
     "なし",
@@ -2096,6 +2111,7 @@ const char *const i18n_vals[] = {
     "省略可",
     "再生停止",
     "給電して再生を続ける",
+    NULL,
     NULL,
     NULL,
     NULL,
@@ -2482,6 +2498,7 @@ const char *const i18n_vals[] = {
     "arrancando",
     "conectado",
     "unidad",
+    NULL,
     "falló; el registro dice por qué",
     "obteniendo %s…",
     "de NTP",
@@ -2502,6 +2519,7 @@ const char *const i18n_vals[] = {
     "no hay %s en la tarjeta",
     "no hay tarjeta en la ranura",
     "sin portada",
+    NULL,
     "sin red - revisa Wi-Fi o cable y vuelve a tocar",
     "sin red - el directorio necesita Wi-Fi o cable",
     "ninguno",
@@ -2517,6 +2535,7 @@ const char *const i18n_vals[] = {
     "opcional",
     "reproducción detenida",
     "conéctalo para seguir",
+    NULL,
     NULL,
     NULL,
     NULL,
@@ -2903,6 +2922,7 @@ const char *const i18n_vals[] = {
     "iniciando",
     "conectado",
     "pendrive",
+    NULL,
     "falhou; o log diz por quê",
     "buscando %s…",
     "via NTP",
@@ -2923,6 +2943,7 @@ const char *const i18n_vals[] = {
     "sem %s no cartão",
     "sem cartão no slot",
     "sem capa",
+    NULL,
     "sem rede - confira Wi-Fi ou cabo e toque de novo",
     "sem rede - o diretório precisa de Wi-Fi ou cabo",
     "nenhum",
@@ -2938,6 +2959,7 @@ const char *const i18n_vals[] = {
     "opcional",
     "reprodução parada",
     "conecte para continuar",
+    NULL,
     NULL,
     NULL,
     NULL,
@@ -3324,6 +3346,7 @@ const char *const i18n_vals[] = {
     "démarrage",
     "connecté",
     "clé",
+    NULL,
     "échec ; le journal dit pourquoi",
     "récupération de %s…",
     "par NTP",
@@ -3344,6 +3367,7 @@ const char *const i18n_vals[] = {
     "pas de %s sur la carte",
     "pas de carte dans le lecteur",
     "pas de pochette",
+    NULL,
     "pas de réseau - vérifiez Wi-Fi/câble, retouchez",
     "pas de réseau - l'annuaire exige Wi-Fi ou câble",
     "aucun",
@@ -3359,6 +3383,7 @@ const char *const i18n_vals[] = {
     "facultatif",
     "lecture arrêtée",
     "branchez pour continuer",
+    NULL,
     NULL,
     NULL,
     NULL,
@@ -3745,6 +3770,7 @@ const char *const i18n_vals[] = {
     "in avvio",
     "collegato",
     "chiavetta",
+    NULL,
     "fallito; il log dice perché",
     "scarico %s…",
     "da NTP",
@@ -3765,6 +3791,7 @@ const char *const i18n_vals[] = {
     "nessun %s sulla scheda",
     "nessuna scheda nello slot",
     "nessuna copertina",
+    NULL,
     "nessuna rete - controlla Wi-Fi o cavo, ritocca",
     "nessuna rete - la directory vuole Wi-Fi o cavo",
     "nessuno",
@@ -3780,6 +3807,7 @@ const char *const i18n_vals[] = {
     "facoltativo",
     "riproduzione fermata",
     "collega per continuare",
+    NULL,
     NULL,
     NULL,
     NULL,
@@ -3822,10 +3850,11 @@ const char *const i18n_vals[] = {
     "danneggiato; reindicizza lo rifà",
 };
 
-const unsigned i18n_pcount = 11;
+const unsigned i18n_pcount = 12;
 const char *const i18n_pkeys[] = {
     "%d allowed. FORGET makes each ask again.",
     "%d apps connected.",
+    "%d episodes, newest first",
     "%d hidden networks nearby. A hidden network's name has to be typed.",
     "%d podcast categories",
     "%d podcasts in %s",
@@ -3843,6 +3872,7 @@ const char *const i18n_pvals[] = {
     /* en */
     "%d allowed. FORGET makes it ask again.", NULL,
     "%d app connected.", NULL,
+    NULL, NULL,
     "%d hidden network nearby. A hidden network's name has to be typed.", NULL,
     NULL, NULL,
     NULL, NULL,
@@ -3855,6 +3885,7 @@ const char *const i18n_pvals[] = {
     /* zh-CN */
     NULL, "已允许 %d 个。清除后需重新请求。",
     NULL, "已有 %d 个应用连接。",
+    NULL, NULL,
     NULL, "附近有 %d 个隐藏网络。隐藏网络的名称需要手动输入。",
     NULL, NULL,
     NULL, NULL,
@@ -3867,6 +3898,7 @@ const char *const i18n_pvals[] = {
     /* ja */
     NULL, "%d 件を許可済み。消去すると再度の許可が必要。",
     NULL, "%d 個のアプリが接続中。",
+    NULL, NULL,
     NULL, "近くに非公開のネットワークが %d 件あります。非公開のネットワーク名は入力が必要です。",
     NULL, NULL,
     NULL, NULL,
@@ -3879,6 +3911,7 @@ const char *const i18n_pvals[] = {
     /* es */
     "%d permitido. OLVIDAR hace que vuelva a preguntar.", "%d permitidos. OLVIDAR hace que cada uno vuelva a preguntar.",
     "%d app conectada.", "%d apps conectadas.",
+    NULL, NULL,
     "%d red oculta cerca. El nombre de una red oculta hay que escribirlo.", "%d redes ocultas cerca. El nombre de una red oculta hay que escribirlo.",
     NULL, NULL,
     NULL, NULL,
@@ -3891,6 +3924,7 @@ const char *const i18n_pvals[] = {
     /* pt */
     "%d permitido. ESQUECER faz ele pedir de novo.", "%d permitidos. ESQUECER faz cada um pedir de novo.",
     "%d app conectado.", "%d apps conectados.",
+    NULL, NULL,
     "%d rede oculta por perto. O nome de uma rede oculta precisa ser digitado.", "%d redes ocultas por perto. O nome de uma rede oculta precisa ser digitado.",
     NULL, NULL,
     NULL, NULL,
@@ -3903,6 +3937,7 @@ const char *const i18n_pvals[] = {
     /* fr */
     "%d autorisé. OUBLIER l'oblige à redemander.", "%d autorisés. OUBLIER oblige chacun à redemander.",
     "%d app connectée.", "%d apps connectées.",
+    NULL, NULL,
     "%d réseau masqué à proximité. Le nom d'un réseau masqué doit être saisi.", "%d réseaux masqués à proximité. Le nom d'un réseau masqué doit être saisi.",
     NULL, NULL,
     NULL, NULL,
@@ -3915,6 +3950,7 @@ const char *const i18n_pvals[] = {
     /* it */
     "%d consentito. AZZERA lo fa richiedere.", "%d consentiti. AZZERA li fa richiedere tutti.",
     "%d app collegata.", "%d app collegate.",
+    NULL, NULL,
     "%d rete nascosta vicina. Il nome di una rete nascosta va scritto.", "%d reti nascoste vicine. Il nome di una rete nascosta va scritto.",
     NULL, NULL,
     NULL, NULL,

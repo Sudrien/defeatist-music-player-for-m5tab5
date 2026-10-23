@@ -23,6 +23,7 @@
 #include "podauth.h"
 #include "podcats.h"          /* 8014 */
 #include "podfeeds.h"         /* 8018 */
+#include "podeps.h"           /* 8019 */
 #include "radiobrowser.h"       /* RADIOBROWSER_UA_FMT: the same name */
 #include "settings.h"           /* settings_now(), settings_time_verified() */
 
@@ -37,6 +38,9 @@ static const char *TAG = "tab5_podindex";
  * feed carries its whole description, so the reply is tens of KB. */
 #define PI_TRENDING_FMT "https://api.podcastindex.org/api/1.0/podcasts/trending?max=40&cat=%d"
 #define PI_FEEDS_BODY_MAX (256 * 1024)
+/* 8019: a podcast's episodes, newest first; each carries its show notes,
+ * so the same 256 KB bound. */
+#define PI_EPISODES_FMT "https://api.podcastindex.org/api/1.0/episodes/byfeedid?max=40&id=%lld"
 #define PI_TIMEOUT_MS   10000
 /* categories/list is about 5 KB. In PSRAM, for the length of one try. */
 #define PI_BODY_MAX     (16 * 1024)
@@ -75,6 +79,13 @@ static int                s_feeds_n;
 static int                s_feeds_cat;            /* the category they are from */
 static podindex_cats_t    s_feeds_state;
 static uint32_t           s_feeds_gen;
+
+/* 8019: one podcast's episodes, the last asked for. As the feeds. */
+static podep_t           *s_eps;
+static int                s_eps_n;
+static int64_t            s_eps_feed;
+static podindex_cats_t    s_eps_state;
+static uint32_t           s_eps_gen;
 
 static void set(podindex_state_t st, int http)
 {
@@ -418,6 +429,115 @@ uint32_t podindex_feeds_gen(void)
 {
     xSemaphoreTake(s_mu, portMAX_DELAY);
     const uint32_t g = s_feeds_gen;
+    xSemaphoreGive(s_mu);
+    return g;
+}
+
+/* 8019: episodes/byfeedid for one podcast, as feeds_task() does for a
+ * category. The feed id rides in s_eps_feed, set before the task. */
+static void eps_task(void *arg)
+{
+    (void)arg;
+    static char key[PODAUTH_KEY_MAX], secret[PODAUTH_SECRET_MAX];
+    static char url[128];
+    xSemaphoreTake(s_mu, portMAX_DELAY);
+    const int64_t feed = s_eps_feed;
+    xSemaphoreGive(s_mu);
+    bool ok = false;
+    nvs_handle_t h;
+    if (nvs_open(DEFEATIST_NVS_NS, NVS_READONLY, &h) == ESP_OK) {
+        size_t kn = sizeof(key), sn = sizeof(secret);
+        ok = nvs_get_str(h, NVS_KEY_KEY, key, &kn) == ESP_OK &&
+             nvs_get_str(h, NVS_KEY_SECRET, secret, &sn) == ESP_OK;
+        nvs_close(h);
+    }
+    snprintf(url, sizeof(url), PI_EPISODES_FMT, (long long)feed);
+    char *body = ok ? heap_caps_malloc(PI_FEEDS_BODY_MAX, MALLOC_CAP_SPIRAM | MALLOC_CAP_8BIT) : NULL;
+    podep_t *tmp = body ? heap_caps_malloc(PODEPS_MAX * sizeof(podep_t),
+                                           MALLOC_CAP_SPIRAM | MALLOC_CAP_8BIT) : NULL;
+    int n = -1;
+    if (body && tmp) {
+        size_t got = 0;
+        const int status = ask(url, key, secret, body, PI_FEEDS_BODY_MAX, &got);
+        if (status == 200 && podauth_reply_ok(body, got)) {
+            n = podeps_parse(body, got, tmp, PODEPS_MAX);
+            ESP_LOGI(TAG, "podcast %lld: %d episodes (%u bytes%s)", (long long)feed, n,
+                     (unsigned)got, got + 1 >= PI_FEEDS_BODY_MAX ? ", cut at the buffer" : "");
+        } else if (status) {
+            ESP_LOGW(TAG, "podcast %lld: HTTP %d", (long long)feed, status);
+        } else {
+            ESP_LOGW(TAG, "podcast %lld: no connection", (long long)feed);
+        }
+    } else {
+        if (ok) ESP_LOGE(TAG, "no PSRAM for the episodes");
+        else    ESP_LOGE(TAG, "episodes: no saved key");
+    }
+    free(body);
+    memset(secret, 0, sizeof(secret));
+    ESP_LOGI(TAG, "stack: %u bytes never used of %u",
+             (unsigned)uxTaskGetStackHighWaterMark(NULL), (unsigned)PI_STACK);
+    xSemaphoreTake(s_mu, portMAX_DELAY);
+    if (n >= 0) {
+        podep_t *old = s_eps;
+        s_eps = tmp;
+        s_eps_n = n;
+        tmp = old;
+        s_eps_state = PODINDEX_CATS_READY;
+    } else {
+        s_eps_state = PODINDEX_CATS_FAILED;
+    }
+    s_eps_gen++;
+    s_cats_busy = false;
+    xSemaphoreGive(s_mu);
+    free(tmp);
+    vTaskDelete(NULL);
+}
+
+bool podindex_eps_fetch(int64_t feed)
+{
+    if (feed <= 0) return false;
+    xSemaphoreTake(s_mu, portMAX_DELAY);
+    if (s_state != PODINDEX_WORKING || s_cats_busy) {
+        xSemaphoreGive(s_mu);
+        return false;
+    }
+    s_cats_busy = true;
+    s_eps_feed = feed;
+    s_eps_n = 0;                                /* another podcast's are not these */
+    s_eps_state = PODINDEX_CATS_LOADING;
+    s_eps_gen++;
+    xSemaphoreGive(s_mu);
+    if (xTaskCreate(eps_task, "podindex", PI_STACK, NULL, 3, NULL) != pdPASS) {
+        xSemaphoreTake(s_mu, portMAX_DELAY);
+        s_cats_busy = false;
+        s_eps_state = PODINDEX_CATS_FAILED;
+        s_eps_gen++;
+        xSemaphoreGive(s_mu);
+        return false;
+    }
+    return true;
+}
+
+podindex_cats_t podindex_eps(podep_t *out, int max, int *n, int64_t *feed, uint32_t *gen)
+{
+    xSemaphoreTake(s_mu, portMAX_DELAY);
+    const podindex_cats_t st = s_eps_state;
+    int k = 0;
+    if (out && s_eps) {
+        k = s_eps_n < max ? s_eps_n : max;
+        memcpy(out, s_eps, (size_t)k * sizeof(podep_t));
+    }
+    if (n) *n = k;
+    if (feed) *feed = s_eps_feed;
+    if (gen) *gen = s_eps_gen;
+    xSemaphoreGive(s_mu);
+    return st;
+}
+
+uint32_t podindex_eps_gen(void)
+{
+    xSemaphoreTake(s_mu, portMAX_DELAY);
+    const uint32_t g = s_eps_gen;
     xSemaphoreGive(s_mu);
     return g;
 }

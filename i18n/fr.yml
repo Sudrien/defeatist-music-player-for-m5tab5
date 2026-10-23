@@ -696,6 +696,8 @@ fr:
     "connected": "connecté"
     # panel.c
     "drive": "clé"
+    # browser.c
+    "episodes - Podcast Index did not answer; UP, then try again": ~
     # panel.c
     "failed; the log says why": "échec ; le journal dit pourquoi"
     # player.c
@@ -736,6 +738,8 @@ fr:
     "no card in the slot": "pas de carte dans le lecteur"
     # player.c
     "no cover art": "pas de pochette"
+    # browser.c
+    "no episodes listed": ~
     # player.c
     "no network - check Wi-Fi or the cable, then tap again": "pas de réseau - vérifiez Wi-Fi/câble, retouchez"
     # player.c
@@ -774,6 +778,8 @@ fr:
     "podcasts - asking Podcast Index for %s": ~
     # browser.c
     "podcasts - asking Podcast Index for its categories": ~
+    # browser.c
+    "podcasts - asking Podcast Index for the episodes": ~
     # browser.c
     "podcasts - checking the Podcast Index key": ~
     # browser.c
@@ -853,6 +859,9 @@ fr:
     "%d apps connected.":
       one: "%d app connectée."
       other: "%d apps connectées."
+    "%d episodes, newest first":
+      one: ~
+      other: ~
     "%d hidden networks nearby. A hidden network's name has to be typed.":
       one: "%d réseau masqué à proximité. Le nom d'un réseau masqué doit être saisi."
       other: "%d réseaux masqués à proximité. Le nom d'un réseau masqué doit être saisi."

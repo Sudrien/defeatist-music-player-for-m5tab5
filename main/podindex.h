@@ -20,6 +20,7 @@
 
 #include "podcats.h"          /* 8014: podcat_t */
 #include "podfeeds.h"         /* 8018: podfeed_t */
+#include "podeps.h"           /* 8019: podep_t */
 
 #ifdef __cplusplus
 extern "C" {
@@ -86,6 +87,13 @@ uint32_t podindex_cats_gen(void);
 bool podindex_feeds_fetch(int cat);
 podindex_cats_t podindex_feeds(podfeed_t *out, int max, int *n, int *cat, uint32_t *gen);
 uint32_t podindex_feeds_gen(void);
+
+/* 8019: one podcast's episodes (episodes/byfeedid), newest first, the
+ * last podcast asked for. As the feeds, and under the same one-fetch
+ * rule. Each carries its audio's URL. */
+bool podindex_eps_fetch(int64_t feed);
+podindex_cats_t podindex_eps(podep_t *out, int max, int *n, int64_t *feed, uint32_t *gen);
+uint32_t podindex_eps_gen(void);
 
 #ifdef __cplusplus
 }

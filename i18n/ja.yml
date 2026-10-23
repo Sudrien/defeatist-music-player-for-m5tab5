@@ -696,6 +696,8 @@ ja:
     "connected": "接続済み"
     # panel.c
     "drive": "ドライブ"
+    # browser.c
+    "episodes - Podcast Index did not answer; UP, then try again": ~
     # panel.c
     "failed; the log says why": "失敗。理由はログに"
     # player.c
@@ -736,6 +738,8 @@ ja:
     "no card in the slot": "スロットにカードなし"
     # player.c
     "no cover art": "カバーなし"
+    # browser.c
+    "no episodes listed": ~
     # player.c
     "no network - check Wi-Fi or the cable, then tap again": "ネットなし - Wi-Fiかケーブルを確認して再タップ"
     # player.c
@@ -774,6 +778,8 @@ ja:
     "podcasts - asking Podcast Index for %s": ~
     # browser.c
     "podcasts - asking Podcast Index for its categories": ~
+    # browser.c
+    "podcasts - asking Podcast Index for the episodes": ~
     # browser.c
     "podcasts - checking the Podcast Index key": ~
     # browser.c
@@ -851,6 +857,8 @@ ja:
       other: "%d 件を許可済み。消去すると再度の許可が必要。"
     "%d apps connected.":
       other: "%d 個のアプリが接続中。"
+    "%d episodes, newest first":
+      other: ~
     "%d hidden networks nearby. A hidden network's name has to be typed.":
       other: "近くに非公開のネットワークが %d 件あります。非公開のネットワーク名は入力が必要です。"
     "%d podcast categories":

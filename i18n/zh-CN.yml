@@ -696,6 +696,8 @@ zh-CN:
     "connected": "已连接"
     # panel.c
     "drive": "驱动器"
+    # browser.c
+    "episodes - Podcast Index did not answer; UP, then try again": ~
     # panel.c
     "failed; the log says why": "失败；原因见日志"
     # player.c
@@ -736,6 +738,8 @@ zh-CN:
     "no card in the slot": "卡槽中无卡"
     # player.c
     "no cover art": "无封面"
+    # browser.c
+    "no episodes listed": ~
     # player.c
     "no network - check Wi-Fi or the cable, then tap again": "无网络 - 请检查 Wi-Fi 或网线后再点"
     # player.c
@@ -774,6 +778,8 @@ zh-CN:
     "podcasts - asking Podcast Index for %s": ~
     # browser.c
     "podcasts - asking Podcast Index for its categories": ~
+    # browser.c
+    "podcasts - asking Podcast Index for the episodes": ~
     # browser.c
     "podcasts - checking the Podcast Index key": ~
     # browser.c
@@ -851,6 +857,8 @@ zh-CN:
       other: "已允许 %d 个。清除后需重新请求。"
     "%d apps connected.":
       other: "已有 %d 个应用连接。"
+    "%d episodes, newest first":
+      other: ~
     "%d hidden networks nearby. A hidden network's name has to be typed.":
       other: "附近有 %d 个隐藏网络。隐藏网络的名称需要手动输入。"
     "%d podcast categories":

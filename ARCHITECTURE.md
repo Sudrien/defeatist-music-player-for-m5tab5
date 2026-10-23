@@ -26193,3 +26193,29 @@ browser_poll() asks again.
 
 On the board: `category N ("Name"): asking for its podcasts`, then
 `I tab5_podindex: category N: K podcasts (B bytes)` and the stack line.
+
+### 8019 -- a podcast opens into its episodes
+
+A tap on a podcast row asks Podcast Index for `episodes/byfeedid?max=40
+&id=<feed>` and lists the episodes by title, newest first, with a note
+icon -- they are things to play, not folders. UP goes back a level at a
+time: episodes to podcasts to categories, each still held, so no
+request. The status line says `N episodes, newest first`, or asking
+(spinner), or `no episodes listed`, or that Podcast Index did not
+answer. A tap on an episode logs its id and length and does nothing
+yet: playing it is next.
+
+**What is kept.** podeps.h walks "items" with podfeeds.h's helpers
+(depth-aware, top-level keys only, so a person's or a chapter's fields
+inside an episode are not the episode's) and keeps, besides id and
+title, `enclosureUrl`, `duration` and `datePublished`. A title too long
+is cut; a URL too long for its 512 bytes is DROPPED with its episode,
+since a cut URL is a different address, and so is one that is not
+http(s). texttest run-podeps, 13 checks.
+
+60 episodes of 660 bytes are about 40 KB, twice: podindex.c's list and
+the chooser's copy, both PSRAM. The reply buffer is the feeds' 256 KB.
+
+On the board: `podcast N: asking for its episodes`, then `I
+tab5_podindex: podcast N: K episodes (B bytes)` and the stack line; a
+tap on one logs `episode N (S s): playing it is not done yet`.

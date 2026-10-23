@@ -9,12 +9,13 @@
 #include <stddef.h>
 #include "i18n.h"
 
-const unsigned i18n_count = 417;
+const unsigned i18n_count = 420;
 const char *const i18n_keys[] = {
     "%.32s did not work. Try again.",
     "%d h",
     "%d min",
     "%d s",
+    "%s - Podcast Index did not answer; UP, then try again",
     "%s did not answer.",
     "%s left",
     "%s refused the password.",
@@ -381,6 +382,7 @@ const char *const i18n_keys[] = {
     "not enough memory for that list",
     "not run this session",
     "nothing starred yet - tap a star to keep one",
+    "nothing trending in %s",
     "off",
     "on",
     "on %s, %u:%02u\012%s",
@@ -391,6 +393,7 @@ const char *const i18n_keys[] = {
     "plug in to keep playing",
     "podcasts - Podcast Index did not answer; tap PODCAST to try again",
     "podcasts - Podcast Index key saved",
+    "podcasts - asking Podcast Index for %s",
     "podcasts - asking Podcast Index for its categories",
     "podcasts - checking the Podcast Index key",
     "podcasts - waiting for a network",
@@ -437,6 +440,7 @@ const unsigned char i18n_on_screen[] = {
     0,  /* '%d h' */
     0,  /* '%d min' */
     1,  /* '%d s' */
+    1,  /* '%s - Podcast Index did not answer; UP, t' */
     0,  /* '%s did not answer.' */
     0,  /* '%s left' */
     0,  /* '%s refused the password.' */
@@ -803,6 +807,7 @@ const unsigned char i18n_on_screen[] = {
     1,  /* 'not enough memory for that list' */
     1,  /* 'not run this session' */
     1,  /* 'nothing starred yet - tap a star to keep' */
+    1,  /* 'nothing trending in %s' */
     1,  /* 'off' */
     1,  /* 'on' */
     1,  /* 'on %s, %u:%02u\n%s' */
@@ -813,6 +818,7 @@ const unsigned char i18n_on_screen[] = {
     1,  /* 'plug in to keep playing' */
     1,  /* 'podcasts - Podcast Index did not answer;' */
     1,  /* 'podcasts - Podcast Index key saved' */
+    1,  /* 'podcasts - asking Podcast Index for %s' */
     1,  /* 'podcasts - asking Podcast Index for its ' */
     1,  /* 'podcasts - checking the Podcast Index ke' */
     1,  /* 'podcasts - waiting for a network' */
@@ -857,6 +863,7 @@ const unsigned char i18n_pon_screen[] = {
     0,
     1,
     1,
+    1,
     0,
     1,
     1,
@@ -867,6 +874,7 @@ const unsigned char i18n_pon_screen[] = {
 /* [lang * i18n_count + key] */
 const char *const i18n_vals[] = {
     /* en */
+    NULL,
     NULL,
     NULL,
     NULL,
@@ -1268,6 +1276,8 @@ const char *const i18n_vals[] = {
     NULL,
     NULL,
     NULL,
+    NULL,
+    NULL,
     "the card would not take\012the write",
     NULL,
     NULL,
@@ -1289,6 +1299,7 @@ const char *const i18n_vals[] = {
     "%d 小时",
     "%d 分钟",
     "%d 秒",
+    NULL,
     "%s 没有响应。",
     "剩余 %s",
     "%s 拒绝了密码。",
@@ -1655,6 +1666,7 @@ const char *const i18n_vals[] = {
     "内存不足，无法显示该列表",
     "本次启动未运行",
     "还没有收藏 - 点星标就能保存",
+    NULL,
     "关",
     "开",
     "保存在 %s，%u:%02u\012%s",
@@ -1663,6 +1675,7 @@ const char *const i18n_vals[] = {
     "可选",
     "播放已停止",
     "请接上电源继续播放",
+    NULL,
     NULL,
     NULL,
     NULL,
@@ -1707,6 +1720,7 @@ const char *const i18n_vals[] = {
     "%d 時間",
     "%d 分",
     "%d 秒",
+    NULL,
     "%s から応答がありません。",
     "残り %s",
     "%s がパスワードを拒否しました。",
@@ -2073,6 +2087,7 @@ const char *const i18n_vals[] = {
     "そのリストにはメモリが足りない",
     "この起動では未実行",
     "まだお気に入りなし - 星をタップで保存",
+    NULL,
     "オフ",
     "オン",
     "%s に保存、%u:%02u\012%s",
@@ -2081,6 +2096,7 @@ const char *const i18n_vals[] = {
     "省略可",
     "再生停止",
     "給電して再生を続ける",
+    NULL,
     NULL,
     NULL,
     NULL,
@@ -2125,6 +2141,7 @@ const char *const i18n_vals[] = {
     "%d h",
     "%d min",
     "%d s",
+    NULL,
     "%s no respondió.",
     "quedan %s",
     "%s rechazó la contraseña.",
@@ -2491,6 +2508,7 @@ const char *const i18n_vals[] = {
     "no hay memoria para esa lista",
     "no ejecutado esta sesión",
     "aún no hay favoritos - toca una estrella",
+    NULL,
     "no",
     "sí",
     "en %s, %u:%02u\012%s",
@@ -2499,6 +2517,7 @@ const char *const i18n_vals[] = {
     "opcional",
     "reproducción detenida",
     "conéctalo para seguir",
+    NULL,
     NULL,
     NULL,
     NULL,
@@ -2543,6 +2562,7 @@ const char *const i18n_vals[] = {
     "%d h",
     "%d min",
     "%d s",
+    NULL,
     "%s não respondeu.",
     "faltam %s",
     "%s recusou a senha.",
@@ -2909,6 +2929,7 @@ const char *const i18n_vals[] = {
     "sem memória para essa lista",
     "não rodou nesta sessão",
     "nenhum favorito - toque numa estrela",
+    NULL,
     "não",
     "sim",
     "em %s, %u:%02u\012%s",
@@ -2917,6 +2938,7 @@ const char *const i18n_vals[] = {
     "opcional",
     "reprodução parada",
     "conecte para continuar",
+    NULL,
     NULL,
     NULL,
     NULL,
@@ -2961,6 +2983,7 @@ const char *const i18n_vals[] = {
     "%d h",
     "%d min",
     "%d s",
+    NULL,
     "%s n'a pas répondu.",
     "reste %s",
     "%s a refusé le mot de passe.",
@@ -3327,6 +3350,7 @@ const char *const i18n_vals[] = {
     "pas assez de mémoire pour cette liste",
     "pas lancé cette session",
     "aucun favori - touchez une étoile",
+    NULL,
     "non",
     "oui",
     "sur %s, %u:%02u\012%s",
@@ -3335,6 +3359,7 @@ const char *const i18n_vals[] = {
     "facultatif",
     "lecture arrêtée",
     "branchez pour continuer",
+    NULL,
     NULL,
     NULL,
     NULL,
@@ -3379,6 +3404,7 @@ const char *const i18n_vals[] = {
     "%d h",
     "%d min",
     "%d s",
+    NULL,
     "%s non ha risposto.",
     "mancano %s",
     "%s ha rifiutato la password.",
@@ -3745,6 +3771,7 @@ const char *const i18n_vals[] = {
     "memoria insufficiente per quell'elenco",
     "non eseguito in questa sessione",
     "nessun preferito - tocca una stella",
+    NULL,
     "no",
     "sì",
     "su %s, %u:%02u\012%s",
@@ -3753,6 +3780,7 @@ const char *const i18n_vals[] = {
     "facoltativo",
     "riproduzione fermata",
     "collega per continuare",
+    NULL,
     NULL,
     NULL,
     NULL,
@@ -3794,12 +3822,13 @@ const char *const i18n_vals[] = {
     "danneggiato; reindicizza lo rifà",
 };
 
-const unsigned i18n_pcount = 10;
+const unsigned i18n_pcount = 11;
 const char *const i18n_pkeys[] = {
     "%d allowed. FORGET makes each ask again.",
     "%d apps connected.",
     "%d hidden networks nearby. A hidden network's name has to be typed.",
     "%d podcast categories",
+    "%d podcasts in %s",
     "%d stations from %s",
     "%d tracks",
     "%d tracks (+%d ~%d -%d), %d s",
@@ -3816,6 +3845,7 @@ const char *const i18n_pvals[] = {
     "%d app connected.", NULL,
     "%d hidden network nearby. A hidden network's name has to be typed.", NULL,
     NULL, NULL,
+    NULL, NULL,
     "%d station from %s", NULL,
     "%d track", NULL,
     "%d track (+%d ~%d -%d), %d s", NULL,
@@ -3826,6 +3856,7 @@ const char *const i18n_pvals[] = {
     NULL, "已允许 %d 个。清除后需重新请求。",
     NULL, "已有 %d 个应用连接。",
     NULL, "附近有 %d 个隐藏网络。隐藏网络的名称需要手动输入。",
+    NULL, NULL,
     NULL, NULL,
     NULL, "%d 个电台，来自 %s",
     NULL, "%d 首",
@@ -3838,6 +3869,7 @@ const char *const i18n_pvals[] = {
     NULL, "%d 個のアプリが接続中。",
     NULL, "近くに非公開のネットワークが %d 件あります。非公開のネットワーク名は入力が必要です。",
     NULL, NULL,
+    NULL, NULL,
     NULL, "%d 局、%s から",
     NULL, "%d 曲",
     NULL, "%d 曲 (+%d ~%d -%d)、%d 秒",
@@ -3848,6 +3880,7 @@ const char *const i18n_pvals[] = {
     "%d permitido. OLVIDAR hace que vuelva a preguntar.", "%d permitidos. OLVIDAR hace que cada uno vuelva a preguntar.",
     "%d app conectada.", "%d apps conectadas.",
     "%d red oculta cerca. El nombre de una red oculta hay que escribirlo.", "%d redes ocultas cerca. El nombre de una red oculta hay que escribirlo.",
+    NULL, NULL,
     NULL, NULL,
     "%d emisora de %s", "%d emisoras de %s",
     "%d pista", "%d pistas",
@@ -3860,6 +3893,7 @@ const char *const i18n_pvals[] = {
     "%d app conectado.", "%d apps conectados.",
     "%d rede oculta por perto. O nome de uma rede oculta precisa ser digitado.", "%d redes ocultas por perto. O nome de uma rede oculta precisa ser digitado.",
     NULL, NULL,
+    NULL, NULL,
     "%d rádio de %s", "%d rádios de %s",
     "%d faixa", "%d faixas",
     "%d faixa (+%d ~%d -%d), %d s", "%d faixas (+%d ~%d -%d), %d s",
@@ -3871,6 +3905,7 @@ const char *const i18n_pvals[] = {
     "%d app connectée.", "%d apps connectées.",
     "%d réseau masqué à proximité. Le nom d'un réseau masqué doit être saisi.", "%d réseaux masqués à proximité. Le nom d'un réseau masqué doit être saisi.",
     NULL, NULL,
+    NULL, NULL,
     "%d radio de %s", "%d radios de %s",
     "%d piste", "%d pistes",
     "%d piste (+%d ~%d -%d), %d s", "%d pistes (+%d ~%d -%d), %d s",
@@ -3881,6 +3916,7 @@ const char *const i18n_pvals[] = {
     "%d consentito. AZZERA lo fa richiedere.", "%d consentiti. AZZERA li fa richiedere tutti.",
     "%d app collegata.", "%d app collegate.",
     "%d rete nascosta vicina. Il nome di una rete nascosta va scritto.", "%d reti nascoste vicine. Il nome di una rete nascosta va scritto.",
+    NULL, NULL,
     NULL, NULL,
     "%d radio da %s", "%d radio da %s",
     "%d brano", "%d brani",

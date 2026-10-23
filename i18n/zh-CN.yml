@@ -14,6 +14,8 @@ zh-CN:
     "%d min": "%d 分钟"
     # panel.c, remote.html
     "%d s": "%d 秒"
+    # browser.c
+    "%s - Podcast Index did not answer; UP, then try again": ~
     # remote.c
     "%s did not answer.": "%s 没有响应。"
     # remote.html
@@ -746,6 +748,8 @@ zh-CN:
     "not run this session": "本次启动未运行"
     # player.c
     "nothing starred yet - tap a star to keep one": "还没有收藏 - 点星标就能保存"
+    # browser.c
+    "nothing trending in %s": ~
     # panel.c, sleeppage.c, ui.c
     "off": "关"
     # panel.c
@@ -766,6 +770,8 @@ zh-CN:
     "podcasts - Podcast Index did not answer; tap PODCAST to try again": ~
     # browser.c
     "podcasts - Podcast Index key saved": ~
+    # browser.c
+    "podcasts - asking Podcast Index for %s": ~
     # browser.c
     "podcasts - asking Podcast Index for its categories": ~
     # browser.c
@@ -848,6 +854,8 @@ zh-CN:
     "%d hidden networks nearby. A hidden network's name has to be typed.":
       other: "附近有 %d 个隐藏网络。隐藏网络的名称需要手动输入。"
     "%d podcast categories":
+      other: ~
+    "%d podcasts in %s":
       other: ~
     "%d stations from %s":
       other: "%d 个电台，来自 %s"

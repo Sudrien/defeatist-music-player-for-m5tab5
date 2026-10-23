@@ -19,6 +19,7 @@
 #include <stdint.h>
 
 #include "podcats.h"          /* 8014: podcat_t */
+#include "podfeeds.h"         /* 8018: podfeed_t */
 
 #ifdef __cplusplus
 extern "C" {
@@ -75,6 +76,16 @@ bool podindex_cats_fetch(void);
  * state. Any task. */
 podindex_cats_t podindex_cats(podcat_t *out, int max, int *n, uint32_t *gen);
 uint32_t podindex_cats_gen(void);
+
+/*
+ * 8018: one category's podcasts (podcasts/trending), the last category
+ * asked for. The same states as the categories; asking for another
+ * category empties the list until it answers. One fetch of either kind
+ * at a time: false while one runs, or with no working key.
+ */
+bool podindex_feeds_fetch(int cat);
+podindex_cats_t podindex_feeds(podfeed_t *out, int max, int *n, int *cat, uint32_t *gen);
+uint32_t podindex_feeds_gen(void);
 
 #ifdef __cplusplus
 }

@@ -26161,3 +26161,35 @@ What proves it took, after `rm sdkconfig`: the configure step's defaults
 check names neither key, `grep ECDSA sdkconfig` shows both "is not set",
 and a Podcast Index fetch logs `112 categories` with no
 psa_crypto_driver_esp_ecdsa line before it.
+
+### 8018 -- a category opens into its podcasts
+
+A tap on a category row on the PODCAST tab asks Podcast Index for
+`podcasts/trending?max=40&cat=<id>` and shows the podcasts as rows, by
+title, in the reply's order (its trend order). The status line says `N
+podcasts in <category>`, or that it is asking (spinner), or `nothing
+trending in <category>`, or that Podcast Index did not answer. UP, slot
+0, goes back to the categories, which are still held and come back
+without a request. A tap on a podcast is logged and does nothing yet:
+its episodes are next.
+
+**The reader.** A feed object has an object inside it ("categories"),
+which podcats.h stops at on purpose, and its strings are publishers' --
+any script, any length, \u-escaped. podfeeds.h tracks depth, quote-
+aware, so only the feed's own top-level "id" and "title" are read;
+decodes \uXXXX to UTF-8 with surrogate pairs (a lone one is U+FFFD);
+turns control characters into spaces; and CUTS a long title at a
+character boundary rather than refusing it as jsonpick.h would. A reply
+cut short ends at the last whole feed. texttest run-podfeeds, 21
+checks.
+
+**The request.** ask() takes its URL and bound now (it was categories/
+list only). The reply carries each feed's whole description, so its
+buffer is 256 KB of PSRAM for the length of a fetch, and the log says
+when a reply filled it. One fetch of either kind at a time; a category
+tapped while the categories are still arriving waits (the status line
+says "waiting for a network" for that moment, which is imprecise) and
+browser_poll() asks again.
+
+On the board: `category N ("Name"): asking for its podcasts`, then
+`I tab5_podindex: category N: K podcasts (B bytes)` and the stack line.

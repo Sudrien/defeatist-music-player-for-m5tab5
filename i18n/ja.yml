@@ -14,6 +14,8 @@ ja:
     "%d min": "%d 分"
     # panel.c, remote.html
     "%d s": "%d 秒"
+    # browser.c
+    "%s - Podcast Index did not answer; UP, then try again": ~
     # remote.c
     "%s did not answer.": "%s から応答がありません。"
     # remote.html
@@ -746,6 +748,8 @@ ja:
     "not run this session": "この起動では未実行"
     # player.c
     "nothing starred yet - tap a star to keep one": "まだお気に入りなし - 星をタップで保存"
+    # browser.c
+    "nothing trending in %s": ~
     # panel.c, sleeppage.c, ui.c
     "off": "オフ"
     # panel.c
@@ -766,6 +770,8 @@ ja:
     "podcasts - Podcast Index did not answer; tap PODCAST to try again": ~
     # browser.c
     "podcasts - Podcast Index key saved": ~
+    # browser.c
+    "podcasts - asking Podcast Index for %s": ~
     # browser.c
     "podcasts - asking Podcast Index for its categories": ~
     # browser.c
@@ -848,6 +854,8 @@ ja:
     "%d hidden networks nearby. A hidden network's name has to be typed.":
       other: "近くに非公開のネットワークが %d 件あります。非公開のネットワーク名は入力が必要です。"
     "%d podcast categories":
+      other: ~
+    "%d podcasts in %s":
       other: ~
     "%d stations from %s":
       other: "%d 局、%s から"

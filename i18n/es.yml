@@ -14,6 +14,8 @@ es:
     "%d min": "%d min"
     # panel.c, remote.html
     "%d s": "%d s"
+    # browser.c
+    "%s - Podcast Index did not answer; UP, then try again": ~
     # remote.c
     "%s did not answer.": "%s no respondió."
     # remote.html
@@ -746,6 +748,8 @@ es:
     "not run this session": "no ejecutado esta sesión"
     # player.c
     "nothing starred yet - tap a star to keep one": "aún no hay favoritos - toca una estrella"
+    # browser.c
+    "nothing trending in %s": ~
     # panel.c, sleeppage.c, ui.c
     "off": "no"
     # panel.c
@@ -766,6 +770,8 @@ es:
     "podcasts - Podcast Index did not answer; tap PODCAST to try again": ~
     # browser.c
     "podcasts - Podcast Index key saved": ~
+    # browser.c
+    "podcasts - asking Podcast Index for %s": ~
     # browser.c
     "podcasts - asking Podcast Index for its categories": ~
     # browser.c
@@ -851,6 +857,9 @@ es:
       one: "%d red oculta cerca. El nombre de una red oculta hay que escribirlo."
       other: "%d redes ocultas cerca. El nombre de una red oculta hay que escribirlo."
     "%d podcast categories":
+      one: ~
+      other: ~
+    "%d podcasts in %s":
       one: ~
       other: ~
     "%d stations from %s":

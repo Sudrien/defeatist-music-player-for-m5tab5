@@ -26061,3 +26061,10 @@ form, stays where it was. Markup inside the text means data-k with the
 link as data-arg, as the stations note does with `<code>`, so the
 translated key is the sentence with %s and the link stays out of it. The
 old data-t key is pruned from the YAML.
+
+### 8012 -- links on the remote are one blue
+
+8011 put the first link into the remote's lower page, and it came out in
+the browser's defaults: a dark blue that is hard to read on `--bg`
+(#111), and visited purple, darker again. `.below a` is `--link`
+(#5aa9ff) in every state -- link, visited, hover, active.

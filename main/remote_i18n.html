@@ -13,6 +13,7 @@
   --bg: #111; --track: #3a3a3a; --fill: #d13b2c; --thumb: #fff;
   --icon: #ccc; --icon-off: #555; --album: #888; --star: #e8b32c;
   --play: #4cc05e; --wave-future: #6e6e6e;
+  --link: #5aa9ff;                 /* 8012: blue, readable on --bg */
 }
 * { box-sizing: border-box; }
 html, body { margin: 0; height: 100%; background: var(--bg); color: var(--thumb);
@@ -43,6 +44,10 @@ html, body { height: auto; }
 .below .row { display: flex; gap: .8em; align-items: center; flex-wrap: wrap; }
 .below .ghost { background: #2a2a2a; color: var(--thumb); }
 .below .warn { color: var(--star); }
+/* 8012: one blue in every state. The browser's own blue is too dark on
+   --bg and its visited purple darker still, so a link once followed
+   read as dimmed text. */
+.below a, .below a:link, .below a:visited, .below a:hover, .below a:active { color: var(--link); }
 #wifi, #pi { margin-top: 2.4em; }
 .fold { position: fixed; left: 50%; bottom: 6px; transform: translateX(-50%);
   color: var(--icon-off); font-size: 13px; pointer-events: none; transition: opacity .2s; }

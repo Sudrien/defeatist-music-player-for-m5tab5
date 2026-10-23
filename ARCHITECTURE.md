@@ -26025,3 +26025,16 @@ The six screen strings are new and not yet translated. `PODCAST` is
 same(), as RADIO is, and is in ABBREVIATIONS.md and its six translations.
 
 On the board: `button: tab PODCAST`.
+
+### 8009 -- four rows under Remote control
+
+NET_REMOTE_NOTE_LINES was 3 and did two jobs: the rows the layout
+reserves under the switch, and the size of the array of paragraphs drawn
+into them. The paragraphs are three; the rows they need are four. At
+LABEL_SCALE a glyph is 14 px and note_w() is 672, so 48 characters a row:
+off, "Play, pause, skip, seek and volume..." (70) wraps to two and "No
+password: each browser is allowed on the player." (51) to two more; on,
+the address and the certificate are one each and the password line two.
+draw_paras() stopped at three, so the last line was never drawn. Now
+NET_REMOTE_NOTE_PARAS (3) sizes the array and NET_REMOTE_NOTE_LINES (4)
+the rows; everything below on the NET tab moves down one row.

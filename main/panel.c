@@ -787,7 +787,11 @@ static const char *const k_ntp_note[] = {
 
 /* 5117: the browser remote, under Wi-Fi because it is what Wi-Fi is on
  * for, and above everything that is about the network itself. */
-#define NET_REMOTE_NOTE_LINES (3)
+/* 8009: the rows reserved, and the paragraphs that fill them, are two
+ * numbers. Off, the first paragraph wraps to two rows and the password
+ * line to two more, so three rows cut the last line off. */
+#define NET_REMOTE_NOTE_LINES (4)
+#define NET_REMOTE_NOTE_PARAS (3)
 
 static int wifi_y(void) { return list_top(); }
 static int remote_y(void) { return wifi_y() + AUDIO_SWITCH_H
@@ -1118,7 +1122,7 @@ static int draw_net(void)
          * because it is the reason to switch it off again.
          */
         static char url_line[64];
-        const char *rn[NET_REMOTE_NOTE_LINES];
+        const char *rn[NET_REMOTE_NOTE_PARAS];
         char url[48];
         if (remote_running() && remote_url(url, sizeof(url))) {
             snprintf(url_line, sizeof(url_line), _("Open %s"), url);
@@ -1150,7 +1154,7 @@ static int draw_net(void)
         }
         /* 8002: no longer "anyone on it" -- each browser is allowed. */
         rn[2] = N_("No password: each browser is allowed on the player.");
-        (void)draw_paras(y + bh + AUDIO_NOTE_GAP, rn, NET_REMOTE_NOTE_LINES,
+        (void)draw_paras(y + bh + AUDIO_NOTE_GAP, rn, NET_REMOTE_NOTE_PARAS,
                          NET_REMOTE_NOTE_LINES);
     }
 

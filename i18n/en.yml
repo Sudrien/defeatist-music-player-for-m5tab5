@@ -411,7 +411,7 @@ en:
     # remote.html
     "Podcast Index refused that key and secret. The player's clock has not been set from the network yet, and a wrong clock is refused the same way.": ~
     # remote.html
-    "Podcast directory search needs your own free API key and secret from %s. The player tries them before saving them, and once they work this form is locked.": ~
+    "Podcast directory search needs your own free API key and secret from %s, which asks for an email address to register. The player tries them before saving them, and once they work this form is locked.": ~
     # browser.c
     "Podcasts are found through Podcast Index, which needs your own free API key and secret from api.podcastindex.org. Enter them on the remote's page, under Podcast Index:": ~
     # sleeppage.c, ui.c

@@ -26068,3 +26068,10 @@ old data-t key is pruned from the YAML.
 the browser's defaults: a dark blue that is hard to read on `--bg`
 (#111), and visited purple, darker again. `.below a` is `--link`
 (#5aa9ff) in every state -- link, visited, hover, active.
+
+### 8013 -- signing up asks for an email address
+
+The remote's note under Podcast Index says so: the free key "asks for an
+email address to register". Someone deciding whether to bother should
+know that before following the link. The old key is pruned from the
+YAML.

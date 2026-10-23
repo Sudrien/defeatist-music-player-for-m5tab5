@@ -174,7 +174,10 @@ static void try_task(void *arg)
                      st == PODINDEX_CLOCK ? "; the clock has not been set by NTP" : "");
         } else {
             st = PODINDEX_UNREACHABLE;
-            ESP_LOGW(TAG, status ? "HTTP %d" : "no connection", status);
+            /* 8007: two calls -- ESP_LOGW pastes its format into a
+             * string literal, so it cannot be a ?: expression. */
+            if (status) ESP_LOGW(TAG, "HTTP %d", status);
+            else        ESP_LOGW(TAG, "no connection");
         }
         free(body);
     }

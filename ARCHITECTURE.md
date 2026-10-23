@@ -25988,3 +25988,12 @@ The remote's handler limit goes from 12 to 14 for the two new URIs.
 On the board: `I tab5_podindex: the API key works; saved (N bytes of
 categories)` and `I tab5_podindex: stack: N bytes never used of 8192`;
 at the next boot `I tab5_podindex: an API key is saved`.
+
+### 8007 -- 8006 did not build
+
+`ESP_LOGW(TAG, status ? "HTTP %d" : "no connection", status)` in
+podindex.c's try_task: ESP-IDF's log macros paste the format beside other
+string literals (`LOG_FORMAT`), so a format has to be a literal itself,
+and a `?:` is a syntax error inside the macro. Two calls instead. 8006 was
+syntax-checked against stub headers whose ESP_LOGW was a plain function,
+which is how it got through.

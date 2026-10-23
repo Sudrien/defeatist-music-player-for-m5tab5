@@ -26112,3 +26112,23 @@ so that is a syntax error there as on the board.
 On the board: `I tab5_podindex: 112 categories`, then `stack: N bytes
 never used of 8192`; a tap on a row logs `category N ("Name"): its
 podcasts are not listed yet`.
+
+### 8015 -- the crypto engines that stay, written down
+
+sdkconfig.defaults now sets CONFIG_MBEDTLS_HARDWARE_MPI, _ECC,
+_ECDSA_SIGN and _ECDSA_VERIFY to y. 5052 turned AES and SHA to software
+for their DMA and left these at IDF's defaults, which were already on;
+this says so, so that cmake/defaults_check.cmake reports an upstream
+default that moves, or a symbol IDF 6.1 has renamed, instead of TLS
+going quietly to software.
+
+It does not make the ECDSA peripheral work here. On chip revision v1.3
+the driver logs `E psa_crypto_driver_esp_ecdsa: ECDSA peripheral not
+supported on this chip revision` for each signature and checks it in
+software; 8014's Podcast Index handshake had four, about 0.45 s apart.
+Those lines stay.
+
+What proves the values took, after `rm sdkconfig`: the configure step's
+defaults check names none of the four keys, either as drift or as
+unknown. A key it calls unknown is a name IDF 6.1 does not have, and is
+fixed by editing this file, not by `rm sdkconfig`.

@@ -418,6 +418,28 @@ CONFIG_SPIRAM_TRY_ALLOCATE_WIFI_LWIP=y
 # CONFIG_MBEDTLS_HARDWARE_SHA is not set
 
 # ---------------------------------------------------------------------------
+# 8015: THE BIGNUM, ECC AND ECDSA ENGINES, SAID RATHER THAN DEFAULTED.
+#
+# 5052 kept these on by leaving them at IDF's defaults. Written down here
+# so a default that changes upstream shows as drift
+# (cmake/defaults_check.cmake) instead of quietly moving TLS to software,
+# and so a name IDF 6.1 does not have is warned about at configure. None
+# of the three uses DMA memory, which is 5052's reason for AES and SHA.
+#
+# The ECDSA peripheral is not usable on this board's P4 (chip revision
+# v1.3): the driver logs `ECDSA peripheral not supported on this chip
+# revision` once per signature and verifies in software -- four per
+# Podcast Index handshake, about 0.45 s each (8014's log). That line
+# stays on v1.3 with these set; a later revision would take the
+# hardware path with no change here.
+#
+# rm sdkconfig before building, as above.
+CONFIG_MBEDTLS_HARDWARE_MPI=y
+CONFIG_MBEDTLS_HARDWARE_ECC=y
+CONFIG_MBEDTLS_HARDWARE_ECDSA_SIGN=y
+CONFIG_MBEDTLS_HARDWARE_ECDSA_VERIFY=y
+
+# ---------------------------------------------------------------------------
 # 5054: SMALL ALLOCATIONS TO PSRAM TOO.
 #
 # The default sends every malloc() of 16 KB or less to internal RAM first.

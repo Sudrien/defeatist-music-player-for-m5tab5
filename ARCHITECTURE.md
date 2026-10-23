@@ -25923,3 +25923,26 @@ on the player`, `I tab5_mp3: an MPD app is asking to be allowed`, `I
 tab5_approve: request allowed`, then on the app's next try `client N:
 connected from A.B.C.D (1 of K)`. At boot: `I tab5_approve: 1 browser
 and 1 MPD address allowed`.
+
+### 8005 -- CI: build provenance for the released binaries
+
+The release workflow now attests both binaries it builds with
+actions/attest-build-provenance: a Sigstore-signed statement that a
+file with this SHA-256 came out of this workflow, at this commit. The
+attestation is stored against the repository, not in the file, so the
+standalone and app images are unchanged and flash, or install under
+M5Launcher, exactly as before. This is not ESP32 Secure Boot, which
+would burn eFuses and lock the Tab5 to one signing key.
+
+It is for whoever fetches a .bin from somewhere other than this
+workflow -- the web flasher, which will check before it publishes one --
+to tell a build of this repository from a file with the same name:
+
+    gh attestation verify defeatist_v0.8.0_music_player_for_m5tab5_standalone.bin \
+        --repo Sudrien/defeatist-music-player-for-m5tab5
+
+Every run attests, a manual one without a release included, so an
+artifact downloaded from the run checks the same way. The job needs
+`id-token: write` (the signing certificate) and `attestations: write`.
+Releases before this one have no attestation and cannot be checked.
+Not yet run on CI.

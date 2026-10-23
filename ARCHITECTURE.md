@@ -26051,3 +26051,13 @@ one line for a browser. An MPD app has no code and keeps its one line.
 
 "%s, code %s" is pruned from the YAML. The six translations of "code
 %s" were taken from that string's own translations, minus the address.
+
+### 8011 -- the sign-up page is a link
+
+The remote's Podcast Index note names api.podcastindex.org; it is a link
+now, opening in a new tab (`target="_blank"`, `rel="noopener
+noreferrer"`) so the remote's page, and anything half-typed into the key
+form, stays where it was. Markup inside the text means data-k with the
+link as data-arg, as the stations note does with `<code>`, so the
+translated key is the sentence with %s and the link stays out of it. The
+old data-t key is pruned from the YAML.

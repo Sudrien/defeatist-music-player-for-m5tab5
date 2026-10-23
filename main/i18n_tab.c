@@ -213,7 +213,7 @@ const char *const i18n_keys[] = {
     "Podcast Index answered with something the player did not expect.",
     "Podcast Index refused that key and secret.",
     "Podcast Index refused that key and secret. The player's clock has not been set from the network yet, and a wrong clock is refused the same way.",
-    "Podcast directory search needs your own free API key and secret from api.podcastindex.org. The player tries them before saving them, and once they work this form is locked.",
+    "Podcast directory search needs your own free API key and secret from %s. The player tries them before saving them, and once they work this form is locked.",
     "Podcasts are found through Podcast Index, which needs your own free API key and secret from api.podcastindex.org. Enter them on the remote's page, under Podcast Index:",
     "Power off",
     "Power off?",

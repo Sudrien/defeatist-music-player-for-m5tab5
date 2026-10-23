@@ -26038,3 +26038,16 @@ the address and the certificate are one each and the password line two.
 draw_paras() stopped at three, so the last line was never drawn. Now
 NET_REMOTE_NOTE_PARAS (3) sizes the array and NET_REMOTE_NOTE_LINES (4)
 the rows; everything below on the NET tab moves down one row.
+
+### 8010 -- the code on a line of its own
+
+The "Allow this browser?" prompt had two lines of text: the heading, and
+"%s, code %s" -- the address and the four-character code together. At
+NOTICE_BODY_SC that line ran past the box for an address of ordinary
+length, and gfx_draw_text() cuts at max_w, so the code, the one part the
+listener is there to check against the page, was what got cut off. The
+address and "code %s" are now lines of their own, and the box grows by
+one line for a browser. An MPD app has no code and keeps its one line.
+
+"%s, code %s" is pruned from the YAML. The six translations of "code
+%s" were taken from that string's own translations, minus the address.

@@ -19,7 +19,6 @@ const char *const i18n_keys[] = {
     "%s left",
     "%s refused the password.",
     "%s was not found. Is it in range?",
-    "%s, code %s",
     "%s: %d mean, %d peak kbit/s",
     "%u KB free",
     "%u bytes",
@@ -353,6 +352,7 @@ const char *const i18n_keys[] = {
     "app",
     "built",
     "capacity",
+    "code %s",
     "coming up",
     "connected",
     "drive",
@@ -439,7 +439,6 @@ const unsigned char i18n_on_screen[] = {
     0,  /* '%s left' */
     0,  /* '%s refused the password.' */
     0,  /* '%s was not found. Is it in range?' */
-    1,  /* '%s, code %s' */
     1,  /* '%s: %d mean, %d peak kbit/s' */
     1,  /* '%u KB free' */
     1,  /* '%u bytes' */
@@ -773,6 +772,7 @@ const unsigned char i18n_on_screen[] = {
     1,  /* 'app' */
     1,  /* 'built' */
     1,  /* 'capacity' */
+    1,  /* 'code %s' */
     1,  /* 'coming up' */
     1,  /* 'connected' */
     1,  /* 'drive' */
@@ -862,7 +862,6 @@ const unsigned char i18n_pon_screen[] = {
 /* [lang * i18n_count + key] */
 const char *const i18n_vals[] = {
     /* en */
-    NULL,
     NULL,
     NULL,
     NULL,
@@ -1216,6 +1215,7 @@ const char *const i18n_vals[] = {
     NULL,
     NULL,
     NULL,
+    NULL,
     "it played, then ran\012out of buffer",
     NULL,
     NULL,
@@ -1286,7 +1286,6 @@ const char *const i18n_vals[] = {
     "剩余 %s",
     "%s 拒绝了密码。",
     "找不到 %s。是否在范围内？",
-    "%s，代码 %s",
     "%s: 平均 %d, 峰值 %d kbit/s",
     "可用 %u KB",
     "%u 字节",
@@ -1620,6 +1619,7 @@ const char *const i18n_vals[] = {
     "应用",
     "构建时间",
     "容量",
+    "代码 %s",
     "启动中",
     "已连接",
     "驱动器",
@@ -1702,7 +1702,6 @@ const char *const i18n_vals[] = {
     "残り %s",
     "%s がパスワードを拒否しました。",
     "%s が見つかりません。範囲内ですか？",
-    "%s、コード %s",
     "%s: 平均 %d, 最大 %d kbit/s",
     "空き %u KB",
     "%u バイト",
@@ -2036,6 +2035,7 @@ const char *const i18n_vals[] = {
     "アプリ",
     "ビルド日時",
     "容量",
+    "コード %s",
     "起動中",
     "接続済み",
     "ドライブ",
@@ -2118,7 +2118,6 @@ const char *const i18n_vals[] = {
     "quedan %s",
     "%s rechazó la contraseña.",
     "No se encontró %s. ¿Está al alcance?",
-    "%s, código %s",
     "%s: media %d, pico %d kbit/s",
     "%u KB libres",
     "%u bytes",
@@ -2452,6 +2451,7 @@ const char *const i18n_vals[] = {
     "aplicación",
     "compilado",
     "capacidad",
+    "código %s",
     "arrancando",
     "conectado",
     "unidad",
@@ -2534,7 +2534,6 @@ const char *const i18n_vals[] = {
     "faltam %s",
     "%s recusou a senha.",
     "%s não foi encontrada. Está ao alcance?",
-    "%s, código %s",
     "%s: média %d, pico %d kbit/s",
     "%u KB livres",
     "%u bytes",
@@ -2868,6 +2867,7 @@ const char *const i18n_vals[] = {
     "app",
     "compilado",
     "capacidade",
+    "código %s",
     "iniciando",
     "conectado",
     "pendrive",
@@ -2950,7 +2950,6 @@ const char *const i18n_vals[] = {
     "reste %s",
     "%s a refusé le mot de passe.",
     "%s introuvable. Est-il à portée?",
-    "%s, code %s",
     "%s : moy. %d, pic %d kbit/s",
     "%u Ko libres",
     "%u octets",
@@ -3284,6 +3283,7 @@ const char *const i18n_vals[] = {
     "app",
     "compilé",
     "capacité",
+    "code %s",
     "démarrage",
     "connecté",
     "clé",
@@ -3366,7 +3366,6 @@ const char *const i18n_vals[] = {
     "mancano %s",
     "%s ha rifiutato la password.",
     "%s non trovata. È nel raggio?",
-    "%s, codice %s",
     "%s: media %d, picco %d kbit/s",
     "%u KB liberi",
     "%u byte",
@@ -3700,6 +3699,7 @@ const char *const i18n_vals[] = {
     "app",
     "compilato",
     "capacità",
+    "codice %s",
     "in avvio",
     "collegato",
     "chiavetta",

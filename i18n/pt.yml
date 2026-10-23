@@ -22,8 +22,6 @@ pt:
     "%s refused the password.": "%s recusou a senha."
     # remote.c
     "%s was not found. Is it in range?": "%s não foi encontrada. Está ao alcance?"
-    # ui.c
-    "%s, code %s": "%s, código %s"
     # panel.c
     "%s: %d mean, %d peak kbit/s": "%s: média %d, pico %d kbit/s"
     # panel.c
@@ -690,6 +688,8 @@ pt:
     "built": "compilado"
     # panel.c
     "capacity": "capacidade"
+    # ui.c
+    "code %s": "código %s"
     # panel.c
     "coming up": "iniciando"
     # panel.c

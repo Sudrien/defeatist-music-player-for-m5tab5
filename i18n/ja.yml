@@ -22,8 +22,6 @@ ja:
     "%s refused the password.": "%s がパスワードを拒否しました。"
     # remote.c
     "%s was not found. Is it in range?": "%s が見つかりません。範囲内ですか？"
-    # ui.c
-    "%s, code %s": "%s、コード %s"
     # panel.c
     "%s: %d mean, %d peak kbit/s": "%s: 平均 %d, 最大 %d kbit/s"
     # panel.c
@@ -690,6 +688,8 @@ ja:
     "built": "ビルド日時"
     # panel.c
     "capacity": "容量"
+    # ui.c
+    "code %s": "コード %s"
     # panel.c
     "coming up": "起動中"
     # panel.c

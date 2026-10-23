@@ -22,8 +22,6 @@ zh-CN:
     "%s refused the password.": "%s 拒绝了密码。"
     # remote.c
     "%s was not found. Is it in range?": "找不到 %s。是否在范围内？"
-    # ui.c
-    "%s, code %s": "%s，代码 %s"
     # panel.c
     "%s: %d mean, %d peak kbit/s": "%s: 平均 %d, 峰值 %d kbit/s"
     # panel.c
@@ -690,6 +688,8 @@ zh-CN:
     "built": "构建时间"
     # panel.c
     "capacity": "容量"
+    # ui.c
+    "code %s": "代码 %s"
     # panel.c
     "coming up": "启动中"
     # panel.c

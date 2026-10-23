@@ -22,8 +22,6 @@ en:
     "%s refused the password.": ~
     # remote.c
     "%s was not found. Is it in range?": ~
-    # ui.c
-    "%s, code %s": ~
     # panel.c
     "%s: %d mean, %d peak kbit/s": ~
     # panel.c
@@ -690,6 +688,8 @@ en:
     "built": ~
     # panel.c
     "capacity": ~
+    # ui.c
+    "code %s": ~
     # panel.c
     "coming up": ~
     # panel.c

@@ -2100,17 +2100,21 @@ static void draw_confirm(void)
     /* 8002: a request to be allowed has a second line -- who is asking,
      * and the code their page shows, which the listener checks agrees
      * before allowing (approvelist.h). */
-    char sub[96] = "";
+    /* 8010: who and the code on lines of their own. On one line, "%s,
+     * code %s" ran past the box's width for an address of any length
+     * and the code -- the part to check -- was what got cut off. */
+    char sub[64] = "", sub2[32] = "";
     approve_kind_t ak = APPROVE_FOR_BROWSER;
     if (s_confirm == CONFIRM_APPROVE) {
         char who[48], code[5];
         if (approve_prompt(&ak, who, sizeof(who), code, NULL)) {
+            snprintf(sub, sizeof(sub), "%s", who);
             /* 8004: an MPD app has no page to show a code on. */
-            if (ak == APPROVE_FOR_MPD) snprintf(sub, sizeof(sub), "%s", who);
-            else snprintf(sub, sizeof(sub), _("%s, code %s"), who, code);
+            if (ak != APPROVE_FOR_MPD) snprintf(sub2, sizeof(sub2), _("code %s"), code);
         }
     }
-    const int sub_h = sub[0] ? gap + GFX_GLYPH_H(NOTICE_BODY_SC) : 0;
+    const int line_h = gap + GFX_GLYPH_H(NOTICE_BODY_SC);
+    const int sub_h = (sub[0] ? line_h : 0) + (sub2[0] ? line_h : 0);
     const int h = pad + GFX_GLYPH_H(NOTICE_BODY_SC) + sub_h + gap + bh + pad;
     const int y = s_bar_top + (UI_SQUARE - h) / 2;
 
@@ -2129,6 +2133,11 @@ static void draw_confirm(void)
         const int sw = gfx_text_w(sub, NOTICE_BODY_SC);
         gfx_draw_text(x + (w - sw) / 2, y + pad + GFX_GLYPH_H(NOTICE_BODY_SC) + gap,
                       sub, NOTICE_BODY_SC, w - 2 * pad, C_THUMB);
+    }
+    if (sub2[0]) {                      /* 8010 */
+        const int cw = gfx_text_w(sub2, NOTICE_BODY_SC);
+        gfx_draw_text(x + (w - cw) / 2, y + pad + 2 * line_h,
+                      sub2, NOTICE_BODY_SC, w - 2 * pad, C_THUMB);
     }
 
     const int bw = (w - 2 * pad - gap) / 2;

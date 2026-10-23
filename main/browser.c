@@ -32,6 +32,7 @@
 #include "mpd.h"              /* 5260 */
 #include "podindex.h"         /* 8008 */
 #include "remote.h"           /* 8008: remote_url() */
+#include "ethernet.h"         /* 8016: net_online() */
 
 static const char *TAG = "tab5_browser";
 
@@ -169,6 +170,9 @@ static podindex_state_t s_pod_seen;
 static podcat_t s_pod_cats[PODCATS_MAX];
 static int      s_pod_n;
 static uint32_t s_pod_gen;
+/* 8016: the tab wants the categories and there is no network yet. The
+ * fetch starts when there is one, and the spinner turns until then. */
+static bool     s_pod_wait;
 
 /*
  * The station list, loaded into the same rows the files use.
@@ -756,7 +760,12 @@ static void select_tab(browser_tab_t id)
         if (s_pod_seen == PODINDEX_WORKING) {
             load_pod_rows();
             const podindex_cats_t cs = podindex_cats(NULL, 0, NULL, NULL);
-            if (cs == PODINDEX_CATS_NONE || cs == PODINDEX_CATS_FAILED) (void)podindex_cats_fetch();
+            s_pod_wait = false;
+            if (cs == PODINDEX_CATS_NONE || cs == PODINDEX_CATS_FAILED) {
+                /* 8016: no address yet is waiting, not failing. */
+                if (net_online()) (void)podindex_cats_fetch();
+                else              s_pod_wait = true;
+            }
         }
         return;
     }
@@ -884,6 +893,7 @@ static const char *status_line(void)
         if (st == PODINDEX_WORKING) {               /* 8014 */
             static char line[96];
             const podindex_cats_t cs = podindex_cats(NULL, 0, NULL, NULL);
+            if (s_pod_wait) return _("podcasts - waiting for a network");          /* 8016 */
             if (cs == PODINDEX_CATS_LOADING) return _("podcasts - asking Podcast Index for its categories");
             if (cs == PODINDEX_CATS_FAILED && s_count == 0)
                 return _("podcasts - Podcast Index did not answer; tap PODCAST to try again");
@@ -1219,7 +1229,8 @@ void browser_draw(void)
 
     /* 5067: the spinner moves on the clock, so a new step is a repaint. */
     const bool spin = (s_radio && s_radio_busy) ||
-                      (s_pod && podindex_cats(NULL, 0, NULL, NULL) == PODINDEX_CATS_LOADING);  /* 8014 */
+                      (s_pod && (s_pod_wait ||                                     /* 8016 */
+                                 podindex_cats(NULL, 0, NULL, NULL) == PODINDEX_CATS_LOADING));  /* 8014 */
     if (spin) {
         const uint32_t step = (uint32_t)(esp_timer_get_time() / 100000);
         if (step != s_spin_frame) {
@@ -1231,6 +1242,12 @@ void browser_draw(void)
     if (s_pod) {
         const podindex_state_t st = podindex_state(NULL, 0, NULL);
         if (st != s_pod_seen) { s_pod_seen = st; s_dirty = true; }
+        /* 8016: the network the tab was waiting for. */
+        if (s_pod_wait && net_online()) {
+            s_pod_wait = false;
+            (void)podindex_cats_fetch();
+            s_dirty = true;
+        }
         /* 8014: a list arrived, or its state moved. */
         if (podindex_cats_gen() != s_pod_gen) {
             if (st == PODINDEX_WORKING) load_pod_rows();

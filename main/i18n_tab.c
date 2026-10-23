@@ -9,7 +9,7 @@
 #include <stddef.h>
 #include "i18n.h"
 
-const unsigned i18n_count = 416;
+const unsigned i18n_count = 417;
 const char *const i18n_keys[] = {
     "%.32s did not work. Try again.",
     "%d h",
@@ -393,6 +393,7 @@ const char *const i18n_keys[] = {
     "podcasts - Podcast Index key saved",
     "podcasts - asking Podcast Index for its categories",
     "podcasts - checking the Podcast Index key",
+    "podcasts - waiting for a network",
     "podcasts need a Podcast Index key",
     "port",
     "product",
@@ -814,6 +815,7 @@ const unsigned char i18n_on_screen[] = {
     1,  /* 'podcasts - Podcast Index key saved' */
     1,  /* 'podcasts - asking Podcast Index for its ' */
     1,  /* 'podcasts - checking the Podcast Index ke' */
+    1,  /* 'podcasts - waiting for a network' */
     1,  /* 'podcasts need a Podcast Index key' */
     1,  /* 'port' */
     1,  /* 'product' */
@@ -1265,6 +1267,7 @@ const char *const i18n_vals[] = {
     NULL,
     NULL,
     NULL,
+    NULL,
     "the card would not take\012the write",
     NULL,
     NULL,
@@ -1660,6 +1663,7 @@ const char *const i18n_vals[] = {
     "可选",
     "播放已停止",
     "请接上电源继续播放",
+    NULL,
     NULL,
     NULL,
     NULL,
@@ -2082,6 +2086,7 @@ const char *const i18n_vals[] = {
     NULL,
     NULL,
     NULL,
+    NULL,
     "ポート",
     "製品",
     "キュー、ファイル、設定、ラジオ局",
@@ -2494,6 +2499,7 @@ const char *const i18n_vals[] = {
     "opcional",
     "reproducción detenida",
     "conéctalo para seguir",
+    NULL,
     NULL,
     NULL,
     NULL,
@@ -2916,6 +2922,7 @@ const char *const i18n_vals[] = {
     NULL,
     NULL,
     NULL,
+    NULL,
     "porta",
     "produto",
     "fila, arquivos, ajustes, rádios",
@@ -3333,6 +3340,7 @@ const char *const i18n_vals[] = {
     NULL,
     NULL,
     NULL,
+    NULL,
     "port",
     "produit",
     "file, fichiers, réglages, radios",
@@ -3745,6 +3753,7 @@ const char *const i18n_vals[] = {
     "facoltativo",
     "riproduzione fermata",
     "collega per continuare",
+    NULL,
     NULL,
     NULL,
     NULL,

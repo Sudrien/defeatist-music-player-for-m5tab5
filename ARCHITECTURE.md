@@ -26132,3 +26132,16 @@ What proves the values took, after `rm sdkconfig`: the configure step's
 defaults check names none of the four keys, either as drift or as
 unknown. A key it calls unknown is a name IDF 6.1 does not have, and is
 fixed by editing this file, not by `rm sdkconfig`.
+
+### 8016 -- the PODCAST tab waits for a network
+
+Opened before the cable had an address, the tab asked at once and failed
+(`getaddrinfo() returns 202`), and said Podcast Index had not answered
+-- at 6.2 s, with the address arriving at 13.4. Now, with a key saved
+and no list yet, no network is a wait: the status line says `podcasts -
+waiting for a network` with the spinner, and browser_poll() starts the
+fetch the moment net_online() is true. A network that is up and a fetch
+that still fails is reported as before.
+
+The ECDSA lines from 8015 are still in this log, as 8015 said they
+would be: chip revision v1.3 has no usable ECDSA peripheral.

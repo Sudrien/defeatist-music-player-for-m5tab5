@@ -771,6 +771,8 @@ es:
     # browser.c
     "podcasts - checking the Podcast Index key": ~
     # browser.c
+    "podcasts - waiting for a network": ~
+    # browser.c
     "podcasts need a Podcast Index key": ~
     # panel.c
     "port": "puerto"

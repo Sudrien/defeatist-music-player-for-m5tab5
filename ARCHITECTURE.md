@@ -26075,3 +26075,40 @@ The remote's note under Podcast Index says so: the free key "asks for an
 email address to register". Someone deciding whether to bother should
 know that before following the link. The old key is pruned from the
 YAML.
+
+### 8014 -- the PODCAST tab lists Podcast Index's categories
+
+With a working key, the PODCAST tab's rows are categories/list: Arts,
+Business, Comedy and the rest (112 of them in October 2026), as folders,
+in the reply's order. The status line says `N podcast categories`, or
+that it is asking (with the spinner), or that Podcast Index did not
+answer and a tap on PODCAST tries again. A tap on a category is logged
+and does nothing yet -- opening one into its podcasts is the next patch.
+The rows have no stars: there is nothing to keep yet.
+
+**Where the list comes from.** The same request that proves a key
+(8006): a try that works now keeps what it fetched, so a key entered on
+the remote fills the tab without a second request. At boot, with a key
+already saved, the tab's first opening starts podindex_cats_fetch(): a
+`podindex` task (8192 internal, as the try's, because it reads the
+secret from NVS) signs the same GET, and keeps the list in PSRAM.
+podindex_cats() copies it out under the mutex with a generation that
+moves on every change, and browser_poll() rebuilds the rows when it
+does. A failed fetch keeps the last good list.
+
+**Not cJSON.** It is in the build, but its nodes come from plain
+malloc() -- internal RAM, a hundred-odd small allocations for a list
+this size. podcats.h walks the one array of flat objects, quote-aware,
+and hands each object to jsonpick.h for its name, which is the one-flat-
+object job jsonpick.h was written for. A nested object ends the walk.
+texttest run-podcats: the reply as sent, spacing and key order,
+escapes, braces and "id" inside a name, names too long, truncation.
+
+**8007 again, caught this time.** The first draft had `ESP_LOGE(TAG,
+ok ? "..." : "...")`. The stub headers this session checks with now
+define ESP_LOGx the way IDF does, pasting the format beside literals,
+so that is a syntax error there as on the board.
+
+On the board: `I tab5_podindex: 112 categories`, then `stack: N bytes
+never used of 8192`; a tap on a row logs `category N ("Name"): its
+podcasts are not listed yet`.

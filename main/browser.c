@@ -164,6 +164,11 @@ static browser_tab_t s_tab = BROWSER_TAB_SD;
  */
 static bool s_pod;
 static podindex_state_t s_pod_seen;
+/* 8014: the categories the rows were built from, in the same order, so
+ * row i IS category i; and the generation they came from. */
+static podcat_t s_pod_cats[PODCATS_MAX];
+static int      s_pod_n;
+static uint32_t s_pod_gen;
 
 /*
  * The station list, loaded into the same rows the files use.
@@ -707,6 +712,29 @@ void browser_stars_changed(void)
     s_dirty = true;
 }
 
+/* 8014: the PODCAST tab's rows, from podindex.c's list. Folders: each
+ * will open into the podcasts in that category. */
+static void load_pod_rows(void)
+{
+    entries_free();
+    if (!s_entries) {
+        s_entries = heap_caps_calloc(MAX_ENTRIES, sizeof(entry_t), MALLOC_CAP_SPIRAM);
+        if (!s_entries) {
+            ESP_LOGE(TAG, "no PSRAM for the category rows");
+            return;
+        }
+    }
+    (void)podindex_cats(s_pod_cats, PODCATS_MAX, &s_pod_n, &s_pod_gen);
+    for (int i = 0; i < s_pod_n && s_count < MAX_ENTRIES; i++) {
+        s_entries[s_count].name = strdup(s_pod_cats[i].name);
+        if (!s_entries[s_count].name) break;
+        s_entries[s_count].is_dir = true;
+        s_count++;
+    }
+    s_top = 0;
+    s_dirty = true;
+}
+
 static void select_tab(browser_tab_t id)
 {
     const bool same = (id == s_tab);
@@ -722,6 +750,14 @@ static void select_tab(browser_tab_t id)
         s_prefix_len = 0;
         s_dir[0] = '\0';
         s_dirty = true;
+        /* 8014: the categories, fetched the first time the tab is opened
+         * with a working key and again on a tap after a failure -- the
+         * status line says to tap. */
+        if (s_pod_seen == PODINDEX_WORKING) {
+            load_pod_rows();
+            const podindex_cats_t cs = podindex_cats(NULL, 0, NULL, NULL);
+            if (cs == PODINDEX_CATS_NONE || cs == PODINDEX_CATS_FAILED) (void)podindex_cats_fetch();
+        }
         return;
     }
 
@@ -845,6 +881,17 @@ static const char *status_line(void)
 {
     if (s_pod) {                        /* 8008 */
         const podindex_state_t st = podindex_state(NULL, 0, NULL);
+        if (st == PODINDEX_WORKING) {               /* 8014 */
+            static char line[96];
+            const podindex_cats_t cs = podindex_cats(NULL, 0, NULL, NULL);
+            if (cs == PODINDEX_CATS_LOADING) return _("podcasts - asking Podcast Index for its categories");
+            if (cs == PODINDEX_CATS_FAILED && s_count == 0)
+                return _("podcasts - Podcast Index did not answer; tap PODCAST to try again");
+            if (s_count > 0) {
+                snprintf(line, sizeof(line), _p("%d podcast categories", s_count), s_count);
+                return line;
+            }
+        }
         return st == PODINDEX_WORKING  ? _("podcasts - Podcast Index key saved")
              : st == PODINDEX_CHECKING ? _("podcasts - checking the Podcast Index key")
                                        : _("podcasts need a Podcast Index key");
@@ -1171,7 +1218,8 @@ void browser_draw(void)
     }
 
     /* 5067: the spinner moves on the clock, so a new step is a repaint. */
-    const bool spin = s_radio && s_radio_busy;
+    const bool spin = (s_radio && s_radio_busy) ||
+                      (s_pod && podindex_cats(NULL, 0, NULL, NULL) == PODINDEX_CATS_LOADING);  /* 8014 */
     if (spin) {
         const uint32_t step = (uint32_t)(esp_timer_get_time() / 100000);
         if (step != s_spin_frame) {
@@ -1183,6 +1231,12 @@ void browser_draw(void)
     if (s_pod) {
         const podindex_state_t st = podindex_state(NULL, 0, NULL);
         if (st != s_pod_seen) { s_pod_seen = st; s_dirty = true; }
+        /* 8014: a list arrived, or its state moved. */
+        if (podindex_cats_gen() != s_pod_gen) {
+            if (st == PODINDEX_WORKING) load_pod_rows();
+            else s_pod_gen = podindex_cats_gen();
+            s_dirty = true;
+        }
     }
     if (!s_dirty) return;
     s_dirty = false;
@@ -1298,7 +1352,7 @@ void browser_draw(void)
          * one nobody finds. It is drawn dim so that a list with none
          * starred does not read as a column of decorations.
          */
-        const bool starrable = s_radio ? !s_radio_menu : true;
+        const bool starrable = s_radio ? !s_radio_menu : !s_pod;   /* 8014: nothing to star yet */
         const int  name_w = w - 112 - SCROLL_W - (starrable ? STAR_W : 0);
         gfx_draw_text(96, y + (ROW_H - GFX_GLYPH_H(NAME_SCALE)) / 2, label,
                       NAME_SCALE, name_w, playing ? C_ACCENT : C_TEXT);
@@ -1342,17 +1396,16 @@ void browser_draw(void)
      * own address when it is up, else how to turn it on. Paragraphs, so
      * gfx wraps them and a translator gets each whole.
      */
-    if (s_pod) {
+    /* 8014: with a key the rows are the content, and the status line says
+     * what is happening when there are none yet. */
+    if (s_pod && podindex_state(NULL, 0, NULL) != PODINDEX_WORKING) {
         const int px = 32, pw = w - 64, step = GFX_GLYPH_H(LABEL_SCALE) + 10;
         int py = LIST_TOP + 32;
-        const bool have = podindex_state(NULL, 0, NULL) == PODINDEX_WORKING;
-        const char *p1 = have
-            ? _("The Podcast Index key works. Finding and playing podcasts is still to come.")
-            : _("Podcasts are found through Podcast Index, which needs your own free API key "
-                "and secret from api.podcastindex.org. Enter them on the remote's page, "
-                "under Podcast Index:");
+        const char *p1 = _("Podcasts are found through Podcast Index, which needs your own free API key "
+                           "and secret from api.podcastindex.org. Enter them on the remote's page, "
+                           "under Podcast Index:");
         py += step * gfx_draw_para(px, py, p1, LABEL_SCALE, pw, step, 12, C_TEXT);
-        if (!have) {
+        {
             char url[48];
             py += step;
             if (remote_running() && remote_url(url, sizeof(url))) {
@@ -1602,8 +1655,16 @@ browser_result_t browser_touch(bool down, int x, int y)
     if (i >= s_count) return res;
 
     ESP_LOGI(TAG, "button: row %d (%s) \"%s\"", i,
-             s_radio ? "station" : s_entries[i].is_dir ? "dir" : "file",
+             s_pod ? "category" : s_radio ? "station" : s_entries[i].is_dir ? "dir" : "file",
              s_entries[i].name);
+
+    if (s_pod) {
+        /* 8014: a category row. Opening one into its podcasts is the next
+         * step; until then the tap is logged and does nothing. */
+        ESP_LOGI(TAG, "category %d (\"%s\"): its podcasts are not listed yet",
+                 s_pod_cats[i].id, s_entries[i].name);
+        return res;
+    }
 
     if (s_radio && s_radio_menu) {
         /*

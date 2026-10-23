@@ -562,8 +562,6 @@ zh-CN:
     "That needs a stream address.": "需要填写流地址。"
     # portal.c
     "That network was not found. Check the name and try again.": "找不到该网络。请检查名称后重试。"
-    # browser.c
-    "The Podcast Index key works. Finding and playing podcasts is still to come.": ~
     # recorder.c
     "The USB microphone did not start.": "USB 麦克风未能启动。"
     # recorder.c
@@ -765,7 +763,11 @@ zh-CN:
     # player.c
     "plug in to keep playing": "请接上电源继续播放"
     # browser.c
+    "podcasts - Podcast Index did not answer; tap PODCAST to try again": ~
+    # browser.c
     "podcasts - Podcast Index key saved": ~
+    # browser.c
+    "podcasts - asking Podcast Index for its categories": ~
     # browser.c
     "podcasts - checking the Podcast Index key": ~
     # browser.c
@@ -843,6 +845,8 @@ zh-CN:
       other: "已有 %d 个应用连接。"
     "%d hidden networks nearby. A hidden network's name has to be typed.":
       other: "附近有 %d 个隐藏网络。隐藏网络的名称需要手动输入。"
+    "%d podcast categories":
+      other: ~
     "%d stations from %s":
       other: "%d 个电台，来自 %s"
     "%d tracks":

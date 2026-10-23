@@ -9,7 +9,7 @@
 #include <stddef.h>
 #include "i18n.h"
 
-const unsigned i18n_count = 415;
+const unsigned i18n_count = 416;
 const char *const i18n_keys[] = {
     "%.32s did not work. Try again.",
     "%d h",
@@ -289,7 +289,6 @@ const char *const i18n_keys[] = {
     "That name cannot be used. Names are up to 63 characters and cannot start with a #.",
     "That needs a stream address.",
     "That network was not found. Check the name and try again.",
-    "The Podcast Index key works. Finding and playing podcasts is still to come.",
     "The USB microphone did not start.",
     "The USB microphone has no 16- or 24-bit format.",
     "The USB microphone is not there any more.",
@@ -390,7 +389,9 @@ const char *const i18n_keys[] = {
     "optional",
     "playback stopped",
     "plug in to keep playing",
+    "podcasts - Podcast Index did not answer; tap PODCAST to try again",
     "podcasts - Podcast Index key saved",
+    "podcasts - asking Podcast Index for its categories",
     "podcasts - checking the Podcast Index key",
     "podcasts need a Podcast Index key",
     "port",
@@ -709,7 +710,6 @@ const unsigned char i18n_on_screen[] = {
     0,  /* 'That name cannot be used. Names are up t' */
     0,  /* 'That needs a stream address.' */
     0,  /* 'That network was not found. Check the na' */
-    1,  /* 'The Podcast Index key works. Finding and' */
     1,  /* 'The USB microphone did not start.' */
     1,  /* 'The USB microphone has no 16- or 24-bit ' */
     1,  /* 'The USB microphone is not there any more' */
@@ -810,7 +810,9 @@ const unsigned char i18n_on_screen[] = {
     0,  /* 'optional' */
     1,  /* 'playback stopped' */
     1,  /* 'plug in to keep playing' */
+    1,  /* 'podcasts - Podcast Index did not answer;' */
     1,  /* 'podcasts - Podcast Index key saved' */
+    1,  /* 'podcasts - asking Podcast Index for its ' */
     1,  /* 'podcasts - checking the Podcast Index ke' */
     1,  /* 'podcasts need a Podcast Index key' */
     1,  /* 'port' */
@@ -851,6 +853,7 @@ const unsigned char i18n_pon_screen[] = {
     1,
     1,
     0,
+    1,
     1,
     0,
     1,
@@ -1140,7 +1143,6 @@ const char *const i18n_vals[] = {
     NULL,
     NULL,
     NULL,
-    NULL,
     "The USB microphone\012did not start.",
     "The USB microphone has\012no 16- or 24-bit format.",
     "The USB microphone is\012not there any more.",
@@ -1228,6 +1230,8 @@ const char *const i18n_vals[] = {
     NULL,
     NULL,
     "no network - check Wi-Fi or cable, tap again",
+    NULL,
+    NULL,
     NULL,
     NULL,
     NULL,
@@ -1556,7 +1560,6 @@ const char *const i18n_vals[] = {
     "该名称不可用。名称最多 63 个字符，且不能以 # 开头。",
     "需要填写流地址。",
     "找不到该网络。请检查名称后重试。",
-    NULL,
     "USB 麦克风未能启动。",
     "USB 麦克风\012不支持 16 或 24 位格式。",
     "USB 麦克风已不在。",
@@ -1657,6 +1660,8 @@ const char *const i18n_vals[] = {
     "可选",
     "播放已停止",
     "请接上电源继续播放",
+    NULL,
+    NULL,
     NULL,
     NULL,
     NULL,
@@ -1972,7 +1977,6 @@ const char *const i18n_vals[] = {
     "その名前は使えません。名前は63文字までで、# で始めることはできません。",
     "ストリームのアドレスが必要です。",
     "そのネットワークが見つかりません。名前を確認してもう一度お試しください。",
-    NULL,
     "USBマイクが\012起動しなかった。",
     "USBマイクに\01216/24ビット形式がない。",
     "USBマイクが\012もう見つからない。",
@@ -2073,6 +2077,8 @@ const char *const i18n_vals[] = {
     "省略可",
     "再生停止",
     "給電して再生を続ける",
+    NULL,
+    NULL,
     NULL,
     NULL,
     NULL,
@@ -2388,7 +2394,6 @@ const char *const i18n_vals[] = {
     "Ese nombre no se puede usar. Los nombres tienen hasta 63 caracteres y no pueden empezar por #.",
     "Falta la dirección del flujo.",
     "No se encontró esa red. Revisa el nombre e inténtalo otra vez.",
-    NULL,
     "El micrófono USB\012no arrancó.",
     "El micrófono USB no tiene\012formato de 16 ni 24 bits.",
     "El micrófono USB\012ya no está.",
@@ -2489,6 +2494,8 @@ const char *const i18n_vals[] = {
     "opcional",
     "reproducción detenida",
     "conéctalo para seguir",
+    NULL,
+    NULL,
     NULL,
     NULL,
     NULL,
@@ -2804,7 +2811,6 @@ const char *const i18n_vals[] = {
     "Esse nome não pode ser usado. Os nomes têm até 63 caracteres e não podem começar com #.",
     "Falta o endereço do stream.",
     "Essa rede não foi encontrada. Confira o nome e tente de novo.",
-    NULL,
     "O microfone USB\012não iniciou.",
     "O microfone USB não tem\012formato 16 ou 24 bits.",
     "O microfone USB\012não está mais lá.",
@@ -2905,6 +2911,8 @@ const char *const i18n_vals[] = {
     "opcional",
     "reprodução parada",
     "conecte para continuar",
+    NULL,
+    NULL,
     NULL,
     NULL,
     NULL,
@@ -3220,7 +3228,6 @@ const char *const i18n_vals[] = {
     "Ce nom n'est pas utilisable. Un nom fait au plus 63 caractères et ne peut pas commencer par #.",
     "Il faut une adresse de flux.",
     "Ce réseau est introuvable. Vérifiez le nom et réessayez.",
-    NULL,
     "Le micro USB n'a pas\012démarré.",
     "Le micro USB n'a pas de\012format 16 ou 24 bits.",
     "Le micro USB n'est\012plus là.",
@@ -3321,6 +3328,8 @@ const char *const i18n_vals[] = {
     "facultatif",
     "lecture arrêtée",
     "branchez pour continuer",
+    NULL,
+    NULL,
     NULL,
     NULL,
     NULL,
@@ -3636,7 +3645,6 @@ const char *const i18n_vals[] = {
     "Questo nome non si può usare. I nomi hanno al massimo 63 caratteri e non possono iniziare con #.",
     "Manca l'indirizzo dello stream.",
     "Rete non trovata. Controlla il nome e riprova.",
-    NULL,
     "Il microfono USB non\012si è avviato.",
     "Il microfono USB non ha\012formato a 16 o 24 bit.",
     "Il microfono USB\012non c'è più.",
@@ -3740,6 +3748,8 @@ const char *const i18n_vals[] = {
     NULL,
     NULL,
     NULL,
+    NULL,
+    NULL,
     "porta",
     "prodotto",
     "coda, file, impostazioni, radio",
@@ -3775,11 +3785,12 @@ const char *const i18n_vals[] = {
     "danneggiato; reindicizza lo rifà",
 };
 
-const unsigned i18n_pcount = 9;
+const unsigned i18n_pcount = 10;
 const char *const i18n_pkeys[] = {
     "%d allowed. FORGET makes each ask again.",
     "%d apps connected.",
     "%d hidden networks nearby. A hidden network's name has to be typed.",
+    "%d podcast categories",
     "%d stations from %s",
     "%d tracks",
     "%d tracks (+%d ~%d -%d), %d s",
@@ -3795,6 +3806,7 @@ const char *const i18n_pvals[] = {
     "%d allowed. FORGET makes it ask again.", NULL,
     "%d app connected.", NULL,
     "%d hidden network nearby. A hidden network's name has to be typed.", NULL,
+    NULL, NULL,
     "%d station from %s", NULL,
     "%d track", NULL,
     "%d track (+%d ~%d -%d), %d s", NULL,
@@ -3805,6 +3817,7 @@ const char *const i18n_pvals[] = {
     NULL, "已允许 %d 个。清除后需重新请求。",
     NULL, "已有 %d 个应用连接。",
     NULL, "附近有 %d 个隐藏网络。隐藏网络的名称需要手动输入。",
+    NULL, NULL,
     NULL, "%d 个电台，来自 %s",
     NULL, "%d 首",
     NULL, "%d 首 (+%d ~%d -%d)，%d 秒",
@@ -3815,6 +3828,7 @@ const char *const i18n_pvals[] = {
     NULL, "%d 件を許可済み。消去すると再度の許可が必要。",
     NULL, "%d 個のアプリが接続中。",
     NULL, "近くに非公開のネットワークが %d 件あります。非公開のネットワーク名は入力が必要です。",
+    NULL, NULL,
     NULL, "%d 局、%s から",
     NULL, "%d 曲",
     NULL, "%d 曲 (+%d ~%d -%d)、%d 秒",
@@ -3825,6 +3839,7 @@ const char *const i18n_pvals[] = {
     "%d permitido. OLVIDAR hace que vuelva a preguntar.", "%d permitidos. OLVIDAR hace que cada uno vuelva a preguntar.",
     "%d app conectada.", "%d apps conectadas.",
     "%d red oculta cerca. El nombre de una red oculta hay que escribirlo.", "%d redes ocultas cerca. El nombre de una red oculta hay que escribirlo.",
+    NULL, NULL,
     "%d emisora de %s", "%d emisoras de %s",
     "%d pista", "%d pistas",
     "%d pista (+%d ~%d -%d), %d s", "%d pistas (+%d ~%d -%d), %d s",
@@ -3835,6 +3850,7 @@ const char *const i18n_pvals[] = {
     "%d permitido. ESQUECER faz ele pedir de novo.", "%d permitidos. ESQUECER faz cada um pedir de novo.",
     "%d app conectado.", "%d apps conectados.",
     "%d rede oculta por perto. O nome de uma rede oculta precisa ser digitado.", "%d redes ocultas por perto. O nome de uma rede oculta precisa ser digitado.",
+    NULL, NULL,
     "%d rádio de %s", "%d rádios de %s",
     "%d faixa", "%d faixas",
     "%d faixa (+%d ~%d -%d), %d s", "%d faixas (+%d ~%d -%d), %d s",
@@ -3845,6 +3861,7 @@ const char *const i18n_pvals[] = {
     "%d autorisé. OUBLIER l'oblige à redemander.", "%d autorisés. OUBLIER oblige chacun à redemander.",
     "%d app connectée.", "%d apps connectées.",
     "%d réseau masqué à proximité. Le nom d'un réseau masqué doit être saisi.", "%d réseaux masqués à proximité. Le nom d'un réseau masqué doit être saisi.",
+    NULL, NULL,
     "%d radio de %s", "%d radios de %s",
     "%d piste", "%d pistes",
     "%d piste (+%d ~%d -%d), %d s", "%d pistes (+%d ~%d -%d), %d s",
@@ -3855,6 +3872,7 @@ const char *const i18n_pvals[] = {
     "%d consentito. AZZERA lo fa richiedere.", "%d consentiti. AZZERA li fa richiedere tutti.",
     "%d app collegata.", "%d app collegate.",
     "%d rete nascosta vicina. Il nome di una rete nascosta va scritto.", "%d reti nascoste vicine. Il nome di una rete nascosta va scritto.",
+    NULL, NULL,
     "%d radio da %s", "%d radio da %s",
     "%d brano", "%d brani",
     "%d brano (+%d ~%d -%d), %d s", "%d brani (+%d ~%d -%d), %d s",

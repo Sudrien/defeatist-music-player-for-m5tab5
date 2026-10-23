@@ -562,8 +562,6 @@ fr:
     "That needs a stream address.": "Il faut une adresse de flux."
     # portal.c
     "That network was not found. Check the name and try again.": "Ce réseau est introuvable. Vérifiez le nom et réessayez."
-    # browser.c
-    "The Podcast Index key works. Finding and playing podcasts is still to come.": ~
     # recorder.c
     "The USB microphone did not start.": "Le micro USB n'a pas\ndémarré."
     # recorder.c
@@ -765,7 +763,11 @@ fr:
     # player.c
     "plug in to keep playing": "branchez pour continuer"
     # browser.c
+    "podcasts - Podcast Index did not answer; tap PODCAST to try again": ~
+    # browser.c
     "podcasts - Podcast Index key saved": ~
+    # browser.c
+    "podcasts - asking Podcast Index for its categories": ~
     # browser.c
     "podcasts - checking the Podcast Index key": ~
     # browser.c
@@ -846,6 +848,9 @@ fr:
     "%d hidden networks nearby. A hidden network's name has to be typed.":
       one: "%d réseau masqué à proximité. Le nom d'un réseau masqué doit être saisi."
       other: "%d réseaux masqués à proximité. Le nom d'un réseau masqué doit être saisi."
+    "%d podcast categories":
+      one: ~
+      other: ~
     "%d stations from %s":
       one: "%d radio de %s"
       other: "%d radios de %s"

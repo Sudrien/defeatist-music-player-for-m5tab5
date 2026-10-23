@@ -21,6 +21,7 @@
 
 #include "nvsns.h"
 #include "podauth.h"
+#include "podcats.h"          /* 8014 */
 #include "radiobrowser.h"       /* RADIOBROWSER_UA_FMT: the same name */
 #include "settings.h"           /* settings_now(), settings_time_verified() */
 
@@ -48,6 +49,19 @@ static podindex_state_t  s_state;
 static int               s_http;
 static char              s_key[PODAUTH_KEY_MAX];       /* the saved key, or the one being tried */
 static char              s_secret[PODAUTH_SECRET_MAX]; /* only while CHECKING */
+
+/*
+ * 8014: the categories, from the same categories/list that proves a key.
+ * A try that works keeps what it fetched; at boot, with a key already
+ * saved, the PODCAST tab asks for them (podindex_cats_fetch()). PSRAM,
+ * allocated on the first list kept. s_cats_gen moves whenever the list
+ * or its state does, so the chooser knows to rebuild its rows.
+ */
+static podcat_t          *s_cats;
+static int                s_cats_n;
+static podindex_cats_t    s_cats_state;
+static uint32_t           s_cats_gen;
+static bool               s_cats_busy;           /* a fetch task is running */
 
 static void set(podindex_state_t st, int http)
 {
@@ -129,6 +143,29 @@ static int ask(const char *key, const char *secret, char *body, size_t *got)
     return status;
 }
 
+/* 8014: parse `body` into the list, under the mutex. False if it held
+ * no categories. */
+static bool keep_cats(const char *body, size_t got)
+{
+    podcat_t *tmp = heap_caps_malloc(PODCATS_MAX * sizeof(podcat_t),
+                                     MALLOC_CAP_SPIRAM | MALLOC_CAP_8BIT);
+    if (!tmp) return false;
+    const int n = podcats_parse(body, got, tmp, PODCATS_MAX);
+    xSemaphoreTake(s_mu, portMAX_DELAY);
+    if (n > 0) {
+        podcat_t *old = s_cats;
+        s_cats = tmp;
+        s_cats_n = n;
+        tmp = old;
+    }
+    s_cats_state = n > 0 ? PODINDEX_CATS_READY : PODINDEX_CATS_FAILED;
+    s_cats_gen++;
+    xSemaphoreGive(s_mu);
+    free(tmp);
+    ESP_LOGI(TAG, "%d categories", n);
+    return n > 0;
+}
+
 static bool save(const char *key, const char *secret)
 {
     nvs_handle_t h;
@@ -162,6 +199,7 @@ static void try_task(void *arg)
             if (save(key, secret)) {
                 st = PODINDEX_WORKING;
                 ESP_LOGI(TAG, "the API key works; saved (%u bytes of categories)", (unsigned)got);
+                (void)keep_cats(body, got);         /* 8014: the same reply */
             } else {
                 ESP_LOGE(TAG, "the API key works, but NVS would not take it");
             }
@@ -186,6 +224,89 @@ static void try_task(void *arg)
              (unsigned)uxTaskGetStackHighWaterMark(NULL), (unsigned)PI_STACK);
     set(st, st == PODINDEX_WORKING ? 0 : status);
     vTaskDelete(NULL);
+}
+
+/* 8014: categories/list with the saved pair. The secret is read from
+ * NVS here, on this task's internal stack, and nowhere else. */
+static void cats_task(void *arg)
+{
+    (void)arg;
+    static char key[PODAUTH_KEY_MAX], secret[PODAUTH_SECRET_MAX];
+    bool ok = false;
+    nvs_handle_t h;
+    if (nvs_open(DEFEATIST_NVS_NS, NVS_READONLY, &h) == ESP_OK) {
+        size_t kn = sizeof(key), sn = sizeof(secret);
+        ok = nvs_get_str(h, NVS_KEY_KEY, key, &kn) == ESP_OK &&
+             nvs_get_str(h, NVS_KEY_SECRET, secret, &sn) == ESP_OK;
+        nvs_close(h);
+    }
+    char *body = ok ? heap_caps_malloc(PI_BODY_MAX, MALLOC_CAP_SPIRAM | MALLOC_CAP_8BIT) : NULL;
+    bool kept = false;
+    if (body) {
+        size_t got = 0;
+        const int status = ask(key, secret, body, &got);
+        if (status == 200 && podauth_reply_ok(body, got)) kept = keep_cats(body, got);
+        else if (status) ESP_LOGW(TAG, "categories: HTTP %d", status);
+        else             ESP_LOGW(TAG, "categories: no connection");
+        free(body);
+    } else {
+        /* Two calls, for 8007's reason. */
+        if (ok) ESP_LOGE(TAG, "no PSRAM for the categories");
+        else    ESP_LOGE(TAG, "categories: no saved key");
+    }
+    memset(secret, 0, sizeof(secret));
+    ESP_LOGI(TAG, "stack: %u bytes never used of %u",
+             (unsigned)uxTaskGetStackHighWaterMark(NULL), (unsigned)PI_STACK);
+    xSemaphoreTake(s_mu, portMAX_DELAY);
+    if (!kept) { s_cats_state = PODINDEX_CATS_FAILED; s_cats_gen++; }
+    s_cats_busy = false;
+    xSemaphoreGive(s_mu);
+    vTaskDelete(NULL);
+}
+
+bool podindex_cats_fetch(void)
+{
+    xSemaphoreTake(s_mu, portMAX_DELAY);
+    if (s_state != PODINDEX_WORKING || s_cats_busy) {
+        xSemaphoreGive(s_mu);
+        return false;
+    }
+    s_cats_busy = true;
+    s_cats_state = PODINDEX_CATS_LOADING;
+    s_cats_gen++;
+    xSemaphoreGive(s_mu);
+    if (xTaskCreate(cats_task, "podindex", PI_STACK, NULL, 3, NULL) != pdPASS) {
+        xSemaphoreTake(s_mu, portMAX_DELAY);
+        s_cats_busy = false;
+        s_cats_state = PODINDEX_CATS_FAILED;
+        s_cats_gen++;
+        xSemaphoreGive(s_mu);
+        return false;
+    }
+    return true;
+}
+
+podindex_cats_t podindex_cats(podcat_t *out, int max, int *n, uint32_t *gen)
+{
+    xSemaphoreTake(s_mu, portMAX_DELAY);
+    const podindex_cats_t st = s_cats_state;
+    int k = 0;
+    if (out && s_cats) {
+        k = s_cats_n < max ? s_cats_n : max;
+        memcpy(out, s_cats, (size_t)k * sizeof(podcat_t));
+    }
+    if (n) *n = k;
+    if (gen) *gen = s_cats_gen;
+    xSemaphoreGive(s_mu);
+    return st;
+}
+
+uint32_t podindex_cats_gen(void)
+{
+    xSemaphoreTake(s_mu, portMAX_DELAY);
+    const uint32_t g = s_cats_gen;
+    xSemaphoreGive(s_mu);
+    return g;
 }
 
 podindex_try_t podindex_try(const char *key, const char *secret)

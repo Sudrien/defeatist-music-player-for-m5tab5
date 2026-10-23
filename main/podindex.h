@@ -16,6 +16,9 @@
 
 #include <stdbool.h>
 #include <stddef.h>
+#include <stdint.h>
+
+#include "podcats.h"          /* 8014: podcat_t */
 
 #ifdef __cplusplus
 extern "C" {
@@ -49,6 +52,29 @@ podindex_state_t podindex_state(char *key, size_t key_size, int *http);
 
 /* Tries `key` and `secret`; copies both. Any task. */
 podindex_try_t podindex_try(const char *key, const char *secret);
+
+/*
+ * 8014: Podcast Index's categories. NONE until something asks; a key
+ * that works on the remote keeps the list its check fetched, so READY
+ * follows straight on. FAILED keeps the last good list, if there was
+ * one.
+ */
+typedef enum {
+    PODINDEX_CATS_NONE,
+    PODINDEX_CATS_LOADING,
+    PODINDEX_CATS_READY,
+    PODINDEX_CATS_FAILED,
+} podindex_cats_t;
+
+/* Fetch the list with the saved key, on a task of its own. False when
+ * there is no working key or a fetch is already running. Any task. */
+bool podindex_cats_fetch(void);
+
+/* Up to `max` categories into `out` (NULL for none), how many in *n,
+ * and the generation, which moves with every change to the list or its
+ * state. Any task. */
+podindex_cats_t podindex_cats(podcat_t *out, int max, int *n, uint32_t *gen);
+uint32_t podindex_cats_gen(void);
 
 #ifdef __cplusplus
 }

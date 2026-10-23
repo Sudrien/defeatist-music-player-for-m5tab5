@@ -562,8 +562,6 @@ pt:
     "That needs a stream address.": "Falta o endereço do stream."
     # portal.c
     "That network was not found. Check the name and try again.": "Essa rede não foi encontrada. Confira o nome e tente de novo."
-    # browser.c
-    "The Podcast Index key works. Finding and playing podcasts is still to come.": ~
     # recorder.c
     "The USB microphone did not start.": "O microfone USB\nnão iniciou."
     # recorder.c
@@ -765,7 +763,11 @@ pt:
     # player.c
     "plug in to keep playing": "conecte para continuar"
     # browser.c
+    "podcasts - Podcast Index did not answer; tap PODCAST to try again": ~
+    # browser.c
     "podcasts - Podcast Index key saved": ~
+    # browser.c
+    "podcasts - asking Podcast Index for its categories": ~
     # browser.c
     "podcasts - checking the Podcast Index key": ~
     # browser.c
@@ -846,6 +848,9 @@ pt:
     "%d hidden networks nearby. A hidden network's name has to be typed.":
       one: "%d rede oculta por perto. O nome de uma rede oculta precisa ser digitado."
       other: "%d redes ocultas por perto. O nome de uma rede oculta precisa ser digitado."
+    "%d podcast categories":
+      one: ~
+      other: ~
     "%d stations from %s":
       one: "%d rádio de %s"
       other: "%d rádios de %s"

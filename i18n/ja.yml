@@ -562,8 +562,6 @@ ja:
     "That needs a stream address.": "ストリームのアドレスが必要です。"
     # portal.c
     "That network was not found. Check the name and try again.": "そのネットワークが見つかりません。名前を確認してもう一度お試しください。"
-    # browser.c
-    "The Podcast Index key works. Finding and playing podcasts is still to come.": ~
     # recorder.c
     "The USB microphone did not start.": "USBマイクが\n起動しなかった。"
     # recorder.c
@@ -765,7 +763,11 @@ ja:
     # player.c
     "plug in to keep playing": "給電して再生を続ける"
     # browser.c
+    "podcasts - Podcast Index did not answer; tap PODCAST to try again": ~
+    # browser.c
     "podcasts - Podcast Index key saved": ~
+    # browser.c
+    "podcasts - asking Podcast Index for its categories": ~
     # browser.c
     "podcasts - checking the Podcast Index key": ~
     # browser.c
@@ -843,6 +845,8 @@ ja:
       other: "%d 個のアプリが接続中。"
     "%d hidden networks nearby. A hidden network's name has to be typed.":
       other: "近くに非公開のネットワークが %d 件あります。非公開のネットワーク名は入力が必要です。"
+    "%d podcast categories":
+      other: ~
     "%d stations from %s":
       other: "%d 局、%s から"
     "%d tracks":

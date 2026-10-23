@@ -26145,3 +26145,19 @@ that still fails is reported as before.
 
 The ECDSA lines from 8015 are still in this log, as 8015 said they
 would be: chip revision v1.3 has no usable ECDSA peripheral.
+
+### 8017 -- hardware ECDSA off
+
+8015 wrote CONFIG_MBEDTLS_HARDWARE_ECDSA_SIGN and _VERIFY down as y, and
+on this board's P4 (v1.3) that is what produced the errors: each
+signature tries the peripheral, logs `E psa_crypto_driver_esp_ecdsa:
+ECDSA peripheral not supported on this chip revision`, and is then
+checked in software. Both are =n now -- written =n rather than "is not
+set" so cmake/defaults_check.cmake reads them -- and the check goes
+straight to the same software, without the line. MPI and ECC stay on.
+A later chip revision with a working peripheral would want them back.
+
+What proves it took, after `rm sdkconfig`: the configure step's defaults
+check names neither key, `grep ECDSA sdkconfig` shows both "is not set",
+and a Podcast Index fetch logs `112 categories` with no
+psa_crypto_driver_esp_ecdsa line before it.

@@ -436,8 +436,13 @@ CONFIG_SPIRAM_TRY_ALLOCATE_WIFI_LWIP=y
 # rm sdkconfig before building, as above.
 CONFIG_MBEDTLS_HARDWARE_MPI=y
 CONFIG_MBEDTLS_HARDWARE_ECC=y
-CONFIG_MBEDTLS_HARDWARE_ECDSA_SIGN=y
-CONFIG_MBEDTLS_HARDWARE_ECDSA_VERIFY=y
+# 8017: ...and so ECDSA is off. With it on, every signature on v1.3 is a
+# failed try at the peripheral, an E-level log line, and then the same
+# software check this gives directly. Written =n, not "is not set", so
+# cmake/defaults_check.cmake checks them. A board with a later revision
+# that has the peripheral would want these back on.
+CONFIG_MBEDTLS_HARDWARE_ECDSA_SIGN=n
+CONFIG_MBEDTLS_HARDWARE_ECDSA_VERIFY=n
 
 # ---------------------------------------------------------------------------
 # 5054: SMALL ALLOCATIONS TO PSRAM TOO.

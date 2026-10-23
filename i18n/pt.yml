@@ -54,6 +54,8 @@ pt:
     "5 min": "5 min"
     # portal.c, remote.c
     "A Wi-Fi password is 8 to 63 characters, or 64 hex digits.": "Uma senha de Wi-Fi tem de 8 a 63 caracteres, ou 64 dígitos hexadecimais."
+    # remote.html
+    "A key and a secret are letters, digits and punctuation, with no spaces.": ~
     # portal.c, remote.c
     "A network name is 1 to 32 characters.": "Um nome de rede tem de 1 a 32 caracteres."
     # panel.c
@@ -62,8 +64,14 @@ pt:
     "A sign-in page opens with the form.": "Abre uma página de login com o formulário."
     # sleeppage.c
     "A tap anywhere brings it back, and does not press anything.": "Um toque em qualquer lugar a traz de volta, sem apertar nada."
+    # remote.html
+    "A working key is already saved.": ~
     # browser.c
     "ALL": "TODAS"
+    # remote.html
+    "API key": ~
+    # remote.html
+    "API secret": ~
     # panel.c
     "AUTO": "AUTO"
     # panel.c
@@ -102,6 +110,8 @@ pt:
     "Already recording.": "Já está gravando."
     # remote.html
     "Ask the player": "Perguntar ao player"
+    # remote.html
+    "Asking Podcast Index…": ~
     # panel.c
     "Auto: USB, jack, mono. Off: no record.": "Auto: USB, P2, mono. Não: sem gravar."
     # ui.c
@@ -128,7 +138,7 @@ pt:
     "Brightness   %d%%": "Brilho   %d%%"
     # streamplan.h
     "Buffering": "Carregando"
-    # remote.c
+    # remote.c, remote.html
     "Busy; try again in a moment.": "Ocupado; tente de novo em instantes."
     # ui.c
     "CHARGED": "CARREGADA"
@@ -396,6 +406,14 @@ pt:
     "Play, pause, skip, seek and volume from an MPD app such as MALP or mpc.": "Tocar, pausar, pular, avançar e volume de um app MPD como MALP ou mpc."
     # panel.c
     "Playback pauses while setup runs.": "A reprodução pausa durante a configuração."
+    # remote.html
+    "Podcast Index answered with something the player did not expect.": ~
+    # remote.html
+    "Podcast Index refused that key and secret.": ~
+    # remote.html
+    "Podcast Index refused that key and secret. The player's clock has not been set from the network yet, and a wrong clock is refused the same way.": ~
+    # remote.html
+    "Podcast directory search needs your own free API key and secret from api.podcastindex.org. The player tries them before saving them, and once they work this form is locked.": ~
     # sleeppage.c, ui.c
     "Power off": "Desligar"
     # ui.c
@@ -566,7 +584,11 @@ pt:
     "The password did not work. Try again.": "A senha não funcionou. Tente de novo."
     # remote.c
     "The password has a character a Wi-Fi password cannot have -- often a phone's smart punctuation. Retype it with that turned off.": "A senha tem um caractere que uma senha de Wi-Fi não aceita; geralmente é a pontuação inteligente do celular. Digite de novo com isso desligado."
-    # remote.c
+    # remote.html
+    "The player could not reach Podcast Index.": ~
+    # remote.html
+    "The player could not save that. Try again.": ~
+    # remote.c, remote.html
     "The player could not start that. Try again.": "O player não conseguiu iniciar. Tente de novo."
     # remote.html
     "The player did not answer.": "O player não respondeu."
@@ -608,6 +630,8 @@ pt:
     "Touch anywhere to wake it.": "Toque em qualquer lugar para acordá-la."
     # panel.c
     "Track: back to matching when a new track starts. Repeat one is not a new track.": "Faixa: volta ao normal quando começa uma nova faixa. REPETE 1 não é uma nova faixa."
+    # remote.html
+    "Try and save": ~
     # panel.c
     "Trying %.32s…": "Testando %.32s…"
     # portal.c
@@ -646,6 +670,8 @@ pt:
     "Web setup is open": "Ajuste web aberto"
     # remote.c
     "Wi-Fi is off on the player.": "O Wi-Fi do player está desligado."
+    # remote.html
+    "Working. The key and secret are saved on the player.": ~
     # remote.html
     "You are reaching the player over Wi-Fi. Joining a different network drops this page; the player's NET tab shows which network it ended up on, and if the join fails it goes back to its saved networks within a minute.": "Você está acessando o player pelo Wi-Fi. Conectá-lo a outra rede derruba esta página; a aba NET do player mostra em qual rede ele ficou, e se a conexão falhar ele volta às redes salvas em menos de um minuto."
     # panel.c
@@ -742,6 +768,8 @@ pt:
     "radio - the card, the charts, or a tag": "rádio - o cartão, os rankings ou uma tag"
     # panel.c
     "route": "saída"
+    # remote.html
+    "saved on the player": ~
     # panel.c
     "sector": "setor"
     # player.c

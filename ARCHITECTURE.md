@@ -25946,3 +25946,45 @@ artifact downloaded from the run checks the same way. The job needs
 `id-token: write` (the signing certificate) and `attestations: write`.
 Releases before this one have no attestation and cannot be checked.
 Not yet run on CI.
+### 8006 -- a Podcast Index key, tried before it is kept
+
+Podcast Index (api.podcastindex.org) is the podcast directory this
+player will search. Every request is signed: `X-Auth-Key`, `X-Auth-Date`
+(unix seconds) and `Authorization`, the lower-hex SHA-1 of key + secret +
+that date. The key is **the listener's**, not the firmware's: the secret
+is the whole of the authentication, the source is public, and a built-in
+key would be everyone's, share one rate limit and be revoked for all at
+once. Signing up is free.
+
+**Typed on the remote, below Wi-Fi.** `/podindex` GET is the state;
+POST takes `key` and `secret`. podindex.c does not save on the strength
+of the form: a task (`podindex`) asks for categories/list with the pair,
+and only a 200 carrying `"status":"true"` -- their string, not JSON's
+true -- puts `pi_key` and `pi_sec` in NVS. From then on the state is
+WORKING, the page shows the key read-only and the secret not at all, and
+podindex_try() refuses another pair whatever the page does. There is no
+forget yet; a revoked key is a follow-up's problem.
+
+**The clock is part of the signature.** A date a few minutes off is
+refused in the same words as a wrong secret, so a 401/403 before NTP has
+answered this boot (settings_time_verified()) is reported as "the clock
+has not been set from the network yet" rather than as a bad key.
+
+**SHA-1 is podauth.h's own**, sixty lines, rather than Mbed TLS's: IDF 5
+has mbedtls_sha1() and IDF 6 has PSA, PSA_WANT_ALG_SHA_1 is a config
+choice this repository has not made, and a header that small is tested
+whole on the host (texttest run-podauth: FIPS 180 vectors, one header
+worked with Python's hashlib, what the form refuses, what counts as an
+answer). It signs a request and protects nothing at rest.
+
+**The task's stack is a guess.** 8192 internal (it writes NVS, and
+esp_http_client's TLS handshake runs on it), ui_task's size, which already
+runs radiobrowser's HTTPS fetches. The reply buffer (16 KB) is PSRAM for
+the length of a try. The task logs its high-water mark every try, so the
+board run gives the number to size against.
+
+The remote's handler limit goes from 12 to 14 for the two new URIs.
+
+On the board: `I tab5_podindex: the API key works; saved (N bytes of
+categories)` and `I tab5_podindex: stack: N bytes never used of 8192`;
+at the next boot `I tab5_podindex: an API key is saved`.

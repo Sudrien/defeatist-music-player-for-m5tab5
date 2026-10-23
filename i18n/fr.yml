@@ -54,6 +54,8 @@ fr:
     "5 min": "5 min"
     # portal.c, remote.c
     "A Wi-Fi password is 8 to 63 characters, or 64 hex digits.": "Un mot de passe Wi-Fi fait de 8 à 63 caractères, ou 64 chiffres hexadécimaux."
+    # remote.html
+    "A key and a secret are letters, digits and punctuation, with no spaces.": ~
     # portal.c, remote.c
     "A network name is 1 to 32 characters.": "Un nom de réseau fait de 1 à 32 caractères."
     # panel.c
@@ -62,8 +64,14 @@ fr:
     "A sign-in page opens with the form.": "Une page de connexion s'ouvre avec le formulaire."
     # sleeppage.c
     "A tap anywhere brings it back, and does not press anything.": "Un toucher n'importe où la rallume, sans rien actionner."
+    # remote.html
+    "A working key is already saved.": ~
     # browser.c
     "ALL": "TOUT"
+    # remote.html
+    "API key": ~
+    # remote.html
+    "API secret": ~
     # panel.c
     "AUTO": "AUTO"
     # panel.c
@@ -102,6 +110,8 @@ fr:
     "Already recording.": "Déjà en cours."
     # remote.html
     "Ask the player": "Demander au lecteur"
+    # remote.html
+    "Asking Podcast Index…": ~
     # panel.c
     "Auto: USB, jack, mono. Off: no record.": "Auto : USB, prise, mono. Non : pas d'enregistrement."
     # ui.c
@@ -128,7 +138,7 @@ fr:
     "Brightness   %d%%": "Luminosité   %d%%"
     # streamplan.h
     "Buffering": "En tampon"
-    # remote.c
+    # remote.c, remote.html
     "Busy; try again in a moment.": "Occupé ; réessayez dans un instant."
     # ui.c
     "CHARGED": "CHARGÉE"
@@ -396,6 +406,14 @@ fr:
     "Play, pause, skip, seek and volume from an MPD app such as MALP or mpc.": "Lecture, pause, saut, avance et volume depuis une app MPD comme MALP ou mpc."
     # panel.c
     "Playback pauses while setup runs.": "La lecture se met en pause pendant la configuration."
+    # remote.html
+    "Podcast Index answered with something the player did not expect.": ~
+    # remote.html
+    "Podcast Index refused that key and secret.": ~
+    # remote.html
+    "Podcast Index refused that key and secret. The player's clock has not been set from the network yet, and a wrong clock is refused the same way.": ~
+    # remote.html
+    "Podcast directory search needs your own free API key and secret from api.podcastindex.org. The player tries them before saving them, and once they work this form is locked.": ~
     # sleeppage.c, ui.c
     "Power off": "Éteindre"
     # ui.c
@@ -566,7 +584,11 @@ fr:
     "The password did not work. Try again.": "Le mot de passe n'a pas fonctionné. Réessayez."
     # remote.c
     "The password has a character a Wi-Fi password cannot have -- often a phone's smart punctuation. Retype it with that turned off.": "Le mot de passe contient un caractère interdit en Wi-Fi, souvent la ponctuation intelligente du téléphone. Ressaisissez-le après l'avoir désactivée."
-    # remote.c
+    # remote.html
+    "The player could not reach Podcast Index.": ~
+    # remote.html
+    "The player could not save that. Try again.": ~
+    # remote.c, remote.html
     "The player could not start that. Try again.": "Le lecteur n'a pas pu lancer cela. Réessayez."
     # remote.html
     "The player did not answer.": "Le lecteur n'a pas répondu."
@@ -608,6 +630,8 @@ fr:
     "Touch anywhere to wake it.": "Touchez n'importe où pour la réveiller."
     # panel.c
     "Track: back to matching when a new track starts. Repeat one is not a new track.": "Piste : revient à la normale au début d'une nouvelle piste. Répéter une n'est pas une nouvelle piste."
+    # remote.html
+    "Try and save": ~
     # panel.c
     "Trying %.32s…": "Essai de %.32s…"
     # portal.c
@@ -646,6 +670,8 @@ fr:
     "Web setup is open": "Page web ouverte"
     # remote.c
     "Wi-Fi is off on the player.": "Le Wi-Fi du lecteur est coupé."
+    # remote.html
+    "Working. The key and secret are saved on the player.": ~
     # remote.html
     "You are reaching the player over Wi-Fi. Joining a different network drops this page; the player's NET tab shows which network it ended up on, and if the join fails it goes back to its saved networks within a minute.": "Vous joignez le lecteur par le Wi-Fi. Rejoindre un autre réseau coupe cette page ; l'onglet NET du lecteur indique sur quel réseau il a fini, et si la connexion échoue, il revient à ses réseaux enregistrés en moins d'une minute."
     # panel.c
@@ -742,6 +768,8 @@ fr:
     "radio - the card, the charts, or a tag": "radio - la carte, les classements ou un tag"
     # panel.c
     "route": "sortie"
+    # remote.html
+    "saved on the player": ~
     # panel.c
     "sector": "secteur"
     # player.c

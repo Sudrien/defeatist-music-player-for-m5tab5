@@ -54,6 +54,8 @@ zh-CN:
     "5 min": "5分钟"
     # portal.c, remote.c
     "A Wi-Fi password is 8 to 63 characters, or 64 hex digits.": "Wi-Fi 密码为 8 到 63 个字符，或 64 位十六进制数字。"
+    # remote.html
+    "A key and a secret are letters, digits and punctuation, with no spaces.": ~
     # portal.c, remote.c
     "A network name is 1 to 32 characters.": "网络名称为 1 到 32 个字符。"
     # panel.c
@@ -62,8 +64,14 @@ zh-CN:
     "A sign-in page opens with the form.": "会打开带表单的登录页。"
     # sleeppage.c
     "A tap anywhere brings it back, and does not press anything.": "轻点任意处就能恢复，不会误按。"
+    # remote.html
+    "A working key is already saved.": ~
     # browser.c
     "ALL": "顺序"
+    # remote.html
+    "API key": ~
+    # remote.html
+    "API secret": ~
     # panel.c
     "AUTO": "自动"
     # panel.c
@@ -102,6 +110,8 @@ zh-CN:
     "Already recording.": "正在录音。"
     # remote.html
     "Ask the player": "询问播放器"
+    # remote.html
+    "Asking Podcast Index…": ~
     # panel.c
     "Auto: USB, jack, mono. Off: no record.": "自动：USB、插孔、单声道。关：不录音。"
     # ui.c
@@ -128,7 +138,7 @@ zh-CN:
     "Brightness   %d%%": "亮度   %d%%"
     # streamplan.h
     "Buffering": "缓冲中"
-    # remote.c
+    # remote.c, remote.html
     "Busy; try again in a moment.": "忙碌中，请稍后再试。"
     # ui.c
     "CHARGED": "已充满"
@@ -396,6 +406,14 @@ zh-CN:
     "Play, pause, skip, seek and volume from an MPD app such as MALP or mpc.": "用 MALP 或 mpc 等 MPD 应用播放、暂停、切歌、定位和调音量。"
     # panel.c
     "Playback pauses while setup runs.": "设置期间暂停播放。"
+    # remote.html
+    "Podcast Index answered with something the player did not expect.": ~
+    # remote.html
+    "Podcast Index refused that key and secret.": ~
+    # remote.html
+    "Podcast Index refused that key and secret. The player's clock has not been set from the network yet, and a wrong clock is refused the same way.": ~
+    # remote.html
+    "Podcast directory search needs your own free API key and secret from api.podcastindex.org. The player tries them before saving them, and once they work this form is locked.": ~
     # sleeppage.c, ui.c
     "Power off": "自动关机"
     # ui.c
@@ -566,7 +584,11 @@ zh-CN:
     "The password did not work. Try again.": "密码无效。请重试。"
     # remote.c
     "The password has a character a Wi-Fi password cannot have -- often a phone's smart punctuation. Retype it with that turned off.": "密码中有 Wi-Fi 密码不能使用的字符——通常是手机的智能标点。请关闭后重新输入。"
-    # remote.c
+    # remote.html
+    "The player could not reach Podcast Index.": ~
+    # remote.html
+    "The player could not save that. Try again.": ~
+    # remote.c, remote.html
     "The player could not start that. Try again.": "播放器无法开始。请重试。"
     # remote.html
     "The player did not answer.": "播放器没有响应。"
@@ -608,6 +630,8 @@ zh-CN:
     "Touch anywhere to wake it.": "触摸任意处就能唤醒。"
     # panel.c
     "Track: back to matching when a new track starts. Repeat one is not a new track.": "每曲：新曲目开始时恢复原速。单曲重复不算新曲目。"
+    # remote.html
+    "Try and save": ~
     # panel.c
     "Trying %.32s…": "正在尝试 %.32s…"
     # portal.c
@@ -646,6 +670,8 @@ zh-CN:
     "Web setup is open": "网页设置已开启"
     # remote.c
     "Wi-Fi is off on the player.": "播放器的 Wi-Fi 已关闭。"
+    # remote.html
+    "Working. The key and secret are saved on the player.": ~
     # remote.html
     "You are reaching the player over Wi-Fi. Joining a different network drops this page; the player's NET tab shows which network it ended up on, and if the join fails it goes back to its saved networks within a minute.": "你正通过 Wi-Fi 连接播放器。连接其他网络会使此页面断开；播放器的 NET 标签页会显示它最终连接的网络，如果连接失败，它会在一分钟内回到已保存的网络。"
     # panel.c
@@ -742,6 +768,8 @@ zh-CN:
     "radio - the card, the charts, or a tag": "电台 - 卡、排行或标签"
     # panel.c
     "route": "输出"
+    # remote.html
+    "saved on the player": ~
     # panel.c
     "sector": "扇区"
     # player.c

@@ -51,6 +51,8 @@
 #include "i18n.h"          /* 6025 */
 #include "lanpeer.h"        /* 8001 */
 #include "approve.h"        /* 8002 */
+#include "podauth.h"        /* 8006 */
+#include "podindex.h"       /* 8006 */
 
 static const char *TAG = "tab5_remote";
 
@@ -492,6 +494,55 @@ static esp_err_t h_wifi_join(httpd_req_t *req)
         xSemaphoreGive(s_mu);
     }
     return h_wifi(req);
+}
+
+/* ---- Podcast Index key (8006) ------------------------------------------ */
+
+/*
+ * {"state":"...","key":"...","http":N,"said":"..."}. `key` only once it
+ * works; the secret is never sent back. `said` is this request's own
+ * answer to a POST that did not start a try -- invalid, busy, locked,
+ * failed -- and "" otherwise. The page turns all of it into words.
+ */
+static esp_err_t pi_reply(httpd_req_t *req, const char *said)
+{
+    static const char *const names[] = { "none", "checking", "working", "refused",
+                                         "clock", "unreachable", "reply", "failed" };
+    static char key[PODAUTH_KEY_MAX], esc[PODAUTH_KEY_MAX * 6 + 4], line[sizeof(esc) + 96];
+    int http = 0;
+    const podindex_state_t st = podindex_state(key, sizeof(key), &http);
+    if (!remoteproto_json_str(key, esc, sizeof(esc))) snprintf(esc, sizeof(esc), "\"\"");
+    snprintf(line, sizeof(line), "{\"state\":\"%s\",\"key\":%s,\"http\":%d,\"said\":\"%s\"}",
+             names[st], esc, http, said);
+    httpd_resp_set_type(req, "application/json");
+    httpd_resp_set_hdr(req, "Cache-Control", "no-store");
+    return httpd_resp_sendstr(req, line);
+}
+
+static esp_err_t h_podindex(httpd_req_t *req) { return pi_reply(req, ""); }
+
+static esp_err_t h_podindex_try(httpd_req_t *req)
+{
+    static char body[512];
+    static char key[PODAUTH_KEY_MAX], secret[PODAUTH_SECRET_MAX];
+
+    if (req->content_len == 0 || req->content_len > sizeof(body)) return pi_reply(req, "invalid");
+    size_t got = 0;
+    while (got < req->content_len) {
+        const int n = httpd_req_recv(req, body + got, req->content_len - got);
+        if (n == HTTPD_SOCK_ERR_TIMEOUT) continue;
+        if (n <= 0) { memset(body, 0, sizeof(body)); return ESP_FAIL; }
+        got += (size_t)n;
+    }
+    if (!portalweb_field(body, got, "key", key, sizeof(key))) key[0] = '\0';
+    if (!portalweb_field(body, got, "secret", secret, sizeof(secret))) secret[0] = '\0';
+    memset(body, 0, sizeof(body));
+    const podindex_try_t r = podindex_try(key, secret);
+    memset(secret, 0, sizeof(secret));
+    return pi_reply(req, r == PODINDEX_TRY_INVALID ? "invalid" :
+                         r == PODINDEX_TRY_BUSY    ? "busy"    :
+                         r == PODINDEX_TRY_LOCKED  ? "locked"  :
+                         r == PODINDEX_TRY_FAILED  ? "failed"  : "");
 }
 
 /* ---- stations (5120) --------------------------------------------------- */
@@ -1335,7 +1386,7 @@ static void start(void)
     cfg.httpd.ctrl_port = REMOTE_CTRL_PORT;
     cfg.httpd.max_open_sockets = REMOTE_SOCKETS;
     cfg.httpd.lru_purge_enable = true;
-    cfg.httpd.max_uri_handlers = 12;    /* 8002: the two /pair */
+    cfg.httpd.max_uri_handlers = 14;    /* 8002: the two /pair; 8006: the two /podindex */
     /*
      * 6005: the server task's 10 KB stack in PSRAM, not internal RAM --
      * the remote coming up took internal free from 27343 to 15915 on the
@@ -1372,6 +1423,8 @@ static void start(void)
         { .uri = "/ws",  .method = HTTP_GET, .handler = h_ws, .is_websocket = true },
         { .uri = "/pair", .method = HTTP_GET,  .handler = h_pair_get  },    /* 8002 */
         { .uri = "/pair", .method = HTTP_POST, .handler = h_pair_post },
+        { .uri = "/podindex", .method = HTTP_GET,  .handler = h_podindex     },  /* 8006 */
+        { .uri = "/podindex", .method = HTTP_POST, .handler = h_podindex_try },
     };
     /* 8001: each behind h_gate(). Static: httpd keeps the pointer. */
     static gated_t gated[sizeof(uris) / sizeof(uris[0])];

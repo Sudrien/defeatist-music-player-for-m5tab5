@@ -9,7 +9,7 @@
 #include <stddef.h>
 #include "i18n.h"
 
-const unsigned i18n_count = 395;
+const unsigned i18n_count = 409;
 const char *const i18n_keys[] = {
     "%.32s did not work. Try again.",
     "%d h",
@@ -35,11 +35,15 @@ const char *const i18n_keys[] = {
     "30 s",
     "5 min",
     "A Wi-Fi password is 8 to 63 characters, or 64 hex digits.",
+    "A key and a secret are letters, digits and punctuation, with no spaces.",
     "A network name is 1 to 32 characters.",
     "A phone supplies the password.",
     "A sign-in page opens with the form.",
     "A tap anywhere brings it back, and does not press anything.",
+    "A working key is already saved.",
     "ALL",
+    "API key",
+    "API secret",
     "AUTO",
     "About twenty seconds.",
     "Add a network",
@@ -59,6 +63,7 @@ const char *const i18n_keys[] = {
     "Already on the card (%d):",
     "Already recording.",
     "Ask the player",
+    "Asking Podcast Index…",
     "Auto: USB, jack, mono. Off: no record.",
     "BASS",
     "BATT",
@@ -206,6 +211,10 @@ const char *const i18n_keys[] = {
     "Play, pause, skip, seek and volume from a browser on the same network.",
     "Play, pause, skip, seek and volume from an MPD app such as MALP or mpc.",
     "Playback pauses while setup runs.",
+    "Podcast Index answered with something the player did not expect.",
+    "Podcast Index refused that key and secret.",
+    "Podcast Index refused that key and secret. The player's clock has not been set from the network yet, and a wrong clock is refused the same way.",
+    "Podcast directory search needs your own free API key and secret from api.podcastindex.org. The player tries them before saving them, and once they work this form is locked.",
     "Power off",
     "Power off?",
     "Previous",
@@ -291,6 +300,8 @@ const char *const i18n_keys[] = {
     "The password contains %s. A Wi-Fi password is plain keyboard characters only; phones substitute these when autocorrect or smart punctuation is on. Retype it with that turned off.",
     "The password did not work. Try again.",
     "The password has a character a Wi-Fi password cannot have -- often a phone's smart punctuation. Retype it with that turned off.",
+    "The player could not reach Podcast Index.",
+    "The player could not save that. Try again.",
     "The player could not start that. Try again.",
     "The player did not answer.",
     "The player is asking about another browser. Try again in a moment.",
@@ -312,6 +323,7 @@ const char *const i18n_keys[] = {
     "To change Wi-Fi networks instead, use Network setup on the player's screen. This page closes itself after %d minutes.",
     "Touch anywhere to wake it.",
     "Track: back to matching when a new track starts. Repeat one is not a new track.",
+    "Try and save",
     "Trying %.32s…",
     "Trying %s… This can take fifteen seconds, and this phone may lose the setup network for a moment. The player's screen shows the result either way.",
     "Turn Wi-Fi on first.",
@@ -331,6 +343,7 @@ const char *const i18n_keys[] = {
     "Waiting for network",
     "Web setup is open",
     "Wi-Fi is off on the player.",
+    "Working. The key and secret are saved on the player.",
     "You are reaching the player over Wi-Fi. Joining a different network drops this page; the player's NET tab shows which network it ended up on, and if the join fails it goes back to its saved networks within a minute.",
     "a guess",
     "all start with  %s",
@@ -379,6 +392,7 @@ const char *const i18n_keys[] = {
     "queue, files, settings, stations",
     "radio - the card, the charts, or a tag",
     "route",
+    "saved on the player",
     "sector",
     "slide or tap to cancel",
     "speaker",
@@ -435,11 +449,15 @@ const unsigned char i18n_on_screen[] = {
     1,  /* '30 s' */
     1,  /* '5 min' */
     0,  /* 'A Wi-Fi password is 8 to 63 characters, ' */
+    0,  /* 'A key and a secret are letters, digits a' */
     0,  /* 'A network name is 1 to 32 characters.' */
     1,  /* 'A phone supplies the password.' */
     1,  /* 'A sign-in page opens with the form.' */
     1,  /* 'A tap anywhere brings it back, and does ' */
+    0,  /* 'A working key is already saved.' */
     1,  /* 'ALL' */
+    0,  /* 'API key' */
+    0,  /* 'API secret' */
     1,  /* 'AUTO' */
     1,  /* 'About twenty seconds.' */
     1,  /* 'Add a network' */
@@ -459,6 +477,7 @@ const unsigned char i18n_on_screen[] = {
     0,  /* 'Already on the card (%d):' */
     1,  /* 'Already recording.' */
     0,  /* 'Ask the player' */
+    0,  /* 'Asking Podcast Index…' */
     1,  /* 'Auto: USB, jack, mono. Off: no record.' */
     1,  /* 'BASS' */
     1,  /* 'BATT' */
@@ -606,6 +625,10 @@ const unsigned char i18n_on_screen[] = {
     1,  /* 'Play, pause, skip, seek and volume from ' */
     1,  /* 'Play, pause, skip, seek and volume from ' */
     1,  /* 'Playback pauses while setup runs.' */
+    0,  /* 'Podcast Index answered with something th' */
+    0,  /* 'Podcast Index refused that key and secre' */
+    0,  /* 'Podcast Index refused that key and secre' */
+    0,  /* 'Podcast directory search needs your own ' */
     1,  /* 'Power off' */
     1,  /* 'Power off?' */
     0,  /* 'Previous' */
@@ -691,6 +714,8 @@ const unsigned char i18n_on_screen[] = {
     0,  /* 'The password contains %s. A Wi-Fi passwo' */
     0,  /* 'The password did not work. Try again.' */
     0,  /* 'The password has a character a Wi-Fi pas' */
+    0,  /* 'The player could not reach Podcast Index' */
+    0,  /* 'The player could not save that. Try agai' */
     0,  /* 'The player could not start that. Try aga' */
     0,  /* 'The player did not answer.' */
     0,  /* 'The player is asking about another brows' */
@@ -712,6 +737,7 @@ const unsigned char i18n_on_screen[] = {
     0,  /* 'To change Wi-Fi networks instead, use Ne' */
     1,  /* 'Touch anywhere to wake it.' */
     1,  /* 'Track: back to matching when a new track' */
+    0,  /* 'Try and save' */
     1,  /* 'Trying %.32s…' */
     0,  /* 'Trying %s… This can take fifteen seconds' */
     1,  /* 'Turn Wi-Fi on first.' */
@@ -731,6 +757,7 @@ const unsigned char i18n_on_screen[] = {
     1,  /* 'Waiting for network' */
     1,  /* 'Web setup is open' */
     0,  /* 'Wi-Fi is off on the player.' */
+    0,  /* 'Working. The key and secret are saved on' */
     0,  /* 'You are reaching the player over Wi-Fi. ' */
     1,  /* 'a guess' */
     1,  /* 'all start with  %s' */
@@ -779,6 +806,7 @@ const unsigned char i18n_on_screen[] = {
     0,  /* 'queue, files, settings, stations' */
     1,  /* 'radio - the card, the charts, or a tag' */
     1,  /* 'route' */
+    0,  /* 'saved on the player' */
     1,  /* 'sector' */
     1,  /* 'slide or tap to cancel' */
     1,  /* 'speaker' */
@@ -822,6 +850,11 @@ const unsigned char i18n_pon_screen[] = {
 /* [lang * i18n_count + key] */
 const char *const i18n_vals[] = {
     /* en */
+    NULL,
+    NULL,
+    NULL,
+    NULL,
+    NULL,
     NULL,
     NULL,
     NULL,
@@ -1042,6 +1075,10 @@ const char *const i18n_vals[] = {
     NULL,
     NULL,
     NULL,
+    NULL,
+    NULL,
+    NULL,
+    NULL,
     "Recording is off\012(AUDIO, Record from).",
     NULL,
     NULL,
@@ -1126,7 +1163,11 @@ const char *const i18n_vals[] = {
     NULL,
     NULL,
     NULL,
+    NULL,
+    NULL,
+    NULL,
     "Turning off to protect\012the battery. Charge it\012before use.",
+    NULL,
     NULL,
     NULL,
     NULL,
@@ -1201,6 +1242,7 @@ const char *const i18n_vals[] = {
     NULL,
     NULL,
     NULL,
+    NULL,
     "the card would not take\012the write",
     NULL,
     NULL,
@@ -1242,11 +1284,15 @@ const char *const i18n_vals[] = {
     "30秒",
     "5分钟",
     "Wi-Fi 密码为 8 到 63 个字符，或 64 位十六进制数字。",
+    NULL,
     "网络名称为 1 到 32 个字符。",
     "由手机输入密码。",
     "会打开带表单的登录页。",
     "轻点任意处就能恢复，不会误按。",
+    NULL,
     "顺序",
+    NULL,
+    NULL,
     "自动",
     "约二十秒。",
     "添加网络",
@@ -1266,6 +1312,7 @@ const char *const i18n_vals[] = {
     "卡上已有（%d）：",
     "正在录音。",
     "询问播放器",
+    NULL,
     "自动：USB、插孔、单声道。关：不录音。",
     "低音",
     "电池",
@@ -1413,6 +1460,10 @@ const char *const i18n_vals[] = {
     "在同一网络的浏览器中播放、暂停、切歌、定位和调音量。",
     "用 MALP 或 mpc 等 MPD 应用播放、暂停、切歌、定位和调音量。",
     "设置期间暂停播放。",
+    NULL,
+    NULL,
+    NULL,
+    NULL,
     "自动关机",
     "关机？",
     "上一首",
@@ -1498,6 +1549,8 @@ const char *const i18n_vals[] = {
     "密码中含有 %s。Wi-Fi 密码只能使用普通键盘字符；开启自动更正或智能标点时，手机会替换这些字符。请关闭后重新输入。",
     "密码无效。请重试。",
     "密码中有 Wi-Fi 密码不能使用的字符——通常是手机的智能标点。请关闭后重新输入。",
+    NULL,
+    NULL,
     "播放器无法开始。请重试。",
     "播放器没有响应。",
     "播放器正在询问另一个浏览器。请稍后再试。",
@@ -1519,6 +1572,7 @@ const char *const i18n_vals[] = {
     "如需改用其他 Wi-Fi 网络，请在本机屏幕上使用“添加网络”。此页面会在 %d 分钟后自动关闭。",
     "触摸任意处就能唤醒。",
     "每曲：新曲目开始时恢复原速。单曲重复不算新曲目。",
+    NULL,
     "正在尝试 %.32s…",
     "正在尝试 %s… 这可能需要十五秒，手机可能会暂时断开设置网络。无论结果如何，本机屏幕都会显示。",
     "请先打开 Wi-Fi。",
@@ -1538,6 +1592,7 @@ const char *const i18n_vals[] = {
     "等待网络",
     "网页设置已开启",
     "播放器的 Wi-Fi 已关闭。",
+    NULL,
     "你正通过 Wi-Fi 连接播放器。连接其他网络会使此页面断开；播放器的 NET 标签页会显示它最终连接的网络，如果连接失败，它会在一分钟内回到已保存的网络。",
     "估计值",
     "全部以 %s 开头",
@@ -1586,6 +1641,7 @@ const char *const i18n_vals[] = {
     "队列、文件、设置、电台",
     "电台 - 卡、排行或标签",
     "输出",
+    NULL,
     "扇区",
     "滑动或轻点以取消",
     "扬声器",
@@ -1638,11 +1694,15 @@ const char *const i18n_vals[] = {
     "30秒",
     "5分",
     "Wi-Fiのパスワードは8～63文字、または16進数64桁です。",
+    NULL,
     "ネットワーク名は1～32文字です。",
     "パスワードはスマホから。",
     "フォーム付きの画面が開く。",
     "どこかをタップすると戻る。ボタンは押されない。",
+    NULL,
     "全曲",
+    NULL,
+    NULL,
     "自動",
     "約20秒。",
     "ネットワーク追加",
@@ -1662,6 +1722,7 @@ const char *const i18n_vals[] = {
     "カードに登録済み（%d）：",
     "録音中です。",
     "プレーヤーに尋ねる",
+    NULL,
     "自動：USB、端子、モノラル。オフ：録音しない。",
     "低音",
     "電池",
@@ -1809,6 +1870,10 @@ const char *const i18n_vals[] = {
     "同じネットワークのブラウザから再生、一時停止、スキップ、シーク、音量。",
     "MALPやmpcなどのMPDアプリから再生、一時停止、スキップ、シーク、音量。",
     "設定中は再生を一時停止。",
+    NULL,
+    NULL,
+    NULL,
+    NULL,
     "電源オフ",
     "電源を切りますか？",
     "前へ",
@@ -1894,6 +1959,8 @@ const char *const i18n_vals[] = {
     "パスワードに %s が含まれています。Wi-Fiのパスワードは通常のキーボード文字だけです。自動修正やスマート句読点がオンだと、スマホがこれらの文字を置き換えます。オフにして入力し直してください。",
     "パスワードが違います。もう一度お試しください。",
     "パスワードにWi-Fiのパスワードに使えない文字があります。多くはスマホのスマート句読点です。オフにして入力し直してください。",
+    NULL,
+    NULL,
     "プレーヤーで開始できませんでした。もう一度お試しください。",
     "プレーヤーから応答がありません。",
     "プレーヤーは別のブラウザについて確認中です。少し待ってからもう一度お試しください。",
@@ -1915,6 +1982,7 @@ const char *const i18n_vals[] = {
     "Wi-Fiネットワークを変える場合は、機器の画面の「ネットワーク追加」を使ってください。このページは %d 分後に閉じます。",
     "どこかに触れると戻る。",
     "曲ごと：新しい曲が始まると元に戻ります。1曲リピートは新しい曲ではありません。",
+    NULL,
     "%.32s を試行中…",
     "%s を試しています… 15秒ほどかかり、このスマホは一時的に設定用ネットワークから外れることがあります。結果はどちらにしても機器の画面に表示されます。",
     "先にWi-Fiをオン。",
@@ -1934,6 +2002,7 @@ const char *const i18n_vals[] = {
     "ネット待ち",
     "Web設定が開いている",
     "プレーヤーのWi-Fiがオフです。",
+    NULL,
     "あなたはWi-Fi経由でプレーヤーに接続しています。別のネットワークに接続するとこのページは切れます。プレーヤーのNETタブに接続先が表示され、接続に失敗した場合は1分以内に保存済みのネットワークに戻ります。",
     "推定",
     "すべて %s で始まる",
@@ -1982,6 +2051,7 @@ const char *const i18n_vals[] = {
     "キュー、ファイル、設定、ラジオ局",
     "ラジオ - カード、ランキング、タグ",
     "出力",
+    NULL,
     "セクタ",
     "スライドかタップで中止",
     "スピーカー",
@@ -2034,11 +2104,15 @@ const char *const i18n_vals[] = {
     "30 s",
     "5 min",
     "Una contraseña Wi-Fi tiene de 8 a 63 caracteres, o 64 dígitos hexadecimales.",
+    NULL,
     "Un nombre de red tiene de 1 a 32 caracteres.",
     "Un teléfono da la contraseña.",
     "Se abre una página con el formulario.",
     "Un toque en cualquier sitio la recupera, sin pulsar nada.",
+    NULL,
     "TODAS",
+    NULL,
+    NULL,
     "AUTO",
     "Unos veinte segundos.",
     "Añadir red",
@@ -2058,6 +2132,7 @@ const char *const i18n_vals[] = {
     "Ya en la tarjeta (%d):",
     "Ya se está grabando.",
     "Preguntar al reproductor",
+    NULL,
     "Auto: USB, toma, mono. No: sin grabar.",
     "GRAV",
     "BAT",
@@ -2205,6 +2280,10 @@ const char *const i18n_vals[] = {
     "Reproducir, pausar, saltar, buscar y volumen desde un navegador en la misma red.",
     "Reproducir, pausar, saltar, buscar y volumen desde una app MPD como MALP o mpc.",
     "Se pausa la reproducción al configurar.",
+    NULL,
+    NULL,
+    NULL,
+    NULL,
     "Apagado",
     "¿Apagar?",
     "Anterior",
@@ -2290,6 +2369,8 @@ const char *const i18n_vals[] = {
     "La contraseña contiene %s. Una contraseña Wi-Fi solo lleva caracteres normales del teclado; los teléfonos los cambian con la autocorrección o la puntuación inteligente. Vuelve a escribirla con eso desactivado.",
     "La contraseña no funcionó. Inténtalo otra vez.",
     "La contraseña tiene un carácter que una contraseña Wi-Fi no admite; suele ser la puntuación inteligente del teléfono. Vuelve a escribirla con eso desactivado.",
+    NULL,
+    NULL,
     "El reproductor no pudo empezar. Inténtalo otra vez.",
     "El reproductor no respondió.",
     "El reproductor está preguntando por otro navegador. Inténtalo de nuevo en un momento.",
@@ -2311,6 +2392,7 @@ const char *const i18n_vals[] = {
     "Para cambiar de red Wi-Fi, usa «Añadir red» en la pantalla del reproductor. Esta página se cierra sola tras %d minutos.",
     "Toca en cualquier sitio para despertarla.",
     "Pista: vuelve a la normal al empezar una pista nueva. Repetir una no es una pista nueva.",
+    NULL,
     "Probando %.32s…",
     "Probando %s… Puede tardar quince segundos, y este teléfono puede perder la red de configuración un momento. La pantalla del reproductor muestra el resultado en cualquier caso.",
     "Activa primero la Wi-Fi.",
@@ -2330,6 +2412,7 @@ const char *const i18n_vals[] = {
     "Esperando red",
     "Ajuste web abierto",
     "La Wi-Fi del reproductor está apagada.",
+    NULL,
     "Llegas al reproductor por Wi-Fi. Conectarlo a otra red corta esta página; la pestaña NET del reproductor muestra en qué red quedó, y si falla vuelve a sus redes guardadas en menos de un minuto.",
     "estimada",
     "todos empiezan por  %s",
@@ -2378,6 +2461,7 @@ const char *const i18n_vals[] = {
     "cola, archivos, ajustes, emisoras",
     "radio - la tarjeta, las listas o una etiqueta",
     "salida",
+    NULL,
     "sector",
     "toca o desliza: cancela",
     "altavoz",
@@ -2430,11 +2514,15 @@ const char *const i18n_vals[] = {
     "30 s",
     "5 min",
     "Uma senha de Wi-Fi tem de 8 a 63 caracteres, ou 64 dígitos hexadecimais.",
+    NULL,
     "Um nome de rede tem de 1 a 32 caracteres.",
     "Um celular fornece a senha.",
     "Abre uma página de login com o formulário.",
     "Um toque em qualquer lugar a traz de volta, sem apertar nada.",
+    NULL,
     "TODAS",
+    NULL,
+    NULL,
     "AUTO",
     "Uns vinte segundos.",
     "Adicionar rede",
@@ -2454,6 +2542,7 @@ const char *const i18n_vals[] = {
     "Já no cartão (%d):",
     "Já está gravando.",
     "Perguntar ao player",
+    NULL,
     "Auto: USB, P2, mono. Não: sem gravar.",
     "GRAV",
     "BAT",
@@ -2601,6 +2690,10 @@ const char *const i18n_vals[] = {
     "Tocar, pausar, pular, avançar e volume de um navegador na mesma rede.",
     "Tocar, pausar, pular, avançar e volume de um app MPD como MALP ou mpc.",
     "A reprodução pausa durante a configuração.",
+    NULL,
+    NULL,
+    NULL,
+    NULL,
     "Desligar",
     "Desligar?",
     "Anterior",
@@ -2686,6 +2779,8 @@ const char *const i18n_vals[] = {
     "A senha contém %s. Uma senha de Wi-Fi só usa caracteres comuns do teclado; os celulares os trocam quando a correção automática ou a pontuação inteligente está ativa. Digite de novo com isso desligado.",
     "A senha não funcionou. Tente de novo.",
     "A senha tem um caractere que uma senha de Wi-Fi não aceita; geralmente é a pontuação inteligente do celular. Digite de novo com isso desligado.",
+    NULL,
+    NULL,
     "O player não conseguiu iniciar. Tente de novo.",
     "O player não respondeu.",
     "O player está perguntando sobre outro navegador. Tente de novo daqui a pouco.",
@@ -2707,6 +2802,7 @@ const char *const i18n_vals[] = {
     "Para trocar de rede Wi-Fi, use \"Adicionar rede\" na tela do player. Esta página fecha sozinha após %d minutos.",
     "Toque em qualquer lugar para acordá-la.",
     "Faixa: volta ao normal quando começa uma nova faixa. REPETE 1 não é uma nova faixa.",
+    NULL,
     "Testando %.32s…",
     "Testando %s… Pode levar quinze segundos, e este celular pode perder a rede de configuração por um momento. A tela do player mostra o resultado de qualquer jeito.",
     "Ligue o Wi-Fi antes.",
@@ -2726,6 +2822,7 @@ const char *const i18n_vals[] = {
     "Esperando a rede",
     "Ajuste web aberto",
     "O Wi-Fi do player está desligado.",
+    NULL,
     "Você está acessando o player pelo Wi-Fi. Conectá-lo a outra rede derruba esta página; a aba NET do player mostra em qual rede ele ficou, e se a conexão falhar ele volta às redes salvas em menos de um minuto.",
     "estimada",
     "todos começam com  %s",
@@ -2774,6 +2871,7 @@ const char *const i18n_vals[] = {
     "fila, arquivos, ajustes, rádios",
     "rádio - o cartão, os rankings ou uma tag",
     "saída",
+    NULL,
     "setor",
     "deslize ou toque: cancela",
     "alto-falante",
@@ -2826,11 +2924,15 @@ const char *const i18n_vals[] = {
     "30 s",
     "5 min",
     "Un mot de passe Wi-Fi fait de 8 à 63 caractères, ou 64 chiffres hexadécimaux.",
+    NULL,
     "Un nom de réseau fait de 1 à 32 caractères.",
     "Un téléphone fournit le mot de passe.",
     "Une page de connexion s'ouvre avec le formulaire.",
     "Un toucher n'importe où la rallume, sans rien actionner.",
+    NULL,
     "TOUT",
+    NULL,
+    NULL,
     "AUTO",
     "Une vingtaine de secondes.",
     "Ajouter un réseau",
@@ -2850,6 +2952,7 @@ const char *const i18n_vals[] = {
     "Déjà sur la carte (%d) :",
     "Déjà en cours.",
     "Demander au lecteur",
+    NULL,
     "Auto : USB, prise, mono. Non : pas d'enregistrement.",
     "GRAV",
     "BATT",
@@ -2997,6 +3100,10 @@ const char *const i18n_vals[] = {
     "Lecture, pause, saut, avance et volume depuis un navigateur du même réseau.",
     "Lecture, pause, saut, avance et volume depuis une app MPD comme MALP ou mpc.",
     "La lecture se met en pause pendant la configuration.",
+    NULL,
+    NULL,
+    NULL,
+    NULL,
     "Éteindre",
     "Éteindre?",
     "Précédent",
@@ -3082,6 +3189,8 @@ const char *const i18n_vals[] = {
     "Le mot de passe contient %s. Un mot de passe Wi-Fi ne contient que des caractères simples du clavier ; les téléphones les remplacent quand la correction automatique ou la ponctuation intelligente est active. Ressaisissez-le après l'avoir désactivée.",
     "Le mot de passe n'a pas fonctionné. Réessayez.",
     "Le mot de passe contient un caractère interdit en Wi-Fi, souvent la ponctuation intelligente du téléphone. Ressaisissez-le après l'avoir désactivée.",
+    NULL,
+    NULL,
     "Le lecteur n'a pas pu lancer cela. Réessayez.",
     "Le lecteur n'a pas répondu.",
     "Le lecteur traite la demande d'un autre navigateur. Réessayez dans un instant.",
@@ -3103,6 +3212,7 @@ const char *const i18n_vals[] = {
     "Pour changer plutôt de réseau Wi-Fi, utilisez « Ajouter un réseau » sur l'écran du lecteur. Cette page se ferme d'elle-même après %d minutes.",
     "Touchez n'importe où pour la réveiller.",
     "Piste : revient à la normale au début d'une nouvelle piste. Répéter une n'est pas une nouvelle piste.",
+    NULL,
     "Essai de %.32s…",
     "Essai de %s… Cela peut prendre quinze secondes, et ce téléphone peut perdre un moment le réseau de configuration. L'écran du lecteur affiche le résultat dans tous les cas.",
     "Activez d'abord le Wi-Fi.",
@@ -3122,6 +3232,7 @@ const char *const i18n_vals[] = {
     "En attente du réseau",
     "Page web ouverte",
     "Le Wi-Fi du lecteur est coupé.",
+    NULL,
     "Vous joignez le lecteur par le Wi-Fi. Rejoindre un autre réseau coupe cette page ; l'onglet NET du lecteur indique sur quel réseau il a fini, et si la connexion échoue, il revient à ses réseaux enregistrés en moins d'une minute.",
     "estimé",
     "tous commencent par  %s",
@@ -3170,6 +3281,7 @@ const char *const i18n_vals[] = {
     "file, fichiers, réglages, radios",
     "radio - la carte, les classements ou un tag",
     "sortie",
+    NULL,
     "secteur",
     "glissez/touchez : annuler",
     "haut-parleur",
@@ -3222,11 +3334,15 @@ const char *const i18n_vals[] = {
     "30 s",
     "5 min",
     "Una password Wi-Fi ha da 8 a 63 caratteri, o 64 cifre esadecimali.",
+    NULL,
     "Un nome di rete ha da 1 a 32 caratteri.",
     "Un telefono fornisce la password.",
     "Si apre una pagina di accesso con il modulo.",
     "Un tocco ovunque la riaccende, senza premere niente.",
+    NULL,
     "TUTTI",
+    NULL,
+    NULL,
     "AUTO",
     "Una ventina di secondi.",
     "Aggiungi rete",
@@ -3246,6 +3362,7 @@ const char *const i18n_vals[] = {
     "Già sulla scheda (%d):",
     "Già in corso.",
     "Chiedi al lettore",
+    NULL,
     "Auto: USB, jack, mono. No: non registra.",
     "BASSI",
     "BATT",
@@ -3393,6 +3510,10 @@ const char *const i18n_vals[] = {
     "Riproduci, pausa, salta, cerca e volume da un browser nella stessa rete.",
     "Riproduci, pausa, salta, cerca e volume da un'app MPD come MALP o mpc.",
     "La riproduzione va in pausa durante la configurazione.",
+    NULL,
+    NULL,
+    NULL,
+    NULL,
     "Spegni",
     "Spegnere?",
     "Precedente",
@@ -3478,6 +3599,8 @@ const char *const i18n_vals[] = {
     "La password contiene %s. Una password Wi-Fi usa solo caratteri semplici della tastiera; i telefoni li sostituiscono con la correzione automatica o la punteggiatura intelligente attive. Riscrivila dopo averle disattivate.",
     "La password non ha funzionato. Riprova.",
     "La password ha un carattere non ammesso in una password Wi-Fi, spesso la punteggiatura intelligente del telefono. Riscrivila dopo averla disattivata.",
+    NULL,
+    NULL,
     "Il lettore non è riuscito ad avviarlo. Riprova.",
     "Il lettore non ha risposto.",
     "Il lettore sta chiedendo di un altro browser. Riprova tra un momento.",
@@ -3499,6 +3622,7 @@ const char *const i18n_vals[] = {
     "Per cambiare rete Wi-Fi, usa \"Aggiungi rete\" sullo schermo del lettore. Questa pagina si chiude da sola dopo %d minuti.",
     "Tocca ovunque per risvegliarla.",
     "Brano: torna normale quando inizia un nuovo brano. Ripeti uno non è un nuovo brano.",
+    NULL,
     "Provo %.32s…",
     "Provo %s… Può richiedere quindici secondi, e questo telefono può perdere per un attimo la rete di configurazione. Lo schermo del lettore mostra comunque il risultato.",
     "Prima accendi il Wi-Fi.",
@@ -3518,6 +3642,7 @@ const char *const i18n_vals[] = {
     "In attesa della rete",
     "Config. web aperta",
     "Il Wi-Fi del lettore è spento.",
+    NULL,
     "Stai raggiungendo il lettore via Wi-Fi. Collegarlo a un'altra rete chiude questa pagina; la scheda NET del lettore mostra su quale rete è finito, e se il collegamento fallisce torna alle reti salvate entro un minuto.",
     "stimata",
     "iniziano tutti con  %s",
@@ -3566,6 +3691,7 @@ const char *const i18n_vals[] = {
     "coda, file, impostazioni, radio",
     "radio - la scheda, le classifiche o un tag",
     "uscita",
+    NULL,
     "settore",
     "scorri o tocca: annulla",
     "altoparlante",

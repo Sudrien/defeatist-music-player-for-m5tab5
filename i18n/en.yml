@@ -54,6 +54,8 @@ en:
     "5 min": ~
     # portal.c, remote.c
     "A Wi-Fi password is 8 to 63 characters, or 64 hex digits.": ~
+    # remote.html
+    "A key and a secret are letters, digits and punctuation, with no spaces.": ~
     # portal.c, remote.c
     "A network name is 1 to 32 characters.": ~
     # panel.c
@@ -62,8 +64,14 @@ en:
     "A sign-in page opens with the form.": ~
     # sleeppage.c
     "A tap anywhere brings it back, and does not press anything.": ~
+    # remote.html
+    "A working key is already saved.": ~
     # browser.c
     "ALL": ~
+    # remote.html
+    "API key": ~
+    # remote.html
+    "API secret": ~
     # panel.c
     "AUTO": ~
     # panel.c
@@ -102,6 +110,8 @@ en:
     "Already recording.": ~
     # remote.html
     "Ask the player": ~
+    # remote.html
+    "Asking Podcast Index…": ~
     # panel.c
     "Auto: USB, jack, mono. Off: no record.": ~
     # ui.c
@@ -128,7 +138,7 @@ en:
     "Brightness   %d%%": ~
     # streamplan.h
     "Buffering": ~
-    # remote.c
+    # remote.c, remote.html
     "Busy; try again in a moment.": ~
     # ui.c
     "CHARGED": ~
@@ -396,6 +406,14 @@ en:
     "Play, pause, skip, seek and volume from an MPD app such as MALP or mpc.": ~
     # panel.c
     "Playback pauses while setup runs.": ~
+    # remote.html
+    "Podcast Index answered with something the player did not expect.": ~
+    # remote.html
+    "Podcast Index refused that key and secret.": ~
+    # remote.html
+    "Podcast Index refused that key and secret. The player's clock has not been set from the network yet, and a wrong clock is refused the same way.": ~
+    # remote.html
+    "Podcast directory search needs your own free API key and secret from api.podcastindex.org. The player tries them before saving them, and once they work this form is locked.": ~
     # sleeppage.c, ui.c
     "Power off": ~
     # ui.c
@@ -566,7 +584,11 @@ en:
     "The password did not work. Try again.": ~
     # remote.c
     "The password has a character a Wi-Fi password cannot have -- often a phone's smart punctuation. Retype it with that turned off.": ~
-    # remote.c
+    # remote.html
+    "The player could not reach Podcast Index.": ~
+    # remote.html
+    "The player could not save that. Try again.": ~
+    # remote.c, remote.html
     "The player could not start that. Try again.": ~
     # remote.html
     "The player did not answer.": ~
@@ -608,6 +630,8 @@ en:
     "Touch anywhere to wake it.": ~
     # panel.c
     "Track: back to matching when a new track starts. Repeat one is not a new track.": ~
+    # remote.html
+    "Try and save": ~
     # panel.c
     "Trying %.32s…": ~
     # portal.c
@@ -646,6 +670,8 @@ en:
     "Web setup is open": ~
     # remote.c
     "Wi-Fi is off on the player.": ~
+    # remote.html
+    "Working. The key and secret are saved on the player.": ~
     # remote.html
     "You are reaching the player over Wi-Fi. Joining a different network drops this page; the player's NET tab shows which network it ended up on, and if the join fails it goes back to its saved networks within a minute.": ~
     # panel.c
@@ -742,6 +768,8 @@ en:
     "radio - the card, the charts, or a tag": ~
     # panel.c
     "route": ~
+    # remote.html
+    "saved on the player": ~
     # panel.c
     "sector": ~
     # player.c

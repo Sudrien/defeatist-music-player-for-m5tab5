@@ -42,7 +42,7 @@ html, body { height: auto; }
 .below .row { display: flex; gap: .8em; align-items: center; flex-wrap: wrap; }
 .below .ghost { background: #2a2a2a; color: var(--thumb); }
 .below .warn { color: var(--star); }
-#wifi { margin-top: 2.4em; }
+#wifi, #pi { margin-top: 2.4em; }
 .fold { position: fixed; left: 50%; bottom: 6px; transform: translateX(-50%);
   color: var(--icon-off); font-size: 13px; pointer-events: none; transition: opacity .2s; }
 button { font: inherit; color: inherit; background: none; border: 0; padding: 0;
@@ -314,6 +314,18 @@ svg { display: block; width: 100%; height: 100%; }
       <button id="wjoin" data-t>Join</button>
     </form>
     <p data-t>The player tests the network and password before saving them. The password is only ever sent over this encrypted connection.</p>
+  </section>
+
+  <section id="pi">
+    <h2>Podcast Index</h2>
+    <p data-t>Podcast directory search needs your own free API key and secret from api.podcastindex.org. The player tries them before saving them, and once they work this form is locked.</p>
+    <form id="pif">
+      <label><span data-t>API key</span><input name="key" maxlength="63" autocomplete="off"
+        autocapitalize="none" spellcheck="false" required></label>
+      <label><span data-t>API secret</span><input name="secret" type="password" maxlength="127" autocomplete="off" required></label>
+      <button id="pigo" data-t>Try and save</button>
+      <div class="msg" id="pimsg"></div>
+    </form>
   </section>
 </section>
 
@@ -801,6 +813,53 @@ $("wf").addEventListener("submit", e => {
   wPost("/wifi/join", body);
 });
 wLoad();
+/* ---- Podcast Index key, below Wi-Fi (8006) ----
+   Nothing here is saved by the page: the player asks Podcast Index with
+   the pair and keeps them only if it answers. Once it has, the form is
+   read-only and the player refuses another try as well. */
+let piPoll = 0;
+let piLast = null;               // redrawn on a language change
+function piShow(j) {
+  piLast = j;
+  const f = $("pif"), m = $("pimsg"), done = j.state === "working";
+  f.key.readOnly = done; f.secret.readOnly = done;
+  if (done) { f.key.value = j.key; f.secret.value = ""; f.secret.placeholder = T("saved on the player"); }
+  $("pigo").hidden = done;
+  $("pigo").disabled = j.state === "checking";
+  const said = {
+    invalid: T("A key and a secret are letters, digits and punctuation, with no spaces."),
+    busy:    T("Busy; try again in a moment."),
+    locked:  T("A working key is already saved."),
+    failed:  T("The player could not start that. Try again."),
+  }[j.said];
+  const st = {
+    checking:    T("Asking Podcast Index\u2026"),
+    working:     T("Working. The key and secret are saved on the player."),
+    refused:     T("Podcast Index refused that key and secret."),
+    clock:       T("Podcast Index refused that key and secret. The player's clock has not been set from the network yet, and a wrong clock is refused the same way."),
+    unreachable: T("The player could not reach Podcast Index."),
+    reply:       T("Podcast Index answered with something the player did not expect."),
+    failed:      T("The player could not save that. Try again."),
+  }[j.state];
+  m.textContent = said || st || "";
+  m.className = said || ["refused", "clock", "unreachable", "reply", "failed"].includes(j.state) ? "msg bad" : "msg";
+  clearTimeout(piPoll);
+  if (j.state === "checking") piPoll = setTimeout(piLoad, 1000);
+}
+async function piLoad() {
+  try { piShow(await (await fetch("/podindex", { cache: "no-store" })).json()); }
+  catch { clearTimeout(piPoll); piPoll = setTimeout(piLoad, 3000); }
+}
+$("pif").addEventListener("submit", async e => {
+  e.preventDefault();
+  const body = new URLSearchParams(new FormData(e.target)).toString();
+  e.target.secret.value = "";
+  try {
+    piShow(await (await fetch("/podindex", { method: "POST", body,
+      headers: { "Content-Type": "application/x-www-form-urlencoded" } })).json());
+  } catch { $("pimsg").textContent = T("The player did not answer."); }
+});
+piLoad();
 
 /* ---- 6026: the language override ----
    Switches in place: applyLang() for what the markup holds, then the
@@ -821,6 +880,7 @@ wLoad();
     if (fPath) renderFiles();
     renderQueue();
     if (wLast) wShow(wLast);
+    if (piLast) piShow(piLast);                      /* 8006 */
     if (pairMsg) $("pairm").textContent = pairMsg();   /* 8002 */
     if (!$("pair").classList.contains("on")) loadStations();
   };

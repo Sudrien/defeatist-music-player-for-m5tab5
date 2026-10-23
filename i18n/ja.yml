@@ -54,6 +54,8 @@ ja:
     "5 min": "5分"
     # portal.c, remote.c
     "A Wi-Fi password is 8 to 63 characters, or 64 hex digits.": "Wi-Fiのパスワードは8～63文字、または16進数64桁です。"
+    # remote.html
+    "A key and a secret are letters, digits and punctuation, with no spaces.": ~
     # portal.c, remote.c
     "A network name is 1 to 32 characters.": "ネットワーク名は1～32文字です。"
     # panel.c
@@ -62,8 +64,14 @@ ja:
     "A sign-in page opens with the form.": "フォーム付きの画面が開く。"
     # sleeppage.c
     "A tap anywhere brings it back, and does not press anything.": "どこかをタップすると戻る。ボタンは押されない。"
+    # remote.html
+    "A working key is already saved.": ~
     # browser.c
     "ALL": "全曲"
+    # remote.html
+    "API key": ~
+    # remote.html
+    "API secret": ~
     # panel.c
     "AUTO": "自動"
     # panel.c
@@ -102,6 +110,8 @@ ja:
     "Already recording.": "録音中です。"
     # remote.html
     "Ask the player": "プレーヤーに尋ねる"
+    # remote.html
+    "Asking Podcast Index…": ~
     # panel.c
     "Auto: USB, jack, mono. Off: no record.": "自動：USB、端子、モノラル。オフ：録音しない。"
     # ui.c
@@ -128,7 +138,7 @@ ja:
     "Brightness   %d%%": "明るさ   %d%%"
     # streamplan.h
     "Buffering": "バッファ中"
-    # remote.c
+    # remote.c, remote.html
     "Busy; try again in a moment.": "処理中です。少し待ってからもう一度お試しください。"
     # ui.c
     "CHARGED": "満充電"
@@ -396,6 +406,14 @@ ja:
     "Play, pause, skip, seek and volume from an MPD app such as MALP or mpc.": "MALPやmpcなどのMPDアプリから再生、一時停止、スキップ、シーク、音量。"
     # panel.c
     "Playback pauses while setup runs.": "設定中は再生を一時停止。"
+    # remote.html
+    "Podcast Index answered with something the player did not expect.": ~
+    # remote.html
+    "Podcast Index refused that key and secret.": ~
+    # remote.html
+    "Podcast Index refused that key and secret. The player's clock has not been set from the network yet, and a wrong clock is refused the same way.": ~
+    # remote.html
+    "Podcast directory search needs your own free API key and secret from api.podcastindex.org. The player tries them before saving them, and once they work this form is locked.": ~
     # sleeppage.c, ui.c
     "Power off": "電源オフ"
     # ui.c
@@ -566,7 +584,11 @@ ja:
     "The password did not work. Try again.": "パスワードが違います。もう一度お試しください。"
     # remote.c
     "The password has a character a Wi-Fi password cannot have -- often a phone's smart punctuation. Retype it with that turned off.": "パスワードにWi-Fiのパスワードに使えない文字があります。多くはスマホのスマート句読点です。オフにして入力し直してください。"
-    # remote.c
+    # remote.html
+    "The player could not reach Podcast Index.": ~
+    # remote.html
+    "The player could not save that. Try again.": ~
+    # remote.c, remote.html
     "The player could not start that. Try again.": "プレーヤーで開始できませんでした。もう一度お試しください。"
     # remote.html
     "The player did not answer.": "プレーヤーから応答がありません。"
@@ -608,6 +630,8 @@ ja:
     "Touch anywhere to wake it.": "どこかに触れると戻る。"
     # panel.c
     "Track: back to matching when a new track starts. Repeat one is not a new track.": "曲ごと：新しい曲が始まると元に戻ります。1曲リピートは新しい曲ではありません。"
+    # remote.html
+    "Try and save": ~
     # panel.c
     "Trying %.32s…": "%.32s を試行中…"
     # portal.c
@@ -646,6 +670,8 @@ ja:
     "Web setup is open": "Web設定が開いている"
     # remote.c
     "Wi-Fi is off on the player.": "プレーヤーのWi-Fiがオフです。"
+    # remote.html
+    "Working. The key and secret are saved on the player.": ~
     # remote.html
     "You are reaching the player over Wi-Fi. Joining a different network drops this page; the player's NET tab shows which network it ended up on, and if the join fails it goes back to its saved networks within a minute.": "あなたはWi-Fi経由でプレーヤーに接続しています。別のネットワークに接続するとこのページは切れます。プレーヤーのNETタブに接続先が表示され、接続に失敗した場合は1分以内に保存済みのネットワークに戻ります。"
     # panel.c
@@ -742,6 +768,8 @@ ja:
     "radio - the card, the charts, or a tag": "ラジオ - カード、ランキング、タグ"
     # panel.c
     "route": "出力"
+    # remote.html
+    "saved on the player": ~
     # panel.c
     "sector": "セクタ"
     # player.c

@@ -60,6 +60,7 @@ Na ponta direita da mesma linha, a bateria (não há ícone de bateria):
 | `microSD` | O cartão microSD. |
 | `USB` | Um pendrive na porta USB-A. |
 | `RADIO` | Rádio pela internet: `stations.m3u` e favoritos. |
+| `PODCAST` | Podcasts, através do Podcast Index. Precisa da sua própria chave de API, inserida na página do controle remoto. |
 
 ### Botões de baixo
 

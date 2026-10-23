@@ -30,6 +30,8 @@
 #include "storage.h"
 #include "recorder.h"         /* 5215 */
 #include "mpd.h"              /* 5260 */
+#include "podindex.h"         /* 8008 */
+#include "remote.h"           /* 8008: remote_url() */
 
 static const char *TAG = "tab5_browser";
 
@@ -145,10 +147,23 @@ typedef enum {
     BROWSER_TAB_SD = STORAGE_SD,
     BROWSER_TAB_USB = STORAGE_USB,
     BROWSER_TAB_RADIO,
+    BROWSER_TAB_PODCAST,    /* 8008: no rows yet; says what it needs */
     BROWSER_TAB_COUNT
 } browser_tab_t;
 
 static browser_tab_t s_tab = BROWSER_TAB_SD;
+
+/*
+ * 8008: the PODCAST tab is showing. Like s_radio it means "not a
+ * volume", and every test below that took !s_radio to mean a volume
+ * tests this too -- storage_present() and storage_mount_path() on
+ * BROWSER_TAB_PODCAST read past the volume array. It has no rows yet:
+ * it says whether there is a Podcast Index key and where to enter one.
+ * s_pod_seen is the key state last drawn, so a key that starts working
+ * while the tab is up redraws it.
+ */
+static bool s_pod;
+static podindex_state_t s_pod_seen;
 
 /*
  * The station list, loaded into the same rows the files use.
@@ -533,7 +548,7 @@ static const char *tab_root(void)
 {
     /* RADIO has no root. Callers guard on s_radio before using this;
      * returning "" rather than NULL keeps a stray use from crashing. */
-    if (s_tab == BROWSER_TAB_RADIO) return "";
+    if (s_tab == BROWSER_TAB_RADIO || s_tab == BROWSER_TAB_PODCAST) return "";   /* 8008 */
     return storage_mount_path((storage_id_t)s_tab);
 }
 
@@ -573,6 +588,7 @@ static void go_up(void)
 static bool tab_present(browser_tab_t t)
 {
     if (t == BROWSER_TAB_RADIO) return stations_count() > 0;
+    if (t == BROWSER_TAB_PODCAST) return podindex_state(NULL, 0, NULL) == PODINDEX_WORKING;  /* 8008 */
     return storage_present((storage_id_t)t);
 }
 
@@ -695,6 +711,19 @@ static void select_tab(browser_tab_t id)
 {
     const bool same = (id == s_tab);
     s_tab = id;
+    s_pod = false;                      /* 8008 */
+
+    if (id == BROWSER_TAB_PODCAST) {
+        s_radio = false;
+        s_pod = true;
+        s_pod_seen = podindex_state(NULL, 0, NULL);
+        entries_free();
+        s_prefix[0] = '\0';
+        s_prefix_len = 0;
+        s_dir[0] = '\0';
+        s_dirty = true;
+        return;
+    }
 
     if (id == BROWSER_TAB_RADIO) {
         s_radio = true;
@@ -763,6 +792,7 @@ void browser_open(const char *start)
      * line.
      */
     s_radio = false;
+    s_pod = false;                      /* 8008: likewise */
 
     /* Reopen where the current track lives, when that volume is still
      * there. Coming back to the root of the card every time is the thing
@@ -813,6 +843,12 @@ void browser_close(void)
 
 static const char *status_line(void)
 {
+    if (s_pod) {                        /* 8008 */
+        const podindex_state_t st = podindex_state(NULL, 0, NULL);
+        return st == PODINDEX_WORKING  ? _("podcasts - Podcast Index key saved")
+             : st == PODINDEX_CHECKING ? _("podcasts - checking the Podcast Index key")
+                                       : _("podcasts need a Podcast Index key");
+    }
     if (s_radio) {
         static char line[96];
         /* Whatever the player task last said, ahead of everything: a
@@ -852,8 +888,9 @@ static void draw_tab(browser_tab_t id, int x, int w)
 
     /* storage_label() reports the volume's own label -- "SD8G" -- which
      * RADIO has no equivalent of and should not borrow. */
-    const char *label = (id == BROWSER_TAB_RADIO) ? same("RADIO")
-                                                  : storage_label((storage_id_t)id);
+    const char *label = (id == BROWSER_TAB_RADIO)   ? same("RADIO")
+                      : (id == BROWSER_TAB_PODCAST) ? same("PODCAST")        /* 8008 */
+                                                    : storage_label((storage_id_t)id);
     const int tw = gfx_text_w(label, NAME_SCALE);
     gfx_draw_text(x + (w - tw) / 2, (TAB_H - GFX_GLYPH_H(NAME_SCALE)) / 2, label,
                   NAME_SCALE, w - 16,
@@ -1093,7 +1130,7 @@ void browser_draw(void)
          * and returning here would leave the repaint a frame late, so
          * the tab strip would not redraw until the next poll.
          */
-        if (!s_radio) {
+        if (!s_radio && !s_pod) {           /* 8008: nor the podcast tab */
         /* The tab stays where the user put it. Jumping to whatever else
          * is mounted would undo the tap that powered this port about a
          * second before the drive it was waiting for turned up. */
@@ -1142,6 +1179,11 @@ void browser_draw(void)
             s_dirty = true;
         }
     }
+    /* 8008: a key that starts (or stops) working while the tab is up. */
+    if (s_pod) {
+        const podindex_state_t st = podindex_state(NULL, 0, NULL);
+        if (st != s_pod_seen) { s_pod_seen = st; s_dirty = true; }
+    }
     if (!s_dirty) return;
     s_dirty = false;
 
@@ -1149,16 +1191,19 @@ void browser_draw(void)
     gfx_fill_rect(0, 0, w, h, C_BG);
 
     /*
-     * Three tabs, and the arithmetic is written so they tile exactly:
-     * the last one takes whatever the two divisions left over rather
-     * than each being w/3 and leaving a seam of background at the right
-     * edge on a width that is not a multiple of three. 720 is not.
+     * Four tabs (8008: PODCAST, beside RADIO), and the arithmetic is
+     * written so they tile exactly: the last one takes whatever the
+     * divisions left over rather than each being w/4 and leaving a seam
+     * of background at the right edge on a width that is not a multiple
+     * of four. "PODCAST" at NAME_SCALE is 7 x 21 = 147 px, inside the
+     * 180 - 16 a quarter of 720 leaves it.
      */
     {
-        const int t1 = w / 3, t2 = (2 * w) / 3;
+        const int t1 = w / 4, t2 = (2 * w) / 4, t3 = (3 * w) / 4;
         draw_tab(BROWSER_TAB_SD, 0, t1);
         draw_tab(BROWSER_TAB_USB, t1, t2 - t1);
-        draw_tab(BROWSER_TAB_RADIO, t2, w - t2);
+        draw_tab(BROWSER_TAB_RADIO, t2, t3 - t2);
+        draw_tab(BROWSER_TAB_PODCAST, t3, w - t3);
     }
 
     /* Current directory, tail kept -- the end of the path is the part
@@ -1291,6 +1336,35 @@ void browser_draw(void)
                       s_scroll_drag ? C_TEXT : C_DIM);
     }
 
+    /*
+     * 8008: the podcast tab's whole content, where its rows will go.
+     * Without a key: what is needed and where to put it -- the remote's
+     * own address when it is up, else how to turn it on. Paragraphs, so
+     * gfx wraps them and a translator gets each whole.
+     */
+    if (s_pod) {
+        const int px = 32, pw = w - 64, step = GFX_GLYPH_H(LABEL_SCALE) + 10;
+        int py = LIST_TOP + 32;
+        const bool have = podindex_state(NULL, 0, NULL) == PODINDEX_WORKING;
+        const char *p1 = have
+            ? _("The Podcast Index key works. Finding and playing podcasts is still to come.")
+            : _("Podcasts are found through Podcast Index, which needs your own free API key "
+                "and secret from api.podcastindex.org. Enter them on the remote's page, "
+                "under Podcast Index:");
+        py += step * gfx_draw_para(px, py, p1, LABEL_SCALE, pw, step, 12, C_TEXT);
+        if (!have) {
+            char url[48];
+            py += step;
+            if (remote_running() && remote_url(url, sizeof(url))) {
+                gfx_draw_text(px, py, url, NAME_SCALE, pw, C_ACCENT);
+            } else {
+                gfx_draw_para(px, py, _("The remote is off. Turn on Remote control on the "
+                                        "NET tab, and its address shows here."),
+                              LABEL_SCALE, pw, step, 6, C_DIM);
+            }
+        }
+    }
+
     const int fy = h - FOOT_H;
     gfx_fill_rect(0, fy, w, FOOT_H, C_BG);
     gfx_fill_rect(0, fy, w, 2, C_RULE);
@@ -1402,14 +1476,15 @@ browser_result_t browser_touch(bool down, int x, int y)
     if (!tapped) return res;
 
     if (y < TAB_H) {
-        /* Same thirds as the drawing, and derived the same way so a tap
-         * lands on the strip it looks like it landed on. */
-        const int t1 = w / 3, t2 = (2 * w) / 3;
+        /* Same quarters as the drawing (8008), and derived the same way
+         * so a tap lands on the strip it looks like it landed on. */
+        const int t1 = w / 4, t2 = (2 * w) / 4, t3 = (3 * w) / 4;
         const browser_tab_t want = (x < t1) ? BROWSER_TAB_SD
                                  : (x < t2) ? BROWSER_TAB_USB
-                                            : BROWSER_TAB_RADIO;
+                                 : (x < t3) ? BROWSER_TAB_RADIO
+                                            : BROWSER_TAB_PODCAST;
         static const char *const tab_name[BROWSER_TAB_COUNT] = {   /* 6021: log */
-            same("SD"), same("USB"), same("RADIO")
+            same("SD"), same("USB"), same("RADIO"), same("PODCAST")
         };
         ESP_LOGI(TAG, "button: tab %s", tab_name[want]);
         select_tab(want);

@@ -60,6 +60,7 @@
 | `microSD` | microSD 卡。 |
 | `USB` | 插在 USB-A 口的 U 盘。 |
 | `RADIO` | 网络电台：`stations.m3u` 与收藏。 |
+| `PODCAST` | 通过 Podcast Index 收听播客。需要你自己的 API 密钥，在遥控器页面上填写。 |
 
 ### 底部按钮
 

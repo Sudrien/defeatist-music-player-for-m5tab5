@@ -414,6 +414,8 @@ zh-CN:
     "Podcast Index refused that key and secret. The player's clock has not been set from the network yet, and a wrong clock is refused the same way.": ~
     # remote.html
     "Podcast directory search needs your own free API key and secret from api.podcastindex.org. The player tries them before saving them, and once they work this form is locked.": ~
+    # browser.c
+    "Podcasts are found through Podcast Index, which needs your own free API key and secret from api.podcastindex.org. Enter them on the remote's page, under Podcast Index:": ~
     # sleeppage.c, ui.c
     "Power off": "自动关机"
     # ui.c
@@ -562,6 +564,8 @@ zh-CN:
     "That needs a stream address.": "需要填写流地址。"
     # portal.c
     "That network was not found. Check the name and try again.": "找不到该网络。请检查名称后重试。"
+    # browser.c
+    "The Podcast Index key works. Finding and playing podcasts is still to come.": ~
     # recorder.c
     "The USB microphone did not start.": "USB 麦克风未能启动。"
     # recorder.c
@@ -606,6 +610,8 @@ zh-CN:
     "The player said no. Try again in ten minutes.": "播放器拒绝了。请十分钟后再试。"
     # remote.html
     "The player tests the network and password before saving them. The password is only ever sent over this encrypted connection.": "播放器会在保存前先测试网络和密码。密码只通过这个加密连接发送。"
+    # browser.c
+    "The remote is off. Turn on Remote control on the NET tab, and its address shows here.": ~
     # portal.c, remote.c
     "The station could not be saved. The card may be full, absent, or write-protected, or the list may already be full.": "无法保存电台。卡可能已满、未插入或写保护，或者列表已满。"
     # bench.c
@@ -758,6 +764,12 @@ zh-CN:
     "playback stopped": "播放已停止"
     # player.c
     "plug in to keep playing": "请接上电源继续播放"
+    # browser.c
+    "podcasts - Podcast Index key saved": ~
+    # browser.c
+    "podcasts - checking the Podcast Index key": ~
+    # browser.c
+    "podcasts need a Podcast Index key": ~
     # panel.c
     "port": "端口"
     # panel.c

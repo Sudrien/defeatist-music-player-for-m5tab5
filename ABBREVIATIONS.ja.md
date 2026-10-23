@@ -60,6 +60,7 @@
 | `microSD` | microSD カード。 |
 | `USB` | USB-A ポートの USB ドライブ。 |
 | `RADIO` | インターネットラジオ：`stations.m3u` とお気に入り。 |
+| `PODCAST` | Podcast Index 経由のポッドキャスト。自分の API キーが必要で、リモコンのページで入力します。 |
 
 ### フッターボタン
 

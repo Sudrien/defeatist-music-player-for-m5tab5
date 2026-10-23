@@ -414,6 +414,8 @@ en:
     "Podcast Index refused that key and secret. The player's clock has not been set from the network yet, and a wrong clock is refused the same way.": ~
     # remote.html
     "Podcast directory search needs your own free API key and secret from api.podcastindex.org. The player tries them before saving them, and once they work this form is locked.": ~
+    # browser.c
+    "Podcasts are found through Podcast Index, which needs your own free API key and secret from api.podcastindex.org. Enter them on the remote's page, under Podcast Index:": ~
     # sleeppage.c, ui.c
     "Power off": ~
     # ui.c
@@ -562,6 +564,8 @@ en:
     "That needs a stream address.": ~
     # portal.c
     "That network was not found. Check the name and try again.": ~
+    # browser.c
+    "The Podcast Index key works. Finding and playing podcasts is still to come.": ~
     # recorder.c
     "The USB microphone did not start.": "The USB microphone\ndid not start."
     # recorder.c
@@ -606,6 +610,8 @@ en:
     "The player said no. Try again in ten minutes.": ~
     # remote.html
     "The player tests the network and password before saving them. The password is only ever sent over this encrypted connection.": ~
+    # browser.c
+    "The remote is off. Turn on Remote control on the NET tab, and its address shows here.": ~
     # portal.c, remote.c
     "The station could not be saved. The card may be full, absent, or write-protected, or the list may already be full.": ~
     # bench.c
@@ -758,6 +764,12 @@ en:
     "playback stopped": ~
     # player.c
     "plug in to keep playing": ~
+    # browser.c
+    "podcasts - Podcast Index key saved": ~
+    # browser.c
+    "podcasts - checking the Podcast Index key": ~
+    # browser.c
+    "podcasts need a Podcast Index key": ~
     # panel.c
     "port": ~
     # panel.c

@@ -60,6 +60,7 @@ All'estremità destra della stessa riga, la batteria (non c'è un'icona della ba
 | `microSD` | La scheda microSD. |
 | `USB` | Una chiavetta nella porta USB-A. |
 | `RADIO` | Radio via internet: `stations.m3u` e preferiti. |
+| `PODCAST` | Podcast, tramite Podcast Index. Serve una propria chiave API, da inserire nella pagina del telecomando. |
 
 ### Pulsanti in basso
 

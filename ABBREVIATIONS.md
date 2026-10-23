@@ -65,6 +65,7 @@ icon):
 | `microSD` | The microSD card. |
 | `USB` | A USB drive in the USB-A port. |
 | `RADIO` | Internet radio: `stations.m3u` and favourites. |
+| `PODCAST` | Podcasts, through Podcast Index. Needs your own API key, entered on the remote's page. |
 
 ### Footer buttons
 

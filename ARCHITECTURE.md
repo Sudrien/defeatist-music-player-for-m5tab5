@@ -25997,3 +25997,31 @@ string literals (`LOG_FORMAT`), so a format has to be a literal itself,
 and a `?:` is a syntax error inside the macro. Two calls instead. 8006 was
 syntax-checked against stub headers whose ESP_LOGW was a plain function,
 which is how it got through.
+
+### 8008 -- a PODCAST tab, beside RADIO
+
+The chooser has four tabs now: microSD, USB, RADIO, PODCAST, in
+quarters (180 px each at 720; `PODCAST` and `microSD` at NAME_SCALE are
+147 px). It has no rows yet. Its status line says whether there is a
+Podcast Index key, and where the rows will go it says what one is and
+where to enter it: the remote's own address, drawn large, when the remote
+is up, or "Turn on Remote control on the NET tab" when it is not. With a
+working key it says so, and that finding and playing podcasts is still to
+come. The tab is grey until a key works (tab_present()), as RADIO is grey
+with no stations. A key that starts working while the tab is showing
+redraws it: browser_poll() compares podindex_state() with what it last
+drew.
+
+**Not a volume.** `s_pod`, like `s_radio`, means the tab has no mount
+behind it, and every test that took `!s_radio` to mean "a volume" now
+tests both: tab_root() returns "" for it, and the mount-chasing in
+browser_poll() skips it, because storage_present() and
+storage_mount_path() on BROWSER_TAB_PODCAST read past the volume array.
+UP and FLDR are disabled on it by the existing tests (at root, no
+directory). browser_open() clears `s_pod` with `s_radio`, for 5048's
+reason.
+
+The six screen strings are new and not yet translated. `PODCAST` is
+same(), as RADIO is, and is in ABBREVIATIONS.md and its six translations.
+
+On the board: `button: tab PODCAST`.

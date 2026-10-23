@@ -414,6 +414,8 @@ ja:
     "Podcast Index refused that key and secret. The player's clock has not been set from the network yet, and a wrong clock is refused the same way.": ~
     # remote.html
     "Podcast directory search needs your own free API key and secret from api.podcastindex.org. The player tries them before saving them, and once they work this form is locked.": ~
+    # browser.c
+    "Podcasts are found through Podcast Index, which needs your own free API key and secret from api.podcastindex.org. Enter them on the remote's page, under Podcast Index:": ~
     # sleeppage.c, ui.c
     "Power off": "電源オフ"
     # ui.c
@@ -562,6 +564,8 @@ ja:
     "That needs a stream address.": "ストリームのアドレスが必要です。"
     # portal.c
     "That network was not found. Check the name and try again.": "そのネットワークが見つかりません。名前を確認してもう一度お試しください。"
+    # browser.c
+    "The Podcast Index key works. Finding and playing podcasts is still to come.": ~
     # recorder.c
     "The USB microphone did not start.": "USBマイクが\n起動しなかった。"
     # recorder.c
@@ -606,6 +610,8 @@ ja:
     "The player said no. Try again in ten minutes.": "プレーヤーに拒否されました。10分後にもう一度お試しください。"
     # remote.html
     "The player tests the network and password before saving them. The password is only ever sent over this encrypted connection.": "プレーヤーは保存する前にネットワークとパスワードを試します。パスワードはこの暗号化された接続でのみ送られます。"
+    # browser.c
+    "The remote is off. Turn on Remote control on the NET tab, and its address shows here.": ~
     # portal.c, remote.c
     "The station could not be saved. The card may be full, absent, or write-protected, or the list may already be full.": "局を保存できませんでした。カードがいっぱい、未挿入、書き込み禁止か、リストがすでにいっぱいの可能性があります。"
     # bench.c
@@ -758,6 +764,12 @@ ja:
     "playback stopped": "再生停止"
     # player.c
     "plug in to keep playing": "給電して再生を続ける"
+    # browser.c
+    "podcasts - Podcast Index key saved": ~
+    # browser.c
+    "podcasts - checking the Podcast Index key": ~
+    # browser.c
+    "podcasts need a Podcast Index key": ~
     # panel.c
     "port": "ポート"
     # panel.c

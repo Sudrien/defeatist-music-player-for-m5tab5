@@ -60,6 +60,7 @@ Au bout droit de la même ligne, la batterie (il n'y a pas d'icône de batterie)
 | `microSD` | La carte microSD. |
 | `USB` | Une clé USB dans le port USB-A. |
 | `RADIO` | La radio sur Internet : `stations.m3u` et les favoris. |
+| `PODCAST` | Les podcasts, via Podcast Index. Il faut votre propre clé d'API, saisie sur la page de la télécommande. |
 
 ### Boutons du bas
 

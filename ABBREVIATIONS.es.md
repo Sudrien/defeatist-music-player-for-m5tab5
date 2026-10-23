@@ -60,6 +60,7 @@ En el extremo derecho de la misma línea, la batería (no hay icono de batería)
 | `microSD` | La tarjeta microSD. |
 | `USB` | Una unidad USB en el puerto USB-A. |
 | `RADIO` | Radio por Internet: `stations.m3u` y favoritos. |
+| `PODCAST` | Pódcasts, a través de Podcast Index. Necesita tu propia clave de API, que se introduce en la página del mando remoto. |
 
 ### Botones del pie
 

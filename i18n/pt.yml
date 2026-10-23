@@ -414,6 +414,8 @@ pt:
     "Podcast Index refused that key and secret. The player's clock has not been set from the network yet, and a wrong clock is refused the same way.": ~
     # remote.html
     "Podcast directory search needs your own free API key and secret from api.podcastindex.org. The player tries them before saving them, and once they work this form is locked.": ~
+    # browser.c
+    "Podcasts are found through Podcast Index, which needs your own free API key and secret from api.podcastindex.org. Enter them on the remote's page, under Podcast Index:": ~
     # sleeppage.c, ui.c
     "Power off": "Desligar"
     # ui.c
@@ -562,6 +564,8 @@ pt:
     "That needs a stream address.": "Falta o endereço do stream."
     # portal.c
     "That network was not found. Check the name and try again.": "Essa rede não foi encontrada. Confira o nome e tente de novo."
+    # browser.c
+    "The Podcast Index key works. Finding and playing podcasts is still to come.": ~
     # recorder.c
     "The USB microphone did not start.": "O microfone USB\nnão iniciou."
     # recorder.c
@@ -606,6 +610,8 @@ pt:
     "The player said no. Try again in ten minutes.": "O player disse não. Tente de novo daqui a dez minutos."
     # remote.html
     "The player tests the network and password before saving them. The password is only ever sent over this encrypted connection.": "O player testa a rede e a senha antes de salvá-las. A senha só é enviada por esta conexão criptografada."
+    # browser.c
+    "The remote is off. Turn on Remote control on the NET tab, and its address shows here.": ~
     # portal.c, remote.c
     "The station could not be saved. The card may be full, absent, or write-protected, or the list may already be full.": "Não foi possível salvar a rádio. O cartão pode estar cheio, ausente ou protegido contra gravação, ou a lista já cheia."
     # bench.c
@@ -758,6 +764,12 @@ pt:
     "playback stopped": "reprodução parada"
     # player.c
     "plug in to keep playing": "conecte para continuar"
+    # browser.c
+    "podcasts - Podcast Index key saved": ~
+    # browser.c
+    "podcasts - checking the Podcast Index key": ~
+    # browser.c
+    "podcasts need a Podcast Index key": ~
     # panel.c
     "port": "porta"
     # panel.c

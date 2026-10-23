@@ -9,7 +9,7 @@
 #include <stddef.h>
 #include "i18n.h"
 
-const unsigned i18n_count = 409;
+const unsigned i18n_count = 415;
 const char *const i18n_keys[] = {
     "%.32s did not work. Try again.",
     "%d h",
@@ -215,6 +215,7 @@ const char *const i18n_keys[] = {
     "Podcast Index refused that key and secret.",
     "Podcast Index refused that key and secret. The player's clock has not been set from the network yet, and a wrong clock is refused the same way.",
     "Podcast directory search needs your own free API key and secret from api.podcastindex.org. The player tries them before saving them, and once they work this form is locked.",
+    "Podcasts are found through Podcast Index, which needs your own free API key and secret from api.podcastindex.org. Enter them on the remote's page, under Podcast Index:",
     "Power off",
     "Power off?",
     "Previous",
@@ -289,6 +290,7 @@ const char *const i18n_keys[] = {
     "That name cannot be used. Names are up to 63 characters and cannot start with a #.",
     "That needs a stream address.",
     "That network was not found. Check the name and try again.",
+    "The Podcast Index key works. Finding and playing podcasts is still to come.",
     "The USB microphone did not start.",
     "The USB microphone has no 16- or 24-bit format.",
     "The USB microphone is not there any more.",
@@ -311,6 +313,7 @@ const char *const i18n_keys[] = {
     "The player is out of memory for that.",
     "The player said no. Try again in ten minutes.",
     "The player tests the network and password before saving them. The password is only ever sent over this encrypted connection.",
+    "The remote is off. Turn on Remote control on the NET tab, and its address shows here.",
     "The station could not be saved. The card may be full, absent, or write-protected, or the list may already be full.",
     "The station did not answer.",
     "The station does not say what it needs.",
@@ -387,6 +390,9 @@ const char *const i18n_keys[] = {
     "optional",
     "playback stopped",
     "plug in to keep playing",
+    "podcasts - Podcast Index key saved",
+    "podcasts - checking the Podcast Index key",
+    "podcasts need a Podcast Index key",
     "port",
     "product",
     "queue, files, settings, stations",
@@ -629,6 +635,7 @@ const unsigned char i18n_on_screen[] = {
     0,  /* 'Podcast Index refused that key and secre' */
     0,  /* 'Podcast Index refused that key and secre' */
     0,  /* 'Podcast directory search needs your own ' */
+    1,  /* 'Podcasts are found through Podcast Index' */
     1,  /* 'Power off' */
     1,  /* 'Power off?' */
     0,  /* 'Previous' */
@@ -703,6 +710,7 @@ const unsigned char i18n_on_screen[] = {
     0,  /* 'That name cannot be used. Names are up t' */
     0,  /* 'That needs a stream address.' */
     0,  /* 'That network was not found. Check the na' */
+    1,  /* 'The Podcast Index key works. Finding and' */
     1,  /* 'The USB microphone did not start.' */
     1,  /* 'The USB microphone has no 16- or 24-bit ' */
     1,  /* 'The USB microphone is not there any more' */
@@ -725,6 +733,7 @@ const unsigned char i18n_on_screen[] = {
     0,  /* 'The player is out of memory for that.' */
     0,  /* 'The player said no. Try again in ten min' */
     0,  /* 'The player tests the network and passwor' */
+    1,  /* 'The remote is off. Turn on Remote contro' */
     0,  /* 'The station could not be saved. The card' */
     1,  /* 'The station did not answer.' */
     1,  /* 'The station does not say what it needs.' */
@@ -801,6 +810,9 @@ const unsigned char i18n_on_screen[] = {
     0,  /* 'optional' */
     1,  /* 'playback stopped' */
     1,  /* 'plug in to keep playing' */
+    1,  /* 'podcasts - Podcast Index key saved' */
+    1,  /* 'podcasts - checking the Podcast Index ke' */
+    1,  /* 'podcasts need a Podcast Index key' */
     1,  /* 'port' */
     1,  /* 'product' */
     0,  /* 'queue, files, settings, stations' */
@@ -1079,6 +1091,7 @@ const char *const i18n_vals[] = {
     NULL,
     NULL,
     NULL,
+    NULL,
     "Recording is off\012(AUDIO, Record from).",
     NULL,
     NULL,
@@ -1128,6 +1141,7 @@ const char *const i18n_vals[] = {
     NULL,
     NULL,
     NULL,
+    NULL,
     "The USB microphone\012did not start.",
     "The USB microphone has\012no 16- or 24-bit format.",
     "The USB microphone is\012not there any more.",
@@ -1136,6 +1150,7 @@ const char *const i18n_vals[] = {
     NULL,
     NULL,
     "The microphones did\012not start.",
+    NULL,
     NULL,
     NULL,
     NULL,
@@ -1213,6 +1228,9 @@ const char *const i18n_vals[] = {
     NULL,
     NULL,
     "no network - check Wi-Fi or cable, tap again",
+    NULL,
+    NULL,
+    NULL,
     NULL,
     NULL,
     NULL,
@@ -1464,6 +1482,7 @@ const char *const i18n_vals[] = {
     NULL,
     NULL,
     NULL,
+    NULL,
     "自动关机",
     "关机？",
     "上一首",
@@ -1538,6 +1557,7 @@ const char *const i18n_vals[] = {
     "该名称不可用。名称最多 63 个字符，且不能以 # 开头。",
     "需要填写流地址。",
     "找不到该网络。请检查名称后重试。",
+    NULL,
     "USB 麦克风未能启动。",
     "USB 麦克风\012不支持 16 或 24 位格式。",
     "USB 麦克风已不在。",
@@ -1560,6 +1580,7 @@ const char *const i18n_vals[] = {
     "播放器内存不足，无法完成。",
     "播放器拒绝了。请十分钟后再试。",
     "播放器会在保存前先测试网络和密码。密码只通过这个加密连接发送。",
+    NULL,
     "无法保存电台。卡可能已满、未插入或写保护，或者列表已满。",
     "电台无响应。",
     "电台未说明所需码率。",
@@ -1636,6 +1657,9 @@ const char *const i18n_vals[] = {
     "可选",
     "播放已停止",
     "请接上电源继续播放",
+    NULL,
+    NULL,
+    NULL,
     "端口",
     "产品",
     "队列、文件、设置、电台",
@@ -1874,6 +1898,7 @@ const char *const i18n_vals[] = {
     NULL,
     NULL,
     NULL,
+    NULL,
     "電源オフ",
     "電源を切りますか？",
     "前へ",
@@ -1948,6 +1973,7 @@ const char *const i18n_vals[] = {
     "その名前は使えません。名前は63文字までで、# で始めることはできません。",
     "ストリームのアドレスが必要です。",
     "そのネットワークが見つかりません。名前を確認してもう一度お試しください。",
+    NULL,
     "USBマイクが\012起動しなかった。",
     "USBマイクに\01216/24ビット形式がない。",
     "USBマイクが\012もう見つからない。",
@@ -1970,6 +1996,7 @@ const char *const i18n_vals[] = {
     "プレーヤーのメモリが足りません。",
     "プレーヤーに拒否されました。10分後にもう一度お試しください。",
     "プレーヤーは保存する前にネットワークとパスワードを試します。パスワードはこの暗号化された接続でのみ送られます。",
+    NULL,
     "局を保存できませんでした。カードがいっぱい、未挿入、書き込み禁止か、リストがすでにいっぱいの可能性があります。",
     "局が応答しない。",
     "局は必要量を示していない。",
@@ -2046,6 +2073,9 @@ const char *const i18n_vals[] = {
     "省略可",
     "再生停止",
     "給電して再生を続ける",
+    NULL,
+    NULL,
+    NULL,
     "ポート",
     "製品",
     "キュー、ファイル、設定、ラジオ局",
@@ -2284,6 +2314,7 @@ const char *const i18n_vals[] = {
     NULL,
     NULL,
     NULL,
+    NULL,
     "Apagado",
     "¿Apagar?",
     "Anterior",
@@ -2358,6 +2389,7 @@ const char *const i18n_vals[] = {
     "Ese nombre no se puede usar. Los nombres tienen hasta 63 caracteres y no pueden empezar por #.",
     "Falta la dirección del flujo.",
     "No se encontró esa red. Revisa el nombre e inténtalo otra vez.",
+    NULL,
     "El micrófono USB\012no arrancó.",
     "El micrófono USB no tiene\012formato de 16 ni 24 bits.",
     "El micrófono USB\012ya no está.",
@@ -2380,6 +2412,7 @@ const char *const i18n_vals[] = {
     "Al reproductor no le queda memoria para eso.",
     "El reproductor dijo que no. Inténtalo de nuevo en diez minutos.",
     "El reproductor prueba la red y la contraseña antes de guardarlas. La contraseña solo se envía por esta conexión cifrada.",
+    NULL,
     "No se pudo guardar la emisora. La tarjeta puede estar llena, ausente o protegida, o la lista ya llena.",
     "La emisora no respondió.",
     "La emisora no dice qué necesita.",
@@ -2456,6 +2489,9 @@ const char *const i18n_vals[] = {
     "opcional",
     "reproducción detenida",
     "conéctalo para seguir",
+    NULL,
+    NULL,
+    NULL,
     "puerto",
     "producto",
     "cola, archivos, ajustes, emisoras",
@@ -2694,6 +2730,7 @@ const char *const i18n_vals[] = {
     NULL,
     NULL,
     NULL,
+    NULL,
     "Desligar",
     "Desligar?",
     "Anterior",
@@ -2768,6 +2805,7 @@ const char *const i18n_vals[] = {
     "Esse nome não pode ser usado. Os nomes têm até 63 caracteres e não podem começar com #.",
     "Falta o endereço do stream.",
     "Essa rede não foi encontrada. Confira o nome e tente de novo.",
+    NULL,
     "O microfone USB\012não iniciou.",
     "O microfone USB não tem\012formato 16 ou 24 bits.",
     "O microfone USB\012não está mais lá.",
@@ -2790,6 +2828,7 @@ const char *const i18n_vals[] = {
     "O player está sem memória para isso.",
     "O player disse não. Tente de novo daqui a dez minutos.",
     "O player testa a rede e a senha antes de salvá-las. A senha só é enviada por esta conexão criptografada.",
+    NULL,
     "Não foi possível salvar a rádio. O cartão pode estar cheio, ausente ou protegido contra gravação, ou a lista já cheia.",
     "A rádio não respondeu.",
     "A rádio não diz do que precisa.",
@@ -2866,6 +2905,9 @@ const char *const i18n_vals[] = {
     "opcional",
     "reprodução parada",
     "conecte para continuar",
+    NULL,
+    NULL,
+    NULL,
     "porta",
     "produto",
     "fila, arquivos, ajustes, rádios",
@@ -3104,6 +3146,7 @@ const char *const i18n_vals[] = {
     NULL,
     NULL,
     NULL,
+    NULL,
     "Éteindre",
     "Éteindre?",
     "Précédent",
@@ -3178,6 +3221,7 @@ const char *const i18n_vals[] = {
     "Ce nom n'est pas utilisable. Un nom fait au plus 63 caractères et ne peut pas commencer par #.",
     "Il faut une adresse de flux.",
     "Ce réseau est introuvable. Vérifiez le nom et réessayez.",
+    NULL,
     "Le micro USB n'a pas\012démarré.",
     "Le micro USB n'a pas de\012format 16 ou 24 bits.",
     "Le micro USB n'est\012plus là.",
@@ -3200,6 +3244,7 @@ const char *const i18n_vals[] = {
     "Le lecteur manque de mémoire pour cela.",
     "Le lecteur a refusé. Réessayez dans dix minutes.",
     "Le lecteur essaie le réseau et le mot de passe avant de les enregistrer. Le mot de passe n'est envoyé que par cette connexion chiffrée.",
+    NULL,
     "La radio n'a pas pu être enregistrée. La carte est peut-être pleine, absente ou protégée en écriture, ou la liste déjà pleine.",
     "La radio n'a pas répondu.",
     "La radio n'indique pas ce qu'il lui faut.",
@@ -3276,6 +3321,9 @@ const char *const i18n_vals[] = {
     "facultatif",
     "lecture arrêtée",
     "branchez pour continuer",
+    NULL,
+    NULL,
+    NULL,
     "port",
     "produit",
     "file, fichiers, réglages, radios",
@@ -3514,6 +3562,7 @@ const char *const i18n_vals[] = {
     NULL,
     NULL,
     NULL,
+    NULL,
     "Spegni",
     "Spegnere?",
     "Precedente",
@@ -3588,6 +3637,7 @@ const char *const i18n_vals[] = {
     "Questo nome non si può usare. I nomi hanno al massimo 63 caratteri e non possono iniziare con #.",
     "Manca l'indirizzo dello stream.",
     "Rete non trovata. Controlla il nome e riprova.",
+    NULL,
     "Il microfono USB non\012si è avviato.",
     "Il microfono USB non ha\012formato a 16 o 24 bit.",
     "Il microfono USB\012non c'è più.",
@@ -3610,6 +3660,7 @@ const char *const i18n_vals[] = {
     "Il lettore non ha memoria per questo.",
     "Il lettore ha detto di no. Riprova tra dieci minuti.",
     "Il lettore prova la rete e la password prima di salvarle. La password viene inviata solo tramite questa connessione cifrata.",
+    NULL,
     "Impossibile salvare la radio. La scheda può essere piena, assente o protetta da scrittura, o l'elenco già pieno.",
     "La radio non ha risposto.",
     "La radio non dice di cosa ha bisogno.",
@@ -3686,6 +3737,9 @@ const char *const i18n_vals[] = {
     "facoltativo",
     "riproduzione fermata",
     "collega per continuare",
+    NULL,
+    NULL,
+    NULL,
     "porta",
     "prodotto",
     "coda, file, impostazioni, radio",

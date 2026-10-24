@@ -105,6 +105,11 @@ Claude, do not touch this README unless explicitly asked to. Use your own file.
 - playback speed (for files)
   - These are turntable numbers, you'll figure it out.
 
+## v0.8.0 Goals
+- https://podcastindex.org/ integration
+  - is it me that's slow, or their server
+- tried adding korean font, had to put significant work into compression / font optimization. 
+
 ## What could happen
 - more crash and burn handling, hey, you can always hook it up to `idf.py monitor` and see what you get.
 - Podcast over wifi downloader? Conceivable. Would want chapter support

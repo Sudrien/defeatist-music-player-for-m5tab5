@@ -20,6 +20,8 @@ zh-CN:
     "%s did not answer.": "%s 没有响应。"
     # remote.html
     "%s left": "剩余 %s"
+    # remote.html
+    "%s of %s": ~
     # browser.c
     "%s on Podcast Index": ~
     # remote.c
@@ -111,6 +113,10 @@ zh-CN:
     # recorder.c
     "Already recording.": "正在录音。"
     # remote.html
+    "Another download is running. Pause or cancel it first.": ~
+    # remote.html
+    "Ask again": ~
+    # remote.html
     "Ask the player": "询问播放器"
     # remote.html
     "Asking Podcast Index…": ~
@@ -126,6 +132,8 @@ zh-CN:
     "BOOT": "保持"
     # panel.c
     "BUSY": "进行中"
+    # remote.html
+    "Back": ~
     # portal.c
     "Back to the form": "返回表单"
     # player.c
@@ -150,6 +158,8 @@ zh-CN:
     "CLOSE": "关闭"
     # ui.c
     "Cancel": "取消"
+    # remote.html
+    "Cancel and delete": ~
     # browser.c
     "Cancel the download and delete it": ~
     # player.c
@@ -212,8 +222,16 @@ zh-CN:
     "Deny": "拒绝"
     # sleeppage.c
     "Dim screen": "屏幕变暗"
+    # remote.html
+    "Download": ~
+    # remote.html
+    "Download to": ~
     # browser.c
     "Download to %s": ~
+    # remote.html
+    "Downloaded %s.": ~
+    # remote.html
+    "Downloading %s: %s": ~
     # browser.c
     "EAT": "播完删除"
     # browser.c
@@ -248,6 +266,8 @@ zh-CN:
     "Focused: those two aimed out of it.": "定向：这两个麦克风朝屏幕外。"
     # sleeppage.c
     "For backlight life and battery. This panel cannot burn in.": "为延长背光寿命并省电。此屏幕不会烧屏。"
+    # remote.html
+    "Go on": ~
     # browser.c
     "Go on with the download": ~
     # ui.c
@@ -362,6 +382,8 @@ zh-CN:
     "None yet. A browser or MPD app asks when it connects.": "暂无。浏览器或 MPD 应用连接时会请求允许。"
     # recorder.c
     "Not enough memory to record.": "内存不足，无法录音。"
+    # remote.html
+    "Nothing here.": ~
     # recorder.c
     "Nothing is plugged into the headset jack.": "耳麦插孔未插入设备。"
     # remote.html
@@ -402,8 +424,12 @@ zh-CN:
     "Over Wi-Fi or a USB Ethernet cable.": "通过 Wi-Fi 或 USB 以太网线均可。"
     # portal.c, remote.html
     "Password": "密码"
+    # remote.html
+    "Pause": ~
     # browser.c
     "Pause the download": ~
+    # remote.html
+    "Paused %s: %s": ~
     # remote.html
     "Play": "播放"
     # remote.html
@@ -419,11 +445,17 @@ zh-CN:
     # remote.html
     "Podcast Index answered with something the player did not expect.": ~
     # remote.html
+    "Podcast Index did not answer.": ~
+    # remote.html
     "Podcast Index refused that key and secret.": ~
     # remote.html
     "Podcast Index refused that key and secret. The player's clock has not been set from the network yet, and a wrong clock is refused the same way.": ~
     # remote.html
     "Podcast directory search needs your own free API key and secret from %s, which asks for an email address to register. The player tries them before saving them, and once they work this form is locked.": ~
+    # remote.html
+    "Podcast lists need a working Podcast Index key, above.": ~
+    # remote.html
+    "Podcasts": ~
     # browser.c
     "Podcasts are found through Podcast Index, which needs your own free API key and secret from api.podcastindex.org. Enter them on the remote's page, under Podcast Index:": ~
     # sleeppage.c, ui.c
@@ -560,6 +592,8 @@ zh-CN:
     "TRACK": "每曲"
     # ui.c
     "TREB": "高音"
+    # remote.html
+    "That episode is already on the drive.": ~
     # remote.c
     "That folder could not be opened.": "无法打开该文件夹。"
     # portal.c, remote.c
@@ -574,6 +608,8 @@ zh-CN:
     "That needs a stream address.": "需要填写流地址。"
     # portal.c
     "That network was not found. Check the name and try again.": "找不到该网络。请检查名称后重试。"
+    # remote.html
+    "That podcast's folder name is too long for the drive.": ~
     # recorder.c
     "The USB microphone did not start.": "USB 麦克风未能启动。"
     # recorder.c
@@ -586,6 +622,8 @@ zh-CN:
     "The card would not take any more.": "卡已写不下。"
     # sleeppage.c
     "The device turns off. The side button turns it back on.": "设备会关机。按侧边按钮可重新开机。"
+    # remote.html
+    "The download of %s stopped: %s": ~
     # portal.c
     "The list is full at %d stations. Remove one from %s on the card to add another.": "列表已满（%d 个电台）。从卡上的 %s 中删除一个才能再添加。"
     # recorder.c
@@ -605,6 +643,8 @@ zh-CN:
     # remote.html
     "The player did not answer.": "播放器没有响应。"
     # remote.html
+    "The player did not understand that.": ~
+    # remote.html
     "The player is asking about another browser. Try again in a moment.": "播放器正在询问另一个浏览器。请稍后再试。"
     # remote.html
     "The player is on %s, and you are on its cable.": "播放器连接在 %s，你通过它的网线连接。"
@@ -618,6 +658,10 @@ zh-CN:
     "The player said no. Try again in ten minutes.": "播放器拒绝了。请十分钟后再试。"
     # remote.html
     "The player tests the network and password before saving them. The password is only ever sent over this encrypted connection.": "播放器会在保存前先测试网络和密码。密码只通过这个加密连接发送。"
+    # remote.html
+    "The player's screen has asked for another list since. Ask again to see this one.": ~
+    # remote.html
+    "The player's screen has since asked for another podcast's episodes. Ask again, then download.": ~
     # browser.c
     "The remote is off. Turn on Remote control on the NET tab, and its address shows here.": ~
     # portal.c, remote.c
@@ -634,6 +678,10 @@ zh-CN:
     "Then it shows the address to open.": "之后会显示要打开的地址。"
     # panel.c
     "Then it shows the address to use.": "之后会显示要使用的地址。"
+    # remote.html
+    "There is no card or drive in the player to download to.": ~
+    # remote.html
+    "There is no download to do that to.": ~
     # remote.html
     "This browser has not been allowed on the player yet.": "此浏览器尚未在播放器上获得允许。"
     # bench.c
@@ -692,6 +740,8 @@ zh-CN:
     "a guess": "估计值"
     # browser.c
     "all start with  %s": "全部以 %s 开头"
+    # remote.html
+    "an episode": ~
     # browser.c
     "another episode is downloading": ~
     # panel.c

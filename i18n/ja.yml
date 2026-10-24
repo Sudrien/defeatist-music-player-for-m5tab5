@@ -20,6 +20,8 @@ ja:
     "%s did not answer.": "%s から応答がありません。"
     # remote.html
     "%s left": "残り %s"
+    # remote.html
+    "%s of %s": ~
     # browser.c
     "%s on Podcast Index": ~
     # remote.c
@@ -111,6 +113,10 @@ ja:
     # recorder.c
     "Already recording.": "録音中です。"
     # remote.html
+    "Another download is running. Pause or cancel it first.": ~
+    # remote.html
+    "Ask again": ~
+    # remote.html
     "Ask the player": "プレーヤーに尋ねる"
     # remote.html
     "Asking Podcast Index…": ~
@@ -126,6 +132,8 @@ ja:
     "BOOT": "保持"
     # panel.c
     "BUSY": "作業中"
+    # remote.html
+    "Back": ~
     # portal.c
     "Back to the form": "フォームに戻る"
     # player.c
@@ -150,6 +158,8 @@ ja:
     "CLOSE": "閉じる"
     # ui.c
     "Cancel": "キャンセル"
+    # remote.html
+    "Cancel and delete": ~
     # browser.c
     "Cancel the download and delete it": ~
     # player.c
@@ -212,8 +222,16 @@ ja:
     "Deny": "拒否"
     # sleeppage.c
     "Dim screen": "画面を暗く"
+    # remote.html
+    "Download": ~
+    # remote.html
+    "Download to": ~
     # browser.c
     "Download to %s": ~
+    # remote.html
+    "Downloaded %s.": ~
+    # remote.html
+    "Downloading %s: %s": ~
     # browser.c
     "EAT": "消費"
     # browser.c
@@ -248,6 +266,8 @@ ja:
     "Focused: those two aimed out of it.": "フォーカス：その2つを画面の外へ向ける。"
     # sleeppage.c
     "For backlight life and battery. This panel cannot burn in.": "バックライト寿命と電池のため。この画面は焼き付かない。"
+    # remote.html
+    "Go on": ~
     # browser.c
     "Go on with the download": ~
     # ui.c
@@ -362,6 +382,8 @@ ja:
     "None yet. A browser or MPD app asks when it connects.": "まだない。ブラウザや MPD アプリは接続時に許可を求める。"
     # recorder.c
     "Not enough memory to record.": "録音するメモリが足りない。"
+    # remote.html
+    "Nothing here.": ~
     # recorder.c
     "Nothing is plugged into the headset jack.": "ヘッドセット端子に\n何もつながっていない。"
     # remote.html
@@ -402,8 +424,12 @@ ja:
     "Over Wi-Fi or a USB Ethernet cable.": "Wi-Fi でも USB イーサネットのケーブルでも。"
     # portal.c, remote.html
     "Password": "パスワード"
+    # remote.html
+    "Pause": ~
     # browser.c
     "Pause the download": ~
+    # remote.html
+    "Paused %s: %s": ~
     # remote.html
     "Play": "再生"
     # remote.html
@@ -419,11 +445,17 @@ ja:
     # remote.html
     "Podcast Index answered with something the player did not expect.": ~
     # remote.html
+    "Podcast Index did not answer.": ~
+    # remote.html
     "Podcast Index refused that key and secret.": ~
     # remote.html
     "Podcast Index refused that key and secret. The player's clock has not been set from the network yet, and a wrong clock is refused the same way.": ~
     # remote.html
     "Podcast directory search needs your own free API key and secret from %s, which asks for an email address to register. The player tries them before saving them, and once they work this form is locked.": ~
+    # remote.html
+    "Podcast lists need a working Podcast Index key, above.": ~
+    # remote.html
+    "Podcasts": ~
     # browser.c
     "Podcasts are found through Podcast Index, which needs your own free API key and secret from api.podcastindex.org. Enter them on the remote's page, under Podcast Index:": ~
     # sleeppage.c, ui.c
@@ -560,6 +592,8 @@ ja:
     "TRACK": "曲ごと"
     # ui.c
     "TREB": "高音"
+    # remote.html
+    "That episode is already on the drive.": ~
     # remote.c
     "That folder could not be opened.": "そのフォルダを開けませんでした。"
     # portal.c, remote.c
@@ -574,6 +608,8 @@ ja:
     "That needs a stream address.": "ストリームのアドレスが必要です。"
     # portal.c
     "That network was not found. Check the name and try again.": "そのネットワークが見つかりません。名前を確認してもう一度お試しください。"
+    # remote.html
+    "That podcast's folder name is too long for the drive.": ~
     # recorder.c
     "The USB microphone did not start.": "USBマイクが\n起動しなかった。"
     # recorder.c
@@ -586,6 +622,8 @@ ja:
     "The card would not take any more.": "カードがもう書き込めない。"
     # sleeppage.c
     "The device turns off. The side button turns it back on.": "本体の電源が切れる。側面のボタンで入る。"
+    # remote.html
+    "The download of %s stopped: %s": ~
     # portal.c
     "The list is full at %d stations. Remove one from %s on the card to add another.": "リストは %d 局でいっぱいです。追加するには、カードの %s から1つ削除してください。"
     # recorder.c
@@ -605,6 +643,8 @@ ja:
     # remote.html
     "The player did not answer.": "プレーヤーから応答がありません。"
     # remote.html
+    "The player did not understand that.": ~
+    # remote.html
     "The player is asking about another browser. Try again in a moment.": "プレーヤーは別のブラウザについて確認中です。少し待ってからもう一度お試しください。"
     # remote.html
     "The player is on %s, and you are on its cable.": "プレーヤーは %s に接続中で、あなたはそのケーブル経由です。"
@@ -618,6 +658,10 @@ ja:
     "The player said no. Try again in ten minutes.": "プレーヤーに拒否されました。10分後にもう一度お試しください。"
     # remote.html
     "The player tests the network and password before saving them. The password is only ever sent over this encrypted connection.": "プレーヤーは保存する前にネットワークとパスワードを試します。パスワードはこの暗号化された接続でのみ送られます。"
+    # remote.html
+    "The player's screen has asked for another list since. Ask again to see this one.": ~
+    # remote.html
+    "The player's screen has since asked for another podcast's episodes. Ask again, then download.": ~
     # browser.c
     "The remote is off. Turn on Remote control on the NET tab, and its address shows here.": ~
     # portal.c, remote.c
@@ -634,6 +678,10 @@ ja:
     "Then it shows the address to open.": "その後、開くアドレスが出る。"
     # panel.c
     "Then it shows the address to use.": "その後、使うアドレスが出る。"
+    # remote.html
+    "There is no card or drive in the player to download to.": ~
+    # remote.html
+    "There is no download to do that to.": ~
     # remote.html
     "This browser has not been allowed on the player yet.": "このブラウザはまだプレーヤーで許可されていません。"
     # bench.c
@@ -692,6 +740,8 @@ ja:
     "a guess": "推定"
     # browser.c
     "all start with  %s": "すべて %s で始まる"
+    # remote.html
+    "an episode": ~
     # browser.c
     "another episode is downloading": ~
     # panel.c

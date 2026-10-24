@@ -26595,3 +26595,76 @@ the error, and CLAUDE.md's rule that truncation stops the build stands.
 
 On the board: nothing changes. In the build log, grep for
 `format-truncation`; send what it finds.
+
+### 8033 -- podcasts from the remote's page
+
+The remote's page gains a Podcasts section under the Podcast Index key:
+the PODCAST tab's three lists (categories, a category's podcasts, a
+podcast's episodes, with date, length and size), a Download button on
+each episode, a "Download to" choice when both drives are in, and the
+one download there is -- its title, how far it has got, and Pause, Go on
+and Cancel and delete. A download started here is the screen's download:
+the same folder and file name (podpath_dir() and podpath_base() on the
+title the page was showing), so the screen finds it, marks it in its
+list (8028) and plays it; and the screen's pause and cancel work on it,
+as the page's work on one the screen started.
+
+Three routes, behind the same gate as everything but the page and /pair:
+
+- `GET /pod?l=c|f|e|d&id=N[&go=1]` -- a list, or only the download.
+  Every reply carries `"dl"` (state, id, bytes, total, title, whether
+  the page can go on with it) and `"vols"` (the drives in, by
+  storage_label()); a list adds `"list"` -- ready, loading, failed,
+  other, wait or nokey -- and `"rows"`. Chunked, a row at a time.
+  Episode rows leave out the description, the pictures and the URL: the
+  page needs none of them, and the descriptions alone would be 60 KB.
+- `POST /pod/dl` -- feed, ep, show, vol. The episode is looked up in
+  podindex.c's current episode list by id, so its address never comes
+  from the page. Refused as `gone` when that list is no longer the
+  page's podcast, `have` when the file is already there (poddl_find()),
+  `busy` while another runs, `novol`, `long`, `invalid`.
+- `POST /pod/ctl` -- do=pause|cancel|again. `again` restarts the page's
+  own last download with what it was started with, which resumes its
+  part file (8024).
+
+max_uri_handlers is 16 for them.
+
+**One list of each kind, two viewers.** podindex.c keeps the last list
+asked for of each kind, and the screen reads it too. A page that fetched
+whenever the list was not its own would take the screen's away on every
+poll, and the screen would take it back. podweb.h decides: the page
+sends `go` only when the listener opens a list or presses Ask again;
+on a poll, a list that has become another category's or podcast's is
+answered `other`, and the page says the screen asked for another list
+and offers to ask again. Nothing fetched yet is fetched either way.
+A fetch refused because another is running is `wait`, and the page
+asks again, with `go`, in 1.5 s.
+
+**The screen side.** Before this, a list arriving for another category
+or podcast was copied into the screen's rows -- and the episode rows
+download into s_pod_show's folder, so a tap on the page's episodes
+would have filed them under the screen's podcast. load_pod_feed_rows()
+and load_pod_ep_rows() now look at whose list it is first: another's
+leaves the rows as they are (s_pod_fcat and s_pod_efeed say whose
+s_pod_feeds and s_pod_eps hold), or asks again for the screen's own
+when it has none. The status line and spinner still follow the list's
+state, so a fetch from the page shows as loading on the screen.
+
+Episode and podcast titles go to the page through remoteproto_json_str()
+and into the page through textContent, never markup. The page's 160 KB
+copy of an episode list is PSRAM, allocated on the first request that
+needs it.
+
+texttest run-podweb: the decision for every state with and without
+`go`, the three row kinds, an id and a size past 32 bits, and the worst
+title (every byte escaped six-fold) fitting PODWEB_ROW_MAX; 21 checks.
+The page was driven in Chromium against a mock of the three routes:
+categories to podcasts to episodes, a download started, its progress
+shown, Back. remote.c and browser.c compiled at -O2 (and remote.c at
+-Os) with -Wall -Werror=all against stub IDF headers and the four
+feckless components at their pinned tags, ESP_LOGx pasting its format
+beside a literal. Not built with ESP-IDF. No manifest or sdkconfig
+change.
+
+On the board: `I tab5_remote: podcast episode N: downloading to
+<dir>, from the page`, then poddl's own lines as for the screen's.

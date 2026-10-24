@@ -214,6 +214,16 @@ static const char  *s_pod_note;         /* a one-off answer to the last tap, or 
  * no podcast list behind it, in which case UP goes to the categories.
  */
 static int64_t      s_pod_cur;
+/*
+ * 8033: whose rows s_pod_feeds and s_pod_eps hold -- a category's id and
+ * a podcast's -- or -1. podindex.c's one list of each kind can be the
+ * remote page's, and those are not copied in: a tap on one would
+ * download it into this podcast's folder.
+ */
+static int          s_pod_fcat = -1;
+static int64_t      s_pod_efeed = -1;
+static void pod_fetch_feeds(void);
+static void pod_fetch_eps(void);
 static bool         s_pod_linked;
 /* 8021: a volume tab's folder that holds PODPATH_LINK: row 0 is the way
  * back to that podcast, and these say which. */
@@ -830,6 +840,16 @@ static void load_pod_rows(void)
 /* 8018: the podcast rows, from podindex.c's list for s_pod_cat. */
 static void load_pod_feed_rows(void)
 {
+    /* 8033: another category's list is the page's: keep the rows there
+     * are, or ask for this category's when there are none of its own. */
+    const int want = s_pod_cats[s_pod_cat].id;
+    int cat = -1;
+    (void)podindex_feeds(NULL, 0, NULL, &cat, &s_pod_fgen);
+    if (cat != want) {
+        if (s_pod_fcat != want || s_count == 0) { s_pod_fn = 0; pod_fetch_feeds(); }
+        s_dirty = true;
+        return;
+    }
     entries_free();
     if (!s_entries) {
         s_entries = heap_caps_calloc(MAX_ENTRIES, sizeof(entry_t), MALLOC_CAP_SPIRAM);
@@ -838,7 +858,9 @@ static void load_pod_feed_rows(void)
             return;
         }
     }
-    (void)podindex_feeds(s_pod_feeds, PODFEEDS_MAX, &s_pod_fn, NULL, &s_pod_fgen);
+    (void)podindex_feeds(s_pod_feeds, PODFEEDS_MAX, &s_pod_fn, &cat, &s_pod_fgen);
+    s_pod_fcat = cat;
+    if (cat != want) { s_pod_fn = 0; s_pod_fcat = -1; pod_fetch_feeds(); }     /* changed between */
     for (int i = 0; i < s_pod_fn && s_count < MAX_ENTRIES; i++) {
         s_entries[s_count].name = strdup(s_pod_feeds[i].title);
         if (!s_entries[s_count].name) break;
@@ -852,6 +874,14 @@ static void load_pod_feed_rows(void)
 /* 8019: the episode rows, from podindex.c's list for s_pod_feed. */
 static void load_pod_ep_rows(void)
 {
+    /* 8033: as the podcasts, by the podcast's id. */
+    int64_t feed = -1;
+    (void)podindex_eps(NULL, 0, NULL, &feed, &s_pod_egen);
+    if (feed != s_pod_cur) {
+        if (s_pod_efeed != s_pod_cur || s_count == 0) { s_pod_en = 0; pod_fetch_eps(); }
+        s_dirty = true;
+        return;
+    }
     entries_free();
     if (!s_entries) {
         s_entries = heap_caps_calloc(MAX_ENTRIES, sizeof(entry_t), MALLOC_CAP_SPIRAM);
@@ -860,7 +890,9 @@ static void load_pod_ep_rows(void)
             return;
         }
     }
-    (void)podindex_eps(s_pod_eps, PODEPS_MAX, &s_pod_en, NULL, &s_pod_egen);
+    (void)podindex_eps(s_pod_eps, PODEPS_MAX, &s_pod_en, &feed, &s_pod_egen);
+    s_pod_efeed = feed;
+    if (feed != s_pod_cur) { s_pod_en = 0; s_pod_efeed = -1; pod_fetch_eps(); }  /* changed between */
     for (int i = 0; i < s_pod_en && s_count < MAX_ENTRIES; i++) {
         s_entries[s_count].name = strdup(s_pod_eps[i].title);
         if (!s_entries[s_count].name) break;

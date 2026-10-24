@@ -20,6 +20,8 @@ en:
     "%s did not answer.": ~
     # remote.html
     "%s left": ~
+    # remote.html
+    "%s of %s": ~
     # browser.c
     "%s on Podcast Index": ~
     # remote.c
@@ -111,6 +113,10 @@ en:
     # recorder.c
     "Already recording.": ~
     # remote.html
+    "Another download is running. Pause or cancel it first.": ~
+    # remote.html
+    "Ask again": ~
+    # remote.html
     "Ask the player": ~
     # remote.html
     "Asking Podcast Index…": ~
@@ -126,6 +132,8 @@ en:
     "BOOT": ~
     # panel.c
     "BUSY": ~
+    # remote.html
+    "Back": ~
     # portal.c
     "Back to the form": ~
     # player.c
@@ -150,6 +158,8 @@ en:
     "CLOSE": ~
     # ui.c
     "Cancel": ~
+    # remote.html
+    "Cancel and delete": ~
     # browser.c
     "Cancel the download and delete it": ~
     # player.c
@@ -212,8 +222,16 @@ en:
     "Deny": ~
     # sleeppage.c
     "Dim screen": ~
+    # remote.html
+    "Download": ~
+    # remote.html
+    "Download to": ~
     # browser.c
     "Download to %s": ~
+    # remote.html
+    "Downloaded %s.": ~
+    # remote.html
+    "Downloading %s: %s": ~
     # browser.c
     "EAT": ~
     # browser.c
@@ -248,6 +266,8 @@ en:
     "Focused: those two aimed out of it.": ~
     # sleeppage.c
     "For backlight life and battery. This panel cannot burn in.": ~
+    # remote.html
+    "Go on": ~
     # browser.c
     "Go on with the download": ~
     # ui.c
@@ -362,6 +382,8 @@ en:
     "None yet. A browser or MPD app asks when it connects.": ~
     # recorder.c
     "Not enough memory to record.": "Not enough memory\nto record."
+    # remote.html
+    "Nothing here.": ~
     # recorder.c
     "Nothing is plugged into the headset jack.": "Nothing is plugged into\nthe headset jack."
     # remote.html
@@ -402,8 +424,12 @@ en:
     "Over Wi-Fi or a USB Ethernet cable.": ~
     # portal.c, remote.html
     "Password": ~
+    # remote.html
+    "Pause": ~
     # browser.c
     "Pause the download": ~
+    # remote.html
+    "Paused %s: %s": ~
     # remote.html
     "Play": ~
     # remote.html
@@ -419,11 +445,17 @@ en:
     # remote.html
     "Podcast Index answered with something the player did not expect.": ~
     # remote.html
+    "Podcast Index did not answer.": ~
+    # remote.html
     "Podcast Index refused that key and secret.": ~
     # remote.html
     "Podcast Index refused that key and secret. The player's clock has not been set from the network yet, and a wrong clock is refused the same way.": ~
     # remote.html
     "Podcast directory search needs your own free API key and secret from %s, which asks for an email address to register. The player tries them before saving them, and once they work this form is locked.": ~
+    # remote.html
+    "Podcast lists need a working Podcast Index key, above.": ~
+    # remote.html
+    "Podcasts": ~
     # browser.c
     "Podcasts are found through Podcast Index, which needs your own free API key and secret from api.podcastindex.org. Enter them on the remote's page, under Podcast Index:": ~
     # sleeppage.c, ui.c
@@ -560,6 +592,8 @@ en:
     "TRACK": ~
     # ui.c
     "TREB": ~
+    # remote.html
+    "That episode is already on the drive.": ~
     # remote.c
     "That folder could not be opened.": ~
     # portal.c, remote.c
@@ -574,6 +608,8 @@ en:
     "That needs a stream address.": ~
     # portal.c
     "That network was not found. Check the name and try again.": ~
+    # remote.html
+    "That podcast's folder name is too long for the drive.": ~
     # recorder.c
     "The USB microphone did not start.": "The USB microphone\ndid not start."
     # recorder.c
@@ -586,6 +622,8 @@ en:
     "The card would not take any more.": "The card would not\ntake any more."
     # sleeppage.c
     "The device turns off. The side button turns it back on.": ~
+    # remote.html
+    "The download of %s stopped: %s": ~
     # portal.c
     "The list is full at %d stations. Remove one from %s on the card to add another.": ~
     # recorder.c
@@ -605,6 +643,8 @@ en:
     # remote.html
     "The player did not answer.": ~
     # remote.html
+    "The player did not understand that.": ~
+    # remote.html
     "The player is asking about another browser. Try again in a moment.": ~
     # remote.html
     "The player is on %s, and you are on its cable.": ~
@@ -618,6 +658,10 @@ en:
     "The player said no. Try again in ten minutes.": ~
     # remote.html
     "The player tests the network and password before saving them. The password is only ever sent over this encrypted connection.": ~
+    # remote.html
+    "The player's screen has asked for another list since. Ask again to see this one.": ~
+    # remote.html
+    "The player's screen has since asked for another podcast's episodes. Ask again, then download.": ~
     # browser.c
     "The remote is off. Turn on Remote control on the NET tab, and its address shows here.": ~
     # portal.c, remote.c
@@ -634,6 +678,10 @@ en:
     "Then it shows the address to open.": ~
     # panel.c
     "Then it shows the address to use.": ~
+    # remote.html
+    "There is no card or drive in the player to download to.": ~
+    # remote.html
+    "There is no download to do that to.": ~
     # remote.html
     "This browser has not been allowed on the player yet.": ~
     # bench.c
@@ -692,6 +740,8 @@ en:
     "a guess": ~
     # browser.c
     "all start with  %s": ~
+    # remote.html
+    "an episode": ~
     # browser.c
     "another episode is downloading": ~
     # panel.c

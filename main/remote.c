@@ -53,6 +53,9 @@
 #include "approve.h"        /* 8002 */
 #include "podauth.h"        /* 8006 */
 #include "podindex.h"       /* 8006 */
+#include "poddl.h"          /* 8033 */
+#include "podpath.h"        /* 8033 */
+#include "podweb.h"         /* 8033 */
 
 static const char *TAG = "tab5_remote";
 
@@ -543,6 +546,268 @@ static esp_err_t h_podindex_try(httpd_req_t *req)
                          r == PODINDEX_TRY_BUSY    ? "busy"    :
                          r == PODINDEX_TRY_LOCKED  ? "locked"  :
                          r == PODINDEX_TRY_FAILED  ? "failed"  : "");
+}
+
+/* ---- podcasts (8033) --------------------------------------------------- */
+
+/*
+ * The PODCAST tab's lists and downloads, for the page. podweb.h has the
+ * rule for when a request fetches, which is what keeps the page and the
+ * screen from taking one list from each other.
+ *
+ * Every handler runs on the httpd task, one at a time, so the statics
+ * here are its own. The episode copy is 60 podep_t, about 160 KB, so it
+ * is PSRAM and only on first use.
+ */
+static podep_t  *s_pw_eps;
+static int       s_pw_en;
+static podcat_t  s_pw_cats[PODCATS_MAX];
+static podfeed_t s_pw_feeds[PODFEEDS_MAX];
+/* The last download the page started, so it can be named on the page
+ * and taken up again after a pause or a failure. */
+static struct {
+    bool    have;
+    int64_t feed;
+    podep_t ep;
+    char    show[PODFEEDS_TITLE_MAX];
+    char    dir[400];
+    char    base[PODPATH_NAME_MAX + 16];
+} s_pw_last;
+
+static bool pw_eps_buf(void)
+{
+    if (!s_pw_eps) s_pw_eps = heap_caps_malloc(PODEPS_MAX * sizeof(podep_t),
+                                               MALLOC_CAP_SPIRAM | MALLOC_CAP_8BIT);
+    return s_pw_eps != NULL;
+}
+
+/* "dl":{...} and "vols":[...], which every podcast reply carries. */
+static void pw_send_dl(httpd_req_t *req)
+{
+    static const char *const names[] = { "idle", "running", "done", "failed", "paused" };
+    static char esc[PODWEB_ESC_MAX], line[PODWEB_ESC_MAX + 192];
+    int64_t id = 0, got = 0, total = -1;
+    const poddl_state_t st = poddl_state(&id, &got, &total, NULL, 0, NULL);
+    /* The title: the page's own download's, else the episode in the
+     * last list sent, else none -- one the screen started from another
+     * podcast's list. */
+    const char *title = "";
+    if (s_pw_last.have && s_pw_last.ep.id == id) title = s_pw_last.ep.title;
+    else for (int i = 0; s_pw_eps && i < s_pw_en; i++) if (s_pw_eps[i].id == id) { title = s_pw_eps[i].title; break; }
+    if (!remoteproto_json_str(title, esc, sizeof(esc))) snprintf(esc, sizeof(esc), "\"\"");
+    const bool again = s_pw_last.have && s_pw_last.ep.id == id &&
+                       (st == PODDL_PAUSED || st == PODDL_FAILED);
+    snprintf(line, sizeof(line),
+             "\"dl\":{\"st\":\"%s\",\"id\":%" PRId64 ",\"got\":%" PRId64 ",\"total\":%" PRId64
+             ",\"t\":%s,\"again\":%s},\"vols\":[",
+             names[st], id, got, total, esc, again ? "true" : "false");
+    httpd_resp_send_chunk(req, line, HTTPD_RESP_USE_STRLEN);
+    bool first = true;
+    for (int v = 0; v < STORAGE_COUNT; v++) {
+        if (!storage_present((storage_id_t)v)) continue;
+        if (!remoteproto_json_str(storage_label((storage_id_t)v), esc, sizeof(esc))) continue;
+        snprintf(line, sizeof(line), "%s{\"v\":%d,\"n\":%s}", first ? "" : ",", v, esc);
+        httpd_resp_send_chunk(req, line, HTTPD_RESP_USE_STRLEN);
+        first = false;
+    }
+    httpd_resp_send_chunk(req, "]", 1);
+}
+
+/*
+ * GET /pod?l=c|f|e|d[&id=N][&go=1] -- categories, a category's podcasts,
+ * a podcast's episodes, or only the download:
+ *
+ *   {"dl":{...},"vols":[...],"list":"ready|loading|failed|other|wait|nokey",
+ *    "said":"...","rows":[...]}
+ *
+ * `wait` is a fetch refused because another was running (the screen's,
+ * or a key check): the page asks again, with go, in a moment.
+ */
+static esp_err_t h_pod(httpd_req_t *req)
+{
+    static char q[96], v[24];
+    static char esc[PODWEB_ESC_MAX], row[PODWEB_ROW_MAX];
+    char kind = 'c';
+    bool go = false;
+    int64_t want = 0;
+    if (httpd_req_get_url_query_str(req, q, sizeof(q)) == ESP_OK) {
+        if (httpd_query_key_value(q, "l", v, sizeof(v)) == ESP_OK) kind = v[0];
+        if (httpd_query_key_value(q, "id", v, sizeof(v)) == ESP_OK) want = strtoll(v, NULL, 10);
+        go = httpd_query_key_value(q, "go", v, sizeof(v)) == ESP_OK;
+    }
+    httpd_resp_set_type(req, "application/json");
+    httpd_resp_set_hdr(req, "Cache-Control", "no-store");
+    httpd_resp_send_chunk(req, "{", 1);
+    pw_send_dl(req);
+    if (kind == 'd') {
+        httpd_resp_send_chunk(req, "}", 1);
+        return httpd_resp_send_chunk(req, NULL, 0);
+    }
+    if (podindex_state(NULL, 0, NULL) != PODINDEX_WORKING) {
+        httpd_resp_send_chunk(req, ",\"list\":\"nokey\",\"rows\":[]}", HTTPD_RESP_USE_STRLEN);
+        return httpd_resp_send_chunk(req, NULL, 0);
+    }
+
+    int n = 0;
+    podindex_cats_t st;
+    bool same = true;
+    if (kind == 'e') {
+        if (!pw_eps_buf()) {
+            httpd_resp_send_chunk(req, ",\"list\":\"failed\",\"rows\":[]}", HTTPD_RESP_USE_STRLEN);
+            return httpd_resp_send_chunk(req, NULL, 0);
+        }
+        int64_t cur = 0;
+        st = podindex_eps(s_pw_eps, PODEPS_MAX, &n, &cur, NULL);
+        same = cur == want;
+        s_pw_en = same ? n : 0;
+    } else if (kind == 'f') {
+        int cur = 0;
+        st = podindex_feeds(s_pw_feeds, PODFEEDS_MAX, &n, &cur, NULL);
+        same = cur == (int)want;
+    } else {
+        kind = 'c';
+        st = podindex_cats(s_pw_cats, PODCATS_MAX, &n, NULL);
+    }
+
+    const podweb_do_t d = podweb_decide(go, st, same);
+    if (d != PODWEB_SHOW) {
+        const char *say = "other";
+        if (d == PODWEB_FETCH) {
+            const bool ok = kind == 'e' ? podindex_eps_fetch(want)
+                          : kind == 'f' ? podindex_feeds_fetch((int)want)
+                          : podindex_cats_fetch();
+            say = ok ? "loading" : "wait";
+        }
+        snprintf(row, sizeof(row), ",\"list\":\"%s\",\"rows\":[]}", say);
+        httpd_resp_send_chunk(req, row, HTTPD_RESP_USE_STRLEN);
+        return httpd_resp_send_chunk(req, NULL, 0);
+    }
+    snprintf(row, sizeof(row), ",\"list\":\"%s\",\"rows\":[", podweb_state_name(st));
+    httpd_resp_send_chunk(req, row, HTTPD_RESP_USE_STRLEN);
+    bool first = true;
+    for (int i = 0; i < n; i++) {
+        const size_t len = kind == 'e' ? podweb_ep_row(&s_pw_eps[i], first, esc, row, sizeof(row))
+                         : kind == 'f' ? podweb_feed_row(&s_pw_feeds[i], first, esc, row, sizeof(row))
+                         : podweb_cat_row(&s_pw_cats[i], first, esc, row, sizeof(row));
+        if (!len) continue;
+        httpd_resp_send_chunk(req, row, len);
+        first = false;
+    }
+    httpd_resp_send_chunk(req, "]}", 2);
+    return httpd_resp_send_chunk(req, NULL, 0);
+}
+
+/* {"said":"...", "dl":{...}, "vols":[...]} -- a POST's answer. */
+static esp_err_t pw_said(httpd_req_t *req, const char *said)
+{
+    char head[48];
+    snprintf(head, sizeof(head), "{\"said\":\"%s\",", said);
+    httpd_resp_set_type(req, "application/json");
+    httpd_resp_set_hdr(req, "Cache-Control", "no-store");
+    httpd_resp_send_chunk(req, head, HTTPD_RESP_USE_STRLEN);
+    pw_send_dl(req);
+    httpd_resp_send_chunk(req, "}", 1);
+    return httpd_resp_send_chunk(req, NULL, 0);
+}
+
+/* A form body into `body`, NUL-terminated; its length, or -1. */
+static int pw_body(httpd_req_t *req, char *body, size_t cap)
+{
+    if (req->content_len == 0 || req->content_len >= cap) return -1;
+    size_t got = 0;
+    while (got < req->content_len) {
+        const int n = httpd_req_recv(req, body + got, req->content_len - got);
+        if (n == HTTPD_SOCK_ERR_TIMEOUT) continue;
+        if (n <= 0) return -1;
+        got += (size_t)n;
+    }
+    body[got] = '\0';
+    return (int)got;
+}
+
+/*
+ * POST /pod/dl, feed=N&ep=N&show=...&vol=N: download that episode of
+ * that podcast to that drive -- what a "Download to" row does on the
+ * screen, to the same folder and the same name, so the screen finds it
+ * and the page's download and the screen's are one. The episode must
+ * be in the current episode list, which is where its address is; the
+ * page's list was, unless the screen has since asked for another
+ * (`gone`). The podcast's title comes from the page, because the
+ * podcast list may be another category's by now: it only names the
+ * folder, through podpath_name().
+ */
+static esp_err_t h_pod_dl(httpd_req_t *req)
+{
+    static char body[768], v[24], show[PODFEEDS_TITLE_MAX];
+    static char dir[sizeof(s_pw_last.dir)], base[sizeof(s_pw_last.base)], have[sizeof(dir) + 32];
+    const int got = pw_body(req, body, sizeof(body));
+    if (got < 0) return pw_said(req, "invalid");
+    int64_t feed = 0, ep = 0;
+    int vol = -1;
+    if (portalweb_field(body, (size_t)got, "feed", v, sizeof(v))) feed = strtoll(v, NULL, 10);
+    if (portalweb_field(body, (size_t)got, "ep", v, sizeof(v)))   ep = strtoll(v, NULL, 10);
+    if (portalweb_field(body, (size_t)got, "vol", v, sizeof(v)))  vol = atoi(v);
+    if (!portalweb_field(body, (size_t)got, "show", show, sizeof(show)) || !show[0])
+        return pw_said(req, "invalid");
+    if (vol < 0 || vol >= STORAGE_COUNT || !storage_present((storage_id_t)vol))
+        return pw_said(req, "novol");
+    if (!pw_eps_buf()) return pw_said(req, "failed");
+
+    int n = 0;
+    int64_t cur = 0;
+    (void)podindex_eps(s_pw_eps, PODEPS_MAX, &n, &cur, NULL);
+    s_pw_en = cur == feed ? n : 0;
+    int i = 0;
+    while (i < s_pw_en && s_pw_eps[i].id != ep) i++;
+    if (i >= s_pw_en) return pw_said(req, "gone");
+    const podep_t *e = &s_pw_eps[i];
+
+    if (!podpath_dir(storage_mount_path((storage_id_t)vol), show, dir, sizeof(dir)))
+        return pw_said(req, "long");
+    podpath_base(e->published, e->title, base, sizeof(base));
+    if (poddl_find(dir, base, have, sizeof(have))) return pw_said(req, "have");
+    if (poddl_state(NULL, NULL, NULL, NULL, 0, NULL) == PODDL_RUNNING) return pw_said(req, "busy");
+
+    s_pw_last.ep = *e;
+    s_pw_last.feed = feed;
+    snprintf(s_pw_last.show, sizeof(s_pw_last.show), "%s", show);
+    snprintf(s_pw_last.dir, sizeof(s_pw_last.dir), "%s", dir);
+    snprintf(s_pw_last.base, sizeof(s_pw_last.base), "%s", base);
+    s_pw_last.have = true;
+    if (!poddl_start(e->id, e->url, dir, base, feed, show, e->feed_image, e->image))
+        return pw_said(req, "busy");
+    ESP_LOGI(TAG, "podcast episode %" PRId64 ": downloading to %s, from the page", e->id, dir);
+    return pw_said(req, "");
+}
+
+/*
+ * POST /pod/ctl, do=pause|cancel|again: the screen's two actions, and
+ * going on with the page's own paused or failed download. Pause and
+ * cancel act on whichever download there is, the screen's too, as the
+ * screen's act on the page's: there is only one.
+ */
+static esp_err_t h_pod_ctl(httpd_req_t *req)
+{
+    static char body[64], what[16];
+    const int got = pw_body(req, body, sizeof(body));
+    if (got < 0 || !portalweb_field(body, (size_t)got, "do", what, sizeof(what))) return pw_said(req, "invalid");
+    const poddl_state_t st = poddl_state(NULL, NULL, NULL, NULL, 0, NULL);
+    if (!strcmp(what, "pause")) {
+        if (st != PODDL_RUNNING) return pw_said(req, "idle");
+        poddl_pause();
+    } else if (!strcmp(what, "cancel")) {
+        if (st != PODDL_RUNNING && st != PODDL_PAUSED && st != PODDL_FAILED) return pw_said(req, "idle");
+        poddl_cancel();
+    } else if (!strcmp(what, "again")) {
+        if (!s_pw_last.have) return pw_said(req, "idle");
+        if (st == PODDL_RUNNING) return pw_said(req, "busy");
+        if (!poddl_start(s_pw_last.ep.id, s_pw_last.ep.url, s_pw_last.dir, s_pw_last.base,
+                         s_pw_last.feed, s_pw_last.show, s_pw_last.ep.feed_image, s_pw_last.ep.image))
+            return pw_said(req, "busy");
+    } else {
+        return pw_said(req, "invalid");
+    }
+    return pw_said(req, "");
 }
 
 /* ---- stations (5120) --------------------------------------------------- */
@@ -1386,7 +1651,7 @@ static void start(void)
     cfg.httpd.ctrl_port = REMOTE_CTRL_PORT;
     cfg.httpd.max_open_sockets = REMOTE_SOCKETS;
     cfg.httpd.lru_purge_enable = true;
-    cfg.httpd.max_uri_handlers = 14;    /* 8002: the two /pair; 8006: the two /podindex */
+    cfg.httpd.max_uri_handlers = 16;    /* 8002: the two /pair; 8006: the two /podindex; 8033: /pod* */
     /*
      * 6005: the server task's 10 KB stack in PSRAM, not internal RAM --
      * the remote coming up took internal free from 27343 to 15915 on the
@@ -1425,6 +1690,9 @@ static void start(void)
         { .uri = "/pair", .method = HTTP_POST, .handler = h_pair_post },
         { .uri = "/podindex", .method = HTTP_GET,  .handler = h_podindex     },  /* 8006 */
         { .uri = "/podindex", .method = HTTP_POST, .handler = h_podindex_try },
+        { .uri = "/pod",      .method = HTTP_GET,  .handler = h_pod     },   /* 8033 */
+        { .uri = "/pod/dl",   .method = HTTP_POST, .handler = h_pod_dl  },
+        { .uri = "/pod/ctl",  .method = HTTP_POST, .handler = h_pod_ctl },
     };
     /* 8001: each behind h_gate(). Static: httpd keeps the pointer. */
     static gated_t gated[sizeof(uris) / sizeof(uris[0])];

@@ -47,7 +47,13 @@ html, body { height: auto; }
    --bg and its visited purple darker still, so a link once followed
    read as dimmed text. */
 .below a, .below a:link, .below a:visited, .below a:hover, .below a:active { color: var(--link); }
-#wifi, #pi { margin-top: 2.4em; }
+#wifi, #pi, #pod { margin-top: 2.4em; }
+/* 8033: a row that opens a list, and an episode's line under its title. */
+.below li.go { cursor: pointer; }
+.below li .sub { color: var(--album); font-size: .9em; margin-top: .2em; }
+.below li .row { justify-content: space-between; flex-wrap: nowrap; }
+.below li button { flex: none; }
+#pod [hidden] { display: none; }   /* over .below label and .row's display */
 .fold { position: fixed; left: 50%; bottom: 6px; transform: translateX(-50%);
   color: var(--icon-off); font-size: 13px; pointer-events: none; transition: opacity .2s; }
 button { font: inherit; color: inherit; background: none; border: 0; padding: 0;
@@ -338,6 +344,27 @@ svg { display: block; width: 100%; height: 100%; }
       <button id="pigo" data-t>Try and save</button>
       <div class="msg" id="pimsg"></div>
     </form>
+  </section>
+
+  <!-- 8033: the PODCAST tab's lists and its downloads, from here. -->
+  <section id="pod">
+    <h2 data-t>Podcasts</h2>
+    <div class="row" id="pdlrow" hidden>
+      <span class="msg" id="pdl"></span>
+      <button type="button" class="ghost" id="ppause" data-t>Pause</button>
+      <button type="button" class="ghost" id="pagain" data-t>Go on</button>
+      <button type="button" class="ghost" id="pcancel" data-t>Cancel and delete</button>
+    </div>
+    <div class="row">
+      <button type="button" class="ghost" id="pback" hidden data-t>Back</button>
+      <strong id="pwhere"></strong>
+    </div>
+    <label id="pvoll" hidden><span data-t>Download to</span><select id="pvol"></select></label>
+    <div class="row">
+      <span class="msg" id="pmsg"></span>
+      <button type="button" class="ghost" id="pretry" hidden data-t>Ask again</button>
+    </div>
+    <ul id="plist"></ul>
   </section>
 </section>
 
@@ -838,6 +865,7 @@ function piShow(j) {
   if (done) { f.key.value = j.key; f.secret.value = ""; f.secret.placeholder = T("saved on the player"); }
   $("pigo").hidden = done;
   $("pigo").disabled = j.state === "checking";
+  if (done && pListLast && pListLast.list === "nokey") pGet(true);   /* 8033: the lists, now there is a key */
   const said = {
     invalid: T("A key and a secret are letters, digits and punctuation, with no spaces."),
     busy:    T("Busy; try again in a moment."),
@@ -873,6 +901,127 @@ $("pif").addEventListener("submit", async e => {
 });
 piLoad();
 
+/* ---- Podcasts, below the key (8033) ----
+   The PODCAST tab's three lists, and the one download there is. The
+   player keeps one list of each kind, which its screen reads too, so
+   "go" is sent only when the listener opens a list or asks again --
+   never on a poll -- and a list the screen has since asked for is said
+   to be the screen's rather than taken back (podweb.h). */
+const pv = { l: "c", id: 0, title: "", up: [] };   // where the page is, and the way back
+let pLast = null, pListLast = null, pPoll = 0, pDlPoll = 0;   // redrawn on a language change
+function pMB(b) { return (Math.floor(b * 10 / 1048576) / 10).toFixed(1) + " MB"; }   // as the screen's fmt_mb()
+function pLen(s) {
+  const h = Math.floor(s / 3600), m = Math.floor(s / 60) % 60, x = String(s % 60).padStart(2, "0");
+  return h ? `${h}:${String(m).padStart(2, "0")}:${x}` : `${m}:${x}`;
+}
+function pDl(j) {
+  const d = j.dl, row = $("pdlrow"), live = d.st === "running" || d.st === "paused" || d.st === "failed";
+  row.hidden = !live && d.st !== "done";
+  const name = d.t || T("an episode");
+  const sz = d.total > 0 ? F(T("%s of %s"), pMB(d.got), pMB(d.total)) : pMB(d.got);
+  $("pdl").textContent = {
+    running: F(T("Downloading %s: %s"), name, sz),
+    paused:  F(T("Paused %s: %s"), name, sz),
+    failed:  F(T("The download of %s stopped: %s"), name, sz),
+    done:    F(T("Downloaded %s."), name),
+  }[d.st] || "";
+  $("pdl").className = d.st === "failed" ? "msg bad" : "msg";
+  $("ppause").hidden = d.st !== "running";
+  $("pagain").hidden = !d.again;
+  $("pcancel").hidden = !live;
+  const sel = $("pvol"), keep = sel.value;
+  sel.length = 0;
+  for (const v of j.vols) sel.add(new Option(v.n, v.v));
+  if ([...sel.options].some(o => o.value === keep)) sel.value = keep;
+  $("pvoll").hidden = pv.l !== "e" || j.vols.length < 2;
+  clearTimeout(pDlPoll);
+  if (d.st === "running") pDlPoll = setTimeout(pDlLoad, 1500);
+}
+function pShow(j) {
+  pLast = j;
+  pDl(j);
+  if (j.said === undefined) pList(j);
+  else {
+    const said = {
+      invalid: T("The player did not understand that."),
+      novol:   T("There is no card or drive in the player to download to."),
+      gone:    T("The player's screen has since asked for another podcast's episodes. Ask again, then download."),
+      long:    T("That podcast's folder name is too long for the drive."),
+      have:    T("That episode is already on the drive."),
+      busy:    T("Another download is running. Pause or cancel it first."),
+      idle:    T("There is no download to do that to."),
+      failed:  T("The player could not start that. Try again."),
+    }[j.said];
+    $("pmsg").textContent = said || "";
+    $("pmsg").className = said ? "msg bad" : "msg";
+  }
+}
+function pList(j) {
+  pListLast = j;
+  const ul = $("plist"), m = $("pmsg");
+  $("pback").hidden = !pv.up.length;
+  $("pwhere").textContent = pv.title;
+  $("pretry").hidden = !["other", "failed"].includes(j.list);
+  m.className = j.list === "failed" ? "msg bad" : "msg";
+  m.textContent = {
+    nokey:   T("Podcast lists need a working Podcast Index key, above."),
+    loading: T("Asking Podcast Index…"),
+    wait:    T("Asking Podcast Index…"),
+    other:   T("The player's screen has asked for another list since. Ask again to see this one."),
+    failed:  T("Podcast Index did not answer."),
+  }[j.list] || (j.rows.length ? "" : T("Nothing here."));
+  clearTimeout(pPoll);
+  if (j.list === "loading") pPoll = setTimeout(() => pGet(false), 1000);
+  if (j.list === "wait")    pPoll = setTimeout(() => pGet(true), 1500);
+  if (j.list !== "ready") { if (j.list !== "loading" && j.list !== "wait") ul.textContent = ""; return; }
+  ul.textContent = "";
+  for (const r of j.rows) {
+    const li = document.createElement("li");
+    if (pv.l !== "e") {
+      li.className = "go"; li.textContent = r.t;
+      li.onclick = () => pOpen(pv.l === "c" ? "f" : "e", r.id, r.t);
+    } else {
+      const top = document.createElement("div"), t = document.createElement("span"),
+            b = document.createElement("button"), sub = document.createElement("div");
+      top.className = "row"; t.textContent = r.t;
+      b.type = "button"; b.className = "ghost"; b.textContent = T("Download");
+      b.onclick = () => pPost("/pod/dl", { feed: pv.id, ep: r.id, show: pv.title, vol: $("pvol").value });
+      sub.className = "sub";
+      sub.textContent = [r.d ? new Date(r.d * 1000).toLocaleDateString(LANGS[LI]) : "",
+                         r.len ? pLen(r.len) : "", r.size ? pMB(r.size) : ""].filter(Boolean).join(" · ");
+      top.append(t, b); li.append(top, sub);
+    }
+    ul.append(li);
+  }
+}
+async function pGet(go) {
+  try {
+    pShow(await (await fetch(`/pod?l=${pv.l}&id=${pv.id}${go ? "&go=1" : ""}`, { cache: "no-store" })).json());
+  } catch { clearTimeout(pPoll); pPoll = setTimeout(() => pGet(go), 3000); }
+}
+async function pDlLoad() {
+  try { pDl(await (await fetch("/pod?l=d", { cache: "no-store" })).json()); }
+  catch { clearTimeout(pDlPoll); pDlPoll = setTimeout(pDlLoad, 3000); }
+}
+async function pPost(path, fields) {
+  try {
+    pShow(await (await fetch(path, { method: "POST", body: new URLSearchParams(fields).toString(),
+      headers: { "Content-Type": "application/x-www-form-urlencoded" } })).json());
+  } catch { $("pmsg").textContent = T("The player did not answer."); }
+}
+function pOpen(l, id, title) {
+  pv.up.push({ l: pv.l, id: pv.id, title: pv.title });
+  Object.assign(pv, { l, id, title });
+  $("plist").textContent = "";
+  pGet(true);
+}
+$("pback").onclick = () => { Object.assign(pv, pv.up.pop()); $("plist").textContent = ""; pGet(true); };
+$("pretry").onclick = () => pGet(true);
+$("ppause").onclick = () => pPost("/pod/ctl", { do: "pause" });
+$("pagain").onclick = () => pPost("/pod/ctl", { do: "again" });
+$("pcancel").onclick = () => pPost("/pod/ctl", { do: "cancel" });
+pGet(true);
+
 /* ---- 6026: the language override ----
    Switches in place: applyLang() for what the markup holds, then the
    script's own text is drawn again. Remembered in localStorage, in
@@ -893,6 +1042,8 @@ piLoad();
     renderQueue();
     if (wLast) wShow(wLast);
     if (piLast) piShow(piLast);                      /* 8006 */
+    if (pLast) pShow(pLast);                         /* 8033 */
+    if (pListLast && pLast !== pListLast) pList(pListLast);
     if (pairMsg) $("pairm").textContent = pairMsg();   /* 8002 */
     if (!$("pair").classList.contains("on")) loadStations();
   };

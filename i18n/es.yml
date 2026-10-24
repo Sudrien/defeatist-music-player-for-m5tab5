@@ -20,6 +20,8 @@ es:
     "%s did not answer.": "%s no respondió."
     # remote.html
     "%s left": "quedan %s"
+    # remote.html
+    "%s of %s": ~
     # browser.c
     "%s on Podcast Index": ~
     # remote.c
@@ -111,6 +113,10 @@ es:
     # recorder.c
     "Already recording.": "Ya se está grabando."
     # remote.html
+    "Another download is running. Pause or cancel it first.": ~
+    # remote.html
+    "Ask again": ~
+    # remote.html
     "Ask the player": "Preguntar al reproductor"
     # remote.html
     "Asking Podcast Index…": ~
@@ -126,6 +132,8 @@ es:
     "BOOT": "SIEMPRE"
     # panel.c
     "BUSY": "OCUP."
+    # remote.html
+    "Back": ~
     # portal.c
     "Back to the form": "Volver al formulario"
     # player.c
@@ -150,6 +158,8 @@ es:
     "CLOSE": "CERRAR"
     # ui.c
     "Cancel": "Cancelar"
+    # remote.html
+    "Cancel and delete": ~
     # browser.c
     "Cancel the download and delete it": ~
     # player.c
@@ -212,8 +222,16 @@ es:
     "Deny": "Denegar"
     # sleeppage.c
     "Dim screen": "Atenuar pantalla"
+    # remote.html
+    "Download": ~
+    # remote.html
+    "Download to": ~
     # browser.c
     "Download to %s": ~
+    # remote.html
+    "Downloaded %s.": ~
+    # remote.html
+    "Downloading %s: %s": ~
     # browser.c
     "EAT": "BORRAR"
     # browser.c
@@ -248,6 +266,8 @@ es:
     "Focused: those two aimed out of it.": "Enfocado: esos dos, apuntando hacia fuera."
     # sleeppage.c
     "For backlight life and battery. This panel cannot burn in.": "Por la vida de la retroiluminación y la batería. Esta pantalla no se quema."
+    # remote.html
+    "Go on": ~
     # browser.c
     "Go on with the download": ~
     # ui.c
@@ -362,6 +382,8 @@ es:
     "None yet. A browser or MPD app asks when it connects.": "Ninguno aún. Un navegador o una app MPD pregunta al conectarse."
     # recorder.c
     "Not enough memory to record.": "No hay memoria\npara grabar."
+    # remote.html
+    "Nothing here.": ~
     # recorder.c
     "Nothing is plugged into the headset jack.": "No hay nada en la\ntoma de auriculares."
     # remote.html
@@ -402,8 +424,12 @@ es:
     "Over Wi-Fi or a USB Ethernet cable.": "Por Wi-Fi o por un cable Ethernet USB."
     # portal.c, remote.html
     "Password": "Contraseña"
+    # remote.html
+    "Pause": ~
     # browser.c
     "Pause the download": ~
+    # remote.html
+    "Paused %s: %s": ~
     # remote.html
     "Play": "Reproducir"
     # remote.html
@@ -419,11 +445,17 @@ es:
     # remote.html
     "Podcast Index answered with something the player did not expect.": ~
     # remote.html
+    "Podcast Index did not answer.": ~
+    # remote.html
     "Podcast Index refused that key and secret.": ~
     # remote.html
     "Podcast Index refused that key and secret. The player's clock has not been set from the network yet, and a wrong clock is refused the same way.": ~
     # remote.html
     "Podcast directory search needs your own free API key and secret from %s, which asks for an email address to register. The player tries them before saving them, and once they work this form is locked.": ~
+    # remote.html
+    "Podcast lists need a working Podcast Index key, above.": ~
+    # remote.html
+    "Podcasts": ~
     # browser.c
     "Podcasts are found through Podcast Index, which needs your own free API key and secret from api.podcastindex.org. Enter them on the remote's page, under Podcast Index:": ~
     # sleeppage.c, ui.c
@@ -560,6 +592,8 @@ es:
     "TRACK": "PISTA"
     # ui.c
     "TREB": "AGUD"
+    # remote.html
+    "That episode is already on the drive.": ~
     # remote.c
     "That folder could not be opened.": "No se pudo abrir esa carpeta."
     # portal.c, remote.c
@@ -574,6 +608,8 @@ es:
     "That needs a stream address.": "Falta la dirección del flujo."
     # portal.c
     "That network was not found. Check the name and try again.": "No se encontró esa red. Revisa el nombre e inténtalo otra vez."
+    # remote.html
+    "That podcast's folder name is too long for the drive.": ~
     # recorder.c
     "The USB microphone did not start.": "El micrófono USB\nno arrancó."
     # recorder.c
@@ -586,6 +622,8 @@ es:
     "The card would not take any more.": "La tarjeta no admite\nmás datos."
     # sleeppage.c
     "The device turns off. The side button turns it back on.": "El equipo se apaga. El botón lateral lo vuelve a encender."
+    # remote.html
+    "The download of %s stopped: %s": ~
     # portal.c
     "The list is full at %d stations. Remove one from %s on the card to add another.": "La lista está llena con %d emisoras. Quita una de %s en la tarjeta para añadir otra."
     # recorder.c
@@ -605,6 +643,8 @@ es:
     # remote.html
     "The player did not answer.": "El reproductor no respondió."
     # remote.html
+    "The player did not understand that.": ~
+    # remote.html
     "The player is asking about another browser. Try again in a moment.": "El reproductor está preguntando por otro navegador. Inténtalo de nuevo en un momento."
     # remote.html
     "The player is on %s, and you are on its cable.": "El reproductor está en %s, y tú estás en su cable."
@@ -618,6 +658,10 @@ es:
     "The player said no. Try again in ten minutes.": "El reproductor dijo que no. Inténtalo de nuevo en diez minutos."
     # remote.html
     "The player tests the network and password before saving them. The password is only ever sent over this encrypted connection.": "El reproductor prueba la red y la contraseña antes de guardarlas. La contraseña solo se envía por esta conexión cifrada."
+    # remote.html
+    "The player's screen has asked for another list since. Ask again to see this one.": ~
+    # remote.html
+    "The player's screen has since asked for another podcast's episodes. Ask again, then download.": ~
     # browser.c
     "The remote is off. Turn on Remote control on the NET tab, and its address shows here.": ~
     # portal.c, remote.c
@@ -634,6 +678,10 @@ es:
     "Then it shows the address to open.": "Luego muestra la dirección que abrir."
     # panel.c
     "Then it shows the address to use.": "Luego muestra la dirección que usar."
+    # remote.html
+    "There is no card or drive in the player to download to.": ~
+    # remote.html
+    "There is no download to do that to.": ~
     # remote.html
     "This browser has not been allowed on the player yet.": "Este navegador aún no está permitido en el reproductor."
     # bench.c
@@ -692,6 +740,8 @@ es:
     "a guess": "estimada"
     # browser.c
     "all start with  %s": "todos empiezan por  %s"
+    # remote.html
+    "an episode": ~
     # browser.c
     "another episode is downloading": ~
     # panel.c

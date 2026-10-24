@@ -106,7 +106,7 @@ dependencies:
   # blocks, not by a task that waited behind it all track (0018).
   feckless_drivers:
     git: https://github.com/Sudrien/feckless-drivers-for-m5tab5.git
-    version: "v0.5.8"
+    version: "v0.5.9"
 
   # 6055: the panel, the backlight and gfx, with the Ark12 and Arabixel
   # fonts, are feckless-graphics-handler-for-m5tab5. esp_lcd_st7121 moved

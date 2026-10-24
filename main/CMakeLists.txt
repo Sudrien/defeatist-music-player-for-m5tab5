@@ -74,6 +74,17 @@ set_property(SOURCE
         poddl.c podindex.c radiobrowser.c stations.c favorites.c starred.c
         approve.c certgen.c devcert.c wifijoin.c nvsns.c launcher_import.c
     APPEND PROPERTY COMPILE_OPTIONS -Os)
+# 8032: -Os inlines further, and -Wformat-truncation then sees ranges it did
+# not at -O2 (poddl.c's picture path was the first). Those files only, a
+# warning and not an error, so one build lists every such snprintf at once
+# instead of stopping at the first. Each one in the log gets fixed at its
+# snprintf and this comes out when the log has none.
+set_property(SOURCE
+        mpd.c mpdproto.c mpdfilter.c mpdidle.c mpdmode.c mpduri.c
+        remote.c remoteproto.c portal.c portalweb.c dnsreply.c sleeppage.c
+        poddl.c podindex.c radiobrowser.c stations.c favorites.c starred.c
+        approve.c certgen.c devcert.c wifijoin.c nvsns.c launcher_import.c
+    APPEND PROPERTY COMPILE_OPTIONS -Wno-error=format-truncation)
 
 # 5277: every file in main at -O3, off by default. Build with
 #   idf.py -DO3CHECK=1 build

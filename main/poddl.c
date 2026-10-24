@@ -311,7 +311,10 @@ static void fetch_picture(const char *what, const char *src, const char *stem)
         ESP_LOGI(TAG, "%s is not a JPEG, PNG or GIF; none kept", what);
         goto done;
     }
-    snprintf(path, sizeof(path), "%s.%s", stem, ext);
+    /* The guard on entry holds strlen(stem) to DL_STEM_MAX - 1; the
+     * precision says so to the compiler, which -Os (8031) no longer
+     * finds out for itself across the inlining. */
+    snprintf(path, sizeof(path), "%.*s.%s", DL_STEM_MAX - 1, stem, ext);
     snprintf(tmp, sizeof(tmp), "%s.tmp", path);
     storage_io_acquire(STORAGE_IO_BACKGROUND);
     FILE *f = fopen(tmp, "wb");

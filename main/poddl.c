@@ -31,7 +31,13 @@ static const char *TAG = "tab5_poddl";
 #define DL_TIMEOUT_MS 15000
 #define DL_HOPS       6             /* tracking prefixes stack */
 #define DL_URL_MAX    1024
-#define DL_PATH_MAX   400
+#define DL_PATH_MAX   400           /* a podcast's folder */
+/* 8022: the file and the part file, sized for the longest folder, name
+ * and extension rather than the folder's bound again -- GCC's
+ * format-truncation check at -O2 proves these cannot be cut. */
+#define DL_FILE_MAX   (DL_PATH_MAX + 1 + PODPATH_NAME_MAX + 16 + 1 + 8)
+#define DL_PART_MAX   (DL_FILE_MAX + 5)
+#define DL_LINK_MAX   (DL_PATH_MAX + sizeof("/" PODPATH_LINK))
 
 static SemaphoreHandle_t s_mu;
 static poddl_state_t     s_state;
@@ -41,7 +47,7 @@ static int               s_pct = -1;            /* last percent the generation m
 static char              s_url[DL_URL_MAX];
 static char              s_dir[DL_PATH_MAX];
 static char              s_base[PODPATH_NAME_MAX + 16];
-static char              s_path[DL_PATH_MAX];   /* the finished file */
+static char              s_path[DL_FILE_MAX];   /* the finished file */
 static int64_t           s_feed;                /* 8021: for the folder's link */
 static char              s_show[128];
 
@@ -165,7 +171,7 @@ static esp_http_client_handle_t open_followed(char *url, hdrs_t *h, int *status)
 static void dl_task(void *arg)
 {
     (void)arg;
-    static char url[DL_URL_MAX], part[DL_PATH_MAX];
+    static char url[DL_URL_MAX], part[DL_PART_MAX];
     static hdrs_t h;
     lock();
     snprintf(url, sizeof(url), "%s", s_url);
@@ -181,7 +187,7 @@ static void dl_task(void *arg)
         /* 8021: the folder's way back to the podcast. Rewritten each
          * time, so a renamed podcast's folder follows; a failure here
          * costs only the link, not the download. */
-        static char link[DL_PATH_MAX], text[160];
+        static char link[DL_LINK_MAX], text[160];
         snprintf(link, sizeof(link), "%s/" PODPATH_LINK, s_dir);
         const int n = podpath_link_format(s_feed, s_show, text, sizeof(text));
         storage_io_acquire(STORAGE_IO_BACKGROUND);

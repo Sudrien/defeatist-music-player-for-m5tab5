@@ -26288,3 +26288,18 @@ texttest run-podpath gains the link's format, 36 checks.
 
 On the board: `I tab5_browser: podcast N: back to its episodes`, then
 the episode fetch as from the podcast list.
+
+### 8022 -- 8020 did not build: format-truncation
+
+poddl.c sized its file path, its part file and its folder link all at
+DL_PATH_MAX (400), the folder's own bound -- so `"%s/%s.%s"` with a
+400-byte folder, a 112-byte name and an extension, `"%s.part"` and
+`"%s/.podcast"` could each be longer than their destination, and GCC's
+-Wformat-truncation, which IDF makes an error, said so at -O2. Each is
+now sized for its worst case (DL_FILE_MAX, DL_PART_MAX, DL_LINK_MAX).
+
+The session's check had been `gcc -fsyntax-only`, which does none of the
+optimiser's analysis; compiled to an object at -O2 with -Werror=all, the
+same stubs give exactly these three errors, and none after the fix.
+CLAUDE.md now says what the firmware is compiled with and how a session
+without IDF should check, so the next one starts there.

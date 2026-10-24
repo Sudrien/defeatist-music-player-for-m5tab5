@@ -218,6 +218,38 @@ protocol word, NVS key or anything parsed back. A translation Claude
 writes is named in the commit message as not yet read by a native
 speaker.
 
+**The firmware is compiled at -O2 with every -Wall warning an error.**
+IDF builds each component with `-Wall -Werror=all` (main/CMakeLists.txt
+says so at O3CHECK), and sdkconfig.defaults sets
+CONFIG_COMPILER_OPTIMIZATION_PERF, which is -O2. The exact list is in
+`build/compile_commands.json` after a build; what matters for writing a
+patch is what -O2 adds, because several of these warnings are produced
+by the optimiser's analysis and not by the parser:
+
+- `-Wformat-truncation`: an `snprintf()` whose destination is smaller
+  than the longest string its `%s` arguments could make is an error,
+  checked return value or not. Size the destination for the worst case
+  of every argument (a sum of the source buffers' sizes), or the build
+  stops. 8020 stopped on three of these.
+- `-Wformat`: ESP_LOGx pastes its format beside other string literals,
+  so the format must be a literal -- never `cond ? "a" : "b"` (8007).
+- `-Wstringop-overflow`, `-Wmaybe-uninitialized` and the rest that need
+  data-flow analysis appear only when optimising, too.
+
+**A session without ESP-IDF checks by compiling, not by parsing.**
+`-fsyntax-only` runs none of the analysis above and passed all of 8020's
+errors. Compile each changed main/*.c to an object, against stub headers
+for what IDF would supply, with the firmware's level and errors:
+
+    gcc -std=gnu11 -O2 -Wall -Werror=all -c -o /dev/null -Imain ... main/x.c
+
+and stubs that behave as IDF's do where it matters -- an ESP_LOGx that
+pastes its format beside a literal, an esp_http_client_config_t with the
+fields IDF has. Errors that come from a stub's gaps are the stub's; say
+in the commit message what was checked this way and that it was not
+built. texttest's WARNCFLAGS (`-std=c11 -O2 -Wall -Wextra -Werror`)
+are stricter still, but cover only the host-tested headers.
+
 **A station's text is not ASCII, and `%.80s` is bytes.** Anything a
 station, a tag or a directory supplies -- names, titles, favicons --
 can be Arabic or CJK, two to four bytes a letter. A log line that

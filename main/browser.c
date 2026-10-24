@@ -281,6 +281,10 @@ static char s_result[512];
 static entry_t *s_entries;
 static int s_count;
 static int s_top;               /* first visible row */
+/* 8051: where the episode list was when an episode was opened, and whose
+ * list it was; load_pod_ep_rows() goes back there once, then forgets. */
+static int     s_pod_ep_top = -1;
+static int64_t s_pod_ep_feed = -1;
 
 /*
  * A drag on the scrollbar, in progress.
@@ -964,7 +968,14 @@ static void load_pod_ep_rows(void)
      * the status line saying what came off the front. Episode rows are
      * files to it -- not folders, no label -- so nothing else changes. */
     find_common_prefix();
+    /* 8051: back from an episode's page to where the list was. */
     s_top = 0;
+    if (s_pod_ep_top >= 0 && s_pod_ep_feed == s_pod_efeed) {
+        int max_top = s_count - rows_visible();
+        if (max_top < 0) max_top = 0;
+        s_top = s_pod_ep_top < max_top ? s_pod_ep_top : max_top;
+    }
+    s_pod_ep_top = -1;
     s_dirty = true;
 }
 
@@ -2346,6 +2357,8 @@ browser_result_t browser_touch(bool down, int x, int y)
                 return res;
             }
             /* 8024: this episode, running or with a part file: its actions. */
+            s_pod_ep_top = s_top;                   /* 8051 */
+            s_pod_ep_feed = s_pod_efeed;
             if ((ds == PODDL_RUNNING && id == s_pod_eps[i].id) || part_vol != STORAGE_COUNT) {
                 s_pod_pick = i;
                 s_pod_act = true;

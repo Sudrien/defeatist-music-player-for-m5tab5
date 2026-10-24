@@ -27174,3 +27174,17 @@ Not built with IDF, not run on the board.
 
 New screen text: `Play it while it downloads`, extracted and compiled
 (tools/i18n.py); not translated, like the podcast rows around it.
+
+### 8051 -- back to where the episode list was
+
+Opening an episode -- its page (8026) or its download's actions (8024)
+-- and coming back, by UP or by a row, rebuilt the list with s_top 0,
+so an episode twenty rows down had to be found again each time. The
+row the list was scrolled to, and whose list it was, are kept when an
+episode is opened (s_pod_ep_top, s_pod_ep_feed), and load_pod_ep_rows()
+goes back there -- clamped to the list's length, for one that changed
+-- and forgets it, so a fresh list from Podcast Index, or another
+podcast's, still starts at the top.
+
+Compiled as 8037 was, against stub headers, with the same stub errors
+before and after. Not built with IDF, not run.

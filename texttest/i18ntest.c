@@ -36,32 +36,73 @@
 #endif
 
 #ifdef I18NTEST_FIXTURE
-/* Sorted by strcmp, as the generator writes them. */
+/* Sorted by strcmp, as the generator writes them. 8030: the values are
+ * offsets into one text, which is stored as a raw deflate stream; this
+ * fixture's is a single stored block (header 01, LEN, NLEN), which every
+ * inflater takes, so the offsets stay readable against 131 bytes of text:
+ * en 0, zh-CN 13, ja 41, es 48, pt 87, fr 87, it 110. */
 const unsigned i18n_count = 4;
 const char *const i18n_keys[] = { "OFF", "ON", "ONE", "Same album" };
-const char *const i18n_vals[] = {
-    /* en */    NULL,  NULL,  "One", NULL,
-    /* zh-CN */ "关",  "开",  NULL,  "同一专辑",
-    /* ja */    "オフ", NULL,  NULL,  NULL,
-    /* es */    "NO",  "SÍ",  NULL,  "Mismo álbum",
-    /* pt */    NULL,  NULL,  NULL,  NULL,
-    /* fr */    NULL,  "OUI", NULL,  NULL,
-    /* it */    NULL,  NULL,  NULL,  NULL,
+const uint16_t i18n_voff[] = {
+    /* en    */ I18N_NONE, I18N_NONE, 0, I18N_NONE,
+    /* zh-CN */ 0, 4, I18N_NONE, 8,
+    /* ja    */ 0, I18N_NONE, I18N_NONE, I18N_NONE,
+    /* es    */ 0, 3, I18N_NONE, 7,
+    /* pt    */ I18N_NONE, I18N_NONE, I18N_NONE, I18N_NONE,
+    /* fr    */ I18N_NONE, 0, I18N_NONE, I18N_NONE,
+    /* it    */ I18N_NONE, I18N_NONE, I18N_NONE, I18N_NONE,
 };
 const unsigned i18n_pcount = 1;
 const char *const i18n_pkeys[] = { "%d tracks" };
-const char *const i18n_pvals[] = {
-    /* en */    "%d track", NULL,
-    /* zh-CN */ NULL,       "%d 首",
-    /* ja */    NULL,       NULL,
-    /* es */    "%d pista", "%d pistas",
-    /* pt */    NULL,       NULL,
-    /* fr */    "%d piste", "%d pistes",
-    /* it */    "%d traccia", "%d tracce",
+const uint16_t i18n_pvoff[] = {
+    /* en    */ 4, I18N_NONE,
+    /* zh-CN */ I18N_NONE, 21,
+    /* ja    */ I18N_NONE, I18N_NONE,
+    /* es    */ 20, 29,
+    /* pt    */ I18N_NONE, I18N_NONE,
+    /* fr    */ 4, 13,
+    /* it    */ 0, 11,
 };
+const uint32_t i18n_lbase[I18N_LANG_COUNT] = { 0, 13, 41, 48, 87, 87, 110 };
+const unsigned i18n_text_len = 131;
+#ifndef I18NTEST_BAD
+#define NLEN_HI 0xFF
+#else
+#define NLEN_HI 0x00                    /* NLEN no longer LEN's complement */
+#endif
+const unsigned char i18n_blob[] = {
+    0x01, 0x83, 0x00, 0x7C, NLEN_HI, 0x4F, 0x6E, 0x65, 0x00, 0x25, 0x64, 0x20,
+    0x74, 0x72, 0x61, 0x63, 0x6B, 0x00, 0xE5, 0x85, 0xB3, 0x00, 0xE5, 0xBC,
+    0x80, 0x00, 0xE5, 0x90, 0x8C, 0xE4, 0xB8, 0x80, 0xE4, 0xB8, 0x93, 0xE8,
+    0xBE, 0x91, 0x00, 0x25, 0x64, 0x20, 0xE9, 0xA6, 0x96, 0x00, 0xE3, 0x82,
+    0xAA, 0xE3, 0x83, 0x95, 0x00, 0x4E, 0x4F, 0x00, 0x53, 0xC3, 0x8D, 0x00,
+    0x4D, 0x69, 0x73, 0x6D, 0x6F, 0x20, 0xC3, 0xA1, 0x6C, 0x62, 0x75, 0x6D,
+    0x00, 0x25, 0x64, 0x20, 0x70, 0x69, 0x73, 0x74, 0x61, 0x00, 0x25, 0x64,
+    0x20, 0x70, 0x69, 0x73, 0x74, 0x61, 0x73, 0x00, 0x4F, 0x55, 0x49, 0x00,
+    0x25, 0x64, 0x20, 0x70, 0x69, 0x73, 0x74, 0x65, 0x00, 0x25, 0x64, 0x20,
+    0x70, 0x69, 0x73, 0x74, 0x65, 0x73, 0x00, 0x25, 0x64, 0x20, 0x74, 0x72,
+    0x61, 0x63, 0x63, 0x69, 0x61, 0x00, 0x25, 0x64, 0x20, 0x74, 0x72, 0x61,
+    0x63, 0x63, 0x65, 0x00,
+};
+const unsigned i18n_blob_len = 136;
 
+#ifdef I18NTEST_BAD
+/* A blob that does not inflate: init fails, and every lookup is the key. */
 static void fixture(void)
 {
+    assert(!i18n_init());
+    assert(!i18n_init());
+    assert(i18n_val(I18N_ZH_CN, 0) == NULL);
+    i18n_set_lang(I18N_ZH_CN);
+    assert(strcmp(_("OFF"), "OFF") == 0);
+    assert(strcmp(_p("%d tracks", 1), "%d tracks") == 0);
+    puts("i18ntest (bad blob): ok");
+}
+#else
+static void fixture(void)
+{
+    assert(i18n_init());
+    assert(i18n_val(I18N_ES, 1) && strcmp(i18n_val(I18N_ES, 1), "SÍ") == 0);
     assert(i18n_lang() == I18N_EN);
     assert(strcmp(_("OFF"), "OFF") == 0);          /* en, NULL: the key */
     assert(strcmp(_("ONE"), "One") == 0);          /* en rewording */
@@ -158,9 +199,8 @@ static void fixture(void)
     i18n_set_lang(I18N_EN);
     puts("i18ntest (fixture): ok");
 }
+#endif
 #else
-extern const char *const i18n_vals[];
-extern const char *const i18n_pvals[];
 
 /* Every codepoint of s in the font; names the first one that is not. */
 static int glyphs_ok(const char *s, const char *what)
@@ -296,19 +336,47 @@ static int check_budgets(void)
 
 static void real_table(void)
 {
+    /* 8030: the blob inflates to exactly the text the offsets index. */
+    assert(i18n_init());
+    assert(i18n_init());                           /* again: still true */
+    const char *p0 = i18n_val(I18N_ZH_CN, 0);
+    for (unsigned l = 0; l < I18N_LANG_COUNT; l++) {
+        assert(i18n_lbase[l] <= i18n_text_len);
+        if (l) assert(i18n_lbase[l] >= i18n_lbase[l - 1]);
+    }
+    for (unsigned i = 0; i < I18N_LANG_COUNT * i18n_count; i++) {
+        const unsigned o = i18n_voff[i];
+        if (o == I18N_NONE) continue;
+        const unsigned l = i / i18n_count;
+        const unsigned end = (l + 1 < I18N_LANG_COUNT ? i18n_lbase[l + 1] : i18n_text_len);
+        assert(i18n_lbase[l] + o < end);
+        assert(o == 0 || *(i18n_val((i18n_lang_t)l, i % i18n_count) - 1) == '\0');
+    }
+    for (unsigned i = 0; i < I18N_LANG_COUNT * i18n_pcount * 2; i++) {
+        const unsigned o = i18n_pvoff[i];
+        if (o == I18N_NONE) continue;
+        const unsigned l = i / (i18n_pcount * 2);
+        const unsigned end = (l + 1 < I18N_LANG_COUNT ? i18n_lbase[l + 1] : i18n_text_len);
+        assert(i18n_lbase[l] + o < end);
+    }
+    assert(i18n_val(I18N_ZH_CN, 0) == p0);         /* permanent pointers */
+    assert(i18n_val((i18n_lang_t)9, 0) == NULL);
+    assert(i18n_val(I18N_EN, i18n_count) == NULL);
+    assert(i18n_pval(I18N_EN, 0, 2) == NULL);
     int ok = check_budgets();
     /* 6024: Ark12 holds what the device draws; a browser draws the
      * web pages' strings, and those must instead carry no HTML of their
      * own -- portal.c puts them into a page unescaped. */
     for (unsigned i = 0; i < I18N_LANG_COUNT * i18n_count; i++) {
-        const char *v = i18n_vals[i];
+        const char *v = i18n_val((i18n_lang_t)(i / i18n_count), i % i18n_count);
         if (!v) continue;
         const char *ln = i18n_lang_name((i18n_lang_t)(i / i18n_count));
         if (i18n_on_screen[i % i18n_count]) ok &= glyphs_ok(v, ln);
         else ok &= html_free(v, ln);
     }
     for (unsigned i = 0; i < I18N_LANG_COUNT * i18n_pcount * 2; i++) {
-        const char *v = i18n_pvals[i];
+        const char *v = i18n_pval((i18n_lang_t)(i / (i18n_pcount * 2)),
+                                  (i / 2) % i18n_pcount, i % 2);
         if (!v) continue;
         const char *ln = i18n_lang_name((i18n_lang_t)(i / (i18n_pcount * 2)));
         if (i18n_pon_screen[(i / 2) % i18n_pcount]) ok &= glyphs_ok(v, ln);
@@ -327,8 +395,8 @@ static void real_table(void)
     for (int l = 0; l < I18N_LANG_COUNT; l++) {
         i18n_set_lang((i18n_lang_t)l);
         for (unsigned i = 0; i < i18n_count; i++) {
-            const char *want = i18n_vals[l * i18n_count + i];
-            if (!want) want = i18n_vals[i];
+            const char *want = i18n_val((i18n_lang_t)l, i);
+            if (!want) want = i18n_val(I18N_EN, i);
             if (!want) want = i18n_keys[i];
             assert(_(i18n_keys[i]) == want);
         }

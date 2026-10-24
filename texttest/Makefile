@@ -337,15 +337,22 @@ $(CTRL_BIN): ctrltest.c
 run-ctrl: $(CTRL_BIN)
 	ASAN_OPTIONS=detect_leaks=1:abort_on_error=0 ./$(CTRL_BIN)
 
-$(I18N_BIN): i18ntest.c ../main/i18n.c ../main/i18n.h ../main/i18n_tab.c $(GFX_SRCS)
-	$(CC) $(WARNCFLAGS) -c ../main/i18n.c -o /dev/null
+# miniz, as arttest builds it: vendored, so not held to our warnings
+I18N_MINIZ := -Wno-sign-compare -Wno-unused-function -Wno-unused-but-set-variable -Wno-type-limits \
+    -Wno-shift-negative-value -Wno-implicit-fallthrough -Wno-attributes -fwrapv -fno-sanitize=signed-integer-overflow -fno-sanitize=alignment
+
+$(I18N_BIN): $(PNGLE_DIR)/miniz.c i18ntest.c ../main/i18n.c ../main/i18n.h ../main/i18n_tab.c $(GFX_SRCS)
+	$(CC) $(WARNCFLAGS) -I$(PNGLE_DIR) -Ifake -I. -c ../main/i18n.c -o /dev/null
 	$(CC) $(WARNCFLAGS) -c ../main/i18n_tab.c -o /dev/null
-	$(CC) $(CFLAGS) -DI18NTEST_FIXTURE -o $@-fixture i18ntest.c ../main/i18n.c $(LDFLAGS)
-	$(CC) $(CFLAGS) -o $@ i18ntest.c ../main/i18n.c ../main/i18n_tab.c $(GFX_SRCS) shim.c $(LDFLAGS)
+	$(CC) $(CFLAGS) $(I18N_MINIZ) -c $(PNGLE_DIR)/miniz.c -o $@-miniz.o
+	$(CC) $(CFLAGS) -I$(PNGLE_DIR) -DI18NTEST_FIXTURE -o $@-fixture i18ntest.c ../main/i18n.c shim.c $@-miniz.o $(LDFLAGS)
+	$(CC) $(CFLAGS) -I$(PNGLE_DIR) -DI18NTEST_FIXTURE -DI18NTEST_BAD -o $@-bad i18ntest.c ../main/i18n.c shim.c $@-miniz.o $(LDFLAGS)
+	$(CC) $(CFLAGS) -I$(PNGLE_DIR) -o $@ i18ntest.c ../main/i18n.c ../main/i18n_tab.c $(GFX_SRCS) shim.c $@-miniz.o $(LDFLAGS)
 
 run-i18n: $(I18N_BIN)
 	python3 ../tools/i18n.py check
 	./$(I18N_BIN)-fixture
+	./$(I18N_BIN)-bad
 	./$(I18N_BIN)
 
 $(CLOCK_BIN): clocktest.c

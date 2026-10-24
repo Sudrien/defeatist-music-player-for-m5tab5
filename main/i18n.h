@@ -29,6 +29,9 @@
  */
 #pragma once
 
+#include <stdbool.h>
+#include <stdint.h>
+
 typedef enum {
     I18N_EN = 0,        /* also the fallback: the keys are English */
     I18N_ZH_CN,
@@ -79,8 +82,36 @@ const char *i18n_lang_code(i18n_lang_t lang);      /* "en", "zh-CN", ... */
 #define same(s)   (s)
 #define _p(s, n)  i18n_get_plural((s), (long)(n))
 
+/* 8030: the translations are not C strings. They are one block of text,
+ * deflated into flash (i18n_blob) and inflated once into PSRAM with the
+ * ROM's tinfl, where they stay: a pointer _() returned is good for good,
+ * whatever language is later chosen, and the web pages may ask for any
+ * language at any time. 12 KB of pointers and 70 KB of strings in flash
+ * became 6 KB of offsets and 27 KB of deflate.
+ *
+ * Called from app_main() before anything draws or serves. A first lookup
+ * that finds it not yet called does it itself, but a task that finds it
+ * running in another gets the key (English) for that call -- no task
+ * waits on another here. If the PSRAM or the inflate fails the lookups
+ * return their keys for good, and the log says so. True if the text is
+ * there. */
+bool i18n_init(void);
+
 /* The generated tables, for i18n.c and the host test. */
+#define I18N_NONE 0xFFFFu           /* an offset for "not translated" */
 extern const unsigned i18n_count;
 extern const char *const i18n_keys[];
 extern const unsigned i18n_pcount;
 extern const char *const i18n_pkeys[];
+extern const uint16_t i18n_voff[];      /* [lang * i18n_count + key] */
+extern const uint16_t i18n_pvoff[];     /* [(lang * i18n_pcount + key) * 2 + form] */
+extern const uint32_t i18n_lbase[I18N_LANG_COUNT];
+extern const unsigned i18n_text_len;
+extern const unsigned char i18n_blob[];
+extern const unsigned i18n_blob_len;
+
+/* A value as the table holds it: NULL for "not translated", and for
+ * every lookup when the text is not there. No fallback -- that is what
+ * the lookups above add. */
+const char *i18n_val(i18n_lang_t lang, unsigned key);
+const char *i18n_pval(i18n_lang_t lang, unsigned key, unsigned form);

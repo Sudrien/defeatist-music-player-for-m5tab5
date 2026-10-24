@@ -16025,6 +16025,7 @@ void app_main(void)
      * radio off. Nothing between the old place and this one reads a
      * setting. */
     rtc8130_init(s_i2c_bus);            /* 6003: before settings_init() reads it */
+    i18n_init();                        /* 8030: the translations, inflated; before any _() */
     settings_init();
     s_volume = settings_volume();
     audio_out_set_volume((uint8_t)s_volume);

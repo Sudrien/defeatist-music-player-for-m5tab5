@@ -26474,3 +26474,44 @@ texttest run-podpath gains podpath_part(), 41 checks.
 
 On the board: `moved an earlier part file to ...`, `part file
 discarded`, `removed <dir>: it held no episode`.
+
+### 8030 -- the translations, deflated; their values, offsets
+
+The Hangul cut the image past its 3 MB slot (the partition table stays,
+for the launcher's sake), and the translations were the biggest text in
+it that nothing read until a language was chosen. Two changes, one
+format:
+
+- `i18n_vals[]`/`i18n_pvals[]` were pointer tables, 4 bytes a value and
+  a relocation each. They are `uint16_t` offsets now (`i18n_voff[]`,
+  `i18n_pvoff[]`, `I18N_NONE` for no translation), indexed as before,
+  into one text per language; `i18n_lbase[]` is where each begins.
+- The text itself is stored as one raw deflate stream (`i18n_blob[]`,
+  `zlib` level 9, no header), and `i18n_init()` inflates it once into
+  PSRAM with the ROM's `tinfl_decompress` (`nm`: `A tinfl_decompress`),
+  declared by pngle's `miniz.h`, so it adds no code. The 11 KB decompressor
+  state is a heap allocation, freed after; nothing large is on a stack.
+
+Measured on the host: the table object went from 85,576 text + 29,416
+data bytes to 46,520 + 3,592 (about 64.9 KB), the 71,031 bytes of text
+becoming 26,846 in flash. PSRAM pays about 71 KB for good.
+
+`player.c` calls `i18n_init()` before `settings_init()`. A lookup made
+before that, or by another task while it runs, inits lazily behind an
+atomic state; a task that arrives mid-inflate gets English for that one
+call. A failed inflate or allocation leaves every lookup at its key
+(`i18n: inflate failed ...` / `no memory ...`). Pointers handed out are
+permanent -- the web pages ask for any language at any time.
+
+`tools/i18n.py compile` writes the blob; `check` does not compare it
+byte for byte, since another zlib deflates differently: it accepts a
+table whose head matches and whose blob inflates to the same text.
+Reviewers now read translations in the YAML, not in `i18n_tab.c`.
+
+texttest `run-i18n` gains the blob checks (offsets in range and at
+string starts, bases monotonic, pointers stable) and a bad-blob build
+where `i18n_init()` fails and `_()` returns the key.
+
+On the board: `i18n: 71031 bytes of text inflated from 26846 in flash`.
+Not built with ESP-IDF; i18n.c and i18n_tab.c compiled at
+`-O2 -Wall -Werror=all` against stubs. No manifest or sdkconfig change.

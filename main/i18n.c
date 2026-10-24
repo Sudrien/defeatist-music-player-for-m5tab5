@@ -14,13 +14,84 @@
 #include <stdlib.h>
 #include <string.h>
 
-/* Flat, because a key count known only in i18n_tab.c cannot be an
- * array dimension here: [lang * i18n_count + key] and
- * [(lang * i18n_pcount + key) * 2 + form]. */
-extern const char *const i18n_vals[];
-extern const char *const i18n_pvals[];
+#include "esp_heap_caps.h"
+#include "esp_log.h"
+#include "miniz.h"      /* pngle's: tinfl, which the ROM holds (nm: A tinfl_decompress) */
+
+static const char *TAG = "i18n";
+
+/* The tables are flat, because a key count known only in i18n_tab.c
+ * cannot be an array dimension here: [lang * i18n_count + key] and
+ * [(lang * i18n_pcount + key) * 2 + form]. Their values are offsets into
+ * s_text, which i18n_init() fills. */
+enum { ST_NONE = 0, ST_BUSY, ST_READY, ST_FAILED };
+static int s_state = ST_NONE;           /* atomic: ST_* */
+static const char *s_text;              /* written once, before s_state is READY */
 
 static volatile int s_lang = I18N_EN;
+
+bool i18n_init(void)
+{
+    int expect = ST_NONE;
+    if (!__atomic_compare_exchange_n(&s_state, &expect, ST_BUSY, false,
+                                     __ATOMIC_ACQ_REL, __ATOMIC_ACQUIRE))
+        return expect == ST_READY;      /* done, failed, or another task is in it */
+
+    /* The text for good, and tinfl's 11 KB of state for a moment: PSRAM
+     * for both -- internal RAM is the radio's -- and the state on the
+     * heap, never on a stack (tinfl_decompress_mem_to_mem() would put it
+     * on the caller's). */
+    char *text = heap_caps_malloc(i18n_text_len ? i18n_text_len : 1,
+                                  MALLOC_CAP_SPIRAM | MALLOC_CAP_8BIT);
+    tinfl_decompressor *d = heap_caps_malloc(sizeof *d, MALLOC_CAP_SPIRAM | MALLOC_CAP_8BIT);
+    bool ok = false;
+    if (text && d) {
+        size_t in_n = i18n_blob_len, out_n = i18n_text_len;
+        tinfl_init(d);
+        const tinfl_status st = tinfl_decompress(d, i18n_blob, &in_n,
+                                                 (mz_uint8 *)text, (mz_uint8 *)text, &out_n,
+                                                 TINFL_FLAG_USING_NON_WRAPPING_OUTPUT_BUF);
+        ok = st == TINFL_STATUS_DONE && out_n == i18n_text_len && in_n == i18n_blob_len;
+        if (!ok)
+            ESP_LOGE(TAG, "inflate failed: status %d, %u of %u bytes out",
+                     (int)st, (unsigned)out_n, i18n_text_len);
+    } else {
+        ESP_LOGE(TAG, "no memory for %u bytes of text", i18n_text_len);
+    }
+    heap_caps_free(d);
+    if (ok) {
+        ESP_LOGI(TAG, "%u bytes of text inflated from %u in flash", i18n_text_len, i18n_blob_len);
+        s_text = text;
+    } else {
+        heap_caps_free(text);
+    }
+    __atomic_store_n(&s_state, ok ? ST_READY : ST_FAILED, __ATOMIC_RELEASE);
+    return ok;
+}
+
+/* The text, or NULL: never inflated, failed, or being inflated by another
+ * task right now. */
+static const char *text(void)
+{
+    if (__atomic_load_n(&s_state, __ATOMIC_ACQUIRE) == ST_NONE) i18n_init();
+    return __atomic_load_n(&s_state, __ATOMIC_ACQUIRE) == ST_READY ? s_text : NULL;
+}
+
+const char *i18n_val(i18n_lang_t lang, unsigned key)
+{
+    const char *t = text();
+    if (!t || (unsigned)lang >= I18N_LANG_COUNT || key >= i18n_count) return NULL;
+    const unsigned o = i18n_voff[(unsigned)lang * i18n_count + key];
+    return o == I18N_NONE ? NULL : t + i18n_lbase[lang] + o;
+}
+
+const char *i18n_pval(i18n_lang_t lang, unsigned key, unsigned form)
+{
+    const char *t = text();
+    if (!t || (unsigned)lang >= I18N_LANG_COUNT || key >= i18n_pcount || form > 1) return NULL;
+    const unsigned o = i18n_pvoff[((unsigned)lang * i18n_pcount + key) * 2 + form];
+    return o == I18N_NONE ? NULL : t + i18n_lbase[lang] + o;
+}
 
 void i18n_set_lang(i18n_lang_t lang)
 {
@@ -63,9 +134,9 @@ const char *i18n_get_in(i18n_lang_t lang_in, const char *msgid)
     const int lang = (unsigned)lang_in < I18N_LANG_COUNT ? (int)lang_in : I18N_EN;
     const int i = find(i18n_keys, i18n_count, msgid);
     if (i < 0) return msgid;
-    const char *v = i18n_vals[lang * i18n_count + i];
+    const char *v = i18n_val((i18n_lang_t)lang, (unsigned)i);
     if (v) return v;
-    v = i18n_vals[I18N_EN * i18n_count + i];          /* an English rewording, if any */
+    v = i18n_val(I18N_EN, (unsigned)i);               /* an English rewording, if any */
     return v ? v : msgid;
 }
 
@@ -93,9 +164,9 @@ const char *i18n_get_plural_in(i18n_lang_t lang_in, const char *msgid, long n)
     const int lang = (unsigned)lang_in < I18N_LANG_COUNT ? (int)lang_in : I18N_EN;
     const int i = find(i18n_pkeys, i18n_pcount, msgid);
     if (i < 0) return msgid;
-    const char *v = i18n_pvals[(lang * i18n_pcount + i) * 2 + plural_form(lang, n)];
+    const char *v = i18n_pval((i18n_lang_t)lang, (unsigned)i, (unsigned)plural_form(lang, n));
     if (v) return v;
-    v = i18n_pvals[(I18N_EN * i18n_pcount + i) * 2 + plural_form(I18N_EN, n)];
+    v = i18n_pval(I18N_EN, (unsigned)i, (unsigned)plural_form(I18N_EN, n));
     return v ? v : msgid;
 }
 

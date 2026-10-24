@@ -49,6 +49,9 @@ static const char *TAG = "tab5_poddl";
 /* 8042: the most segments a part file's map can hold, and how often the
  * writer saves the map while it writes (bytes). */
 #define DL_SEGS_MAX   4
+/* 8045: bytes the writer gathers for a segment before it seeks and writes
+ * them, in PSRAM, one stage a segment. */
+#define DL_STAGE      (64 * 1024)
 #define DL_MAP_EVERY  (4 * 1024 * 1024)
 /* 8043: connections a download may use at once, and the smallest file
  * that is split between them. Each extra one is a helper task, created
@@ -517,47 +520,99 @@ static struct {
     int64_t           total, since_map;
     const char       *part;
     char              val[96];
+    /* 8045: each segment's gathered bytes, and where they go; NULL when
+     * PSRAM could not be had, and then every chunk is written as it comes. */
+    uint8_t          *stage;
+    int               st_len[DL_SEGS_MAX];
+    int64_t           st_off[DL_SEGS_MAX];
 } s_wr;
+
+/*
+ * 8045: CHUNK WRITES. With three segments the chunks arrive interleaved,
+ * so nearly every 16 KB write was a seek to another third of the file,
+ * and FAT seeks by walking the cluster chain: 8043's board run had the
+ * writer busy 83-98% of the time at about 33 ms a chunk, against 20 ms
+ * with one segment, and the readers starting to wait for buffers. Now a
+ * segment's chunks are gathered in its stage and written DL_STAGE at a
+ * time, one seek for four chunks.
+ *
+ * The lease is still taken a 16 KB slice at a time (storage_io.h's
+ * chunk), so playback waits no longer than before; the FILE keeps its
+ * place between slices, since nothing else writes it.
+ */
+static bool wr_out(int seg, const uint8_t *p, int len, int64_t off)
+{
+    for (int done = 0; done < len; ) {
+        const int n = len - done < DL_CHUNK ? len - done : DL_CHUNK;
+        const int64_t t0 = esp_timer_get_time();
+        storage_io_acquire(STORAGE_IO_BACKGROUND);
+        const int64_t t1 = esp_timer_get_time();
+        /* 8042: fseek() takes a long, so past 2 GB it cannot be asked;
+         * dl_task keeps such a file to one segment, which never seeks. */
+        const int64_t at_off = off + done;
+        bool at = at_off == s_wr.pos;
+        if (!at && at_off <= LONG_MAX) at = fseek(s_wr.f, (long)at_off, SEEK_SET) == 0;
+        const size_t put = at ? fwrite(p + done, 1, (size_t)n, s_wr.f) : 0;
+        if (put == (size_t)n) {
+            s_wr.pos = at_off + n;
+            s_wr.seg[seg].done += n;
+            s_wr.since_map += n;
+            if (s_wr.since_map >= DL_MAP_EVERY) {
+                s_wr.since_map = 0;
+                if (fflush(s_wr.f) == 0) {
+                    fsync(fileno(s_wr.f));
+                    id_write(s_wr.part, s_wr.val, s_wr.total, s_wr.seg, s_wr.nseg);
+                }
+            }
+        } else {
+            s_wr.pos = -1;
+        }
+        storage_io_release();
+        const int64_t t2 = esp_timer_get_time();
+        s_wr.t_lease += t1 - t0;
+        s_wr.t_write += t2 - t1;
+        if (put != (size_t)n) { s_wr.err_no = errno; s_wr.err = true; return false; }
+        s_wr.put += n;
+        done += n;
+    }
+    return true;
+}
+
+static void wr_flush(int seg)
+{
+    if (s_wr.st_len[seg] > 0 && !s_wr.err)
+        wr_out(seg, s_wr.stage + (size_t)seg * DL_STAGE, s_wr.st_len[seg], s_wr.st_off[seg]);
+    s_wr.st_len[seg] = 0;
+}
 
 static void wr_task(void *arg)
 {
     (void)arg;
     wr_item_t it;
+    for (int i = 0; i < DL_SEGS_MAX; i++) s_wr.st_len[i] = 0;
     for (;;) {
         xQueueReceive(s_wr.full, &it, portMAX_DELAY);
         if (it.len <= 0) break;
-        if (!s_wr.err) {
-            const int64_t t0 = esp_timer_get_time();
-            storage_io_acquire(STORAGE_IO_BACKGROUND);
-            const int64_t t1 = esp_timer_get_time();
-            /* 8042: fseek() takes a long, so past 2 GB it cannot be asked;
-             * dl_task keeps such a file to one segment, which never seeks. */
-            bool at = it.off == s_wr.pos;
-            if (!at && it.off <= LONG_MAX) at = fseek(s_wr.f, (long)it.off, SEEK_SET) == 0;
-            const size_t put = at ? fwrite(it.p, 1, (size_t)it.len, s_wr.f) : 0;
-            if (put == (size_t)it.len) {
-                s_wr.pos = it.off + it.len;
-                s_wr.seg[it.seg].done += it.len;
-                s_wr.since_map += it.len;
-                if (s_wr.since_map >= DL_MAP_EVERY) {
-                    s_wr.since_map = 0;
-                    if (fflush(s_wr.f) == 0) {
-                        fsync(fileno(s_wr.f));
-                        id_write(s_wr.part, s_wr.val, s_wr.total, s_wr.seg, s_wr.nseg);
-                    }
-                }
-            } else {
-                s_wr.pos = -1;
-            }
-            storage_io_release();
-            const int64_t t2 = esp_timer_get_time();
-            s_wr.t_lease += t1 - t0;
-            s_wr.t_write += t2 - t1;
-            if (put != (size_t)it.len) { s_wr.err_no = errno; s_wr.err = true; }
-            else s_wr.put += it.len;
+        if (s_wr.err) {
+            /* dropped: the readers see err and stop */
+        } else if (!s_wr.stage) {
+            wr_out(it.seg, it.p, it.len, it.off);
+        } else {
+            const int k = it.seg;
+            /* A segment's chunks come in order, so a gap means a reader
+             * started over somewhere else: what is gathered goes first. */
+            if (s_wr.st_len[k] > 0 && s_wr.st_off[k] + s_wr.st_len[k] != it.off) wr_flush(k);
+            if (s_wr.st_len[k] == 0) s_wr.st_off[k] = it.off;
+            memcpy(s_wr.stage + (size_t)k * DL_STAGE + s_wr.st_len[k], it.p, (size_t)it.len);
+            s_wr.st_len[k] += it.len;
+            xQueueSend(s_wr.free_, &it, portMAX_DELAY);     /* the buffer is free once copied */
+            if (s_wr.st_len[k] + DL_CHUNK > DL_STAGE) wr_flush(k);
+            continue;
         }
         xQueueSend(s_wr.free_, &it, portMAX_DELAY);
     }
+    if (s_wr.stage)
+        for (int k = 0; k < DL_SEGS_MAX; k++) wr_flush(k);    /* 8045: the rest, before the end */
     ESP_LOGI(TAG, "writer: stack %u bytes never used of %u",
              (unsigned)uxTaskGetStackHighWaterMark(NULL), (unsigned)DL_WR_STACK);
     xSemaphoreGive(s_wr.done);
@@ -941,6 +996,9 @@ static void dl_task(void *arg)
     s_wr.since_map = 0;
     s_wr.part = part;
     s_wr.pos = nseg == 1 ? from : -1;
+    /* 8045: the stages, for this download; without them, chunk by chunk. */
+    s_wr.stage = heap_caps_malloc((size_t)DL_SEGS_MAX * DL_STAGE, MALLOC_CAP_SPIRAM | MALLOC_CAP_8BIT);
+    if (!s_wr.stage) ESP_LOGW(TAG, "no PSRAM for the write stages; writing each chunk as it comes");
     if (xTaskCreate(wr_task, "poddl_wr", DL_WR_STACK, NULL, 3, NULL) != pdPASS) {
         ESP_LOGW(TAG, "could not start the writer");
         ok = false;
@@ -1107,6 +1165,8 @@ out:
         esp_http_client_cleanup(c);
     }
     free(buf);
+    free(s_wr.stage);                               /* 8045 */
+    s_wr.stage = NULL;
     ESP_LOGI(TAG, "stack: %u bytes never used of %u",
              (unsigned)uxTaskGetStackHighWaterMark(NULL), (unsigned)DL_STACK);
     finish(st);

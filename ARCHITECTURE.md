@@ -26975,3 +26975,39 @@ what CLAUDE.md's line said; it now says `-Wextra -Werror=extra` as well.
 poddl.c and browser.c (8037-8040's changes) were rechecked with it:
 poddl.c is clean, and browser.c has the same stub errors before 8037 and
 after 8043.
+
+On the board (8043): Wi-Fi, an art19 episode of 39,128,856 bytes in
+three segments, 3576 kbit/s over 87.5 s (8036: 1.7-1.9 on one
+connection; 8034: 0.9-1.2). No helper failed its range; the file was
+whole and played, and the listener found the joins clean. Internal
+min-ever 62,144 (8036: 69,104). The writer, though, was busy 83-98% of
+the time, and the readers waited for buffers 1-11%: the card was the
+limit now.
+
+### 8045 -- the writer gathers a segment's chunks
+
+8043's chunks arrive interleaved from three thirds of the file, so the
+writer seeked before nearly every 16 KB, and FAT seeks by walking the
+cluster chain -- about 33 ms a chunk against 8036's 20. Now each segment
+has a 64 KB stage (DL_STAGE) in PSRAM, 256 KB for DL_SEGS_MAX, allocated
+per download and freed after. A chunk is copied into its segment's stage
+and its buffer goes straight back to the readers; a stage is written
+when the next chunk would not fit, when a chunk does not follow on from
+it, and for every segment at the end -- before dl_task saves the map,
+so a pause keeps everything received. One seek per 64 KB instead of
+per 16 KB.
+
+wr_out() writes a run a 16 KB slice at a time, each under its own
+BACKGROUND lease as before, so playback's longest wait does not grow;
+the FILE keeps its position between slices, since nothing else writes
+to it. The map (8042) counts bytes as they reach the card, so a stage
+not yet written is not in it, and a reboot loses at most a stage a
+segment more than it did.
+
+No PSRAM for the stages: `no PSRAM for the write stages`, and the
+writer writes each chunk as it comes, as 8043 did.
+
+Compiled with gcc -O2 -Wall -Wextra -Werror=all -Werror=extra against
+stub headers; not built with IDF, not run. Expected: the 5-second
+line's write share well under 8043's 90%, wait near 0, and the rate up
+if the card was what held it.

@@ -705,4 +705,9 @@ CONFIG_ESP_HTTPS_SERVER_ENABLE=y
 # and why there is no log line, 5149-5152 having established that a
 # boot-time diagnostic is not free on this device. The direct check is
 # `grep CONFIG_LWIP_MAX_SOCKETS sdkconfig` reading 24 and not 10.
-CONFIG_LWIP_MAX_SOCKETS=24
+#
+# 8043: 28. netbudget.h now counts the podcast clients -- Podcast Index
+# 1, a download 3 (DL_CONNS) -- which makes 26; two spare as before. The
+# check is the same: `grep CONFIG_LWIP_MAX_SOCKETS sdkconfig` reads 28,
+# and a stale one fails the build at netbudget.h's #error.
+CONFIG_LWIP_MAX_SOCKETS=28

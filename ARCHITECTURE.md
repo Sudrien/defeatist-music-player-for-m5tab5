@@ -26904,3 +26904,61 @@ of n)`.
 Compiled with gcc -O2 -Wall -Werror=all against stub headers; not built
 with IDF, not run. On the board, a download, a pause and a resume
 should look as before 8042, with `segment 1 of 1`.
+
+### 8043 -- three connections a download
+
+8034-8036 found one stream bounded by itself: net 99%, the card never
+waited on, 1.7-1.9 Mbit/s on a 100 Mbit link. A TCP stream moves one
+window a round trip whatever the link, so this opens more streams.
+
+**The split.** A fresh download whose 200 says `Accept-Ranges: bytes`,
+with a length of at least 8 MB (DL_SPLIT_MIN) and no more than LONG_MAX
+(8042: the writer seeks with fseek()), is mapped as DL_CONNS (3) equal
+segments. The 200 that asked is the first segment's, read only to its
+end and then closed. Otherwise it is one segment, as before, and says
+why: `one connection: Accept-Ranges "..."`. A file under 8 MB is not
+worth two more handshakes.
+
+**The readers.** serve() is the old read loop, for one segment: a free
+buffer, a read no further than the segment's end, the chunk to the
+writer with its segment and offset, add_progress() (set_progress() for
+several readers: s_got += n). dl_task serves the first segment not
+whole; a helper task each serves one other, on its own connection, which
+open_segment() asks for with Range bounded at both ends and If-Range,
+and accepts only as a 206 whose Content-Range matches both ends and the
+total. A helper that cannot get its segment leaves it, and dl_task,
+once its own and the helpers' are done, takes each segment still not
+whole in turn, on a new connection. A read or write failure anywhere
+sets s_abort; the others stop at their next chunk, and the part file
+and its map stay for a tap.
+
+**The helpers.** DL_CONNS - 1 tasks, created on the first split and
+never deleted, as recorder.c's (6010) and for its reason; each waits on
+a notification. 6144-byte stacks in PSRAM (they do sockets and TLS and
+never write the card or flash, so never run with the cache off), TCBs
+DRAM_ATTR. dl_task waits for them on a counting semaphore. DL_NBUF is 6
+now, 96 KB of PSRAM, for three readers.
+
+**Sockets.** netbudget.h had not counted the podcast clients at all.
+It does now -- Podcast Index 1, a download DL_CONNS -- and the census is
+26; sdkconfig.defaults sets CONFIG_LWIP_MAX_SOCKETS to 28, two spare as
+before. A _Static_assert in poddl.c holds DL_CONNS to NETBUDGET_PODDL.
+rm sdkconfig before building; netbudget.h's #error is the proof it took
+(checked here against the stubs: 24 fails, 28 builds), and
+`grep CONFIG_LWIP_MAX_SOCKETS sdkconfig` reads 28.
+
+**Memory to watch.** Each connection is a TLS session (mbedTLS in PSRAM
+since 0132's EXTERNAL_MEM_ALLOC), an HTTP client's 4 + 2 KB buffers, and
+a TCP window of 16 KB in flight -- whose pbufs L2_TO_L3_COPY (5078) puts
+in PSRAM, but which the SDIO and Ethernet paths stage in internal RAM on
+the way. 8036's run had internal min-ever 69,104 with one connection;
+the 5-second line's `internal free ... min ...` is the number to read
+with three, with playback on as well.
+
+The timing line ends `, N connection(s)`; its net and wait are dl_task's
+connection's, its rate is all of them.
+
+Compiled with gcc -O2 -Wall -Werror=all against stub headers; not built
+with IDF, not run. Expected on the board: `to ... segment 1 of 3`, no
+`not this way` from the helpers, and a rate near three times 8036's if
+the window was the limit.

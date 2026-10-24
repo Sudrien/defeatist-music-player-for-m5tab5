@@ -31,6 +31,8 @@
 #include "podpath.h"
 #include "radiobrowser.h"       /* RADIOBROWSER_UA_FMT */
 #include "storage_io.h"
+#include "netbudget.h"           /* 8043: NETBUDGET_PODDL */
+#include "esp_attr.h"            /* 8043: DRAM_ATTR on the helpers' TCBs */
 
 static const char *TAG = "tab5_poddl";
 
@@ -42,12 +44,19 @@ static const char *TAG = "tab5_poddl";
  * per 16 KB, longer while playback holds the lease) without the reader
  * stalling. The writer's stack is internal, as DL_STACK's is: it writes
  * the card. */
-#define DL_NBUF       4
+#define DL_NBUF       6             /* 8043: 4, and one more for each extra connection */
 #define DL_WR_STACK   6144
 /* 8042: the most segments a part file's map can hold, and how often the
  * writer saves the map while it writes (bytes). */
 #define DL_SEGS_MAX   4
 #define DL_MAP_EVERY  (4 * 1024 * 1024)
+/* 8043: connections a download may use at once, and the smallest file
+ * that is split between them. Each extra one is a helper task, created
+ * once, its stack in PSRAM: it does sockets and TLS, and never writes the
+ * card or flash. netbudget.h counts DL_CONNS sockets for this. */
+#define DL_CONNS      3
+#define DL_SPLIT_MIN  (8 * 1024 * 1024)
+#define DL_HELP_STACK 6144
 #define DL_HOPS       6             /* tracking prefixes stack */
 #define DL_URL_MAX    1024
 #define DL_PATH_MAX   400           /* a podcast's folder */
@@ -89,6 +98,7 @@ typedef struct {
     char etag[96];
     char lastmod[40];
     char crange[80];
+    char ranges[16];            /* 8043: Accept-Ranges */
     char if_range[96];          /* sent with Range, never cleared by a hop */
 } hdrs_t;
 
@@ -111,6 +121,8 @@ static esp_err_t on_event(esp_http_client_event_t *ev)
             snprintf(h->etag, sizeof(h->etag), "%.*s", (int)sizeof(h->etag) - 1, ev->header_value);
         else if (!strcasecmp(ev->header_key, "Last-Modified"))
             snprintf(h->lastmod, sizeof(h->lastmod), "%.*s", (int)sizeof(h->lastmod) - 1, ev->header_value);
+        else if (!strcasecmp(ev->header_key, "Accept-Ranges"))      /* 8043 */
+            snprintf(h->ranges, sizeof(h->ranges), "%.*s", (int)sizeof(h->ranges) - 1, ev->header_value);
         else if (!strcasecmp(ev->header_key, "Content-Range"))
             snprintf(h->crange, sizeof(h->crange), "%.*s", (int)sizeof(h->crange) - 1, ev->header_value);
     }
@@ -119,17 +131,7 @@ static esp_err_t on_event(esp_http_client_event_t *ev)
 
 /* 8024: the generation moves every tenth of a MB -- what the status line
  * shows -- not every percent, which on a 557 MB file is 5.5 MB apart.
- * Returns what the task has been asked to do. */
-static int set_progress(int64_t got)
-{
-    lock();
-    s_got = got;
-    const int64_t step = got * 10 >> 20;
-    if (step != s_step) { s_step = step; s_gen++; }
-    const int stop = s_stop;
-    unlock();
-    return stop;
-}
+ * 8043: set_progress() became add_progress(), by the readers. */
 
 static void finish(poddl_state_t st)
 {
@@ -344,7 +346,7 @@ static esp_http_client_handle_t open_followed(char *url, hdrs_t *h, int *status,
     *status = 0;
     for (int hop = 0; hop <= DL_HOPS; hop++) {
         h->location[0] = h->ctype[0] = '\0';
-        h->etag[0] = h->lastmod[0] = h->crange[0] = '\0';     /* 8041 */
+        h->etag[0] = h->lastmod[0] = h->crange[0] = h->ranges[0] = '\0';   /* 8041, 8043 */
         esp_http_client_config_t cfg = {
             .url = url,
             .crt_bundle_attach = esp_crt_bundle_attach,
@@ -562,6 +564,179 @@ static void wr_task(void *arg)
     vTaskDelete(NULL);
 }
 
+/*
+ * 8043: THE READERS. A download in segments (8042's map) has a reader a
+ * segment: dl_task for the first not yet whole, on the connection that
+ * asked for the file, and up to DL_CONNS - 1 helpers for the others,
+ * each on its own connection. One stream is bounded by its TCP window a
+ * round trip (8034-8036: 99% of the time waiting on the network), so
+ * three streams move about three windows a round trip.
+ *
+ * Every reader takes a free buffer, reads at most to its segment's end,
+ * and hands the chunk to the one writer (8036) with its segment and
+ * offset; the writer keeps the map. s_rcv[k] is the next byte segment k's
+ * reader wants, written only by that reader. A read or write failure on
+ * any of them sets s_abort and the rest stop at their next chunk; the
+ * part file and its map stay, and a tap goes on from them.
+ */
+enum { SRV_DONE = 0, SRV_RERR, SRV_WERR, SRV_STOP };
+
+static seg_t           s_plan[DL_SEGS_MAX];
+static int             s_nplan;
+static int64_t         s_rcv[DL_SEGS_MAX];
+static volatile bool   s_abort;
+
+typedef struct {
+    int64_t t_net, t_wait, t_mark, got_mark, w_net, w_wait, wl_mark, ww_mark;
+} dl_timing_t;
+
+/* 8043: set_progress() for several readers: bytes added, not a total. */
+static int add_progress(int n)
+{
+    lock();
+    s_got += n;
+    const int64_t step = s_got * 10 >> 20;
+    if (step != s_step) { s_step = step; s_gen++; }
+    const int stop = s_stop;
+    unlock();
+    return stop;
+}
+
+/* Read segment k from c until its end, the stream's end, an error or a
+ * stop. `tm` is dl_task's 8034 timing, NULL for a helper. */
+static int serve(esp_http_client_handle_t c, int k, dl_timing_t *tm)
+{
+    for (;;) {
+        if (s_abort) return SRV_STOP;
+        wr_item_t it;
+        const int64_t t0 = esp_timer_get_time();
+        xQueueReceive(s_wr.free_, &it, portMAX_DELAY);
+        const int64_t t1 = esp_timer_get_time();
+        if (tm) { tm->t_wait += t1 - t0; tm->w_wait += t1 - t0; }
+        if (s_wr.err) { xQueueSend(s_wr.free_, &it, 0); return SRV_WERR; }
+        const int64_t off = s_rcv[k];
+        int want = DL_CHUNK;
+        if (s_plan[k].end >= 0) {                   /* 8042: no further than the segment */
+            const int64_t left = s_plan[k].end - off;
+            if (left <= 0) { xQueueSend(s_wr.free_, &it, 0); return SRV_DONE; }
+            if (left < want) want = (int)left;
+        }
+        const int n = esp_http_client_read(c, (char *)it.p, want);
+        const int64_t t2 = esp_timer_get_time();
+        if (tm) { tm->t_net += t2 - t1; tm->w_net += t2 - t1; }
+        if (n <= 0) {
+            xQueueSend(s_wr.free_, &it, 0);
+            if (n < 0) ESP_LOGW(TAG, "segment %d: read failed at %lld", k + 1, (long long)off);
+            return n < 0 ? SRV_RERR : SRV_DONE;
+        }
+        it.len = n;
+        it.seg = k;
+        it.off = off;
+        s_rcv[k] = off + n;
+        xQueueSend(s_wr.full, &it, portMAX_DELAY);
+        const int stop = add_progress(n);
+        if (tm && t2 - tm->t_mark >= 5000000) {
+            const int64_t span = t2 - tm->t_mark;
+            const int64_t wl = s_wr.t_lease, ww = s_wr.t_write;
+            lock();
+            const int64_t got = s_got;
+            unlock();
+            ESP_LOGI(TAG, "timing 5s: %lld kbit/s, net %d%%, wait %d%%, lease %d%%, write %d%%, "
+                     "internal free %u min %u, TCP_WND %d, %d connection(s)",
+                     (long long)((got - tm->got_mark) * 8000 / span),
+                     (int)(tm->w_net * 100 / span), (int)(tm->w_wait * 100 / span),
+                     (int)((wl - tm->wl_mark) * 100 / span), (int)((ww - tm->ww_mark) * 100 / span),
+                     (unsigned)heap_caps_get_free_size(MALLOC_CAP_INTERNAL),
+                     (unsigned)heap_caps_get_minimum_free_size(MALLOC_CAP_INTERNAL),
+                     (int)TCP_WND, s_nplan > 1 ? s_nplan : 1);
+            tm->t_mark = t2; tm->got_mark = got;
+            tm->wl_mark = wl; tm->ww_mark = ww;
+            tm->w_net = tm->w_wait = 0;
+        }
+        if (stop != RUN) return SRV_STOP;
+    }
+}
+
+/* Open segment k's rest on a connection of its own, checked as 8041 and
+ * 8042 check a resume. NULL if the server will not give exactly that. */
+static esp_http_client_handle_t open_segment(char *url, hdrs_t *h, int k)
+{
+    const int64_t from = s_rcv[k], to = s_plan[k].end - 1;
+    int status = 0;
+    snprintf(h->if_range, sizeof(h->if_range), "%s", s_wr.val);
+    esp_http_client_handle_t c = open_followed(url, h, &status, from, to);
+    if (!c) return NULL;
+    long long a = -1, b = -1, t = -1;
+    const int n = sscanf(h->crange, "bytes %lld-%lld/%lld", &a, &b, &t);
+    if (status == 206 && n >= 2 && a == from && b == to && (n < 3 || s_wr.total <= 0 || t == s_wr.total))
+        return c;
+    ESP_LOGW(TAG, "segment %d: HTTP %d, Content-Range \"%s\" for %lld-%lld; not this way",
+             k + 1, status, h->crange, (long long)from, (long long)to);
+    esp_http_client_close(c);
+    esp_http_client_cleanup(c);
+    return NULL;
+}
+
+/*
+ * The helpers: created once and never deleted, as recorder.c's tasks are
+ * (6010) -- a task made per download would take its stack's worth from
+ * whichever heap at the moment of the tap, and a WithCaps task that
+ * deletes itself spawns a helper from internal RAM to free it (mpd.c).
+ * Stacks in PSRAM; TCBs internal, DRAM_ATTR (CLAUDE.md).
+ */
+#if !CONFIG_FREERTOS_TASK_CREATE_ALLOW_EXT_MEM
+#error "poddl.c puts its helper stacks in PSRAM and needs CONFIG_FREERTOS_TASK_CREATE_ALLOW_EXT_MEM=y"
+#endif
+#define DL_HELPERS (DL_CONNS - 1)
+_Static_assert(DL_CONNS <= NETBUDGET_PODDL, "netbudget.h counts fewer sockets for poddl than DL_CONNS");
+_Static_assert(DL_CONNS <= DL_SEGS_MAX, "a segment a connection");
+static DRAM_ATTR StaticTask_t s_help_tcb[DL_HELPERS > 0 ? DL_HELPERS : 1];
+static struct {
+    TaskHandle_t  task;
+    StackType_t  *stack;
+    int           seg;
+    volatile int  res;
+    char          url[DL_URL_MAX];
+    hdrs_t        h;
+} s_help[DL_HELPERS > 0 ? DL_HELPERS : 1];
+static SemaphoreHandle_t s_help_done;
+
+static void help_task(void *arg)
+{
+    const int j = (int)(intptr_t)arg;
+    for (;;) {
+        ulTaskNotifyTake(pdTRUE, portMAX_DELAY);
+        const int k = s_help[j].seg;
+        esp_http_client_handle_t c = open_segment(s_help[j].url, &s_help[j].h, k);
+        if (!c) {
+            s_help[j].res = SRV_DONE;               /* not served: dl_task takes it after */
+        } else {
+            s_help[j].res = serve(c, k, NULL);
+            if (s_help[j].res == SRV_RERR || s_help[j].res == SRV_WERR) s_abort = true;
+            esp_http_client_close(c);
+            esp_http_client_cleanup(c);
+        }
+        xSemaphoreGive(s_help_done);
+    }
+}
+
+static bool helpers_ready(void)
+{
+    if (DL_HELPERS <= 0) return false;
+    if (!s_help_done) s_help_done = xSemaphoreCreateCounting(DL_HELPERS > 0 ? DL_HELPERS : 1, 0);
+    if (!s_help_done) return false;
+    for (int j = 0; j < DL_HELPERS; j++) {
+        if (s_help[j].task) continue;
+        if (!s_help[j].stack)
+            s_help[j].stack = heap_caps_malloc(DL_HELP_STACK, MALLOC_CAP_SPIRAM | MALLOC_CAP_8BIT);
+        if (!s_help[j].stack) return false;
+        s_help[j].task = xTaskCreateStatic(help_task, "poddl_h", DL_HELP_STACK, (void *)(intptr_t)j,
+                                           3, s_help[j].stack, &s_help_tcb[j]);
+        if (!s_help[j].task) return false;
+    }
+    return true;
+}
+
 static void dl_task(void *arg)
 {
     (void)arg;
@@ -690,6 +865,21 @@ static void dl_task(void *arg)
         seg[0].end = id_total;
         seg[0].done = 0;
         nseg = 1;
+        /* 8043: in pieces, when the server does ranges, the file is big
+         * enough to be worth it, and small enough to seek in (8042). This
+         * connection's 200 is the first piece, read only to its end. */
+        if (DL_CONNS > 1 && id_total >= DL_SPLIT_MIN && id_total <= LONG_MAX &&
+            !strcasecmp(h.ranges, "bytes") && helpers_ready()) {
+            nseg = DL_CONNS;
+            for (int i = 0; i < nseg; i++) {
+                seg[i].start = id_total * i / nseg;
+                seg[i].end = id_total * (i + 1) / nseg;
+                seg[i].done = 0;
+            }
+        } else if (DL_CONNS > 1 && id_total >= DL_SPLIT_MIN) {
+            ESP_LOGI(TAG, "one connection: Accept-Ranges \"%s\"%s", h.ranges,
+                     id_total > LONG_MAX ? ", and past 2 GB" : "");
+        }
     } else if (seg[0].end < 0 && id_total > 0 && nseg == 1) {
         seg[0].end = id_total;                      /* a part file from before 8041 */
     }
@@ -761,64 +951,62 @@ static void dl_task(void *arg)
      * 8034, for 8036: net is time in esp_http_client_read; wait is the
      * reader waiting for a free buffer -- the card falling behind; lease
      * and write are the writer's, and overlap net now, so the four need
-     * not add to 100%.
+     * not add to 100%. 8043: net and wait are dl_task's connection's; the
+     * rate is all of them.
      */
-    int64_t off = from;                             /* 8042: where the next byte goes */
+    memcpy(s_plan, seg, sizeof(seg));
+    s_nplan = nseg;
+    for (int i = 0; i < nseg; i++) s_rcv[i] = seg[i].start + seg[i].done;
+    if (nseg == 1) s_rcv[0] = from;                 /* 8042: the size, not the map */
+    s_abort = false;
     const int64_t t_start = esp_timer_get_time();
-    int64_t t_net = 0, t_wait = 0, t_mark = t_start, got_mark = got;
-    int64_t w_net = 0, w_wait = 0, wl_mark = 0, ww_mark = 0;
-    for (;;) {
-        wr_item_t it;
-        const int64_t t0 = esp_timer_get_time();
-        xQueueReceive(s_wr.free_, &it, portMAX_DELAY);
-        const int64_t t1 = esp_timer_get_time();
-        t_wait += t1 - t0; w_wait += t1 - t0;
-        if (s_wr.err) {
-            xQueueSend(s_wr.free_, &it, 0);
-            ok = false;
-            ESP_LOGW(TAG, "write failed after %lld bytes (errno %d)",
-                     (long long)(have + s_wr.put), s_wr.err_no);
-            break;
+    dl_timing_t tm = { .t_mark = t_start, .got_mark = got };
+
+    /* 8043: a helper for each other segment not yet whole. */
+    int helping = 0;
+    if (nseg > 1 && helpers_ready()) {
+        for (int i = 0; i < nseg && helping < DL_HELPERS; i++) {
+            if (i == k0 || s_rcv[i] >= seg[i].end) continue;
+            snprintf(s_help[helping].url, sizeof(s_help[helping].url), "%s", url);
+            s_help[helping].seg = i;
+            s_help[helping].res = SRV_DONE;
+            xTaskNotifyGive(s_help[helping].task);
+            helping++;
         }
-        /* 8042: no further than this segment's end. */
-        int want = DL_CHUNK;
-        if (seg[k0].end >= 0) {
-            const int64_t left = seg[k0].end - off;
-            if (left <= 0) { xQueueSend(s_wr.free_, &it, 0); break; }
-            if (left < want) want = (int)left;
-        }
-        const int n = esp_http_client_read(c, (char *)it.p, want);
-        const int64_t t2 = esp_timer_get_time();
-        t_net += t2 - t1; w_net += t2 - t1;
-        if (n <= 0) {
-            xQueueSend(s_wr.free_, &it, 0);
-            if (n < 0) { ok = false; ESP_LOGW(TAG, "read failed after %lld bytes", (long long)got); }
-            break;
-        }
-        it.len = n;
-        it.seg = k0;                                /* 8042 */
-        it.off = off;
-        off += n;
-        xQueueSend(s_wr.full, &it, portMAX_DELAY);
-        got += n;
-        if (t2 - t_mark >= 5000000) {
-            const int64_t span = t2 - t_mark;
-            const int64_t wl = s_wr.t_lease, ww = s_wr.t_write;
-            ESP_LOGI(TAG, "timing 5s: %lld kbit/s, net %d%%, wait %d%%, lease %d%%, write %d%%, "
-                     "internal free %u min %u, TCP_WND %d",
-                     (long long)((got - got_mark) * 8000 / span),
-                     (int)(w_net * 100 / span), (int)(w_wait * 100 / span),
-                     (int)((wl - wl_mark) * 100 / span), (int)((ww - ww_mark) * 100 / span),
-                     (unsigned)heap_caps_get_free_size(MALLOC_CAP_INTERNAL),
-                     (unsigned)heap_caps_get_minimum_free_size(MALLOC_CAP_INTERNAL),
-                     (int)TCP_WND);
-            t_mark = t2; got_mark = got;
-            wl_mark = wl; ww_mark = ww;
-            w_net = w_wait = 0;
-        }
-        stop = set_progress(got);
-        if (stop != RUN) break;
     }
+
+    int res = serve(c, k0, &tm);
+    esp_http_client_close(c);
+    esp_http_client_cleanup(c);
+    c = NULL;
+    if (res == SRV_RERR || res == SRV_WERR) s_abort = true;
+    for (int j = 0; j < helping; j++) xSemaphoreTake(s_help_done, portMAX_DELAY);
+    for (int j = 0; j < helping && res == SRV_DONE; j++)
+        if (s_help[j].res != SRV_DONE) res = s_help[j].res;
+
+    /* 8043: a segment nobody finished -- its helper could not get it, or
+     * the map has more segments than there are helpers -- is dl_task's,
+     * one after another, each on a connection of its own. */
+    static hdrs_t h2;
+    for (int i = 0; i < nseg && res == SRV_DONE && nseg > 1; i++) {
+        if (s_rcv[i] >= seg[i].end) continue;
+        esp_http_client_handle_t c2 = open_segment(url, &h2, i);
+        if (!c2) { res = SRV_RERR; break; }
+        res = serve(c2, i, &tm);
+        esp_http_client_close(c2);
+        esp_http_client_cleanup(c2);
+    }
+    if (res == SRV_RERR) ok = false;
+    if (res == SRV_WERR) {
+        ok = false;
+        ESP_LOGW(TAG, "write failed after %lld bytes (errno %d)",
+                 (long long)(have + s_wr.put), s_wr.err_no);
+    }
+    lock();
+    stop = s_stop;
+    unlock();
+    if (res != SRV_STOP && stop != RUN) stop = RUN;     /* asked after the last chunk: done is done */
+    const int64_t t_net = tm.t_net, t_wait = tm.t_wait;
     /* 8036: the end marker, then wait for every chunk before it to land. */
     {
         const wr_item_t end = { NULL, 0 };

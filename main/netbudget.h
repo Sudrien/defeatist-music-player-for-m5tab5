@@ -68,7 +68,20 @@
  *   radiobrowser          = 1      radiobrowser.c, a search
  */
 #define NETBUDGET_SERVERS_WORST     (15)    /* the setup-phase case */
-#define NETBUDGET_CLIENTS_WORST     (3)
+
+/*
+ * 8043: and the podcast clients, which 8008-8042 added without a line
+ * here. Each is a socket while it works, and all can work at once: a
+ * list asked of Podcast Index while an episode downloads.
+ *
+ *   podindex              = 1      podindex.c, a list
+ *   poddl                 = 3      poddl.c, DL_CONNS: a download in
+ *                                  three segments (8043); a picture is
+ *                                  fetched after, on none of those
+ */
+#define NETBUDGET_PODINDEX          (1)
+#define NETBUDGET_PODDL             (3)
+#define NETBUDGET_CLIENTS_WORST     (3 + NETBUDGET_PODINDEX + NETBUDGET_PODDL)
 
 /*
  * MPD's share: the listener, plus the clients it will serve.
@@ -93,6 +106,10 @@
                                      NETBUDGET_MPD)
 
 /*
+ * 8043: 26, and `sdkconfig.defaults` sets 28 (it was 22 and 24 before
+ * the podcast clients were counted). The rest of this paragraph, from
+ * 5157, holds for the new numbers.
+ *
  * 22, and `sdkconfig.defaults` sets 24 -- two spare, deliberately, so
  * that adding one client somewhere does not need this file edited before
  * it can be tested. It is not more than that because a ceiling with room

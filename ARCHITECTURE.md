@@ -27308,3 +27308,42 @@ folderart.c and replaygain.c compiled with gcc -O2 -Wall -Wextra
 player.c with the same stub errors before and after. texttest's
 folderart test needs the feckless components, not fetched here. Not
 built with IDF, not run.
+
+### 8056 -- an episode's picture, once, named for its address
+
+8027 saved an episode's own picture as `.<file>.jpg` beside it, fetched
+after each episode. A miniseries inside a podcast -- ten episodes with
+one picture between them, not the podcast's -- got ten copies of it,
+each fetched.
+
+Now the picture is `art-<MurmurHash2 of its URL, 8 hex>.<ext>` in the
+podcast's folder (albumart_cover_hash(), the cover cache's hash, so one
+hash in the firmware). An episode whose picture is already there does
+not fetch it (`the episode's picture: art-1a2b3c4d.jpg, already here`).
+Not a dotfile: it is a picture, and a listener looking in the folder may
+want it. folderart.c's cover names (cover, folder, front, album) do not
+match it, so it is never taken for the folder's cover.
+
+FAT has no links, so the episode's sidecar is what says which picture is
+its: the downloader writes `"art":{"ext":"art-1a2b3c4d.jpg"}` with
+replaygain_save_art_ext() once the episode is renamed into place -- with
+no `has_art`, since it has not looked in the file. replaygain.c reads
+`present` from `has_art` being there, so that record says "not looked",
+and the player still looks for a picture in the file first, which wins;
+when there is none, beside_art() (8055) reads the name, now whether or
+not anyone has looked. A sidecar lost loses the link, and the episode
+shows the folder's cover until it is downloaded again.
+
+replaygain_write() writes a held record whole, and the player holds one
+from a track's start; for an episode played while it downloaded (8050),
+that was before the file -- and the downloader's name -- existed. A
+record that says nothing about the picture now keeps the name already on
+the card.
+
+Pictures 8027 saved as `.<file>.jpg` are still found, by folderart.c's
+own-picture look, as before.
+
+poddl.c compiled with gcc -O2 -Wall -Wextra -Werror=all -Werror=extra
+against stub headers, clean; replaygain.c with cJSON, clean but for a
+stub's missing storage_mark_hidden(); player.c with the same stub
+errors before and after. Not built with IDF, not run.

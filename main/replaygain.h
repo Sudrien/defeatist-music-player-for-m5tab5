@@ -201,7 +201,9 @@ typedef struct {
  * was shown instead -- a podcast episode's own (".<file>.jpg", 8027) or
  * the folder's cover -- as a name in the track's folder, so the next
  * play reads it without looking. Empty when nothing was found. Either
- * offset and length (has_art) or ext, never both.
+ * offset and length (has_art) or ext, never both. 8056: the downloader
+ * writes ext alone, with present false -- it has not looked in the file
+ * -- naming a picture several episodes may share.
  */
 #define REPLAYGAIN_ART_EXT_MAX 128
 typedef struct {
@@ -400,6 +402,11 @@ esp_err_t replaygain_save_loudness(const char *path, float integrated_lufs,
  * see replaygain_art_t. */
 esp_err_t replaygain_save_art(const char *path, bool has_art,
                               uint32_t offset, uint32_t length);
+
+/* 8056: name, in path's folder, of the picture the downloader fetched
+ * for it (a podcast episode's, art-<hash>.<ext>), without a claim about
+ * a picture in the file. Ignored if the file is known to have its own. */
+esp_err_t replaygain_save_art_ext(const char *path, const char *name);
 
 esp_err_t replaygain_save_format(const char *path,
                                  const replaygain_format_t *fmt);

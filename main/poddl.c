@@ -7,6 +7,7 @@
 
 #include <dirent.h>
 #include <errno.h>
+#include <inttypes.h>           /* 8056: PRIx32 */
 #include <limits.h>             /* 8042: LONG_MAX, fseek()'s reach */
 #include <stdio.h>
 #include <stdlib.h>
@@ -31,6 +32,7 @@
 #include "podpath.h"
 #include "radiobrowser.h"       /* RADIOBROWSER_UA_FMT */
 #include "storage_io.h"
+#include "replaygain.h"          /* 8056: the episode's picture, by name */
 #include "netbudget.h"           /* 8043: NETBUDGET_PODDL */
 #include "esp_attr.h"            /* 8043: DRAM_ATTR on the helpers' TCBs */
 
@@ -448,17 +450,18 @@ static esp_http_client_handle_t open_followed(char *url, hdrs_t *h, int *status,
  * picture over it would not be shown. Failure is a log line: a missing
  * picture is not a failed download.
  */
-static void fetch_picture(const char *what, const char *src, const char *stem)
+static bool fetch_picture(const char *what, const char *src, const char *stem)
 {
-    if (strlen(stem) + 1 > DL_STEM_MAX) return;
+    if (strlen(stem) + 1 > DL_STEM_MAX) return false;
     static char url[DL_URL_MAX], path[DL_PIC_MAX], tmp[DL_PICTMP_MAX];
     static hdrs_t h;
     snprintf(url, sizeof(url), "%s", src);
     int status = 0;
     esp_http_client_handle_t c = open_followed(url, &h, &status, 0, -1);
-    if (!c) return;
+    if (!c) return false;
     uint8_t *img = NULL;
     size_t got = 0;
+    bool ok = false;
     if (status != 200) {
         ESP_LOGI(TAG, "%s: HTTP %d; none kept", what, status);
         goto done;
@@ -499,7 +502,7 @@ static void fetch_picture(const char *what, const char *src, const char *stem)
     snprintf(tmp, sizeof(tmp), "%s.tmp", path);
     storage_io_acquire(STORAGE_IO_BACKGROUND);
     FILE *f = fopen(tmp, "wb");
-    bool ok = f && fwrite(img, 1, got, f) == got;
+    ok = f && fwrite(img, 1, got, f) == got;
     if (f && fclose(f) != 0) ok = false;
     if (ok) { remove(path); ok = rename(tmp, path) == 0; }
     if (!ok) remove(tmp);
@@ -510,6 +513,7 @@ done:
     free(img);
     esp_http_client_close(c);
     esp_http_client_cleanup(c);
+    return ok;
 }
 
 /* 8027: whether the folder has a cover of its own already -- one that
@@ -1350,9 +1354,51 @@ closed:
             snprintf(stem, sizeof(stem), "%s/cover", s_dir);
             fetch_picture("the podcast's picture", s_cover_url, stem);
         }
-        if (s_own_url[0] && folderart_own_path(s_path, "x", stem, sizeof(stem))) {
-            stem[strlen(stem) - 2] = '\0';          /* without the ".x": fetch_picture() adds it */
-            fetch_picture("the episode's picture", s_own_url, stem);
+        /*
+         * 8056: the episode's own picture, named for its address --
+         * art-<MurmurHash2 of the URL>.<ext> in the podcast's folder --
+         * so episodes that share one (a miniseries) share one file, and
+         * the second episode does not fetch it again. The episode's
+         * sidecar says which is its (art.ext, 8055); there is no link on
+         * FAT to say it otherwise. Not a dotfile: it is a picture the
+         * listener may want to see in the folder. Pictures 8027 saved as
+         * .<file>.jpg are still found by folderart.c.
+         */
+        if (s_own_url[0]) {
+            static char name[24], p[DL_PATH_MAX + 32];
+            const uint32_t uh = albumart_cover_hash(s_own_url, strlen(s_own_url));
+            static const char *const exts[] = { "jpg", "png", "gif" };
+            const char *have = NULL;
+            storage_io_acquire(STORAGE_IO_BACKGROUND);
+            for (int i = 0; i < 3 && !have; i++) {
+                struct stat pst;
+                snprintf(name, sizeof(name), "art-%08" PRIx32 ".%s", uh, exts[i]);
+                snprintf(p, sizeof(p), "%s/%s", s_dir, name);
+                if (stat(p, &pst) == 0 && S_ISREG(pst.st_mode) && pst.st_size > 0) have = name;
+            }
+            storage_io_release();
+            if (have) {
+                ESP_LOGI(TAG, "the episode's picture: %s, already here", have);
+            } else {
+                snprintf(stem, sizeof(stem), "%s/art-%08" PRIx32, s_dir, uh);
+                if (fetch_picture("the episode's picture", s_own_url, stem)) {
+                    /* fetch_picture() chose the extension; find it again. */
+                    storage_io_acquire(STORAGE_IO_BACKGROUND);
+                    for (int i = 0; i < 3 && !have; i++) {
+                        struct stat pst;
+                        snprintf(name, sizeof(name), "art-%08" PRIx32 ".%s", uh, exts[i]);
+                        snprintf(p, sizeof(p), "%s/%s", s_dir, name);
+                        if (stat(p, &pst) == 0 && S_ISREG(pst.st_mode)) have = name;
+                    }
+                    storage_io_release();
+                }
+            }
+            if (have) {
+                storage_io_acquire(STORAGE_IO_BACKGROUND);
+                const esp_err_t rerr = replaygain_save_art_ext(s_path, have);
+                storage_io_release();
+                if (rerr != ESP_OK) ESP_LOGW(TAG, "could not record %s in the sidecar", have);
+            }
         }
     }
 

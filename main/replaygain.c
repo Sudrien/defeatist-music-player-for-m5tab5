@@ -226,7 +226,10 @@ static bool parse_line(const char *line, uint32_t filesize, int64_t mtime,
         const cJSON *ha = cJSON_GetObjectItemCaseSensitive(ar, "has_art");
         const cJSON *of = cJSON_GetObjectItemCaseSensitive(ar, "offset");
         const cJSON *ln = cJSON_GetObjectItemCaseSensitive(ar, "length");
-        out->art.present = true;
+        /* 8056: "has_art" is whether anyone looked in the file; an art
+         * section with only an "ext" -- the downloader's, which did not
+         * look -- leaves that unknown. */
+        out->art.present = cJSON_IsBool(ha);
         out->art.has_art = cJSON_IsTrue(ha);
         out->art.offset = cJSON_IsNumber(of) ? (uint32_t)of->valuedouble : 0;
         out->art.length = cJSON_IsNumber(ln) ? (uint32_t)ln->valuedouble : 0;
@@ -383,7 +386,7 @@ static bool parse_line(const char *line, uint32_t filesize, int64_t mtime,
         }
     }
 
-    ok = out->waveform.present || out->loudness.present ||
+    ok = out->waveform.present || out->loudness.present || out->art.ext[0] ||   /* 8056 */
          out->art.present || out->format.present ||
          out->tags.present || out->index.present ||
          out->attempts.present || out->fade.present ||
@@ -526,10 +529,10 @@ static esp_err_t append_record(const char *path, const replaygain_t *rg,
         }
     }
 
-    if (rg->art.present) {
+    if (rg->art.present || rg->art.ext[0]) {                        /* 8056 */
         cJSON *ar = cJSON_AddObjectToObject(root, "art");
         if (ar) {
-            cJSON_AddBoolToObject(ar, "has_art", rg->art.has_art);
+            if (rg->art.present) cJSON_AddBoolToObject(ar, "has_art", rg->art.has_art);
             if (!rg->art.has_art && rg->art.ext[0])                 /* 8055 */
                 cJSON_AddStringToObject(ar, "ext", rg->art.ext);
             if (rg->art.has_art) {
@@ -848,6 +851,19 @@ esp_err_t replaygain_save_art(const char *path, bool has_art,
     return RG_SAVE_APPEND();
 }
 
+/* 8056: the picture beside the file, by name, as the downloader fetched
+ * it -- without saying whether the file has one of its own, which nobody
+ * has looked at yet. */
+esp_err_t replaygain_save_art_ext(const char *path, const char *name)
+{
+    if (!path || !name || !name[0] || strchr(name, '/') ||
+        strlen(name) >= REPLAYGAIN_ART_EXT_MAX) return ESP_ERR_INVALID_ARG;
+    RG_SAVE_PROLOGUE("not recording the picture");
+    if (rg.art.present && rg.art.has_art) return ESP_OK;    /* the file's own wins */
+    snprintf(rg.art.ext, sizeof(rg.art.ext), "%s", name);
+    return RG_SAVE_APPEND();
+}
+
 esp_err_t replaygain_save_format(const char *path,
                                  const replaygain_format_t *fmt)
 {
@@ -915,6 +931,29 @@ esp_err_t replaygain_write(const char *path, const replaygain_t *rg)
     /* The key is taken fresh rather than from the record: a caller may
      * have held it across a whole track, and a file replaced underneath
      * it should not be written a record about the old one. */
+    /*
+     * 8056: a record that knows nothing of the picture keeps the name
+     * already on the card. The player holds its record from the start of
+     * a track; an episode played while it downloaded (8050) began with
+     * no file and so no record, and the downloader wrote the episode's
+     * picture into the sidecar after (replaygain_save_art_ext()). Written
+     * whole, the player's record would take that name away.
+     */
+    if (!rg->art.present && !rg->art.ext[0]) {
+        replaygain_t *old = malloc(sizeof(*old));
+        replaygain_t *merged = old ? malloc(sizeof(*merged)) : NULL;
+        if (old && merged && replaygain_load(path, old) && old->art.ext[0]) {
+            memcpy(merged, rg, sizeof(*merged));
+            merged->art = old->art;
+            const esp_err_t err = append_record(path, merged, (uint32_t)st.st_size,
+                                                (int64_t)st.st_mtime);
+            free(merged);
+            free(old);
+            return err;
+        }
+        free(merged);
+        free(old);
+    }
     return append_record(path, rg, (uint32_t)st.st_size,
                          (int64_t)st.st_mtime);
 }

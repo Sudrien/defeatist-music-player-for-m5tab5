@@ -5399,7 +5399,7 @@ static bool cover_still_wanted(const char *path, uint32_t gen)
 static esp_err_t beside_art(const char *file, const char *path, uint8_t **img, size_t *len)
 {
     const bool held = rg_holding(path);
-    if (held && s_rg.art.present && !s_rg.art.has_art && s_rg.art.ext[0]) {
+    if (held && !s_rg.art.has_art && s_rg.art.ext[0]) {    /* 8056: present or not */
         if (folderart_load_named(file, s_rg.art.ext, img, len) == ESP_OK) return ESP_OK;
         ESP_LOGI(TAG, "the sidecar's picture %s is gone; looking again", s_rg.art.ext);
         s_rg.art.ext[0] = '\0';

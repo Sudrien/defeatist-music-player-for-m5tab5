@@ -1009,7 +1009,7 @@ static void dl_task(void *arg)
     const int64_t t_net = tm.t_net, t_wait = tm.t_wait;
     /* 8036: the end marker, then wait for every chunk before it to land. */
     {
-        const wr_item_t end = { NULL, 0 };
+        const wr_item_t end = { NULL, 0, 0, 0 };     /* 8044: every field, for -Wextra */
         xQueueSend(s_wr.full, &end, portMAX_DELAY);
         xSemaphoreTake(s_wr.done, portMAX_DELAY);
     }

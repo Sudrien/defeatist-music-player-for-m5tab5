@@ -26962,3 +26962,16 @@ Compiled with gcc -O2 -Wall -Werror=all against stub headers; not built
 with IDF, not run. Expected on the board: `to ... segment 1 of 3`, no
 `not this way` from the helpers, and a rate near three times 8036's if
 the window was the limit.
+
+### 8044 -- 8042's end marker, every field
+
+8042 grew wr_item_t to four fields and left 8036's end marker as
+`{ NULL, 0 }`. The build has -Wmissing-field-initializers as an error
+(it comes with -Wextra), and stopped there on the board's first build of
+8042 and 8043. The marker is `{ NULL, 0, 0, 0 }` now.
+
+The stub compiles for 8034-8043 used `-Wall -Werror=all` only, which is
+what CLAUDE.md's line said; it now says `-Wextra -Werror=extra` as well.
+poddl.c and browser.c (8037-8040's changes) were rechecked with it:
+poddl.c is clean, and browser.c has the same stub errors before 8037 and
+after 8043.

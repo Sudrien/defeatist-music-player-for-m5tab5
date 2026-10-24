@@ -243,6 +243,10 @@ for what IDF would supply, with the firmware's level and errors:
 
     gcc -std=gnu11 -O2 -Wall -Werror=all -c -o /dev/null -Imain ... main/x.c
 
+and `-Wextra -Werror=extra` too -- the build turns
+`-Wmissing-field-initializers` into an error, and 8042 shipped a
+`{ NULL, 0 }` for a four-field struct because the check here left
+`-Wextra` out (8044) --
 and stubs that behave as IDF's do where it matters -- an ESP_LOGx that
 pastes its format beside a literal, an esp_http_client_config_t with the
 fields IDF has. Errors that come from a stub's gaps are the stub's; say

@@ -27237,3 +27237,40 @@ from a time, which for CBR is the same sum, and is left for later.
 decoder.c and player.c compiled against stub headers -- decoder.c now
 with minimp3 and minimp3_ex.h at the pinned commit -- and give the same
 stub errors before and after. Not built with IDF, not run.
+
+On the board (8053): tags and a 269 KB embedded cover from the part
+file 2.5 s into a live play, and a length on the bar. With three
+connections, live playback and the cover's hardware JPEG decode
+together, the 64 KB reserved internal pool (0x4ff403c0) was down to
+2,531 bytes free, in pieces of 1,600 at most -- the tightest seen, no
+failure. If an SDIO or AES allocation ever fails in that combination,
+that pool is the first place to look.
+
+### 8054 -- a download arrow on the status line, and IDLE held by it
+
+**The arrow.** After IDLE on the status line under the volume, while a
+podcast download is running (green) or paused or stopped with its part
+file kept (yellow, C_RG, as WIFI's and IDLE's "not yet"); nothing with
+no download. 5274 keeps every word on that line always there, grey when
+off, so a line that changes length is not read as one that changed
+meaning; the arrow is the one exception, by the listener's choice, and
+is last so nothing moves when it comes and goes. The height of the
+words, built of rectangles as the browser's arrow (8038).
+draw_dl_arrow() draws it; ui_state_t::dl_state carries it, set in
+status_overlay() from poddl_state().
+
+When the line is full -- `SLEEP 120M IDLE 120M` and a long battery word
+-- the arrow goes beside the power button instead, in the exit rocket's
+place, which is free when there is no launcher; under a launcher with
+the line full it is not shown.
+
+**IDLE.** idle_held() did not count a download, so Power off could
+switch the player off part way through one: the 557 MB audiobook takes
+longer than the shortest Power off. A running download now holds it, as
+playing, recording and indexing do.
+
+ABBREVIATIONS.md and its six translations gain the arrow's row; the
+translations are Claude's, not yet read by native speakers.
+
+ui.c and player.c compiled against stub headers with the same stub
+errors before and after. Not built with IDF, not run.

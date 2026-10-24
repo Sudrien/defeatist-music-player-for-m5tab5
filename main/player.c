@@ -7405,6 +7405,10 @@ static void status_overlay(ui_state_t *st)
     st->mpd_on = mpd_running();
     st->https_on = remote_running();
     st->wifi_state = !settings_wifi_enabled() ? 0 : wifi_connected() ? 2 : 1;   /* 6012 */
+    {                                                                   /* 8054 */
+        const poddl_state_t ds = poddl_state(NULL, NULL, NULL, NULL, 0, NULL);
+        st->dl_state = ds == PODDL_RUNNING ? 2 : (ds == PODDL_PAUSED || ds == PODDL_FAILED) ? 1 : 0;
+    }
     const int64_t left = s_sleep_deadline_us
         ? sleeptimer_seconds_left(esp_timer_get_time(), s_sleep_deadline_us) : 0;
     st->sleep_min = left > 0 ? (int)((left + 59) / 60) : 0;
@@ -7699,6 +7703,11 @@ static bool idle_held(void)
      * walked-away device switch off.
      */
     if (s_playing || recorder_active() || s_rec_count > 0 || medialib_busy())
+        return true;
+    /* 8054: and a podcast download -- a 557 MB audiobook is longer than
+     * the shortest Power off, and switching off part way would leave it
+     * for a tap to go on with. */
+    if (poddl_state(NULL, NULL, NULL, NULL, 0, NULL) == PODDL_RUNNING)
         return true;
     /*
      * A paused track, or a paused stream whose connection is kept, is not

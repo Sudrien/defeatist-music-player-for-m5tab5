@@ -40,6 +40,7 @@ Informes, no interruptores — nada aquí hace nada al tocarlo. Verde es encendi
 | `HTTPS` | El control remoto por navegador está en marcha | pestaña NET, Control remoto |
 | `SLEEP xxM` | El temporizador está puesto; minutos restantes, redondeados hacia arriba. Solo `SLEEP` cuando no lo está | página de reposo |
 | `IDLE` | El apagado está puesto y en cuenta atrás: nada reproduciéndose, transmitiendo, grabando ni indexando. **Amarillo**: puesto, pero retenido — algo está ocurriendo, así que la espera se reinicia. Gris cuando el apagado es Nunca. Sin minutos (6020) | página de reposo, Apagado |
+| flecha | Una descarga de pódcast en curso (también retiene `IDLE`). **Amarillo**: en pausa, o detenida con su archivo parcial guardado. No aparece sin descarga (8054) | pestaña PODCAST, un episodio |
 
 En el extremo derecho de la misma línea, la batería (no hay icono de batería):
 

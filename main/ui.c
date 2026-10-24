@@ -1585,7 +1585,29 @@ static void draw_live(const ui_state_t *st)
 #define STATUS_SCALE  (2)
 #define STATUS_GAP    (15)    /* 6012: was 16 (6001: was 24); six words and the battery */
 
-static void draw_status(const ui_state_t *st)
+/* 8054: the download arrow -- a shaft, a head to a point, a tray -- in a
+ * square of side `h` from (x, top), built of rectangles as the browser's
+ * (8038) is. */
+static void draw_dl_arrow(int x, int top, int h, uint16_t c)
+{
+    const int cx = x + h / 2;
+    const int sw = h / 5 > 2 ? h / 5 : 2;           /* shaft */
+    const int head = h / 2;                         /* head rows */
+    const int tray = h / 7 > 2 ? h / 7 : 2;
+    const int shaft_h = h - head - tray - 1;
+    gfx_fill_rect(cx - sw / 2, top, sw, shaft_h, c);
+    for (int k = 0; k < head; k++)
+        gfx_fill_rect(cx - (head - k), top + shaft_h + k, 2 * (head - k), 1, c);
+    gfx_fill_rect(x, top + h - tray, h, tray, c);
+}
+
+static uint16_t dl_colour(const ui_state_t *st)
+{
+    return st->dl_state == 2 ? C_PLAY_ON : C_RG;
+}
+
+/* Returns whether the download arrow (8054) found room on the line. */
+static bool draw_status(const ui_state_t *st)
 {
     int x0, x1, y;
     vol_bounds(&x0, &x1, &y);
@@ -1671,6 +1693,22 @@ static void draw_status(const ui_state_t *st)
                       items[i].c);
         x += gfx_text_w(items[i].word, STATUS_SCALE) + STATUS_GAP;
     }
+
+    /*
+     * 8054: a podcast download, as an arrow down onto a tray after IDLE
+     * -- green while it runs, yellow (C_RG, as WIFI's and IDLE's "not
+     * yet") while it is paused or stopped with its part file kept. Not
+     * there at all with no download: the one mark on this line that
+     * comes and goes, by the listener's choice, and last so that nothing
+     * after it moves when it does. The height of the words, built of
+     * rectangles as the browser's arrow (8038) is.
+     */
+    if (st->dl_state) {
+        const int h = GFX_GLYPH_H(STATUS_SCALE);
+        if (x + h > x1) return false;           /* no room: see draw_power()'s caller */
+        draw_dl_arrow(x, top, h, dl_colour(st));
+    }
+    return true;
 }
 
 /* ------------------------------------------------------------------ */
@@ -2746,7 +2784,7 @@ void ui_draw(const ui_state_t *st)
 
     draw_speaker(st->muted, st->route);
     draw_rg(st);
-    draw_status(st);                                    /* 5274 */
+    const bool dl_shown = draw_status(st);              /* 5274; 8054 */
     draw_folder();
     draw_gear();
     draw_star_btn(st->fav);
@@ -2756,6 +2794,12 @@ void ui_draw(const ui_state_t *st)
 
     draw_power(power_cx(), right_cy(), C_ICON);
     if (launcher_here()) draw_rocket(exit_cx(), right_cy(), C_ICON);
+    /* 8054: the download arrow, when the status line had no room for it
+     * -- "SLEEP 120M IDLE 120M" and a long battery word fill it -- goes
+     * in the rocket's place beside the power button, which is free with
+     * no launcher. Under a launcher with the line full, it is not shown. */
+    else if (!dl_shown && st->dl_state)
+        draw_dl_arrow(exit_cx() - 11, right_cy() - 11, 22, dl_colour(st));
 
     int cx, cy;
     /* Prev is never greyed: it always does something -- restart the

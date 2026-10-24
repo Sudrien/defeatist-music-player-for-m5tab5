@@ -40,6 +40,7 @@ Indicatori, non interruttori — qui niente fa qualcosa se toccato. Verde è acc
 | `HTTPS` | Il telecomando da browser è attivo | scheda NET, Telecomando |
 | `SLEEP xxM` | Il timer è impostato; minuti rimasti, arrotondati per eccesso. Solo `SLEEP` quando non lo è | pagina Riposo |
 | `IDLE` | Lo spegnimento è impostato e conta: niente in riproduzione, in streaming, in registrazione né in indicizzazione. **Giallo**: impostato ma trattenuto — sta succedendo qualcosa, quindi l'attesa riparte. Grigio quando Spegni è su Mai. Senza minuti (6020) | pagina Riposo, Spegni |
+| freccia | Un download di podcast in corso (trattiene anche `IDLE`). **Giallo**: in pausa, o interrotto con il file parziale conservato. Assente senza download (8054) | scheda PODCAST, un episodio |
 
 All'estremità destra della stessa riga, la batteria (non c'è un'icona della batteria):
 

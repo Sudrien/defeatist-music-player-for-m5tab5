@@ -40,6 +40,7 @@ Indicadores, não chaves — nada aqui faz algo ao ser tocado. Verde é ligado, 
 | `HTTPS` | O controle remoto pelo navegador está rodando | aba NET, Controle remoto |
 | `SLEEP xxM` | O timer está ativo; minutos restantes, arredondados para cima. Só `SLEEP` quando não está | página Repouso |
 | `IDLE` | O desligamento está ativo e contando: nada tocando, transmitindo, gravando nem indexando. **Amarelo**: ativo, mas segurado — algo está acontecendo, então a espera recomeça. Cinza quando Desligar está em Nunca. Sem minutos (6020) | página Repouso, Desligar |
+| seta | Um download de podcast em andamento (também segura `IDLE`). **Amarelo**: pausado, ou interrompido com o arquivo parcial mantido. Não aparece sem download (8054) | aba PODCAST, um episódio |
 
 Na ponta direita da mesma linha, a bateria (não há ícone de bateria):
 

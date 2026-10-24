@@ -40,6 +40,7 @@ Des indicateurs, pas des interrupteurs — rien ici ne réagit au toucher. Vert,
 | `HTTPS` | La télécommande par navigateur tourne | onglet NET, Télécommande |
 | `SLEEP xxM` | La minuterie est réglée ; minutes restantes, arrondies au-dessus. Juste `SLEEP` quand elle ne l'est pas | page Veille |
 | `IDLE` | L'extinction est réglée et décompte : rien ne joue, ne diffuse, n'enregistre ni n'indexe. **Jaune** : réglée mais retenue — il se passe quelque chose, donc l'attente redémarre. Gris quand l'extinction est sur Jamais. Pas de minutes (6020) | page Veille, Éteindre |
+| flèche | Un téléchargement de podcast en cours (retient aussi `IDLE`). **Jaune** : en pause, ou arrêté avec son fichier partiel gardé. Absente sans téléchargement (8054) | onglet PODCAST, un épisode |
 
 Au bout droit de la même ligne, la batterie (il n'y a pas d'icône de batterie) :
 

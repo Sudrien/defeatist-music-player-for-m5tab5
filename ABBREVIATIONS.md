@@ -44,6 +44,7 @@ somewhere else.
 | `HTTPS` | The browser remote is running | NET tab, Remote control |
 | `SLEEP xxM` | The sleep timer is set; minutes left, rounded up. Just `SLEEP` when it is not | Sleep page |
 | `IDLE` | Power off is set and counting down: nothing is playing, streaming, recording or indexing. **Yellow**: set, but held -- something is going on, so the wait keeps restarting. Grey when Power off is Never. No minutes (6020) | Sleep page, Power off |
+| arrow | A podcast download is running (also holds `IDLE`). **Yellow**: paused, or stopped with its part file kept. Not shown with no download (8054) | PODCAST tab, an episode |
 
 At the right end of the same line, the battery (there is no battery
 icon):

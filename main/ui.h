@@ -259,6 +259,9 @@ typedef struct {
      * number 6020 dropped and 6001 had -- restored because the colour
      * alone was not what was wanted. Shown next to idle_state's colour. */
     int  idle_min;
+    /* 8054: a podcast download, as the arrow after IDLE -- 0 none (no
+     * arrow), 1 paused or stopped with its part file kept, 2 running. */
+    uint8_t dl_state;
     /* 5217: Record from is OFF -- the switch is drawn as two positions,
      * pause and play, and cannot be slid to record. */
     bool rec_off;

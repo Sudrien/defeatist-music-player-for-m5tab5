@@ -860,6 +860,11 @@ static void load_pod_ep_rows(void)
         s_entries[s_count].is_dir = false;      /* each is a thing to play */
         s_count++;
     }
+    /* 8023: "Music Makers San Diego 203 - Dave Preston", forty times over:
+     * the same elision a folder of files gets, and the same note under
+     * the status line saying what came off the front. Episode rows are
+     * files to it -- not folders, no label -- so nothing else changes. */
+    find_common_prefix();
     s_top = 0;
     s_dirty = true;
 }

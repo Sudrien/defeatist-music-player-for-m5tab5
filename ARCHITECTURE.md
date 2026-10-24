@@ -26303,3 +26303,21 @@ optimiser's analysis; compiled to an object at -O2 with -Werror=all, the
 same stubs give exactly these three errors, and none after the fix.
 CLAUDE.md now says what the firmware is compiled with and how a session
 without IDF should check, so the next one starts there.
+
+### 8023 -- episode titles lose their shared start
+
+A podcast's episode list is often the podcast's own name forty times
+before anything that differs ("Music Makers San Diego 203 - Dave
+Preston", "... 202 - Doylestown"). The episode rows now go through
+find_common_prefix() as a folder's files do: the prefix, backed up to a
+separator, is left off every row, and the second status line says `all
+start with  <it>`. The same rules decline it -- fewer than two rows, a
+prefix under eight bytes, or a row left with almost nothing -- and the
+titles themselves are untouched; the tap and the download use them
+whole.
+
+Not done for the downloaded files' folder, where the names start with
+the date: there the shared start is `2026-10-` for a month's episodes,
+and the rows would read `23 Music Makers ...`. That is the existing
+behaviour for any folder and a change to find_common_prefix() if it is
+to change.

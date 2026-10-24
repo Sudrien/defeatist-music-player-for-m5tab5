@@ -18,6 +18,8 @@
 #include "esp_heap_caps.h"
 #include "esp_http_client.h"
 #include "esp_log.h"
+#include "esp_timer.h"          /* 8200: download timing */
+#include "lwip/opt.h"           /* 8200: TCP_WND in the timing line */
 #include "freertos/FreeRTOS.h"
 #include "freertos/semphr.h"
 #include "freertos/task.h"
@@ -437,13 +439,50 @@ static void dl_task(void *arg)
     int64_t got = from;
     bool ok = true;
     int stop = RUN;
+    /*
+     * 8200: where a download's time goes. Every 5 s, and once at the end:
+     * the rate, and the share of wall time spent waiting on the network
+     * (esp_http_client_read), waiting for the card lease, and in fwrite.
+     * Reads that come back well under DL_CHUNK with net near 100% mean the
+     * TCP window / round trip is the limit (ceiling TCP_WND*8/RTT); a big
+     * lease share means playback holds the card; a big write share, the
+     * card itself.
+     */
+    const int64_t t_start = esp_timer_get_time();
+    int64_t t_net = 0, t_lease = 0, t_write = 0, t_mark = t_start;
+    int64_t got_mark = got, n_reads = 0, n_small = 0;
+    int64_t w_net = 0, w_lease = 0, w_write = 0, w_reads = 0, w_small = 0;
     for (;;) {
+        int64_t t0 = esp_timer_get_time();
         int n = esp_http_client_read(c, (char *)buf, DL_CHUNK);
+        int64_t t1 = esp_timer_get_time();
+        t_net += t1 - t0; w_net += t1 - t0;
         if (n < 0) { ok = false; ESP_LOGW(TAG, "read failed after %lld bytes", (long long)got); break; }
         if (n == 0) break;
+        n_reads++; w_reads++;
+        if (n < DL_CHUNK / 2) { n_small++; w_small++; }
         storage_io_acquire(STORAGE_IO_BACKGROUND);
+        int64_t t2 = esp_timer_get_time();
         const size_t put = fwrite(buf, 1, (size_t)n, f);
         storage_io_release();
+        int64_t t3 = esp_timer_get_time();
+        t_lease += t2 - t1; w_lease += t2 - t1;
+        t_write += t3 - t2; w_write += t3 - t2;
+        if (t3 - t_mark >= 5000000) {
+            const int64_t span = t3 - t_mark;
+            ESP_LOGI(TAG, "timing 5s: %lld kbit/s, net %d%%, lease %d%%, write %d%%, "
+                     "%lld reads avg %lld B (%lld under %d), internal free %u min %u, TCP_WND %d",
+                     (long long)((got + n - got_mark) * 8000 / span),
+                     (int)(w_net * 100 / span), (int)(w_lease * 100 / span),
+                     (int)(w_write * 100 / span), (long long)w_reads,
+                     (long long)(w_reads ? (got + n - got_mark) / w_reads : 0),
+                     (long long)w_small, DL_CHUNK / 2,
+                     (unsigned)heap_caps_get_free_size(MALLOC_CAP_INTERNAL),
+                     (unsigned)heap_caps_get_minimum_free_size(MALLOC_CAP_INTERNAL),
+                     (int)TCP_WND);
+            t_mark = t3; got_mark = got + n;
+            w_net = w_lease = w_write = w_reads = w_small = 0;
+        }
         if (put != (size_t)n) {
             ok = false;
             ESP_LOGW(TAG, "write failed after %lld bytes (errno %d)", (long long)got, errno);
@@ -452,6 +491,17 @@ static void dl_task(void *arg)
         got += n;
         stop = set_progress(got);
         if (stop != RUN) break;
+    }
+    {
+        const int64_t span = esp_timer_get_time() - t_start;
+        if (span > 0)
+            ESP_LOGI(TAG, "timing total: %lld bytes in %lld ms = %lld kbit/s; net %d%%, lease %d%%, "
+                     "write %d%%; %lld reads, %lld under %d B",
+                     (long long)(got - from), (long long)(span / 1000),
+                     (long long)((got - from) * 8000 / span),
+                     (int)(t_net * 100 / span), (int)(t_lease * 100 / span),
+                     (int)(t_write * 100 / span), (long long)n_reads, (long long)n_small,
+                     DL_CHUNK / 2);
     }
     storage_io_acquire(STORAGE_IO_BACKGROUND);
     if (storage_io_close(f) != 0) ok = false;

@@ -98,6 +98,16 @@ Each order is exactly one MPD combination. Going the other way, three
 of MPD's eight random/repeat/single combinations have no exact order
 here; `mpdmode.h` has the table and what each becomes.
 
+### Podcast episode rows (8040)
+
+In the note's place on a podcast's episode list:
+
+| On screen | Means |
+|---|---|
+| `SD` (green) | The episode is downloaded to the microSD card (and maybe the USB drive too). |
+| `USB` (green) | The episode is downloaded to the USB drive only. |
+| arrow (red) | Downloading, paused, stopped, or partly downloaded; the bar under the row is how far. |
+
 ## Settings (gear button)
 
 Five tabs: `SD`, `USB`, `BUILD`, `AUDIO`, `NET`. NET is short for network.
@@ -189,7 +199,7 @@ Repetir -- and ON/OFF
 follow the 开/关 the Audio tab has used since 6013.
 
 Kept in English in every language, by `same()`: the tab names (SD, USB,
-BUILD, AUDIO, NET, RADIO), USB, WIFI, MPD, HTTPS, UAC, RG, and the
+BUILD, AUDIO, NET, RADIO), an episode row's SD and USB (8040), USB, WIFI, MPD, HTTPS, UAC, RG, and the
 units.
 
 | Where | English | 简体中文 | 日本語 | Español | Português | Français | Italiano |

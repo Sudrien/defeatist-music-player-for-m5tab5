@@ -196,8 +196,9 @@ static int       s_pod_en;
  * Looked for once, when the rows are loaded, not once a draw. */
 static int64_t   s_pod_part[PODEPS_MAX];
 /* 8039: each episode row's whole file on a drive. Looked for with the
- * part files, by reading the podcast's folder once a drive. */
-static bool      s_pod_have[PODEPS_MAX];
+ * part files, by reading the podcast's folder once a drive.
+ * 8040: a bit per drive, 1u << storage_id_t, so the row can say which. */
+static uint8_t   s_pod_have[PODEPS_MAX];
 static uint32_t  s_pod_egen;
 /*
  * 8020: downloads. s_pod_show is the podcast's title, kept when its row
@@ -934,7 +935,7 @@ static void load_pod_ep_rows(void)
      */
     {
         static char dir[400], base[PODEPS_MAX][PODPATH_NAME_MAX + 16];
-        for (int i = 0; i < s_pod_en; i++) s_pod_have[i] = false;
+        for (int i = 0; i < s_pod_en; i++) s_pod_have[i] = 0;
         for (int v = 0; v < STORAGE_COUNT; v++) {
             if (!storage_present((storage_id_t)v) || s_pod_en == 0) continue;
             bool ok = true;
@@ -948,9 +949,9 @@ static void load_pod_ep_rows(void)
                 if (e->d_type == DT_DIR || e->d_name[0] == '.' || !decoder_supports(e->d_name)) continue;
                 for (int i = 0; i < s_pod_en; i++) {
                     const size_t bl = strlen(base[i]);
-                    if (!s_pod_have[i] && strncmp(e->d_name, base[i], bl) == 0 &&
+                    if (!(s_pod_have[i] & (1u << v)) && strncmp(e->d_name, base[i], bl) == 0 &&
                         e->d_name[bl] == '.' && !strchr(e->d_name + bl + 1, '.')) {
-                        s_pod_have[i] = true;
+                        s_pod_have[i] |= (uint8_t)(1u << v);
                         break;
                     }
                 }
@@ -1781,6 +1782,22 @@ void browser_draw(void)
          * finished by this session's download. */
         const bool have = s_pod && s_pod_level == 2 && i < s_pod_en && !playing &&
                           (s_pod_have[i] || (dl_st == PODDL_DONE && s_pod_eps[i].id == dl_id));
+        /* 8040: and where, spelled out in the note's place: SD when the
+         * card has it (whether or not the USB drive does too), else USB.
+         * One just finished and not yet found by a load says where its
+         * download went. */
+        const char *have_on = NULL;
+        if (have) {
+            uint8_t m = s_pod_have[i];
+            if (!m) {
+                static char dpath[512];
+                (void)poddl_state(NULL, NULL, NULL, dpath, sizeof(dpath), NULL);
+                const char *usb = storage_mount_path(STORAGE_USB);
+                m = (usb && usb[0] && strncmp(dpath, usb, strlen(usb)) == 0)
+                    ? (uint8_t)(1u << STORAGE_USB) : (uint8_t)(1u << STORAGE_SD);
+            }
+            have_on = (m & (1u << STORAGE_SD)) ? same("SD") : same("USB");
+        }
         const bool parted = s_pod && s_pod_level == 2 && i < s_pod_en && s_pod_part[i] > 0 &&
                             !playing && !have;
         if (parted && s_pod_eps[i].size > 0) {
@@ -1792,10 +1809,14 @@ void browser_draw(void)
 
         if (s_entries[i].is_dir) {
             draw_folder_icon(48, y + ROW_H / 2, C_DIM);
+        } else if (have_on) {                                   /* 8040 */
+            gfx_draw_text(48 - gfx_text_w(have_on, LABEL_SCALE) / 2,
+                          y + (ROW_H - GFX_GLYPH_H(LABEL_SCALE)) / 2,
+                          have_on, LABEL_SCALE, 80, C_HAVE);
         } else if (parted || (playing && s_pod)) {
             draw_dl_icon(48, y + ROW_H / 2, C_ACCENT);  /* 8038: partly downloaded */
         } else {
-            draw_note_icon(48, y + ROW_H / 2, playing ? C_ACCENT : have ? C_HAVE : C_DIM);  /* 8039 */
+            draw_note_icon(48, y + ROW_H / 2, playing ? C_ACCENT : C_DIM);
         }
         /* Files only. See find_common_prefix() -- the name itself is
          * untouched; this is where the elision happens and the only

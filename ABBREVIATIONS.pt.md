@@ -90,6 +90,16 @@ Tocar no botão de ordem passa por **ONE → ALL → RPT → EAT → RND → RPT
 
 Cada ordem é exatamente uma combinação do MPD. No sentido contrário, três das oito combinações random/repeat/single do MPD não têm ordem exata aqui; o `mpdmode.h` tem a tabela e o que cada uma vira.
 
+### Linhas de episódios de podcast (8040)
+
+No lugar da nota, na lista de episódios de um podcast:
+
+| Na tela | Significa |
+|---|---|
+| `SD` (verde) | O episódio está baixado no cartão microSD (e talvez também no pendrive USB). |
+| `USB` (verde) | O episódio está baixado só no pendrive USB. |
+| seta (vermelha) | Baixando, pausado, interrompido ou baixado em parte; a barra sob a linha mostra quanto. |
+
 ## Ajustes (botão de engrenagem)
 
 Cinco abas: `SD`, `USB`, `BUILD`, `AUDIO`, `NET`. NET é abreviação de network (rede).

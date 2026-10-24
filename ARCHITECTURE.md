@@ -26806,3 +26806,23 @@ or none (dim note). Downloaded wins over a stale part file.
 
 Compiled as 8037 was, against stub headers, with the same stub errors
 before and after. Not built with IDF, not run.
+
+### 8040 -- SD or USB, spelled out, for a downloaded episode
+
+8039's green note said "downloaded" and not where. The note's place now
+holds the drive, in green at the label size, centred where the note was:
+`SD` when the card has the episode -- whether or not the USB drive has
+it too -- else `USB`. Both by same(), as the tabs are.
+
+s_pod_have[] is a bit per drive (1u << storage_id_t) instead of a bool;
+the folder read that fills it already went a drive at a time. The
+episode this session's download has just finished, before a reload
+finds it, takes its drive from poddl_state()'s path against the USB
+mount; anything else is SD.
+
+ABBREVIATIONS.md, and each translation of it, gains the episode rows:
+SD, USB, and 8038's arrow. The six translations are Claude's, not yet
+read by native speakers.
+
+Compiled as 8037 was, against stub headers, with the same stub errors
+before and after. Not built with IDF, not run.

@@ -90,6 +90,16 @@ Al tocar el botón de orden va **ONE → ALL → RPT → EAT → RND → RPT1 �
 
 Cada orden es exactamente una combinación de MPD. En sentido inverso, tres de las ocho combinaciones random/repeat/single de MPD no tienen orden exacto aquí; `mpdmode.h` tiene la tabla y en qué se convierte cada una.
 
+### Filas de episodios de pódcast (8040)
+
+En lugar de la nota, en la lista de episodios de un pódcast:
+
+| En pantalla | Significa |
+|---|---|
+| `SD` (verde) | El episodio está descargado en la tarjeta microSD (y quizá también en la unidad USB). |
+| `USB` (verde) | El episodio está descargado solo en la unidad USB. |
+| flecha (roja) | Descargando, en pausa, detenido o descargado en parte; la barra bajo la fila indica cuánto. |
+
 ## Ajustes (botón del engranaje)
 
 Cinco pestañas: `SD`, `USB`, `BUILD`, `AUDIO`, `NET`. NET es abreviatura de network (red).

@@ -143,3 +143,47 @@ static inline void podpath_base(int64_t published, const char *episode, char *ou
         snprintf(out, cap, "%s", t);
     }
 }
+
+/*
+ * 8021: the podcast a folder's episodes came from, kept beside them in
+ * PODPATH_LINK -- a dotfile, so the chooser does not list it -- so the
+ * folder can lead back to the podcast's episode list. Two lines:
+ *
+ *   feed <Podcast Index feed id>
+ *   <the podcast's title>
+ */
+#define PODPATH_LINK ".podcast"
+
+static inline int podpath_link_format(int64_t feed, const char *title, char *out, size_t cap)
+{
+    return snprintf(out, cap, "feed %lld\n%s\n", (long long)feed, title ? title : "");
+}
+
+/* False unless `text` is that shape with a positive id; the title is
+ * the second line, cut to fit, and may be empty. */
+static inline bool podpath_link_parse(const char *text, size_t n, int64_t *feed,
+                                      char *title, size_t cap)
+{
+    if (!text || n < 6 || memcmp(text, "feed ", 5) != 0) return false;
+    size_t i = 5;
+    int64_t id = 0;
+    while (i < n && text[i] >= '0' && text[i] <= '9' && id < 100000000000LL) id = id * 10 + (text[i++] - '0');
+    if (id <= 0 || (i < n && text[i] != '\n' && text[i] != '\r')) return false;
+    while (i < n && (text[i] == '\n' || text[i] == '\r')) i++;
+    size_t t = 0;
+    if (title && cap) {
+        while (i < n && text[i] != '\n' && text[i] != '\r' && t + 1 < cap) title[t++] = text[i++];
+        /* Never end on half a letter: if the last letter's lead byte
+         * promises more bytes than are there, drop it. */
+        size_t lead = t;
+        while (lead > 0 && ((unsigned char)title[lead - 1] & 0xC0) == 0x80) lead--;
+        if (lead > 0) {
+            const unsigned char c = (unsigned char)title[lead - 1];
+            const size_t k = c < 0x80 ? 1 : (c >> 5) == 6 ? 2 : (c >> 4) == 14 ? 3 : (c >> 3) == 30 ? 4 : 1;
+            if (t - (lead - 1) < k) t = lead - 1;
+        }
+        title[t] = '\0';
+    }
+    if (feed) *feed = id;
+    return true;
+}

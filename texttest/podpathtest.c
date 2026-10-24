@@ -87,6 +87,27 @@ int main(void)
     podpath_base(0, "Undated", s, sizeof(s));
     CHECK(!strcmp(s, "Undated"), "%s", s);
 
+    printf("  the folder's link back\n");
+    {
+        char t[64];
+        int64_t feed = 0;
+        const int n = podpath_link_format(6654186, "R\xc3\xa1" "dio Joinville", s, sizeof(s));
+        CHECK(!strcmp(s, "feed 6654186\nR\xc3\xa1" "dio Joinville\n"), "%s", s);
+        CHECK(podpath_link_parse(s, (size_t)n, &feed, t, sizeof(t)) && feed == 6654186 &&
+              !strcmp(t, "R\xc3\xa1" "dio Joinville"), "%lld %s", (long long)feed, t);
+        CHECK(podpath_link_parse("feed 5\r\ncaf\xc3\xa9", 13, &feed, t, sizeof(t)) &&
+              feed == 5 && !strcmp(t, "caf\xc3\xa9"), "CRLF, a whole last letter kept: %s", t);
+        char t5[5];
+        CHECK(podpath_link_parse("feed 5\ncaf\xc3\xa9", 12, &feed, t5, sizeof(t5)) && !strcmp(t5, "caf"),
+              "half a letter dropped: %s", t5);
+        CHECK(podpath_link_parse("feed 7", 6, &feed, t, sizeof(t)) && feed == 7 && !t[0], "no title");
+        CHECK(!podpath_link_parse("feed 0\nx", 8, &feed, t, sizeof(t)), "id 0");
+        CHECK(!podpath_link_parse("feed x\n", 7, &feed, t, sizeof(t)), "no id");
+        CHECK(!podpath_link_parse("feed 12a\n", 9, &feed, t, sizeof(t)), "junk after the id");
+        CHECK(!podpath_link_parse("FEED 1\n", 7, &feed, t, sizeof(t)), "not the keyword");
+        CHECK(!podpath_link_parse(NULL, 0, &feed, t, sizeof(t)), "NULL");
+    }
+
     printf("%d checks, %d failures\n", checks, failures);
     return failures ? 1 : 0;
 }

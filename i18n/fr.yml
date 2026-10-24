@@ -20,6 +20,8 @@ fr:
     "%s did not answer.": "%s n'a pas répondu."
     # remote.html
     "%s left": "reste %s"
+    # browser.c
+    "%s on Podcast Index": ~
     # remote.c
     "%s refused the password.": "%s a refusé le mot de passe."
     # remote.c

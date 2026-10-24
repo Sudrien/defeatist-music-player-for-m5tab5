@@ -20,6 +20,8 @@ zh-CN:
     "%s did not answer.": "%s 没有响应。"
     # remote.html
     "%s left": "剩余 %s"
+    # browser.c
+    "%s on Podcast Index": ~
     # remote.c
     "%s refused the password.": "%s 拒绝了密码。"
     # remote.c

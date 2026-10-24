@@ -26263,3 +26263,28 @@ removes the part file.
 On the board: `I tab5_poddl: episode N: downloading`, any `30x to
 <url>`, `to <path> (B bytes)`, `done: B bytes` and the stack line; then
 on the second tap `I tab5_browser: episode N: playing <path>`.
+
+### 8021 -- a podcast's folder leads back to its episodes
+
+A folder of downloaded episodes on a volume tab has a row first --
+`<podcast> on Podcast Index`, drawn as a folder, no star -- that opens
+the PODCAST tab on that podcast's episode list, fetched fresh, so
+episodes not downloaded yet are one tap away. UP from there goes to the
+categories, since no podcast list stands behind it.
+
+**How the folder knows.** poddl.c writes `.podcast` beside the
+episodes when it makes the folder: `feed <id>` and the podcast's title,
+two lines (podpath.h, PODPATH_LINK). It is a dotfile, so the chooser and
+the playlist do not list it, and it is rewritten with each download.
+load_dir reads it after the sort and puts the row in at 0, with a label,
+so find_common_prefix() skips it; its name is the link file's and the
+tap is caught before anything joins that to the folder's path. A folder
+from before 8021, or one made by hand, has no link and no row.
+
+The level-2 list is now chosen by feed id (s_pod_cur) rather than by
+its row in the podcast list, since a link has no row there.
+
+texttest run-podpath gains the link's format, 36 checks.
+
+On the board: `I tab5_browser: podcast N: back to its episodes`, then
+the episode fetch as from the podcast list.

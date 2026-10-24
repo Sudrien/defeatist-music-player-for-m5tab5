@@ -20,6 +20,8 @@ ja:
     "%s did not answer.": "%s から応答がありません。"
     # remote.html
     "%s left": "残り %s"
+    # browser.c
+    "%s on Podcast Index": ~
     # remote.c
     "%s refused the password.": "%s がパスワードを拒否しました。"
     # remote.c

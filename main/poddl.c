@@ -42,6 +42,8 @@ static char              s_url[DL_URL_MAX];
 static char              s_dir[DL_PATH_MAX];
 static char              s_base[PODPATH_NAME_MAX + 16];
 static char              s_path[DL_PATH_MAX];   /* the finished file */
+static int64_t           s_feed;                /* 8021: for the folder's link */
+static char              s_show[128];
 
 /* What the response headers said; filled by the event handler. */
 typedef struct {
@@ -175,6 +177,20 @@ static void dl_task(void *arg)
     FILE *f = NULL;
     int status = 0;
     if (!buf || !make_dirs(s_dir)) goto out;
+    {
+        /* 8021: the folder's way back to the podcast. Rewritten each
+         * time, so a renamed podcast's folder follows; a failure here
+         * costs only the link, not the download. */
+        static char link[DL_PATH_MAX], text[160];
+        snprintf(link, sizeof(link), "%s/" PODPATH_LINK, s_dir);
+        const int n = podpath_link_format(s_feed, s_show, text, sizeof(text));
+        storage_io_acquire(STORAGE_IO_BACKGROUND);
+        FILE *lf = fopen(link, "w");
+        const bool wrote = lf && n > 0 && fwrite(text, 1, (size_t)n, lf) == (size_t)n;
+        if (lf) fclose(lf);
+        storage_io_release();
+        if (!wrote) ESP_LOGW(TAG, "could not write %s", link);
+    }
     c = open_followed(url, &h, &status);
     if (!c) goto out;
     if (status != 200) {
@@ -253,7 +269,8 @@ out:
     vTaskDelete(NULL);
 }
 
-bool poddl_start(int64_t id, const char *url, const char *dir, const char *base)
+bool poddl_start(int64_t id, const char *url, const char *dir, const char *base,
+                 int64_t feed, const char *show)
 {
     if (!url || !dir || !base) return false;
     lock();
@@ -261,6 +278,8 @@ bool poddl_start(int64_t id, const char *url, const char *dir, const char *base)
     snprintf(s_url, sizeof(s_url), "%s", url);
     snprintf(s_dir, sizeof(s_dir), "%s", dir);
     snprintf(s_base, sizeof(s_base), "%s", base);
+    s_feed = feed;                                  /* 8021 */
+    snprintf(s_show, sizeof(s_show), "%s", show ? show : "");
     s_path[0] = '\0';
     s_id = id;
     s_got = 0;

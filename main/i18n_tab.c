@@ -9,7 +9,7 @@
 #include <stddef.h>
 #include "i18n.h"
 
-const unsigned i18n_count = 429;
+const unsigned i18n_count = 430;
 const char *const i18n_keys[] = {
     "%.32s did not work. Try again.",
     "%d h",
@@ -18,6 +18,7 @@ const char *const i18n_keys[] = {
     "%s - Podcast Index did not answer; UP, then try again",
     "%s did not answer.",
     "%s left",
+    "%s on Podcast Index",
     "%s refused the password.",
     "%s was not found. Is it in range?",
     "%s: %d mean, %d peak kbit/s",
@@ -452,6 +453,7 @@ const unsigned char i18n_on_screen[] = {
     1,  /* '%s - Podcast Index did not answer; UP, t' */
     0,  /* '%s did not answer.' */
     0,  /* '%s left' */
+    1,  /* '%s on Podcast Index' */
     0,  /* '%s refused the password.' */
     0,  /* '%s was not found. Is it in range?' */
     1,  /* '%s: %d mean, %d peak kbit/s' */
@@ -974,6 +976,7 @@ const char *const i18n_vals[] = {
     NULL,
     NULL,
     NULL,
+    NULL,
     "Could not create the\012recording file.",
     NULL,
     "Could not make the\012Recordings folder.",
@@ -1330,6 +1333,7 @@ const char *const i18n_vals[] = {
     NULL,
     "%s 没有响应。",
     "剩余 %s",
+    NULL,
     "%s 拒绝了密码。",
     "找不到 %s。是否在范围内？",
     "%s: 平均 %d, 峰值 %d kbit/s",
@@ -1760,6 +1764,7 @@ const char *const i18n_vals[] = {
     NULL,
     "%s から応答がありません。",
     "残り %s",
+    NULL,
     "%s がパスワードを拒否しました。",
     "%s が見つかりません。範囲内ですか？",
     "%s: 平均 %d, 最大 %d kbit/s",
@@ -2190,6 +2195,7 @@ const char *const i18n_vals[] = {
     NULL,
     "%s no respondió.",
     "quedan %s",
+    NULL,
     "%s rechazó la contraseña.",
     "No se encontró %s. ¿Está al alcance?",
     "%s: media %d, pico %d kbit/s",
@@ -2620,6 +2626,7 @@ const char *const i18n_vals[] = {
     NULL,
     "%s não respondeu.",
     "faltam %s",
+    NULL,
     "%s recusou a senha.",
     "%s não foi encontrada. Está ao alcance?",
     "%s: média %d, pico %d kbit/s",
@@ -3050,6 +3057,7 @@ const char *const i18n_vals[] = {
     NULL,
     "%s n'a pas répondu.",
     "reste %s",
+    NULL,
     "%s a refusé le mot de passe.",
     "%s introuvable. Est-il à portée?",
     "%s : moy. %d, pic %d kbit/s",
@@ -3480,6 +3488,7 @@ const char *const i18n_vals[] = {
     NULL,
     "%s non ha risposto.",
     "mancano %s",
+    NULL,
     "%s ha rifiutato la password.",
     "%s non trovata. È nel raggio?",
     "%s: media %d, picco %d kbit/s",

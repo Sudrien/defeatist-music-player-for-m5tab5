@@ -204,6 +204,18 @@ static storage_id_t s_pod_vols[STORAGE_COUNT];
 static int          s_pod_nvols;
 static uint32_t     s_pod_dlgen;
 static const char  *s_pod_note;         /* a one-off answer to the last tap, or NULL */
+/*
+ * 8021: the podcast whose episodes level 2 lists, by id rather than by
+ * its row in s_pod_feeds -- it may have come from a folder's link, with
+ * no podcast list behind it, in which case UP goes to the categories.
+ */
+static int64_t      s_pod_cur;
+static bool         s_pod_linked;
+/* 8021: a volume tab's folder that holds PODPATH_LINK: row 0 is the way
+ * back to that podcast, and these say which. */
+static bool         s_dir_link;
+static int64_t      s_dir_link_feed;
+static char         s_dir_link_show[PODFEEDS_TITLE_MAX];
 
 /*
  * The station list, loaded into the same rows the files use.
@@ -422,6 +434,43 @@ bool browser_is_m3u(const char *name)
     return m3u_is_name(name);           /* 5198: and .m3u8 */
 }
 
+/*
+ * 8021: a folder of downloaded episodes leads back to their podcast.
+ * When `dir` holds PODPATH_LINK, a row goes in first -- a folder, its
+ * label "<podcast> on Podcast Index" -- and s_dir_link says row 0 is it.
+ * Its name is the link file's, which is never opened as a track: the tap
+ * is caught before anything joins it to s_dir.
+ */
+static void pod_link_row(const char *dir)
+{
+    s_dir_link = false;
+    char p[400], text[200];
+    if (snprintf(p, sizeof(p), "%s/" PODPATH_LINK, dir) >= (int)sizeof(p)) return;
+    FILE *f = fopen(p, "r");
+    if (!f) return;
+    const size_t n = fread(text, 1, sizeof(text) - 1, f);
+    fclose(f);
+    text[n] = '\0';
+    if (!podpath_link_parse(text, n, &s_dir_link_feed, s_dir_link_show, sizeof(s_dir_link_show))) return;
+    if (s_count >= MAX_ENTRIES) return;
+    memmove(&s_entries[1], &s_entries[0], (size_t)s_count * sizeof(entry_t));
+    char label[PODFEEDS_TITLE_MAX + 48];
+    snprintf(label, sizeof(label), _("%s on Podcast Index"),
+             s_dir_link_show[0] ? s_dir_link_show : same("Podcast"));
+    s_entries[0] = (entry_t){ 0 };
+    s_entries[0].name = strdup(PODPATH_LINK);
+    s_entries[0].label = strdup(label);
+    s_entries[0].is_dir = true;
+    if (!s_entries[0].name || !s_entries[0].label) {
+        free(s_entries[0].name);
+        free(s_entries[0].label);
+        memmove(&s_entries[0], &s_entries[1], (size_t)s_count * sizeof(entry_t));
+        return;
+    }
+    s_count++;
+    s_dir_link = true;
+}
+
 static void load_dir_locked(const char *dir)
 {
     if (!s_entries) {
@@ -477,6 +526,7 @@ static void load_dir_locked(const char *dir)
     cuedir_free(cues);
 
     qsort(s_entries, (size_t)s_count, sizeof(entry_t), cmp_entry);
+    pod_link_row(dir);                  /* 8021: before the prefix, which skips labels */
     find_common_prefix();
     stars_resolve();
 
@@ -830,7 +880,7 @@ static void pod_download(int ep, storage_id_t vol)
         ESP_LOGW(TAG, "episode %lld: the path is too long", (long long)s_pod_eps[ep].id);
         return;
     }
-    if (!poddl_start(s_pod_eps[ep].id, s_pod_eps[ep].url, dir, base))
+    if (!poddl_start(s_pod_eps[ep].id, s_pod_eps[ep].url, dir, base, s_pod_cur, s_pod_show))
         ESP_LOGI(TAG, "episode %lld: another download is running", (long long)s_pod_eps[ep].id);
 }
 
@@ -851,7 +901,7 @@ static void load_pod_pick_rows(void)
 /* 8019: ask for a podcast's episodes, waiting as pod_fetch_feeds() does. */
 static void pod_fetch_eps(void)
 {
-    s_pod_wait = !net_online() || !podindex_eps_fetch(s_pod_feeds[s_pod_feed].id);
+    s_pod_wait = !net_online() || !podindex_eps_fetch(s_pod_cur);          /* 8021: by id */
 }
 
 /* 8018: ask for a category's podcasts now, or when there is a network. */
@@ -1420,7 +1470,7 @@ void browser_draw(void)
         /* 8016: the network the tab was waiting for. */
         if (s_pod_wait && net_online()) {
             s_pod_wait = false;
-            if (s_pod_level == 2)      s_pod_wait = !podindex_eps_fetch(s_pod_feeds[s_pod_feed].id);  /* 8019 */
+            if (s_pod_level == 2)      s_pod_wait = !podindex_eps_fetch(s_pod_cur);  /* 8019, 8021 */
             else if (s_pod_level == 1) s_pod_wait = !podindex_feeds_fetch(s_pod_cats[s_pod_cat].id);  /* 8018 */
             else                       (void)podindex_cats_fetch();
             s_dirty = true;
@@ -1563,11 +1613,13 @@ void browser_draw(void)
          * starred does not read as a column of decorations.
          */
         const bool starrable = s_radio ? !s_radio_menu : !s_pod;   /* 8014: nothing to star yet */
-        const int  name_w = w - 112 - SCROLL_W - (starrable ? STAR_W : 0);
+        /* 8021: nor the way back to a podcast. */
+        const bool is_link = !s_radio && !s_pod && s_dir_link && i == 0;
+        const int  name_w = w - 112 - SCROLL_W - (starrable && !is_link ? STAR_W : 0);
         gfx_draw_text(96, y + (ROW_H - GFX_GLYPH_H(NAME_SCALE)) / 2, label,
                       NAME_SCALE, name_w, playing ? C_ACCENT : C_TEXT);
 
-        if (starrable) {
+        if (starrable && !is_link) {
             draw_star(w - SCROLL_W - STAR_W / 2, y + ROW_H / 2, STAR_R,
                       s_entries[i].fav,
                       s_entries[i].fav ? C_STAR : C_DIM, row_bg);
@@ -1798,6 +1850,18 @@ browser_result_t browser_touch(bool down, int x, int y)
             if (s_pod_level == 3) {             /* 8020: no drive chosen */
                 s_pod_level = 2;
                 load_pod_ep_rows();
+            } else if (s_pod_level == 2 && s_pod_linked) {
+                /* 8021: from a folder's link there is no podcast list
+                 * behind this one; the categories are. */
+                s_pod_level = 0;
+                s_pod_wait = false;
+                s_pod_linked = false;
+                load_pod_rows();
+                const podindex_cats_t cs = podindex_cats(NULL, 0, NULL, NULL);
+                if (cs == PODINDEX_CATS_NONE || cs == PODINDEX_CATS_FAILED) {
+                    if (net_online()) (void)podindex_cats_fetch();
+                    else              s_pod_wait = true;
+                }
             } else if (s_pod_level == 2) {
                 s_pod_level = 1;
                 s_pod_wait = false;
@@ -1913,6 +1977,8 @@ browser_result_t browser_touch(bool down, int x, int y)
             if (i >= s_pod_fn) return res;
             s_pod_feed = i;
             snprintf(s_pod_show, sizeof(s_pod_show), "%s", s_pod_feeds[i].title);   /* 8020 */
+            s_pod_cur = s_pod_feeds[i].id;                                          /* 8021 */
+            s_pod_linked = false;
             s_pod_level = 2;
             entries_free();
             s_top = 0;
@@ -2012,6 +2078,23 @@ browser_result_t browser_touch(bool down, int x, int y)
          * knows what station i is. */
         res.kind = BROWSER_PLAY_STREAM;
         res.index = i;
+        return res;
+    }
+
+    /* 8021: the way back to a podcast's episodes, ahead of the star's
+     * strip and of anything that would join ".podcast" to s_dir. */
+    if (s_dir_link && i == 0) {
+        ESP_LOGI(TAG, "podcast %lld: back to its episodes", (long long)s_dir_link_feed);
+        select_tab(BROWSER_TAB_PODCAST);
+        if (podindex_state(NULL, 0, NULL) != PODINDEX_WORKING) return res;  /* the tab says why */
+        snprintf(s_pod_show, sizeof(s_pod_show), "%s", s_dir_link_show);
+        s_pod_cur = s_dir_link_feed;
+        s_pod_linked = true;
+        s_pod_level = 2;
+        entries_free();
+        s_top = 0;
+        s_dirty = true;
+        pod_fetch_eps();
         return res;
     }
 

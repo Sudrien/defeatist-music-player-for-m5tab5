@@ -7,6 +7,7 @@
 
 #include <dirent.h>
 #include <errno.h>
+#include <limits.h>             /* 8042: LONG_MAX, fseek()'s reach */
 #include <stdio.h>
 #include <stdlib.h>
 #include <string.h>
@@ -43,6 +44,10 @@ static const char *TAG = "tab5_poddl";
  * the card. */
 #define DL_NBUF       4
 #define DL_WR_STACK   6144
+/* 8042: the most segments a part file's map can hold, and how often the
+ * writer saves the map while it writes (bytes). */
+#define DL_SEGS_MAX   4
+#define DL_MAP_EVERY  (4 * 1024 * 1024)
 #define DL_HOPS       6             /* tracking prefixes stack */
 #define DL_URL_MAX    1024
 #define DL_PATH_MAX   400           /* a podcast's folder */
@@ -186,37 +191,85 @@ static bool id_path(const char *part, char *out, size_t cap)
     return snprintf(out, cap, "%s.id", part) < (int)cap;
 }
 
-static bool id_read(const char *part, char *val, size_t vcap, int64_t *total)
+/*
+ * 8042: THE MAP. The .id also says which bytes of the part file are
+ * there, as segments: `s <start> <end> <done>` after 8041's two lines,
+ * one a segment, end exclusive (-1 when the length is not known), done
+ * the bytes from start that are on the card. 8041's two-line .id is one
+ * segment, done from the part file's size, as 8024 resumed. The size
+ * stops being the answer once a segment can be written past another's
+ * end (8043), so with a map the map is the answer, and a part file with
+ * more than one segment and no readable map starts over.
+ *
+ * Written to <part>.id.tmp and renamed over, so a reboot during the write
+ * leaves the old map or the new one. rename() does not replace, so the
+ * old one goes first; a read that finds no .id takes the .tmp.
+ */
+typedef struct { int64_t start, end, done; } seg_t;
+
+static bool id_tmp_path(const char *part, char *out, size_t cap)
 {
-    static char p[DL_PART_MAX + 4];
-    val[0] = '\0';
-    *total = -1;
-    if (!id_path(part, p, sizeof(p))) return false;
-    FILE *f = fopen(p, "r");
-    if (!f) return false;
-    char line[24];
-    bool ok = fgets(line, sizeof(line), f) != NULL;
-    if (ok) *total = strtoll(line, NULL, 10);
-    if (ok && fgets(val, (int)vcap, f)) val[strcspn(val, "\r\n")] = '\0';
-    fclose(f);
-    return ok;
+    return snprintf(out, cap, "%s.id.tmp", part) < (int)cap;
 }
 
-static void id_write(const char *part, const char *val, int64_t total)
+/* Returns the number of segments read (0: a .id with no map, as 8041
+ * wrote), or -1 for no .id at all. */
+static int id_read(const char *part, char *val, size_t vcap, int64_t *total,
+                   seg_t *seg, int nmax)
 {
-    static char p[DL_PART_MAX + 4];
-    if (!id_path(part, p, sizeof(p))) return;
-    FILE *f = fopen(p, "w");
-    if (!f) { ESP_LOGW(TAG, "could not write %s", p); return; }
-    fprintf(f, "%lld\n%s\n", (long long)total, val);
+    static char p[DL_PART_MAX + 8];
+    val[0] = '\0';
+    *total = -1;
+    if (!id_path(part, p, sizeof(p))) return -1;
+    FILE *f = fopen(p, "r");
+    if (!f && id_tmp_path(part, p, sizeof(p))) f = fopen(p, "r");
+    if (!f) return -1;
+    char line[80];
+    int n = -1;
+    if (fgets(line, sizeof(line), f)) {
+        *total = strtoll(line, NULL, 10);
+        n = 0;
+        if (fgets(val, (int)vcap, f)) val[strcspn(val, "\r\n")] = '\0';
+        while (n < nmax && fgets(line, sizeof(line), f)) {
+            long long a, b, d;
+            if (sscanf(line, "s %lld %lld %lld", &a, &b, &d) != 3) break;
+            seg[n].start = a; seg[n].end = b; seg[n].done = d;
+            n++;
+        }
+    }
     fclose(f);
+    return n;
+}
+
+static void id_write(const char *part, const char *val, int64_t total, const seg_t *seg, int nseg)
+{
+    static char p[DL_PART_MAX + 8], t[DL_PART_MAX + 8];
+    if (!id_path(part, p, sizeof(p)) || !id_tmp_path(part, t, sizeof(t))) return;
+    FILE *f = fopen(t, "w");
+    if (!f) { ESP_LOGW(TAG, "could not write %s", t); return; }
+    bool ok = fprintf(f, "%lld\n%s\n", (long long)total, val) > 0;
+    for (int i = 0; i < nseg && ok; i++)
+        ok = fprintf(f, "s %lld %lld %lld\n", (long long)seg[i].start,
+                     (long long)seg[i].end, (long long)seg[i].done) > 0;
+    if (fflush(f) != 0) ok = false;
+    if (ok) fsync(fileno(f));
+    if (fclose(f) != 0) ok = false;
+    if (!ok) { remove(t); ESP_LOGW(TAG, "could not write %s", t); return; }
+    remove(p);
+    if (rename(t, p) != 0) ESP_LOGW(TAG, "could not rename %s", t);
+}
+
+static void remove_id(const char *part)
+{
+    static char p[DL_PART_MAX + 8];
+    if (id_path(part, p, sizeof(p))) remove(p);
+    if (id_tmp_path(part, p, sizeof(p))) remove(p);
 }
 
 static void remove_part(const char *part)
 {
-    static char p[DL_PART_MAX + 4];
     remove(part);
-    if (id_path(part, p, sizeof(p))) remove(p);
+    remove_id(part);                                /* 8042: and its .tmp */
 }
 
 /* 8041: the validator a later If-Range can use: a strong ETag, else the
@@ -283,7 +336,7 @@ static void drop_empty_podcast_dir(const char *dir)
 /* Open `url`, following redirects; the client, positioned at the body,
  * with its status in *status, or NULL. `url` is rewritten with the
  * address that answered. */
-static esp_http_client_handle_t open_followed(char *url, hdrs_t *h, int *status, int64_t from)
+static esp_http_client_handle_t open_followed(char *url, hdrs_t *h, int *status, int64_t from, int64_t to)
 {
     const esp_app_desc_t *desc = esp_app_get_description();
     char ua[64];
@@ -305,9 +358,12 @@ static esp_http_client_handle_t open_followed(char *url, hdrs_t *h, int *status,
         };
         esp_http_client_handle_t c = esp_http_client_init(&cfg);
         if (!c) return NULL;
-        if (from > 0) {                             /* 8024: the rest of a part file */
-            char range[40];
-            snprintf(range, sizeof(range), "bytes=%lld-", (long long)from);
+        if (from > 0 || to >= 0) {                  /* 8024: the rest of a part file; 8042: or a segment */
+            char range[48];
+            if (to >= from)                         /* 8042: one segment's bytes */
+                snprintf(range, sizeof(range), "bytes=%lld-%lld", (long long)from, (long long)to);
+            else
+                snprintf(range, sizeof(range), "bytes=%lld-", (long long)from);
             esp_http_client_set_header(c, "Range", range);
             /* 8041: and only if it is still the same file -- else the
              * server sends all of it, 200, and this starts over. */
@@ -359,7 +415,7 @@ static void fetch_picture(const char *what, const char *src, const char *stem)
     static hdrs_t h;
     snprintf(url, sizeof(url), "%s", src);
     int status = 0;
-    esp_http_client_handle_t c = open_followed(url, &h, &status, 0);
+    esp_http_client_handle_t c = open_followed(url, &h, &status, 0, -1);
     if (!c) return;
     uint8_t *img = NULL;
     size_t got = 0;
@@ -439,7 +495,10 @@ static bool has_cover(const char *dir)
  * and exits. A write that fails sets s_wr.err, and the rest are dropped
  * unwritten -- the reader sees err and stops.
  */
-typedef struct { uint8_t *p; int len; } wr_item_t;
+/* 8042: and where: the segment the chunk is from, and its place in the
+ * file. The writer seeks only when that is not where the last chunk
+ * ended, so one segment written in order never seeks. */
+typedef struct { uint8_t *p; int len; int seg; int64_t off; } wr_item_t;
 static struct {
     QueueHandle_t     full, free_;
     SemaphoreHandle_t done;
@@ -448,6 +507,14 @@ static struct {
     volatile int      err_no;
     volatile int64_t  put;                  /* bytes written */
     volatile int64_t  t_lease, t_write;     /* 8034's shares, from this side */
+    /* 8042: the map, which the writer keeps, since only it knows what is
+     * on the card; saved every DL_MAP_EVERY after a flush and an fsync. */
+    int64_t           pos;                  /* where the file is; -1 unknown */
+    seg_t             seg[DL_SEGS_MAX];
+    int               nseg;
+    int64_t           total, since_map;
+    const char       *part;
+    char              val[96];
 } s_wr;
 
 static void wr_task(void *arg)
@@ -461,7 +528,25 @@ static void wr_task(void *arg)
             const int64_t t0 = esp_timer_get_time();
             storage_io_acquire(STORAGE_IO_BACKGROUND);
             const int64_t t1 = esp_timer_get_time();
-            const size_t put = fwrite(it.p, 1, (size_t)it.len, s_wr.f);
+            /* 8042: fseek() takes a long, so past 2 GB it cannot be asked;
+             * dl_task keeps such a file to one segment, which never seeks. */
+            bool at = it.off == s_wr.pos;
+            if (!at && it.off <= LONG_MAX) at = fseek(s_wr.f, (long)it.off, SEEK_SET) == 0;
+            const size_t put = at ? fwrite(it.p, 1, (size_t)it.len, s_wr.f) : 0;
+            if (put == (size_t)it.len) {
+                s_wr.pos = it.off + it.len;
+                s_wr.seg[it.seg].done += it.len;
+                s_wr.since_map += it.len;
+                if (s_wr.since_map >= DL_MAP_EVERY) {
+                    s_wr.since_map = 0;
+                    if (fflush(s_wr.f) == 0) {
+                        fsync(fileno(s_wr.f));
+                        id_write(s_wr.part, s_wr.val, s_wr.total, s_wr.seg, s_wr.nseg);
+                    }
+                }
+            } else {
+                s_wr.pos = -1;
+            }
             storage_io_release();
             const int64_t t2 = esp_timer_get_time();
             s_wr.t_lease += t1 - t0;
@@ -516,48 +601,79 @@ static void dl_task(void *arg)
         }
         storage_io_release();
     }
-    int64_t from = 0;
+    /*
+     * 8042: what is on the card already, as segments (see id_read()). One
+     * segment written in order -- every part file before 8043 -- is
+     * 8024's resume: the rest from the file's size, which is never past
+     * what was written. More than one is resumed from the map: the first
+     * segment not yet whole is this connection's.
+     */
+    static seg_t seg[DL_SEGS_MAX];
+    int nseg = 0;
     int64_t id_total = -1;                          /* 8041 */
-    bool have_id = false;
     {
         struct stat pst;
+        int64_t psize = 0;
         storage_io_acquire(STORAGE_IO_BACKGROUND);
-        if (stat(part, &pst) == 0 && S_ISREG(pst.st_mode) && pst.st_size > 0) from = (int64_t)pst.st_size;
-        if (from > 0) have_id = id_read(part, h.if_range, sizeof(h.if_range), &id_total);
+        if (stat(part, &pst) == 0 && S_ISREG(pst.st_mode) && pst.st_size > 0) psize = (int64_t)pst.st_size;
+        const int n = psize > 0 ? id_read(part, h.if_range, sizeof(h.if_range), &id_total, seg, DL_SEGS_MAX) : -1;
         storage_io_release();
-        if (from > 0 && !have_id) ESP_LOGI(TAG, "part file has no .id (from before 8041); checking Content-Range only");
+        if (psize > 0 && n < 0) ESP_LOGI(TAG, "part file has no .id (from before 8041); checking Content-Range only");
+        if (psize > 0 && n <= 1) {
+            seg[0].start = 0;
+            seg[0].end = id_total > 0 ? id_total : -1;
+            seg[0].done = psize;
+            nseg = 1;
+        } else if (n > 1) {
+            nseg = n;
+        }
     }
+    int k0 = 0;                                     /* this connection's segment */
+    while (k0 < nseg && seg[k0].end >= 0 && seg[k0].done >= seg[k0].end - seg[k0].start) k0++;
+    if (nseg > 0 && k0 == nseg) {
+        /* Whole, but not renamed: a reboot between the two. Rare enough
+         * that the file is asked for again rather than finished blind. */
+        ESP_LOGI(TAG, "part file's map says it is whole; starting over");
+        nseg = 0;
+        k0 = 0;
+        h.if_range[0] = '\0';
+    }
+    int64_t from = nseg ? seg[k0].start + seg[k0].done : 0;
+    int64_t to = (nseg > 1 && seg[k0].end > 0) ? seg[k0].end - 1 : -1;
     for (int attempt = 0; attempt < 2; attempt++) {
-        c = open_followed(url, &h, &status, from);
+        c = open_followed(url, &h, &status, from, to);
         if (!c) goto out;
         /* 8041: a 206 is the rest of the same file only if it says so. */
         const char *bad = NULL;
-        if (status == 206 && from > 0) {
+        if (status == 206 && (from > 0 || to >= 0)) {
             long long a = -1, b = -1, t = -1;
             const int n = sscanf(h.crange, "bytes %lld-%lld/%lld", &a, &b, &t);
             if (n < 2) bad = "no Content-Range";
             else if (a != from) bad = "Content-Range starts elsewhere";
+            else if (to >= 0 && b != to) bad = "Content-Range ends elsewhere";              /* 8042 */
             else if (n == 3 && id_total > 0 && t != id_total) bad = "the file's size changed";
+            else if (n == 3 && id_total <= 0) id_total = t;                                 /* 8042 */
             if (bad) ESP_LOGW(TAG, "resume refused, %s (%s, from %lld, saved total %lld)",
                               bad, h.crange, (long long)from, (long long)id_total);
         }
-        if ((status == 416 && from > 0) || bad) {
+        if ((status == 416 && nseg > 0) || bad) {
             if (!bad) ESP_LOGI(TAG, "416 for the rest from %lld; starting over", (long long)from);
             esp_http_client_close(c);
             esp_http_client_cleanup(c);
             c = NULL;
             lock(); snprintf(url, sizeof(url), "%s", s_url); unlock();
-            from = 0;
+            nseg = 0; k0 = 0; from = 0; to = -1;
+            id_total = -1;
             h.if_range[0] = '\0';
             continue;
         }
         break;
     }
     if (status == 200) {
-        if (from > 0) ESP_LOGI(TAG, "200 for the rest from %lld: %s; starting over", (long long)from,
+        if (nseg > 0) ESP_LOGI(TAG, "200 for the rest from %lld: %s; starting over", (long long)from,
                                h.if_range[0] ? "the file changed" : "no ranges");
-        from = 0;
-    } else if (status != 206 || from == 0) {
+        nseg = 0; k0 = 0; from = 0; to = -1;
+    } else if (status != 206 || nseg == 0) {
         ESP_LOGW(TAG, "HTTP %d", status);
         goto out;
     }
@@ -566,36 +682,41 @@ static void dl_task(void *arg)
     podpath_url_ext(url, ext, sizeof(ext));
     if (!ext[0]) snprintf(ext, sizeof(ext), "%s", podpath_type_ext(h.ctype));
     if (!ext[0]) snprintf(ext, sizeof(ext), "mp3");
-    {
+    const bool fresh = nseg == 0;                   /* 8042 */
+    if (fresh) {
         const int64_t clen = esp_http_client_get_content_length(c);
-        lock();
-        snprintf(s_path, sizeof(s_path), "%s/%s.%s", s_dir, s_base, ext);
-        s_total = clen > 0 ? from + clen : -1;
-        s_got = from;
-        unlock();
+        id_total = clen > 0 ? clen : -1;
+        seg[0].start = 0;
+        seg[0].end = id_total;
+        seg[0].done = 0;
+        nseg = 1;
+    } else if (seg[0].end < 0 && id_total > 0 && nseg == 1) {
+        seg[0].end = id_total;                      /* a part file from before 8041 */
     }
+    int64_t have = 0;                               /* on the card already */
+    for (int i = 0; i < nseg; i++) have += seg[i].done;
+    lock();
+    snprintf(s_path, sizeof(s_path), "%s/%s.%s", s_dir, s_base, ext);
+    s_total = id_total;
+    s_got = have;
+    unlock();
 
+    /* 8042: one segment appends, as before; a map writes in place. */
     storage_io_acquire(STORAGE_IO_BACKGROUND);
-    f = storage_io_open(part, from > 0 ? "ab" : "wb");
-    /* 8041: a new part file gets its identity; so does an old one that
-     * had none, from the 206 that has just been checked. */
-    if (f && (from == 0 || !have_id)) {
-        int64_t t = s_total;
-        if (from > 0) {
-            long long a, b, tt = -1;
-            if (sscanf(h.crange, "bytes %lld-%lld/%lld", &a, &b, &tt) == 3) t = tt;
-        }
-        id_write(part, validator(&h), t);
+    f = storage_io_open(part, fresh ? "wb" : nseg == 1 ? "ab" : "r+b");
+    if (f) {
+        snprintf(s_wr.val, sizeof(s_wr.val), "%s", fresh || !h.if_range[0] ? validator(&h) : h.if_range);
+        id_write(part, s_wr.val, id_total, seg, nseg);
     }
     storage_io_release();
     if (!f) {
         ESP_LOGW(TAG, "could not open %s", part);
         goto out;
     }
-    ESP_LOGI(TAG, "to %s (%lld bytes%s, from %lld)", s_path, (long long)s_total,
-             s_total < 0 ? ", length not given" : "", (long long)from);
+    ESP_LOGI(TAG, "to %s (%lld bytes%s, from %lld, segment %d of %d)", s_path, (long long)s_total,
+             s_total < 0 ? ", length not given" : "", (long long)from, k0 + 1, nseg);
 
-    int64_t got = from;                 /* received; s_wr.put is written */
+    int64_t got = have;                 /* received; s_wr.seg[].done is written */
     bool ok = true;
     int stop = RUN;
 
@@ -614,7 +735,7 @@ static void dl_task(void *arg)
     xQueueReset(s_wr.free_);
     xSemaphoreTake(s_wr.done, 0);
     for (int i = 0; i < DL_NBUF; i++) {
-        wr_item_t it = { buf + (size_t)i * DL_CHUNK, 0 };
+        wr_item_t it = { buf + (size_t)i * DL_CHUNK, 0, 0, 0 };
         xQueueSend(s_wr.free_, &it, 0);
     }
     s_wr.f = f;
@@ -622,6 +743,14 @@ static void dl_task(void *arg)
     s_wr.err_no = 0;
     s_wr.put = 0;
     s_wr.t_lease = s_wr.t_write = 0;
+    /* 8042: the map the writer keeps, and where the file is: at its end
+     * for "ab" and "wb", unknown for "r+b" so the first chunk seeks. */
+    memcpy(s_wr.seg, seg, sizeof(seg));
+    s_wr.nseg = nseg;
+    s_wr.total = id_total;
+    s_wr.since_map = 0;
+    s_wr.part = part;
+    s_wr.pos = nseg == 1 ? from : -1;
     if (xTaskCreate(wr_task, "poddl_wr", DL_WR_STACK, NULL, 3, NULL) != pdPASS) {
         ESP_LOGW(TAG, "could not start the writer");
         ok = false;
@@ -634,6 +763,7 @@ static void dl_task(void *arg)
      * and write are the writer's, and overlap net now, so the four need
      * not add to 100%.
      */
+    int64_t off = from;                             /* 8042: where the next byte goes */
     const int64_t t_start = esp_timer_get_time();
     int64_t t_net = 0, t_wait = 0, t_mark = t_start, got_mark = got;
     int64_t w_net = 0, w_wait = 0, wl_mark = 0, ww_mark = 0;
@@ -647,10 +777,17 @@ static void dl_task(void *arg)
             xQueueSend(s_wr.free_, &it, 0);
             ok = false;
             ESP_LOGW(TAG, "write failed after %lld bytes (errno %d)",
-                     (long long)(from + s_wr.put), s_wr.err_no);
+                     (long long)(have + s_wr.put), s_wr.err_no);
             break;
         }
-        const int n = esp_http_client_read(c, (char *)it.p, DL_CHUNK);
+        /* 8042: no further than this segment's end. */
+        int want = DL_CHUNK;
+        if (seg[k0].end >= 0) {
+            const int64_t left = seg[k0].end - off;
+            if (left <= 0) { xQueueSend(s_wr.free_, &it, 0); break; }
+            if (left < want) want = (int)left;
+        }
+        const int n = esp_http_client_read(c, (char *)it.p, want);
         const int64_t t2 = esp_timer_get_time();
         t_net += t2 - t1; w_net += t2 - t1;
         if (n <= 0) {
@@ -659,6 +796,9 @@ static void dl_task(void *arg)
             break;
         }
         it.len = n;
+        it.seg = k0;                                /* 8042 */
+        it.off = off;
+        off += n;
         xQueueSend(s_wr.full, &it, portMAX_DELAY);
         got += n;
         if (t2 - t_mark >= 5000000) {
@@ -687,17 +827,26 @@ static void dl_task(void *arg)
     }
     if (s_wr.err) {
         if (ok) ESP_LOGW(TAG, "write failed after %lld bytes (errno %d)",
-                         (long long)(from + s_wr.put), s_wr.err_no);
+                         (long long)(have + s_wr.put), s_wr.err_no);
         ok = false;
     }
-    got = from + s_wr.put;              /* what the part file holds */
+    /* 8042: what the part file holds, by the writer's map, which is saved
+     * once more now so a pause or a failure resumes from all of it. */
+    got = 0;
+    for (int i = 0; i < s_wr.nseg; i++) got += s_wr.seg[i].done;
+    if (stop != STOP_CANCEL) {
+        storage_io_acquire(STORAGE_IO_BACKGROUND);
+        if (fflush(f) == 0) fsync(fileno(f));
+        id_write(part, s_wr.val, s_wr.total, s_wr.seg, s_wr.nseg);
+        storage_io_release();
+    }
     {
         const int64_t span = esp_timer_get_time() - t_start;
         if (span > 0)
             ESP_LOGI(TAG, "timing total: %lld bytes in %lld ms = %lld kbit/s; net %d%%, wait %d%%, "
                      "lease %d%%, write %d%%",
-                     (long long)(got - from), (long long)(span / 1000),
-                     (long long)((got - from) * 8000 / span),
+                     (long long)(got - have), (long long)(span / 1000),
+                     (long long)((got - have) * 8000 / span),
                      (int)(t_net * 100 / span), (int)(t_wait * 100 / span),
                      (int)(s_wr.t_lease * 100 / span), (int)(s_wr.t_write * 100 / span));
     }
@@ -736,8 +885,7 @@ closed:
     /* 8024: a part that failed is kept too -- a dropped link is the usual
      * reason, and the next tap takes up from it. Only a cancel removes it. */
     if (ok) {
-        static char idp[DL_PART_MAX + 4];          /* 8041: the part's .id goes with it */
-        if (id_path(part, idp, sizeof(idp))) remove(idp);
+        remove_id(part);                            /* 8041, 8042: the part's .id goes with it */
         drop_part_dir(s_dir);                       /* 8029 */
     }
     storage_io_release();

@@ -26860,3 +26860,47 @@ Compiled with gcc -O2 -Wall -Werror=all against stub headers; not built
 with IDF, not run. To try on the board: pause a download, and resume it
 -- the log line `to ... from N` with no `resume refused` is the same
 file; an art19 episode left overnight may well show the restart.
+
+### 8042 -- a map of the part file, for downloads in pieces
+
+8024 resumed from the part file's size, which is right while one stream
+writes the file front to back. 8043 downloads in segments, written where
+they belong, and then the size says nothing: a later segment's bytes
+make the file long while an earlier one has a gap. So the .id (8041)
+carries a map after its two lines -- `s <start> <end> <done>` a segment,
+end exclusive, -1 when the length is not known -- and the map, not the
+size, says what is there.
+
+- The writer (8036) keeps the map, since only it knows what reached the
+  card. Each chunk carries its segment and offset; the writer seeks only
+  when the offset is not where the last chunk ended, so one segment in
+  order never seeks. Every 4 MB (DL_MAP_EVERY) it flushes, fsync()s and
+  saves the map; dl_task saves it once more when the writer has drained,
+  unless the download was cancelled.
+- The map is written to `<part>.id.tmp` and renamed over the .id, the
+  old one removed first since rename() does not replace; a read that
+  finds no .id takes the .tmp. remove_id() takes both.
+- A part file with one segment -- every one before 8043, and 8041's
+  two-line .id, and a part with no .id at all -- resumes as 8024 did,
+  from the file's size, appending: FAT never records a size past what
+  was written, so the size is the safe answer there, and the map may
+  lag it by up to 4 MB.
+- With more than one segment, the first that is not whole is this
+  connection's: Range `bytes=<from>-<end-1>`, and Content-Range must
+  match both ends (8041's checks, plus the end). The file opens "r+b".
+  8042 alone never makes such a map; with one connection the other
+  segments of one would stay unfinished and the download would end as
+  `ended at N of T`.
+- A map that says every segment is whole -- a reboot between the last
+  write and the rename -- starts over rather than finishing unchecked.
+
+fseek() takes a long, so the writer cannot seek past 2 GB; 8043 keeps
+a file that large to one segment, which never seeks. (CLAUDE.md: the
+alternative is FatFs directly, not used here.)
+
+The log line on starting is now `to <path> (T bytes, from N, segment k
+of n)`.
+
+Compiled with gcc -O2 -Wall -Werror=all against stub headers; not built
+with IDF, not run. On the board, a download, a pause and a resume
+should look as before 8042, with `segment 1 of 1`.

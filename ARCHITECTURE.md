@@ -26782,3 +26782,27 @@ note. Filled rectangles only, as the folder and the note are.
 
 Compiled as 8037 was, against stub headers, with the same stub errors
 before and after. Not built with IDF, not run.
+
+### 8039 -- a green note on a downloaded episode
+
+An episode already on a drive looked like one that was not; only a tap
+told them apart. Its note is now green, C_HAVE, the "on" green of
+panel.c and sleeppage.c. The episode this session's download has just
+finished turns green at once (PODDL_DONE on its id); the rest are found
+when the rows load.
+
+s_pod_have[] is filled in load_pod_ep_rows() beside 8037's s_pod_part[].
+poddl_find() tries nine extensions, so a row with no file would cost
+nine stat()s a drive. Instead the podcast's folder is read once a drive,
+and a name that is a row's base, a dot and an extension with no further
+dot, that decoder_supports(), marks the row. Dotfiles -- the episode's
+picture, the ReplayGain sidecar, `.podcast` -- are skipped. The bases
+are a static array, 60 x 112 bytes, in PSRAM with main's other zeroed
+statics.
+
+A row is one of: the download in hand (8028, 8038's arrow, accent), a
+part file (8037, 8038's arrow, accent, dim bar), downloaded (green note),
+or none (dim note). Downloaded wins over a stale part file.
+
+Compiled as 8037 was, against stub headers, with the same stub errors
+before and after. Not built with IDF, not run.

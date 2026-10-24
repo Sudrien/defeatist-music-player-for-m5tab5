@@ -59,6 +59,8 @@ static const char *TAG = "tab5_browser";
  * looked for and easy to look past when not, which neither of the
  * existing greys manages -- one disappears, the other competes with the
  * path above it. */
+/* 8039: a downloaded episode's note; panel.c's and sleeppage.c's "on". */
+#define C_HAVE      RGB(0x3C, 0xB3, 0x71)
 #define C_FAINT     RGB(0x55, 0x55, 0x55)
 
 /* Layout. Sized for the same 294 PPI the transport bar is: a 88 px row is
@@ -193,6 +195,9 @@ static int       s_pod_en;
 /* 8037: each episode row's part file on a drive, in bytes; 0 for none.
  * Looked for once, when the rows are loaded, not once a draw. */
 static int64_t   s_pod_part[PODEPS_MAX];
+/* 8039: each episode row's whole file on a drive. Looked for with the
+ * part files, by reading the podcast's folder once a drive. */
+static bool      s_pod_have[PODEPS_MAX];
 static uint32_t  s_pod_egen;
 /*
  * 8020: downloads. s_pod_show is the podcast's title, kept when its row
@@ -918,6 +923,39 @@ static void load_pod_ep_rows(void)
                     poddl_part(dir, base, &sz))
                     s_pod_part[i] = sz > 0 ? sz : 1;
             }
+        }
+    }
+    /*
+     * 8039: which are downloaded whole. poddl_find() would be nine
+     * stat()s a row a drive for a row without one; instead the podcast's
+     * folder is read once a drive, and a file named <base>.<ext> that the
+     * decoder plays marks its row. Dotfiles -- the picture, the
+     * ReplayGain sidecar, the .podcast link -- are skipped.
+     */
+    {
+        static char dir[400], base[PODEPS_MAX][PODPATH_NAME_MAX + 16];
+        for (int i = 0; i < s_pod_en; i++) s_pod_have[i] = false;
+        for (int v = 0; v < STORAGE_COUNT; v++) {
+            if (!storage_present((storage_id_t)v) || s_pod_en == 0) continue;
+            bool ok = true;
+            for (int i = 0; i < s_pod_en && ok; i++)
+                ok = pod_ep_where((storage_id_t)v, i, dir, sizeof(dir), base[i], sizeof(base[i]));
+            if (!ok) continue;
+            DIR *d = opendir(dir);
+            if (!d) continue;                       /* no folder: nothing downloaded there */
+            struct dirent *e;
+            while ((e = readdir(d)) != NULL) {
+                if (e->d_type == DT_DIR || e->d_name[0] == '.' || !decoder_supports(e->d_name)) continue;
+                for (int i = 0; i < s_pod_en; i++) {
+                    const size_t bl = strlen(base[i]);
+                    if (!s_pod_have[i] && strncmp(e->d_name, base[i], bl) == 0 &&
+                        e->d_name[bl] == '.' && !strchr(e->d_name + bl + 1, '.')) {
+                        s_pod_have[i] = true;
+                        break;
+                    }
+                }
+            }
+            closedir(d);
         }
     }
     /* 8023: "Music Makers San Diego 203 - Dave Preston", forty times over:
@@ -1739,8 +1777,12 @@ void browser_draw(void)
          * session's download is on. Not the episode that download has
          * just finished: its part file became the episode.
          */
+        /* 8039: downloaded whole -- found when the rows loaded, or just
+         * finished by this session's download. */
+        const bool have = s_pod && s_pod_level == 2 && i < s_pod_en && !playing &&
+                          (s_pod_have[i] || (dl_st == PODDL_DONE && s_pod_eps[i].id == dl_id));
         const bool parted = s_pod && s_pod_level == 2 && i < s_pod_en && s_pod_part[i] > 0 &&
-                            !playing && !(dl_st == PODDL_DONE && s_pod_eps[i].id == dl_id);
+                            !playing && !have;
         if (parted && s_pod_eps[i].size > 0) {
             int64_t fill = (int64_t)w * s_pod_part[i] / s_pod_eps[i].size;
             if (fill > w) fill = w;
@@ -1753,7 +1795,7 @@ void browser_draw(void)
         } else if (parted || (playing && s_pod)) {
             draw_dl_icon(48, y + ROW_H / 2, C_ACCENT);  /* 8038: partly downloaded */
         } else {
-            draw_note_icon(48, y + ROW_H / 2, playing ? C_ACCENT : C_DIM);
+            draw_note_icon(48, y + ROW_H / 2, playing ? C_ACCENT : have ? C_HAVE : C_DIM);  /* 8039 */
         }
         /* Files only. See find_common_prefix() -- the name itself is
          * untouched; this is where the elision happens and the only

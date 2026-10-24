@@ -849,9 +849,43 @@ static bool claim(int k)
  * part way, as the first stripe of a fresh download is, cannot be asked
  * on again; esp_http_client_is_complete_data_received() says which.
  */
+/*
+ * 8057: A FAILED CONNECTION TRIES AGAIN. Before, a read that failed part
+ * way set s_abort and all three connections stopped, for a tap to go on
+ * with -- a Wi-Fi blip, a reset from the CDN, or the USB Ethernet falling
+ * back to Wi-Fi (8036's run) ended the download. Now the connection that
+ * failed waits and asks again for the rest of its stripe, on a new
+ * connection, up to DL_RETRIES times, 1 s, 3 s and 10 s apart; the others
+ * go on meanwhile. A retry that gets any further starts the count again.
+ * A pause or a cancel ends the wait at once. After the last, it fails as
+ * before (s_abort, the part file and its map kept).
+ */
+#define DL_RETRIES 3
+
+/* False when the retries are spent, or a stop or another's failure came
+ * during the wait; true to try again. */
+static bool retry_wait(int *fails, int k)
+{
+    static const int wait_ms[DL_RETRIES] = { 1000, 3000, 10000 };
+    if (*fails >= DL_RETRIES) return false;
+    const int ms = wait_ms[*fails];
+    (*fails)++;
+    ESP_LOGW(TAG, "segment %d: trying again at %lld in %d s (%d of %d)", k + 1,
+             (long long)s_rcv[k], ms / 1000, *fails, DL_RETRIES);
+    for (int t = 0; t < ms; t += 100) {
+        lock();
+        const int stop = s_stop;
+        unlock();
+        if (stop != RUN || s_abort) return false;
+        vTaskDelay(pdMS_TO_TICKS(100));
+    }
+    return true;
+}
+
 static int run_slot(int k, char *url, hdrs_t *h, esp_http_client_handle_t c, dl_timing_t *tm)
 {
     int res = SRV_DONE;
+    int fails = 0;                                  /* 8057 */
     bool ready = c != NULL;                         /* c already answers segment k */
     for (;;) {
         if (s_rcv[k] >= s_plan[k].end) {
@@ -864,17 +898,31 @@ static int run_slot(int k, char *url, hdrs_t *h, esp_http_client_handle_t c, dl_
                 esp_http_client_cleanup(c);
             }
             c = open_segment(url, h, k);
-            if (!c) { res = SRV_NOOPEN; break; }
+            if (!c) {
+                if (fails > 0 && retry_wait(&fails, k)) continue;   /* 8057: still down */
+                res = SRV_NOOPEN;
+                break;
+            }
         }
         ready = false;
+        const int64_t before = s_rcv[k];
         res = serve(c, k, tm);
-        if (res != SRV_DONE) break;
-        if (s_rcv[k] < s_plan[k].end) {            /* the reply ended short */
+        const bool short_reply = res == SRV_DONE && s_rcv[k] < s_plan[k].end;
+        if (short_reply)                            /* the reply ended short */
             ESP_LOGW(TAG, "segment %d: reply ended at %lld of %lld", k + 1,
                      (long long)s_rcv[k], (long long)s_plan[k].end);
+        if (res == SRV_RERR || short_reply) {
+            /* 8057: this connection is done for; perhaps not the download. */
+            esp_http_client_close(c);
+            esp_http_client_cleanup(c);
+            c = NULL;
+            if (s_rcv[k] > before) fails = 0;       /* it got further: a fresh count */
+            if (retry_wait(&fails, k)) { res = SRV_DONE; continue; }
             res = SRV_RERR;
             break;
         }
+        if (res != SRV_DONE) break;
+        if (s_rcv[k] > before) fails = 0;
         if (!esp_http_client_is_complete_data_received(c)) {
             esp_http_client_close(c);
             esp_http_client_cleanup(c);

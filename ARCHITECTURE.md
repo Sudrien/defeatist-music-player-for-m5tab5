@@ -27347,3 +27347,35 @@ poddl.c compiled with gcc -O2 -Wall -Wextra -Werror=all -Werror=extra
 against stub headers, clean; replaygain.c with cJSON, clean but for a
 stub's missing storage_mark_hidden(); player.c with the same stub
 errors before and after. Not built with IDF, not run.
+
+### 8057 -- a connection that fails tries again
+
+A read that failed part way through a stripe set s_abort, and all three
+connections stopped; a tap went on from the part file (8024, 8042). So a
+Wi-Fi blip, a reset from the CDN, or the USB Ethernet dropping and the
+route falling back to Wi-Fi (8036's run: `read failed after 25067264
+bytes`) ended the download.
+
+Now run_slot(), on a failed read or a reply that ends short, closes that
+connection, waits, and asks for the rest of its stripe on a new one:
+up to DL_RETRIES (3) times, 1 s, 3 s and 10 s apart (`segment k: trying
+again at N in 1 s (1 of 3)`), while the other connections carry on. A
+retry that got any further starts the count again, so a link that keeps
+coming back is followed for as long as it does. A new connection that
+cannot be opened during the retries is a retry spent, not the end. A
+pause or cancel, or another connection's final failure, ends a wait
+within 100 ms. After the last retry it fails as before: s_abort, the
+part file and its map kept, a tap to go on. A segment whose first
+connection could not be opened is still left for dl_task to take after
+(8043), as before.
+
+The resume after a retry is the same as a stripe's next request: Range
+from s_rcv[k], If-Range, and Content-Range checked at both ends (8041,
+8046), so a server whose file changed in the meantime is refused.
+
+Tested on the host: run_slot() lifted from poddl.c with the network
+mocked -- a stripe failing three times with no progress, then once after
+some, then finishing: four waits, the count reset by the progress, the
+stripe whole; and failing four times with no progress: three waits,
+then SRV_RERR. poddl.c compiled with gcc -O2 -Wall -Wextra -Werror=all
+-Werror=extra against stub headers, clean. Not built with IDF, not run.

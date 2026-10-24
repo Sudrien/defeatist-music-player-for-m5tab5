@@ -27058,3 +27058,25 @@ Compiled with gcc -O2 -Wall -Wextra -Werror=all -Werror=extra against
 stub headers; not built with IDF, not run. Whether esp_http_client
 reuses the socket on a second open() is IDF's behaviour, not checked
 here; the request counts say.
+
+On the board (8046): 48,624,347 bytes in 113.4 s, 3430 kbit/s; write
+61-80%, wait 5-18%; `4 request(s) on new connections, 43 on kept ones`
+-- keep-alive held, so the stripes paid no handshakes. Against 8043's
+3576 (thirds, 16 KB writes) and 8045's 3384 (thirds, stages), within
+the noise of one run each: neighbouring writes cost the card what
+distant ones did. The writer busy 73% for 430 KB/s is a card path of
+about 600 KB/s, which all three are against. Reads from the same card
+run 2.3 MB/s (the player's open). Stripes are kept anyway: the file
+fills nearly front to back, which playing during a download needs.
+
+### 8047 -- 64 KB stripes
+
+The listener's next test: DL_STRIPE from 1 MB to 64 KB, the stage's
+size, so each stripe is one stage written once, next to the others. The
+cost is a request a stripe, about 740 for 48 MB, each a round trip
+(about 38 ms to the Fastly edge) in which that connection carries
+nothing, against about 0.4 s to move 64 KB at a third of 3.4 Mbit/s:
+something near 8-10%, and more if TCP slows after each gap. The
+timing total's request counts and rate are the answer, beside 8046's.
+
+Nothing else changes. Compiled as 8046; not built with IDF, not run.

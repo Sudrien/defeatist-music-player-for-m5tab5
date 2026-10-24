@@ -26826,3 +26826,37 @@ read by native speakers.
 
 Compiled as 8037 was, against stub headers, with the same stub errors
 before and after. Not built with IDF, not run.
+
+### 8041 -- a resume checked against the file it is resuming
+
+8024's resume sent `Range: bytes=<size>-` and took any 206 as the rest.
+Two things it did not see: a 206 that starts somewhere else, and a
+server whose file has changed since the first half -- which art19 and
+other ad-inserting hosts do per request, so it is the expected case and
+not a corner. The join is then two different files, a jump in the
+audio, and 8024's length check passes: s_total was `from` plus the
+second reply's length.
+
+Now a part file has an identity beside it, `<base>.part.id` in the same
+`.partial/<podcast>/`: the first reply's total, and its validator -- a
+strong ETag, else Last-Modified (If-Range does not take a weak ETag).
+A resume sends `If-Range` with it on every hop, as Range is. Then:
+
+- 200: the server says the file changed (or does no ranges); it starts
+  over, `200 for the rest from N: the file changed; starting over`.
+- 206: Content-Range must start at `from`, and its total must be the
+  saved one. If not, the reply is dropped and the whole is asked for,
+  as for a 416: `resume refused, <why> (<Content-Range>, from N, saved
+  total T)`.
+
+A part file from before this has no .id; it is resumed on the
+Content-Range check alone (`part file has no .id (from before 8041)`),
+and gets one from that 206. The .id goes wherever the part file goes:
+cancel, poddl_cancel(), poddl_discard() and the rename on success
+remove it (remove_part()), so `.partial/<podcast>` still empties and
+8029's rmdir still works. A pause keeps it.
+
+Compiled with gcc -O2 -Wall -Werror=all against stub headers; not built
+with IDF, not run. To try on the board: pause a download, and resume it
+-- the log line `to ... from N` with no `resume refused` is the same
+file; an art19 episode left overnight may well show the restart.

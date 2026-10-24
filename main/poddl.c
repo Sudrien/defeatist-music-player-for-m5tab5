@@ -80,6 +80,11 @@ static char              s_own_url[DL_URL_MAX];     /* 8027: the episode's, when
 typedef struct {
     char location[DL_URL_MAX];
     char ctype[64];
+    /* 8041: what a resume is checked against. */
+    char etag[96];
+    char lastmod[40];
+    char crange[80];
+    char if_range[96];          /* sent with Range, never cleared by a hop */
 } hdrs_t;
 
 static void lock(void)
@@ -97,6 +102,12 @@ static esp_err_t on_event(esp_http_client_event_t *ev)
             snprintf(h->location, sizeof(h->location), "%s", ev->header_value);
         else if (!strcasecmp(ev->header_key, "Content-Type"))
             snprintf(h->ctype, sizeof(h->ctype), "%s", ev->header_value);
+        else if (!strcasecmp(ev->header_key, "ETag"))                /* 8041 */
+            snprintf(h->etag, sizeof(h->etag), "%.*s", (int)sizeof(h->etag) - 1, ev->header_value);
+        else if (!strcasecmp(ev->header_key, "Last-Modified"))
+            snprintf(h->lastmod, sizeof(h->lastmod), "%.*s", (int)sizeof(h->lastmod) - 1, ev->header_value);
+        else if (!strcasecmp(ev->header_key, "Content-Range"))
+            snprintf(h->crange, sizeof(h->crange), "%.*s", (int)sizeof(h->crange) - 1, ev->header_value);
     }
     return ESP_OK;
 }
@@ -156,6 +167,66 @@ static bool make_part_dirs(const char *dir)
 
 /* 8029: the part file's folder goes when it is empty; rmdir() refuses
  * one that is not, which is what is wanted. */
+/*
+ * 8041: THE PART FILE'S IDENTITY. A resume asked for "the rest" and took
+ * any 206 as the rest of the same file. art19 and its kind insert ads
+ * per request, so the file a server has today need not be the one whose
+ * first half is on the card, and a join of two of them is a jump in the
+ * audio that no length check sees: s_total was from + the second reply's
+ * length. Now <part>.id holds the first reply's total and its validator
+ * -- a strong ETag, else Last-Modified -- and a resume sends If-Range
+ * with it and checks Content-Range: the first byte must be `from`, and
+ * the total the one saved. Anything else starts over.
+ *
+ * Two lines: the total in decimal (-1 if not given), then the validator
+ * (empty if neither header came).
+ */
+static bool id_path(const char *part, char *out, size_t cap)
+{
+    return snprintf(out, cap, "%s.id", part) < (int)cap;
+}
+
+static bool id_read(const char *part, char *val, size_t vcap, int64_t *total)
+{
+    static char p[DL_PART_MAX + 4];
+    val[0] = '\0';
+    *total = -1;
+    if (!id_path(part, p, sizeof(p))) return false;
+    FILE *f = fopen(p, "r");
+    if (!f) return false;
+    char line[24];
+    bool ok = fgets(line, sizeof(line), f) != NULL;
+    if (ok) *total = strtoll(line, NULL, 10);
+    if (ok && fgets(val, (int)vcap, f)) val[strcspn(val, "\r\n")] = '\0';
+    fclose(f);
+    return ok;
+}
+
+static void id_write(const char *part, const char *val, int64_t total)
+{
+    static char p[DL_PART_MAX + 4];
+    if (!id_path(part, p, sizeof(p))) return;
+    FILE *f = fopen(p, "w");
+    if (!f) { ESP_LOGW(TAG, "could not write %s", p); return; }
+    fprintf(f, "%lld\n%s\n", (long long)total, val);
+    fclose(f);
+}
+
+static void remove_part(const char *part)
+{
+    static char p[DL_PART_MAX + 4];
+    remove(part);
+    if (id_path(part, p, sizeof(p))) remove(p);
+}
+
+/* 8041: the validator a later If-Range can use: a strong ETag, else the
+ * date. A weak ETag (W/"...") is not allowed in If-Range. */
+static const char *validator(const hdrs_t *h)
+{
+    if (h->etag[0] && strncmp(h->etag, "W/", 2) != 0) return h->etag;
+    return h->lastmod;
+}
+
 static void drop_part_dir(const char *dir)
 {
     static char p[DL_PART_MAX];
@@ -220,6 +291,7 @@ static esp_http_client_handle_t open_followed(char *url, hdrs_t *h, int *status,
     *status = 0;
     for (int hop = 0; hop <= DL_HOPS; hop++) {
         h->location[0] = h->ctype[0] = '\0';
+        h->etag[0] = h->lastmod[0] = h->crange[0] = '\0';     /* 8041 */
         esp_http_client_config_t cfg = {
             .url = url,
             .crt_bundle_attach = esp_crt_bundle_attach,
@@ -237,6 +309,9 @@ static esp_http_client_handle_t open_followed(char *url, hdrs_t *h, int *status,
             char range[40];
             snprintf(range, sizeof(range), "bytes=%lld-", (long long)from);
             esp_http_client_set_header(c, "Range", range);
+            /* 8041: and only if it is still the same file -- else the
+             * server sends all of it, 200, and this starts over. */
+            if (h->if_range[0]) esp_http_client_set_header(c, "If-Range", h->if_range);
         }
         if (esp_http_client_open(c, 0) != ESP_OK) {
             ESP_LOGW(TAG, "no connection to %.80s", url);
@@ -442,27 +517,45 @@ static void dl_task(void *arg)
         storage_io_release();
     }
     int64_t from = 0;
+    int64_t id_total = -1;                          /* 8041 */
+    bool have_id = false;
     {
         struct stat pst;
         storage_io_acquire(STORAGE_IO_BACKGROUND);
         if (stat(part, &pst) == 0 && S_ISREG(pst.st_mode) && pst.st_size > 0) from = (int64_t)pst.st_size;
+        if (from > 0) have_id = id_read(part, h.if_range, sizeof(h.if_range), &id_total);
         storage_io_release();
+        if (from > 0 && !have_id) ESP_LOGI(TAG, "part file has no .id (from before 8041); checking Content-Range only");
     }
     for (int attempt = 0; attempt < 2; attempt++) {
         c = open_followed(url, &h, &status, from);
         if (!c) goto out;
-        if (status == 416 && from > 0) {
-            ESP_LOGI(TAG, "416 for the rest from %lld; starting over", (long long)from);
+        /* 8041: a 206 is the rest of the same file only if it says so. */
+        const char *bad = NULL;
+        if (status == 206 && from > 0) {
+            long long a = -1, b = -1, t = -1;
+            const int n = sscanf(h.crange, "bytes %lld-%lld/%lld", &a, &b, &t);
+            if (n < 2) bad = "no Content-Range";
+            else if (a != from) bad = "Content-Range starts elsewhere";
+            else if (n == 3 && id_total > 0 && t != id_total) bad = "the file's size changed";
+            if (bad) ESP_LOGW(TAG, "resume refused, %s (%s, from %lld, saved total %lld)",
+                              bad, h.crange, (long long)from, (long long)id_total);
+        }
+        if ((status == 416 && from > 0) || bad) {
+            if (!bad) ESP_LOGI(TAG, "416 for the rest from %lld; starting over", (long long)from);
             esp_http_client_close(c);
             esp_http_client_cleanup(c);
             c = NULL;
             lock(); snprintf(url, sizeof(url), "%s", s_url); unlock();
             from = 0;
+            h.if_range[0] = '\0';
             continue;
         }
         break;
     }
     if (status == 200) {
+        if (from > 0) ESP_LOGI(TAG, "200 for the rest from %lld: %s; starting over", (long long)from,
+                               h.if_range[0] ? "the file changed" : "no ranges");
         from = 0;
     } else if (status != 206 || from == 0) {
         ESP_LOGW(TAG, "HTTP %d", status);
@@ -484,6 +577,16 @@ static void dl_task(void *arg)
 
     storage_io_acquire(STORAGE_IO_BACKGROUND);
     f = storage_io_open(part, from > 0 ? "ab" : "wb");
+    /* 8041: a new part file gets its identity; so does an old one that
+     * had none, from the 206 that has just been checked. */
+    if (f && (from == 0 || !have_id)) {
+        int64_t t = s_total;
+        if (from > 0) {
+            long long a, b, tt = -1;
+            if (sscanf(h.crange, "bytes %lld-%lld/%lld", &a, &b, &tt) == 3) t = tt;
+        }
+        id_write(part, validator(&h), t);
+    }
     storage_io_release();
     if (!f) {
         ESP_LOGW(TAG, "could not open %s", part);
@@ -610,7 +713,7 @@ closed:
         goto out;
     }
     if (stop == STOP_CANCEL) {
-        remove(part);
+        remove_part(part);                          /* 8041: and its .id */
         drop_part_dir(s_dir);                       /* 8029 */
         drop_empty_podcast_dir(s_dir);
         storage_io_release();
@@ -632,7 +735,11 @@ closed:
     }
     /* 8024: a part that failed is kept too -- a dropped link is the usual
      * reason, and the next tap takes up from it. Only a cancel removes it. */
-    if (ok) drop_part_dir(s_dir);                   /* 8029 */
+    if (ok) {
+        static char idp[DL_PART_MAX + 4];          /* 8041: the part's .id goes with it */
+        if (id_path(part, idp, sizeof(idp))) remove(idp);
+        drop_part_dir(s_dir);                       /* 8029 */
+    }
     storage_io_release();
     if (ok) {
         st = PODDL_DONE;
@@ -724,7 +831,7 @@ void poddl_cancel(void)
     unlock();
     if (st == PODDL_PAUSED || st == PODDL_FAILED) {
         storage_io_acquire(STORAGE_IO_BACKGROUND);
-        if (part[0]) remove(part);
+        if (part[0]) remove_part(part);             /* 8041 */
         drop_part_dir(dir);
         drop_empty_podcast_dir(dir);
         storage_io_release();
@@ -754,7 +861,7 @@ void poddl_discard(const char *dir, const char *base)
     unlock();
     if (running || !dir || !base) return;
     storage_io_acquire(STORAGE_IO_BACKGROUND);
-    if (podpath_part(dir, base, p, sizeof(p))) remove(p);
+    if (podpath_part(dir, base, p, sizeof(p))) remove_part(p);    /* 8041 */
     if (snprintf(p, sizeof(p), "%s/%s.part", dir, base) < (int)sizeof(p)) remove(p);   /* 8024-8028's */
     drop_part_dir(dir);
     drop_empty_podcast_dir(dir);

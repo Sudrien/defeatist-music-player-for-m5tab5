@@ -26766,3 +26766,19 @@ Compiled with gcc -O2 -Wall -Werror=all against stub headers; browser.c
 needs more stubbing than was done, and the errors left were the same
 eight before and after this change, all from the stubs' gaps. Not built
 with IDF, not run.
+
+On the board (8037): the stopped episode went on from its part file at
+a tap (`from 25067264`), and the list showed the bar and the accent
+note.
+
+### 8038 -- a download arrow, not a note, on a partly downloaded episode
+
+The note says "a file to play", which an episode with only a part file
+is not. On a podcast's episode list, the row being downloaded (running,
+paused or stopped) and any row with a part file now draw draw_dl_icon()
+-- an arrow down onto a tray, 31x34 in the note's place -- in the
+accent. Other episode rows, and every row on a volume tab, keep the
+note. Filled rectangles only, as the folder and the note are.
+
+Compiled as 8037 was, against stub headers, with the same stub errors
+before and after. Not built with IDF, not run.

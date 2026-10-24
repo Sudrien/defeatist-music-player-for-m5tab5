@@ -1326,6 +1326,16 @@ static void draw_note_icon(int cx, int cy, uint16_t c)
     gfx_fill_circle(cx + 1, cy + 9, 7, c);
 }
 
+/* 8038: a download arrow over a tray, for an episode that is partly on a
+ * drive -- the same box as the note, built of rows as the folder is. */
+static void draw_dl_icon(int cx, int cy, uint16_t c)
+{
+    gfx_fill_rect(cx - 3, cy - 17, 7, 16, c);           /* shaft */
+    for (int k = 0; k < 11; k++)                         /* head, 21 wide to a point */
+        gfx_fill_rect(cx - 10 + k, cy - 1 + k, 21 - 2 * k, 1, c);
+    gfx_fill_rect(cx - 15, cy + 13, 31, 4, c);           /* tray */
+}
+
 /*
  * The track being heard, as told by the player. See browser_set_playing().
  *
@@ -1740,8 +1750,10 @@ void browser_draw(void)
 
         if (s_entries[i].is_dir) {
             draw_folder_icon(48, y + ROW_H / 2, C_DIM);
+        } else if (parted || (playing && s_pod)) {
+            draw_dl_icon(48, y + ROW_H / 2, C_ACCENT);  /* 8038: partly downloaded */
         } else {
-            draw_note_icon(48, y + ROW_H / 2, playing || parted ? C_ACCENT : C_DIM);   /* 8037 */
+            draw_note_icon(48, y + ROW_H / 2, playing ? C_ACCENT : C_DIM);
         }
         /* Files only. See find_common_prefix() -- the name itself is
          * untouched; this is where the elision happens and the only

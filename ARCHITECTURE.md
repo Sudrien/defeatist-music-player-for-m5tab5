@@ -27379,3 +27379,50 @@ some, then finishing: four waits, the count reset by the progress, the
 stripe whole; and failing four times with no progress: three waits,
 then SRV_RERR. poddl.c compiled with gcc -O2 -Wall -Wextra -Werror=all
 -Werror=extra against stub headers, clean. Not built with IDF, not run.
+
+On the board (8054): the arrow after IDLE, green while a download ran,
+gone after it. (8055-8057 not yet run on the board when this was
+written.)
+
+### 8058 -- where the podcast work stands, and what is open
+
+Numbers from 8034-8054's board runs, for the next session to start
+from rather than find again.
+
+**Downloads.** One stream was 0.9-1.2 Mbit/s on Wi-Fi (8034). Now
+three connections in 1 MB stripes on kept connections, hardware AES,
+and the card written beside the network: about 3.4 Mbit/s alone and
+2.4-3.3 with playback (8043-8049). The limit is the card's write path,
+about 600 KB/s in every layout tried (8049's table); the network side
+waits on buffers 10-25% of the time.
+
+**Open:**
+
+- **Why the card writes 600 KB/s and reads 2.3 MB/s.** Not measured
+  apart from the downloader. A sequential write of 16 MB, at 16 KB and
+  64 KB a call, with and without fsync, would say whether it is the
+  card or the path (FAT growing the file; the BACKGROUND lease; stdio).
+  If it is FAT allocating as the file grows, preallocation (f_expand)
+  is the lever, and that is a patch to feckless-storage-handler, not
+  here -- 8042's map already lets resume not depend on the file's size.
+- **The lowest memory seen.** Internal free 46,052 while Podcast Index
+  fetched a list during a three-connection download with playback
+  (8054's run); the 64 KB reserved internal pool (0x4ff403c0) at 1,379
+  free, in pieces of 1,280 at most, before a cover's hardware JPEG
+  decode during a live play. No allocation failed. If an SDIO, AES or
+  JPEG allocation ever does in that company, look there first; the
+  cheap answers are fewer connections while Podcast Index or a live
+  play is on, or holding the cover decode until the download is done.
+- **No seeking while an episode plays from its part file** (8050). The
+  length is the bytes over the bitrate (8053); a seek for constant
+  bitrate is the same sum backwards, to a byte, bounded by `ready`.
+- **The episode's picture is fetched after the episode** (8027, 8056),
+  so one played while it downloads shows only art in the file or the
+  folder's cover. Fetching it first costs a second or two of the
+  download.
+- **A part file's map whose stripes are all whole but not renamed**
+  (a reboot between) starts over (8042) rather than finishing; rare,
+  and a waste of the whole download when it happens.
+- **A miniseries picture's only link is the episode's sidecar** (8056);
+  a sidecar lost shows the folder's cover until the episode is fetched
+  again.

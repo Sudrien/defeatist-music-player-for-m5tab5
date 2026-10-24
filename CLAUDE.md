@@ -254,6 +254,25 @@ in the commit message what was checked this way and that it was not
 built. texttest's WARNCFLAGS (`-std=c11 -O2 -Wall -Wextra -Werror`)
 are stricter still, but cover only the host-tested headers.
 
+**Fewer stubs where the real thing can be had.** minimp3.h and
+minimp3_ex.h are fetched at build time (`cmake/vendored.cmake`, at
+MINIMP3_COMMIT) and cJSON is IDF's; a session can fetch both from GitHub
+(lieff/minimp3 at that commit into `components/minimp3/`, which is
+ignored, and DaveGamble/cJSON for `-I`) and compile decoder.c and
+replaygain.c against the real headers, not stubs of them. Nothing
+fetched goes into a patch. Where a file still cannot compile clean
+against stubs, compare: the same errors before and after the change
+(`git stash`), and say so -- that is a weaker check than a clean
+compile, and the commit message should not dress it as one.
+
+**Logic the stubs cannot check is tested by lifting it.** A loop whose
+correctness is in its sequencing -- 8050's live reader, 8057's retries
+-- is copied out of the source by a script (between two marker lines,
+so the test runs the code as it is in the file, not a retyping of it)
+into a host program with its I/O faked: a file grown on a schedule, a
+server that fails on cue. Run the case that should work and the case
+that should give up. Say in the commit message what was run.
+
 **A station's text is not ASCII, and `%.80s` is bytes.** Anything a
 station, a tag or a directory supplies -- names, titles, favicons --
 can be Arabic or CJK, two to four bytes a letter. A log line that

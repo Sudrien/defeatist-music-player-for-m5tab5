@@ -432,6 +432,8 @@ zh-CN:
     "Paused %s: %s": ~
     # remote.html
     "Play": "播放"
+    # browser.c
+    "Play it while it downloads": ~
     # remote.html
     "Play next": "下一首播放"
     # remote.html

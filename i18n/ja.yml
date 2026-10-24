@@ -432,6 +432,8 @@ ja:
     "Paused %s: %s": ~
     # remote.html
     "Play": "再生"
+    # browser.c
+    "Play it while it downloads": ~
     # remote.html
     "Play next": "次に再生"
     # remote.html

@@ -432,6 +432,8 @@ pt:
     "Paused %s: %s": ~
     # remote.html
     "Play": "Tocar"
+    # browser.c
+    "Play it while it downloads": ~
     # remote.html
     "Play next": "Tocar em seguida"
     # remote.html

@@ -27122,3 +27122,55 @@ connection` with DL_STRIPE 0, which stays a switch).
 
 Open: why the card writes 600 KB/s and reads 2.3 MB/s. A sequential
 write benchmark would say whether it is the card or the path to it.
+
+### 8050 -- playing an episode while it downloads
+
+8020 left this for later: "starting playback while a download is still
+filling the file would need the decoder to know where the file ends".
+8049's stripes fill the file nearly front to back, so now it can.
+
+**When.** The episode's actions (8024) gain `Play it while it
+downloads` once PODDL_PLAY_MIN (3 MB) from the file's start is on the
+card, the download is running, and the file is an MP3. 3 MB of a 128
+kbps episode is three minutes; the download runs at about twenty times
+that rate. The row is worked out when the actions open, so a tap
+before 3 MB shows two rows, and the next tap may show three. The tap
+plays the finished file's path, which is not there yet, as any track
+is played (BROWSER_PLAY_FILE); its folder may not exist yet either
+(8029), and the playlist is then just this track.
+
+**What is on the card.** poddl_live() answers, for a path, whether it is
+the download in hand, its part file, and `ready`: the bytes from the
+start with no gap -- the lowest point a segment not yet whole has
+reached, or the front (8046) when all in hand are -- counted only after
+the writer's fflush() and fsync(). The writer does that every
+DL_MAP_EVERY, which is 1 MB now instead of 4 MB, so `ready` moves a
+megabyte at a time; and once more when the download stops.
+
+**The decoder.** minimp3_open() finds no file at the path, asks
+poddl_live(), and if it is the download, reads the part file through
+mp3_live_read(): never past `ready`, since a later stripe can be there
+before an earlier one and the bytes between are whatever the card held.
+A FatFs handle reads only to the size the file had when it was opened,
+so the part file is opened again whenever `ready` moves, at the same
+place. When the download is done the part file has been renamed, and
+the finished file is opened instead (`live: the download is done;
+reading the whole file from N`). A reader that catches up polls every
+250 ms (`live: caught up with the download at N bytes; waiting`) for
+up to 30 s; then, or when the download pauses, fails or is cancelled
+(`live: the download stopped at N bytes; the track ends there`), the
+track ends. Opened MP3D_DO_NOT_SCAN, since the scan reads the whole
+file: no length and no seeking while it plays. The next play of the
+finished file has both.
+
+Tested on the host: the live reader, lifted from decoder.c, against a
+part file grown a megabyte at a time with garbage past `ready`, then
+renamed -- every byte in order, none past `ready`, the rename followed;
+and against a download paused at 4 MB -- the track ended there.
+poddl.c compiled with gcc -O2 -Wall -Wextra -Werror=all -Werror=extra
+against stub headers; decoder.c and browser.c have the same stub
+errors before and after (minimp3's headers are fetched at build time).
+Not built with IDF, not run on the board.
+
+New screen text: `Play it while it downloads`, extracted and compiled
+(tools/i18n.py); not translated, like the podcast rows around it.

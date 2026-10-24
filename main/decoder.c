@@ -19,6 +19,11 @@
 #include "decoder.h"
 #include "pcmfold.h"
 #include "storage_io.h"
+#include "poddl.h"              /* 8050: poddl_live() */
+#include <limits.h>
+#include <sys/stat.h>
+#include "freertos/FreeRTOS.h"
+#include "freertos/task.h"
 
 /* minimp3_ex's default file IO uses open()/mmap(), which FatFs does not
  * provide. MINIMP3_NO_STDIO compiles that path out and leaves the
@@ -103,6 +108,7 @@ struct decoder {
     /* minimp3 */
     mp3dec_ex_t ex;
     mp3dec_io_t io;
+    struct live_src *live;              /* 8050: a download still arriving */
 
     /* esp_audio_codec */
     esp_audio_simple_dec_handle_t esp_dec;
@@ -381,6 +387,115 @@ static int mp3_io_seek(uint64_t position, void *user)
 }
 
 /*
+ * 8050: AN MP3 STILL DOWNLOADING. The track's path is the finished file's,
+ * which is not there yet; poddl_live() says it is the download in hand
+ * and how far its part file can be read -- `ready`, the bytes from the
+ * start with no gap, flushed and fsync()ed, which grows a megabyte at a
+ * time. The part file is read up to `ready` and never past it, since a
+ * later stripe (8046) may be there before an earlier one.
+ *
+ * A FatFs handle reads to the size the file had when it was opened, so
+ * the part file is opened again each time `ready` moves, at the same
+ * place. When the download is done the part file has been renamed to the
+ * track's path, and that is opened instead. A reader that catches up
+ * waits, polling every LIVE_POLL_MS, for up to LIVE_WAIT_MS; then, or if
+ * the download stops (paused, failed, cancelled), the track ends there.
+ * The download runs at twenty times a podcast's rate, so catching up
+ * means the network went away.
+ *
+ * Opened MP3D_DO_NOT_SCAN: the scan would read the whole file, which is
+ * not there. So there is no length and no seeking while it plays, as
+ * minimp3 says for any file it has no index of.
+ */
+#define LIVE_POLL_MS 250
+#define LIVE_WAIT_MS 30000
+
+struct live_src {
+    char    path[512];                  /* the finished file's */
+    char    part[600];
+    int64_t pos, ready, total;
+    bool    whole;                      /* reading the finished file now */
+};
+
+static bool live_reopen(decoder_t *d)
+{
+    struct live_src *L = d->live;
+    if (d->f) { storage_io_close(d->f); d->f = NULL; }
+    d->f = storage_io_open(L->whole ? L->path : L->part, "rb");
+    if (!d->f) return false;
+    if (L->pos > 0 && (L->pos > LONG_MAX || fseek(d->f, (long)L->pos, SEEK_SET) != 0)) return false;
+    return true;
+}
+
+/* More to read: `ready` moved, or the file is whole. False to end. */
+static bool live_more(decoder_t *d)
+{
+    struct live_src *L = d->live;
+    for (int waited = 0; ; waited += LIVE_POLL_MS) {
+        int64_t ready = 0, total = -1;
+        poddl_state_t st = PODDL_IDLE;
+        const bool mine = poddl_live(L->path, NULL, 0, &ready, &total, &st);
+        if (!mine || st == PODDL_DONE) {
+            struct stat sb;
+            if (stat(L->path, &sb) == 0 && S_ISREG(sb.st_mode)) {
+                L->whole = true;
+                L->ready = L->total = (int64_t)sb.st_size;
+                ESP_LOGI(TAG, "live: the download is done; reading the whole file from %lld",
+                         (long long)L->pos);
+                return live_reopen(d) && L->pos < L->ready;
+            }
+            if (!mine) return false;
+        }
+        if (ready > L->ready) {
+            L->ready = ready;
+            L->total = total;
+            return live_reopen(d);
+        }
+        if (st != PODDL_RUNNING && st != PODDL_DONE) {
+            ESP_LOGW(TAG, "live: the download stopped at %lld bytes; the track ends there",
+                     (long long)L->ready);
+            return false;
+        }
+        if (waited >= LIVE_WAIT_MS) {
+            ESP_LOGW(TAG, "live: no more of the download in %d s; the track ends at %lld",
+                     LIVE_WAIT_MS / 1000, (long long)L->pos);
+            return false;
+        }
+        if (waited == 0)
+            ESP_LOGW(TAG, "live: caught up with the download at %lld bytes; waiting", (long long)L->pos);
+        vTaskDelay(pdMS_TO_TICKS(LIVE_POLL_MS));
+    }
+}
+
+static size_t mp3_live_read(void *buf, size_t size, void *user)
+{
+    decoder_t *d = user;
+    struct live_src *L = d->live;
+    bool reopened = false;
+    for (;;) {
+        const int64_t avail = L->ready - L->pos;
+        if (avail > 0 && d->f) {
+            const size_t n = (int64_t)size < avail ? size : (size_t)avail;
+            const size_t got = storage_io_fread(buf, n, d->f, STORAGE_IO_PLAYBACK);
+            if (got > 0) { L->pos += (int64_t)got; return got; }
+            /* The handle's size is older than `ready`: open it again. */
+            if (!reopened) { reopened = true; if (live_reopen(d)) continue; }
+        }
+        if (L->whole && L->pos >= L->ready) return 0;
+        if (!live_more(d)) return 0;
+        reopened = false;
+    }
+}
+
+static int mp3_live_seek(uint64_t position, void *user)
+{
+    decoder_t *d = user;
+    d->live->pos = (int64_t)position;
+    if (!d->f || position > LONG_MAX) return -1;
+    return fseek(d->f, (long)position, SEEK_SET);
+}
+
+/*
  * Validate and install a caller-supplied table into minimp3's own index.
  *
  * minimp3 keeps (offset, sample) pairs in exactly this shape, so the
@@ -453,12 +568,33 @@ static esp_err_t minimp3_open(decoder_t *d, const char *path,
                               const decoder_index_t *ix)
 {
     d->f = storage_io_open(path, "rb");
-    if (!d->f) return ESP_ERR_NOT_FOUND;
-
-    d->io.read = mp3_io_read;
-    d->io.read_data = d->f;
-    d->io.seek = mp3_io_seek;
-    d->io.seek_data = d->f;
+    if (!d->f) {
+        /* 8050: not there; perhaps it is the download in hand. */
+        int64_t ready = 0, total = -1;
+        poddl_state_t st = PODDL_IDLE;
+        struct live_src *L = heap_caps_calloc(1, sizeof(*L), MALLOC_CAP_SPIRAM | MALLOC_CAP_8BIT);
+        if (!L) return ESP_ERR_NOT_FOUND;
+        if (!poddl_live(path, L->part, sizeof(L->part), &ready, &total, &st) || ready <= 0 ||
+            !L->part[0] || snprintf(L->path, sizeof(L->path), "%s", path) >= (int)sizeof(L->path) ||
+            !(d->f = storage_io_open(L->part, "rb"))) {
+            free(L);
+            return ESP_ERR_NOT_FOUND;
+        }
+        L->ready = ready;
+        L->total = total;
+        d->live = L;
+        d->io.read = mp3_live_read;
+        d->io.read_data = d;
+        d->io.seek = mp3_live_seek;
+        d->io.seek_data = d;
+        ESP_LOGI(TAG, "live: %s from its part file, %lld of %lld bytes on the card",
+                 path, (long long)ready, (long long)total);
+    } else {
+        d->io.read = mp3_io_read;
+        d->io.read_data = d->f;
+        d->io.seek = mp3_io_seek;
+        d->io.seek_data = d->f;
+    }
 
     /* MP3D_SEEK_TO_SAMPLE builds the index up front, which for a 60 MB
      * file on this SD bus is a noticeable pause before the first sample.
@@ -472,9 +608,9 @@ static esp_err_t minimp3_open(decoder_t *d, const char *path,
      * -- which is what BOUNDARY_NO_INDEX exists to do deliberately and
      * temporarily, and is not a default.
      */
-    const bool have_index = (ix && ix->count > 0);
+    const bool have_index = (ix && ix->count > 0) && !d->live;    /* 8050: no table for a live file */
     const int open_flags = MP3D_SEEK_TO_SAMPLE |
-                           (have_index ? MP3D_DO_NOT_SCAN : 0);
+                           (have_index || d->live ? MP3D_DO_NOT_SCAN : 0);   /* 8050 */
 
 #if BOUNDARY_NO_INDEX
     /*
@@ -496,6 +632,8 @@ static esp_err_t minimp3_open(decoder_t *d, const char *path,
         ESP_LOGE(TAG, "minimp3 could not open %s", path);
         storage_io_close(d->f);
         d->f = NULL;
+        free(d->live);                  /* 8050 */
+        d->live = NULL;
         return ESP_FAIL;
     }
 
@@ -2005,6 +2143,7 @@ void decoder_close(decoder_t *d)
         free(d->pcm);
     }
     if (d->f) storage_io_close(d->f);
+    free(d->live);                      /* 8050 */
     free(d);
 }
 

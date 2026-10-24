@@ -1004,14 +1004,32 @@ static void fmt_len(int32_t s, char *out, size_t cap)
     else           snprintf(out, cap, "%d:%02d", (int)(s / 60), (int)(s % 60));
 }
 
+/*
+ * 8050: the path of the episode being downloaded, if it is s_pod_pick's,
+ * an MP3, and PODDL_PLAY_MIN of it is on the card: then it can be played
+ * while the rest arrives (decoder.c reads the part file). NULL if not.
+ */
+static const char *pod_playable_now(void)
+{
+    static char path[512];
+    int64_t id = 0, ready = 0;
+    poddl_state_t st = poddl_state(&id, NULL, NULL, path, sizeof(path), NULL);
+    if (st != PODDL_RUNNING || s_pod_pick >= s_pod_en || id != s_pod_eps[s_pod_pick].id) return NULL;
+    const size_t n = strlen(path);
+    if (n < 4 || strcasecmp(path + n - 4, ".mp3") != 0) return NULL;
+    if (!poddl_live(path, NULL, 0, &ready, NULL, &st) || ready < PODDL_PLAY_MIN) return NULL;
+    return path;
+}
+
 /* 8024: the actions for the episode being downloaded. */
 static void load_pod_act_rows(void)
 {
     entries_free();
     const poddl_state_t ds = poddl_state(NULL, NULL, NULL, NULL, 0, NULL);
-    const char *rows[2] = { ds == PODDL_RUNNING ? _("Pause the download") : _("Go on with the download"),
-                            _("Cancel the download and delete it") };
-    for (int i = 0; i < 2 && s_count < MAX_ENTRIES; i++) {
+    const char *rows[3] = { ds == PODDL_RUNNING ? _("Pause the download") : _("Go on with the download"),
+                            _("Cancel the download and delete it"),
+                            pod_playable_now() ? _("Play it while it downloads") : NULL };   /* 8050 */
+    for (int i = 0; i < 3 && rows[i] && s_count < MAX_ENTRIES; i++) {
         s_entries[s_count].name = strdup(rows[i]);
         if (!s_entries[s_count].name) break;
         s_entries[s_count].is_dir = true;
@@ -2257,6 +2275,18 @@ browser_result_t browser_touch(bool down, int x, int y)
         if (s_pod_level == 3 && s_pod_act) {
             /* 8024: pause or go on; cancel. */
             const poddl_state_t ds = poddl_state(NULL, NULL, NULL, NULL, 0, NULL);
+            const char *now = i == 2 ? pod_playable_now() : NULL;      /* 8050 */
+            if (now) {
+                snprintf(s_result, sizeof(s_result), "%s", now);
+                ESP_LOGI(TAG, "episode %lld: playing %s while it downloads",
+                         (long long)s_pod_eps[s_pod_pick].id, s_result);
+                s_pod_act = false;
+                s_pod_level = 2;
+                load_pod_ep_rows();
+                res.kind = BROWSER_PLAY_FILE;
+                res.path = s_result;
+                return res;
+            }
             if (i == 0 && ds == PODDL_RUNNING) poddl_pause();
             else if (i == 0 && s_pod_pick < s_pod_en) pod_download(s_pod_pick, s_pod_act_vol);
             else if (i == 1 && ds == PODDL_RUNNING) poddl_cancel();

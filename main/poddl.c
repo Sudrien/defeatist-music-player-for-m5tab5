@@ -52,7 +52,7 @@ static const char *TAG = "tab5_poddl";
 /* 8045: bytes the writer gathers for a segment before it seeks and writes
  * them, in PSRAM, one stage a segment. */
 #define DL_STAGE      (64 * 1024)
-#define DL_MAP_EVERY  (4 * 1024 * 1024)
+#define DL_MAP_EVERY  (1 * 1024 * 1024)   /* 8050: 4 MB before; what a player can read grows by this */
 /* 8043: connections a download may use at once, and the smallest file
  * that is split between them. Each extra one is a helper task, created
  * once, its stack in PSRAM: it does sockets and TLS, and never writes the
@@ -94,6 +94,8 @@ static char              s_url[DL_URL_MAX];
 static char              s_dir[DL_PATH_MAX];
 static char              s_base[PODPATH_NAME_MAX + 16];
 static char              s_path[DL_FILE_MAX];   /* the finished file */
+static char              s_partp[DL_PART_MAX];  /* 8050: its part file, while it is one */
+static int64_t           s_ready;               /* 8050: see poddl_live() */
 static int64_t           s_feed;                /* 8021: for the folder's link */
 static char              s_show[128];
 static char              s_cover_url[DL_URL_MAX];   /* 8027: the podcast's picture, or "" */
@@ -283,6 +285,25 @@ static void remove_id(const char *part)
     static char p[DL_PART_MAX + 8];
     if (id_path(part, p, sizeof(p))) remove(p);
     if (id_tmp_path(part, p, sizeof(p))) remove(p);
+}
+
+/* 8050: the bytes from the file's start with no gap: the lowest point a
+ * segment not yet whole has reached, or the front when all in hand are. */
+static int64_t ready_of(const seg_t *seg, int nseg, int64_t front)
+{
+    if (nseg == 1) return seg[0].start + seg[0].done;
+    int64_t r = front >= 0 ? front : INT64_MAX;
+    for (int i = 0; i < nseg; i++)
+        if (seg[i].end < 0 || seg[i].done < seg[i].end - seg[i].start)
+            if (seg[i].start + seg[i].done < r) r = seg[i].start + seg[i].done;
+    return r == INT64_MAX ? 0 : r;
+}
+
+static void set_ready(int64_t r)
+{
+    lock();
+    if (r > s_ready) s_ready = r;
+    unlock();
 }
 
 static void remove_part(const char *part)
@@ -581,6 +602,7 @@ static bool wr_out(int seg, const uint8_t *p, int len, int64_t off)
                     fsync(fileno(s_wr.f));
                     id_write(s_wr.part, s_wr.val, s_wr.total, s_wr.seg, s_wr.nseg,
                              s_wr.front, s_wr.stripe);
+                    set_ready(ready_of(s_wr.seg, s_wr.nseg, s_wr.front));   /* 8050 */
                 }
             }
         } else {
@@ -1099,6 +1121,8 @@ static void dl_task(void *arg)
     snprintf(s_path, sizeof(s_path), "%s/%s.%s", s_dir, s_base, ext);
     s_total = id_total;
     s_got = have;
+    snprintf(s_partp, sizeof(s_partp), "%s", part);  /* 8050 */
+    s_ready = ready_of(seg, nseg, front);           /* what an earlier run left, synced */
     unlock();
 
     /* 8042: one segment appends, as before; a map writes in place. */
@@ -1255,6 +1279,7 @@ static void dl_task(void *arg)
         if (fflush(f) == 0) fsync(fileno(f));
         id_write(part, s_wr.val, s_wr.total, s_wr.seg, s_wr.nseg, s_wr.front, s_wr.stripe);
         storage_io_release();
+        set_ready(ready_of(s_wr.seg, s_wr.nseg, s_wr.front));       /* 8050 */
     }
     {
         const int64_t span = esp_timer_get_time() - t_start;
@@ -1360,6 +1385,8 @@ bool poddl_start(int64_t id, const char *url, const char *dir, const char *base,
     snprintf(s_own_url, sizeof(s_own_url), "%s",
              own && own[0] && (!cover || strcmp(own, cover)) ? own : "");
     s_path[0] = '\0';
+    s_partp[0] = '\0';                              /* 8050 */
+    s_ready = 0;
     s_id = id;
     s_got = 0;
     s_total = -1;
@@ -1465,4 +1492,20 @@ bool poddl_find(const char *dir, const char *base, char *out, size_t out_size)
     }
     out[0] = '\0';
     return false;
+}
+
+bool poddl_live(const char *path, char *part, size_t part_size,
+                int64_t *ready, int64_t *total, poddl_state_t *st)
+{
+    if (!path || !path[0]) return false;
+    lock();
+    const bool mine = s_path[0] && !strcmp(path, s_path);
+    if (mine) {
+        if (part && part_size) snprintf(part, part_size, "%s", s_partp);
+        if (ready) *ready = s_ready;
+        if (total) *total = s_total;
+        if (st) *st = s_state;
+    }
+    unlock();
+    return mine;
 }

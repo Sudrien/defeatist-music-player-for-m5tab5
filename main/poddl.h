@@ -78,6 +78,21 @@ poddl_state_t poddl_state(int64_t *id, int64_t *got, int64_t *total,
  * filesystem: not from a task that must not block on the card. */
 bool poddl_find(const char *dir, const char *base, char *out, size_t out_size);
 
+/*
+ * 8050: PLAYING WHILE IT DOWNLOADS. Whether `path` -- a finished file's
+ * path, as poddl_state() gives it -- is the current or last download, and
+ * if so its part file, the bytes from its start that are on the card
+ * (written, flushed and fsync()ed, with no gap before them), its total
+ * (-1 if not known) and its state. A reader may read the part file up to
+ * `ready` and no further: past it a stripe may not have arrived yet.
+ * `ready` grows a megabyte at a time while it runs. Once PODDL_DONE the
+ * part file is gone and `path` is the whole file. Any task; no
+ * filesystem.
+ */
+#define PODDL_PLAY_MIN  (3 * 1024 * 1024)   /* on the card before playing is offered */
+bool poddl_live(const char *path, char *part, size_t part_size,
+                int64_t *ready, int64_t *total, poddl_state_t *st);
+
 #ifdef __cplusplus
 }
 #endif

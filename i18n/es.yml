@@ -432,6 +432,8 @@ es:
     "Paused %s: %s": ~
     # remote.html
     "Play": "Reproducir"
+    # browser.c
+    "Play it while it downloads": ~
     # remote.html
     "Play next": "Reproducir a continuación"
     # remote.html

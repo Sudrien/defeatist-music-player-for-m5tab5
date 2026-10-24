@@ -26668,3 +26668,70 @@ change.
 
 On the board: `I tab5_remote: podcast episode N: downloading to
 <dir>, from the page`, then poddl's own lines as for the screen's.
+
+### 8034 -- where a download's time goes
+
+poddl.c logs a `timing 5s:` line while a download runs and a `timing
+total:` line at the end: the rate, and the share of wall time spent in
+esp_http_client_read (net), waiting for the card lease (lease) and in
+fwrite (write). Its comments called it 8200; 8036 renamed them.
+
+On the board, Wi-Fi, an art19 episode from Fastly 38 ms away:
+0.9-1.2 Mbit/s, net 80-84%, write 15-19%, lease 0. The 16 KB window
+(5079) allows 16384 * 8 / 0.038 = 3.4 Mbit/s, so the window was not
+the limit: even counting only net time the data came at 1.4.
+
+The "reads under 8192" count it also logs is always 0 and says
+nothing: esp_http_client_read() loops until the buffer is full, so
+every read is 16 KB. 8036 drops it.
+
+### 8035 -- hardware AES and SHA back on
+
+sdkconfig.defaults sets CONFIG_MBEDTLS_HARDWARE_AES and _SHA back to y,
+reversing 5052, to see whether software AES-GCM was part of 8034's
+slow downloads. Its comment called it 8201; 8036 renamed it. rm
+sdkconfig before building. Proof it took: `grep HARDWARE_AES sdkconfig`
+reads `=y`. One board run on a stale sdkconfig measured no change.
+
+It was: 1.4-1.5 Mbit/s from 1.15, net-only 2.0 from 1.4, net share
+down to 73-76% and write up to 23-26%. Internal min-ever 91,488 from
+93,204.
+
+5052's failure was the AES engine's DMA descriptors, with the RTL8152
+streaming and the radio starting. Tried against that: USB Ethernet (the
+`ecm` netif) up, the first hardware JPEG decode, playback starting and
+a download running, together. No `esp-aes: Failed to allocate`;
+internal min-ever 75,252, DMA min-ever 57,084 (5052 failed at 1,395).
+Two `DSI underruns` in about 50 s during the download and playback,
+which is the rate already recorded without it; not yet compared with
+and without a download.
+
+Also seen in that run: an MP3 with no Xing header opened in 20.8 s,
+reading the whole 38 MB to build its seek index, with the card held
+82% of that time; the download's lease share went to 15-28% and its
+rate to 1.0 Mbit/s until the open finished. Not a download problem.
+
+### 8036 -- the card written beside the download, not after it
+
+dl_task read 16 KB and then wrote it, and while it wrote nobody drained
+the socket: the window filled and the server waited. That was 8035's
+23-26% write share. Now dl_task only reads, into one of DL_NBUF (4)
+PSRAM buffers, and passes each to `poddl_wr`, a writer task (6144
+internal stack: FatFs), which takes the lease and writes. A chunk of
+length 0 is the end; dl_task waits for the writer's semaphore before it
+closes the part file, so a pause leaves every byte it received in the
+file, and the resume (8024, from stat()) starts after them. A write
+that fails sets an error flag; the writer drops the rest unwritten and
+dl_task stops at its next chunk. The position used for the length
+check, pause and cancel is what the writer wrote, not what was read.
+
+The timing line is now `net`, `wait` (dl_task waiting for a free
+buffer: the card falling behind), `lease` and `write` -- the last two
+the writer's, overlapping net, so the four need not add to 100%.
+
+Also renames 8034's and 8035's comments from 8200 and 8201, the
+numbers they were handed over with.
+
+Compiled with gcc -O2 -Wall -Werror=all against stub headers; not
+built with IDF, not run on the board. Expected: net near 100%, wait
+near 0, and 1.9-2.0 Mbit/s if the card was all of the difference.

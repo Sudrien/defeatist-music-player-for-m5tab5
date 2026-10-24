@@ -18,9 +18,10 @@
 #include "esp_heap_caps.h"
 #include "esp_http_client.h"
 #include "esp_log.h"
-#include "esp_timer.h"          /* 8200: download timing */
-#include "lwip/opt.h"           /* 8200: TCP_WND in the timing line */
+#include "esp_timer.h"          /* 8034: download timing */
+#include "lwip/opt.h"           /* 8034: TCP_WND in the timing line */
 #include "freertos/FreeRTOS.h"
+#include "freertos/queue.h"     /* 8036: the writer's hand-off */
 #include "freertos/semphr.h"
 #include "freertos/task.h"
 
@@ -35,6 +36,13 @@ static const char *TAG = "tab5_poddl";
 #define DL_STACK      8192          /* TLS and FatFs; internal: it writes the card */
 #define DL_CHUNK      (16 * 1024)   /* one lease's worth, storage_io.h's 16 KB */
 #define DL_TIMEOUT_MS 15000
+/* 8036: chunks in flight between the reader and the card writer, all in
+ * PSRAM. Four is 64 KB: room for the card's slow writes (8034 saw ~22 ms
+ * per 16 KB, longer while playback holds the lease) without the reader
+ * stalling. The writer's stack is internal, as DL_STACK's is: it writes
+ * the card. */
+#define DL_NBUF       4
+#define DL_WR_STACK   6144
 #define DL_HOPS       6             /* tracking prefixes stack */
 #define DL_URL_MAX    1024
 #define DL_PATH_MAX   400           /* a podcast's folder */
@@ -346,6 +354,54 @@ static bool has_cover(const char *dir)
     return false;
 }
 
+/*
+ * 8036: THE CARD WRITER. Before this the task read 16 KB and then wrote
+ * it, and while it wrote nobody drained the socket: the 16 KB window
+ * filled and the server waited, so 18-30% of every download was the card
+ * (8034's `write` share). Now dl_task only reads, into one of DL_NBUF
+ * buffers, and hands each to this task, which takes the lease and
+ * writes. A chunk with len 0 is the end; the writer then gives s_wr.done
+ * and exits. A write that fails sets s_wr.err, and the rest are dropped
+ * unwritten -- the reader sees err and stops.
+ */
+typedef struct { uint8_t *p; int len; } wr_item_t;
+static struct {
+    QueueHandle_t     full, free_;
+    SemaphoreHandle_t done;
+    FILE             *f;
+    volatile bool     err;
+    volatile int      err_no;
+    volatile int64_t  put;                  /* bytes written */
+    volatile int64_t  t_lease, t_write;     /* 8034's shares, from this side */
+} s_wr;
+
+static void wr_task(void *arg)
+{
+    (void)arg;
+    wr_item_t it;
+    for (;;) {
+        xQueueReceive(s_wr.full, &it, portMAX_DELAY);
+        if (it.len <= 0) break;
+        if (!s_wr.err) {
+            const int64_t t0 = esp_timer_get_time();
+            storage_io_acquire(STORAGE_IO_BACKGROUND);
+            const int64_t t1 = esp_timer_get_time();
+            const size_t put = fwrite(it.p, 1, (size_t)it.len, s_wr.f);
+            storage_io_release();
+            const int64_t t2 = esp_timer_get_time();
+            s_wr.t_lease += t1 - t0;
+            s_wr.t_write += t2 - t1;
+            if (put != (size_t)it.len) { s_wr.err_no = errno; s_wr.err = true; }
+            else s_wr.put += it.len;
+        }
+        xQueueSend(s_wr.free_, &it, portMAX_DELAY);
+    }
+    ESP_LOGI(TAG, "writer: stack %u bytes never used of %u",
+             (unsigned)uxTaskGetStackHighWaterMark(NULL), (unsigned)DL_WR_STACK);
+    xSemaphoreGive(s_wr.done);
+    vTaskDelete(NULL);
+}
+
 static void dl_task(void *arg)
 {
     (void)arg;
@@ -356,7 +412,7 @@ static void dl_task(void *arg)
     unlock();
 
     poddl_state_t st = PODDL_FAILED;
-    uint8_t *buf = heap_caps_malloc(DL_CHUNK, MALLOC_CAP_SPIRAM | MALLOC_CAP_8BIT);
+    uint8_t *buf = heap_caps_malloc((size_t)DL_NBUF * DL_CHUNK, MALLOC_CAP_SPIRAM | MALLOC_CAP_8BIT);  /* 8036 */
     esp_http_client_handle_t c = NULL;
     FILE *f = NULL;
     int status = 0;
@@ -436,73 +492,113 @@ static void dl_task(void *arg)
     ESP_LOGI(TAG, "to %s (%lld bytes%s, from %lld)", s_path, (long long)s_total,
              s_total < 0 ? ", length not given" : "", (long long)from);
 
-    int64_t got = from;
+    int64_t got = from;                 /* received; s_wr.put is written */
     bool ok = true;
     int stop = RUN;
+
+    /* 8036: the writer, its queues and buffers. */
+    if (!s_wr.full) {
+        s_wr.full  = xQueueCreate(DL_NBUF + 1, sizeof(wr_item_t));
+        s_wr.free_ = xQueueCreate(DL_NBUF, sizeof(wr_item_t));
+        s_wr.done  = xSemaphoreCreateBinary();
+    }
+    if (!s_wr.full || !s_wr.free_ || !s_wr.done) {
+        ESP_LOGW(TAG, "no memory for the writer's queues");
+        ok = false;
+        goto closed;
+    }
+    xQueueReset(s_wr.full);
+    xQueueReset(s_wr.free_);
+    xSemaphoreTake(s_wr.done, 0);
+    for (int i = 0; i < DL_NBUF; i++) {
+        wr_item_t it = { buf + (size_t)i * DL_CHUNK, 0 };
+        xQueueSend(s_wr.free_, &it, 0);
+    }
+    s_wr.f = f;
+    s_wr.err = false;
+    s_wr.err_no = 0;
+    s_wr.put = 0;
+    s_wr.t_lease = s_wr.t_write = 0;
+    if (xTaskCreate(wr_task, "poddl_wr", DL_WR_STACK, NULL, 3, NULL) != pdPASS) {
+        ESP_LOGW(TAG, "could not start the writer");
+        ok = false;
+        goto closed;
+    }
+
     /*
-     * 8200: where a download's time goes. Every 5 s, and once at the end:
-     * the rate, and the share of wall time spent waiting on the network
-     * (esp_http_client_read), waiting for the card lease, and in fwrite.
-     * Reads that come back well under DL_CHUNK with net near 100% mean the
-     * TCP window / round trip is the limit (ceiling TCP_WND*8/RTT); a big
-     * lease share means playback holds the card; a big write share, the
-     * card itself.
+     * 8034, for 8036: net is time in esp_http_client_read; wait is the
+     * reader waiting for a free buffer -- the card falling behind; lease
+     * and write are the writer's, and overlap net now, so the four need
+     * not add to 100%.
      */
     const int64_t t_start = esp_timer_get_time();
-    int64_t t_net = 0, t_lease = 0, t_write = 0, t_mark = t_start;
-    int64_t got_mark = got, n_reads = 0, n_small = 0;
-    int64_t w_net = 0, w_lease = 0, w_write = 0, w_reads = 0, w_small = 0;
+    int64_t t_net = 0, t_wait = 0, t_mark = t_start, got_mark = got;
+    int64_t w_net = 0, w_wait = 0, wl_mark = 0, ww_mark = 0;
     for (;;) {
-        int64_t t0 = esp_timer_get_time();
-        int n = esp_http_client_read(c, (char *)buf, DL_CHUNK);
-        int64_t t1 = esp_timer_get_time();
-        t_net += t1 - t0; w_net += t1 - t0;
-        if (n < 0) { ok = false; ESP_LOGW(TAG, "read failed after %lld bytes", (long long)got); break; }
-        if (n == 0) break;
-        n_reads++; w_reads++;
-        if (n < DL_CHUNK / 2) { n_small++; w_small++; }
-        storage_io_acquire(STORAGE_IO_BACKGROUND);
-        int64_t t2 = esp_timer_get_time();
-        const size_t put = fwrite(buf, 1, (size_t)n, f);
-        storage_io_release();
-        int64_t t3 = esp_timer_get_time();
-        t_lease += t2 - t1; w_lease += t2 - t1;
-        t_write += t3 - t2; w_write += t3 - t2;
-        if (t3 - t_mark >= 5000000) {
-            const int64_t span = t3 - t_mark;
-            ESP_LOGI(TAG, "timing 5s: %lld kbit/s, net %d%%, lease %d%%, write %d%%, "
-                     "%lld reads avg %lld B (%lld under %d), internal free %u min %u, TCP_WND %d",
-                     (long long)((got + n - got_mark) * 8000 / span),
-                     (int)(w_net * 100 / span), (int)(w_lease * 100 / span),
-                     (int)(w_write * 100 / span), (long long)w_reads,
-                     (long long)(w_reads ? (got + n - got_mark) / w_reads : 0),
-                     (long long)w_small, DL_CHUNK / 2,
+        wr_item_t it;
+        const int64_t t0 = esp_timer_get_time();
+        xQueueReceive(s_wr.free_, &it, portMAX_DELAY);
+        const int64_t t1 = esp_timer_get_time();
+        t_wait += t1 - t0; w_wait += t1 - t0;
+        if (s_wr.err) {
+            xQueueSend(s_wr.free_, &it, 0);
+            ok = false;
+            ESP_LOGW(TAG, "write failed after %lld bytes (errno %d)",
+                     (long long)(from + s_wr.put), s_wr.err_no);
+            break;
+        }
+        const int n = esp_http_client_read(c, (char *)it.p, DL_CHUNK);
+        const int64_t t2 = esp_timer_get_time();
+        t_net += t2 - t1; w_net += t2 - t1;
+        if (n <= 0) {
+            xQueueSend(s_wr.free_, &it, 0);
+            if (n < 0) { ok = false; ESP_LOGW(TAG, "read failed after %lld bytes", (long long)got); }
+            break;
+        }
+        it.len = n;
+        xQueueSend(s_wr.full, &it, portMAX_DELAY);
+        got += n;
+        if (t2 - t_mark >= 5000000) {
+            const int64_t span = t2 - t_mark;
+            const int64_t wl = s_wr.t_lease, ww = s_wr.t_write;
+            ESP_LOGI(TAG, "timing 5s: %lld kbit/s, net %d%%, wait %d%%, lease %d%%, write %d%%, "
+                     "internal free %u min %u, TCP_WND %d",
+                     (long long)((got - got_mark) * 8000 / span),
+                     (int)(w_net * 100 / span), (int)(w_wait * 100 / span),
+                     (int)((wl - wl_mark) * 100 / span), (int)((ww - ww_mark) * 100 / span),
                      (unsigned)heap_caps_get_free_size(MALLOC_CAP_INTERNAL),
                      (unsigned)heap_caps_get_minimum_free_size(MALLOC_CAP_INTERNAL),
                      (int)TCP_WND);
-            t_mark = t3; got_mark = got + n;
-            w_net = w_lease = w_write = w_reads = w_small = 0;
+            t_mark = t2; got_mark = got;
+            wl_mark = wl; ww_mark = ww;
+            w_net = w_wait = 0;
         }
-        if (put != (size_t)n) {
-            ok = false;
-            ESP_LOGW(TAG, "write failed after %lld bytes (errno %d)", (long long)got, errno);
-            break;
-        }
-        got += n;
         stop = set_progress(got);
         if (stop != RUN) break;
     }
+    /* 8036: the end marker, then wait for every chunk before it to land. */
+    {
+        const wr_item_t end = { NULL, 0 };
+        xQueueSend(s_wr.full, &end, portMAX_DELAY);
+        xSemaphoreTake(s_wr.done, portMAX_DELAY);
+    }
+    if (s_wr.err) {
+        if (ok) ESP_LOGW(TAG, "write failed after %lld bytes (errno %d)",
+                         (long long)(from + s_wr.put), s_wr.err_no);
+        ok = false;
+    }
+    got = from + s_wr.put;              /* what the part file holds */
     {
         const int64_t span = esp_timer_get_time() - t_start;
         if (span > 0)
-            ESP_LOGI(TAG, "timing total: %lld bytes in %lld ms = %lld kbit/s; net %d%%, lease %d%%, "
-                     "write %d%%; %lld reads, %lld under %d B",
+            ESP_LOGI(TAG, "timing total: %lld bytes in %lld ms = %lld kbit/s; net %d%%, wait %d%%, "
+                     "lease %d%%, write %d%%",
                      (long long)(got - from), (long long)(span / 1000),
                      (long long)((got - from) * 8000 / span),
-                     (int)(t_net * 100 / span), (int)(t_lease * 100 / span),
-                     (int)(t_write * 100 / span), (long long)n_reads, (long long)n_small,
-                     DL_CHUNK / 2);
+                     (int)(t_net * 100 / span), (int)(t_wait * 100 / span),
+                     (int)(s_wr.t_lease * 100 / span), (int)(s_wr.t_write * 100 / span));
     }
+closed:
     storage_io_acquire(STORAGE_IO_BACKGROUND);
     if (storage_io_close(f) != 0) ok = false;
     f = NULL;

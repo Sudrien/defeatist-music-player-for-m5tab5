@@ -415,13 +415,13 @@ CONFIG_SPIRAM_TRY_ALLOCATE_WIFI_LWIP=y
 #
 # rm sdkconfig before building, as above.
 #
-# 8201: BACK ON, AS AN EXPERIMENT. Podcast downloads ran at 0.9-1.2
+# 8035: BACK ON, AS AN EXPERIMENT. Podcast downloads ran at 0.9-1.2
 # Mbit/s against a 38 ms Fastly edge, where the 16 KB window allows 3.4,
-# with 80% of the time inside esp_http_client_read (8200's timing line).
+# with 80% of the time inside esp_http_client_read (8034's timing line).
 # This tests whether software AES-GCM is part of that. Since 5052 the
 # radio's buffers, queued packets and SDIO staging moved to PSRAM
 # (5078/5079/5092) and 64 KB of internal RAM is reserved for DMA
-# (SPIRAM_MALLOC_RESERVE_INTERNAL); 8200's log showed internal free
+# (SPIRAM_MALLOC_RESERVE_INTERNAL); 8034's log showed internal free
 # steady at 96 KB during a download. If `esp-aes: Failed to allocate`
 # comes back -- try it with the RTL8152 plugged in and a stream playing,
 # 5052's case -- set these two back to "is not set".

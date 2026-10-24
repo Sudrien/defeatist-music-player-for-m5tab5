@@ -30,10 +30,15 @@
 #include <string.h>
 
 #include "podfeeds.h"
+#include "podhtml.h"           /* 8026 */
 
 #define PODEPS_MAX       60         /* the request asks for 40 */
 #define PODEPS_TITLE_MAX PODFEEDS_TITLE_MAX
 #define PODEPS_URL_MAX   512
+/* 8026: the show notes, as text. Taken from the first 1024 bytes of the
+ * HTML -- markup included -- so a long one is its start, which is the
+ * part that says what the episode is. */
+#define PODEPS_DESC_MAX  1024
 
 typedef struct {
     int64_t id;
@@ -42,6 +47,7 @@ typedef struct {
     int64_t size;                   /* 8024: enclosureLength, bytes, 0 if not given */
     char    title[PODEPS_TITLE_MAX];
     char    url[PODEPS_URL_MAX];
+    char    desc[PODEPS_DESC_MAX];  /* 8026: podhtml.h's text, "" if none */
 } podep_t;
 
 /* A non-negative integer value at `v`, or 0. */
@@ -99,6 +105,9 @@ static inline int podeps_parse(const char *body, size_t n, podep_t *out, int max
             e->duration = (int32_t)podeps_num(podfeeds_find(p, close, "duration"), close);
             e->published = podeps_num(podfeeds_find(p, close, "datePublished"), close);
             e->size = podeps_num(podfeeds_find(p, close, "enclosureLength"), close);
+            const char *dv = podfeeds_find(p, close, "description");
+            if (!dv || !podfeeds_str(dv, close, e->desc, sizeof(e->desc))) e->desc[0] = '\0';
+            podhtml_text(e->desc);
             count++;
         }
         p = close;

@@ -213,6 +213,8 @@ it:
     # sleeppage.c
     "Dim screen": "Attenua schermo"
     # browser.c
+    "Download to %s": ~
+    # browser.c
     "EAT": "MANGIA"
     # browser.c
     "EAT1": "MANGIA1"
@@ -704,8 +706,6 @@ it:
     "coming up": "in avvio"
     # panel.c
     "connected": "collegato"
-    # browser.c
-    "download to which drive?": ~
     # browser.c
     "downloaded - tap it again to play": ~
     # browser.c

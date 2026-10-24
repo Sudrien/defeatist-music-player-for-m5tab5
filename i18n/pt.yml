@@ -213,6 +213,8 @@ pt:
     # sleeppage.c
     "Dim screen": "Escurecer tela"
     # browser.c
+    "Download to %s": ~
+    # browser.c
     "EAT": "COMER"
     # browser.c
     "EAT1": "COMER1"
@@ -704,8 +706,6 @@ pt:
     "coming up": "iniciando"
     # panel.c
     "connected": "conectado"
-    # browser.c
-    "download to which drive?": ~
     # browser.c
     "downloaded - tap it again to play": ~
     # browser.c

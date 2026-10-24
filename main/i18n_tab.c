@@ -114,6 +114,7 @@ const char *const i18n_keys[] = {
     "Defeatist setup",
     "Deny",
     "Dim screen",
+    "Download to %s",
     "EAT",
     "EAT1",
     "ECHO",
@@ -360,7 +361,6 @@ const char *const i18n_keys[] = {
     "code %s",
     "coming up",
     "connected",
-    "download to which drive?",
     "downloaded - tap it again to play",
     "downloading - %s",
     "downloading - %s of %s",
@@ -556,6 +556,7 @@ const unsigned char i18n_on_screen[] = {
     0,  /* 'Defeatist setup' */
     1,  /* 'Deny' */
     1,  /* 'Dim screen' */
+    1,  /* 'Download to %s' */
     1,  /* 'EAT' */
     1,  /* 'EAT1' */
     1,  /* 'ECHO' */
@@ -802,7 +803,6 @@ const unsigned char i18n_on_screen[] = {
     1,  /* 'code %s' */
     1,  /* 'coming up' */
     1,  /* 'connected' */
-    1,  /* 'download to which drive?' */
     1,  /* 'downloaded - tap it again to play' */
     1,  /* 'downloading - %s' */
     1,  /* 'downloading - %s of %s' */
@@ -999,6 +999,7 @@ const char *const i18n_vals[] = {
     NULL,
     NULL,
     "Could not start\012the file.",
+    NULL,
     NULL,
     NULL,
     NULL,
@@ -1272,7 +1273,6 @@ const char *const i18n_vals[] = {
     NULL,
     NULL,
     NULL,
-    NULL,
     "it played, then ran\012out of buffer",
     NULL,
     NULL,
@@ -1450,6 +1450,7 @@ const char *const i18n_vals[] = {
     "Defeatist 设置",
     "拒绝",
     "屏幕变暗",
+    NULL,
     "播完删除",
     "删除1",
     "回声",
@@ -1699,7 +1700,6 @@ const char *const i18n_vals[] = {
     NULL,
     NULL,
     NULL,
-    NULL,
     "驱动器",
     NULL,
     "失败；原因见日志",
@@ -1888,6 +1888,7 @@ const char *const i18n_vals[] = {
     "Defeatist の設定",
     "拒否",
     "画面を暗く",
+    NULL,
     "消費",
     "消費1",
     "エコー",
@@ -2137,7 +2138,6 @@ const char *const i18n_vals[] = {
     NULL,
     NULL,
     NULL,
-    NULL,
     "ドライブ",
     NULL,
     "失敗。理由はログに",
@@ -2326,6 +2326,7 @@ const char *const i18n_vals[] = {
     "Configuración de Defeatist",
     "Denegar",
     "Atenuar pantalla",
+    NULL,
     "BORRAR",
     "BORRAR1",
     "ECO",
@@ -2575,7 +2576,6 @@ const char *const i18n_vals[] = {
     NULL,
     NULL,
     NULL,
-    NULL,
     "unidad",
     NULL,
     "falló; el registro dice por qué",
@@ -2764,6 +2764,7 @@ const char *const i18n_vals[] = {
     "Configuração do Defeatist",
     "Negar",
     "Escurecer tela",
+    NULL,
     "COMER",
     "COMER1",
     "ECO",
@@ -3013,7 +3014,6 @@ const char *const i18n_vals[] = {
     NULL,
     NULL,
     NULL,
-    NULL,
     "pendrive",
     NULL,
     "falhou; o log diz por quê",
@@ -3202,6 +3202,7 @@ const char *const i18n_vals[] = {
     "Configuration de Defeatist",
     "Refuser",
     "Assombrir l'écran",
+    NULL,
     "MANGER",
     "MANGER1",
     "ÉCHO",
@@ -3451,7 +3452,6 @@ const char *const i18n_vals[] = {
     NULL,
     NULL,
     NULL,
-    NULL,
     "clé",
     NULL,
     "échec ; le journal dit pourquoi",
@@ -3640,6 +3640,7 @@ const char *const i18n_vals[] = {
     "Configurazione di Defeatist",
     "Nega",
     "Attenua schermo",
+    NULL,
     "MANGIA",
     "MANGIA1",
     "ECO",
@@ -3886,7 +3887,6 @@ const char *const i18n_vals[] = {
     "codice %s",
     "in avvio",
     "collegato",
-    NULL,
     NULL,
     NULL,
     NULL,

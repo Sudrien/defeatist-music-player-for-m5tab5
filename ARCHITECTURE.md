@@ -26365,3 +26365,31 @@ rather than wrong. The episode fetch has its own bound now,
 PI_EPS_BODY_MAX, 512 KB of PSRAM for the length of the fetch; the
 podcast lists keep 256 KB, which a category's 40 have come nowhere near
 (55 KB). The log line still says when a reply fills it.
+
+### 8026 -- an episode's page before its download
+
+A tap on an episode no longer starts a download. It opens the episode's
+page: a `Download to <drive>` row for each drive that is in (none, and
+the status line says there is nowhere to put it), then its date, length
+and size, then its description -- as much as fits above the footer,
+wrapped by gfx_draw_para(), so right-to-left text is laid out as the
+rest of the screen lays it. UP goes back to the list. An episode already
+on a drive still plays at the first tap, and one downloading or with a
+part file still shows pause and cancel (8024); the page is for deciding,
+and those are decided.
+
+**The description.** Podcast Index passes on the feed's, which is HTML.
+podeps.h takes the first 1024 bytes of it (markup and all, so a long one
+is its start) and podhtml.h makes it text in place: tags go, the block
+ones (<br>, </p>, <li> ...) end a line, <script> and <style> go with
+their contents, the common named entities and every numeric one become
+their characters, spaces collapse and no empty lines are kept -- there
+is no room for them. In place because every rewrite is shorter than what
+it replaces. Not an HTML parser, and said so in the header. texttest
+run-podhtml, 18 checks; run-podeps, 17.
+
+A 1 KB description each makes the episode lists about 100 KB, twice
+(podindex.c's and the chooser's), PSRAM.
+
+podeps.h guards a missing description itself: podfeeds_str() takes no
+NULL, and ASan said so the first time an episode had none.

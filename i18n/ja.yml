@@ -213,6 +213,8 @@ ja:
     # sleeppage.c
     "Dim screen": "画面を暗く"
     # browser.c
+    "Download to %s": ~
+    # browser.c
     "EAT": "消費"
     # browser.c
     "EAT1": "消費1"
@@ -704,8 +706,6 @@ ja:
     "coming up": "起動中"
     # panel.c
     "connected": "接続済み"
-    # browser.c
-    "download to which drive?": ~
     # browser.c
     "downloaded - tap it again to play": ~
     # browser.c

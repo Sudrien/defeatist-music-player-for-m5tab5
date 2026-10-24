@@ -46,6 +46,17 @@ int main(void)
               (long long)e[0].published);
         CHECK(!strcmp(e[1].url, "http://cdn.x/ep2.m4a?x=1&y=2"), "escaped slashes: %s", e[1].url);
         CHECK(e[0].size == 583650930, "enclosureLength: %lld", (long long)e[0].size);
+        CHECK(!strcmp(e[0].desc, "{\"enclosureUrl\":\"http://not.this/\"}"), "the item's own description, as text: %s", e[0].desc);
+    }
+
+    printf("  the description\n");
+    {
+        const char *r = "{\"items\":[{\"id\":1,\"title\":\"t\",\"enclosureUrl\":\"https://a/1\","
+                        "\"description\":\"<p>On this episode &amp; more.<\\/p><p>Links: <a href=\\\"x\\\">here<\\/a><\\/p>\"},"
+                        "{\"id\":2,\"title\":\"u\",\"enclosureUrl\":\"https://a/2\"}]}";
+        CHECK(PARSE(r, PODEPS_MAX) == 2, "two");
+        CHECK(!strcmp(e[0].desc, "On this episode & more.\nLinks: here"), "%s", e[0].desc);
+        CHECK(e[1].desc[0] == '\0', "none: [%s]", e[1].desc);
     }
 
     printf("  what is dropped\n");

@@ -213,6 +213,8 @@ zh-CN:
     # sleeppage.c
     "Dim screen": "屏幕变暗"
     # browser.c
+    "Download to %s": ~
+    # browser.c
     "EAT": "播完删除"
     # browser.c
     "EAT1": "删除1"
@@ -704,8 +706,6 @@ zh-CN:
     "coming up": "启动中"
     # panel.c
     "connected": "已连接"
-    # browser.c
-    "download to which drive?": ~
     # browser.c
     "downloaded - tap it again to play": ~
     # browser.c

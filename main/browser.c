@@ -925,12 +925,15 @@ static void load_pod_act_rows(void)
     s_dirty = true;
 }
 
-/* 8020: the drive picker's rows, one per volume that is in. */
+/* 8020: the drive picker's rows, one per volume that is in. 8026: the
+ * episode's page, these rows over its description, for one drive too. */
 static void load_pod_pick_rows(void)
 {
     entries_free();
     for (int i = 0; i < s_pod_nvols && s_count < MAX_ENTRIES; i++) {
-        s_entries[s_count].name = strdup(storage_label(s_pod_vols[i]));
+        char row[64];
+        snprintf(row, sizeof(row), _("Download to %s"), storage_label(s_pod_vols[i]));
+        s_entries[s_count].name = strdup(row);
         if (!s_entries[s_count].name) break;
         s_entries[s_count].is_dir = true;
         s_count++;
@@ -1106,7 +1109,9 @@ static const char *status_line(void)
     if (s_pod) {                        /* 8008 */
         const podindex_state_t st = podindex_state(NULL, 0, NULL);
         if (st == PODINDEX_WORKING && s_pod_level == 3)        /* 8020 */
-            return s_pod_act ? _("this episode's download") : _("download to which drive?");
+            return s_pod_act ? _("this episode's download")
+                 : s_pod_nvols == 0 ? _("no card or USB drive to download to")     /* 8026 */
+                 : s_pod_pick < s_pod_en ? s_pod_eps[s_pod_pick].title : "";
         if (st == PODINDEX_WORKING && s_pod_level == 2) {      /* 8019 */
             static char eline[96];
             const podindex_cats_t es = podindex_eps(NULL, 0, NULL, NULL, NULL);
@@ -1719,6 +1724,36 @@ void browser_draw(void)
      * own address when it is up, else how to turn it on. Paragraphs, so
      * gfx wraps them and a translator gets each whole.
      */
+    /*
+     * 8026: an episode's page -- under its download rows, its length,
+     * size and date, then its description, as much as fits above the
+     * footer. A paragraph, so gfx wraps it and right-to-left text is laid
+     * out as gfx lays it out.
+     */
+    if (s_pod && s_pod_level == 3 && !s_pod_act && s_pod_pick < s_pod_en) {
+        const podep_t *e = &s_pod_eps[s_pod_pick];
+        const int px = 32, pw = w - 64 - SCROLL_W, step = GFX_GLYPH_H(LABEL_SCALE) + 10;
+        int py = LIST_TOP + s_count * ROW_H + 24;
+        const int bottom = h - FOOT_H - 8;
+        char l[16] = "", z[24] = "", d[16] = "", meta[64];
+        if (e->duration > 0) fmt_len(e->duration, l, sizeof(l));
+        if (e->size > 0)     fmt_mb(e->size, z, sizeof(z));
+        if (e->published > 0) {
+            char b[PODPATH_NAME_MAX + 16];
+            podpath_base(e->published, "", b, sizeof(b));      /* "YYYY-MM-DD " */
+            snprintf(d, sizeof(d), "%.10s", b);
+        }
+        snprintf(meta, sizeof(meta), "%s%s%s%s%s", d, d[0] && (l[0] || z[0]) ? "  " : "",
+                 l, l[0] && z[0] ? "  " : "", z);
+        if (meta[0] && py + step <= bottom) {
+            gfx_draw_text(px, py, meta, LABEL_SCALE, pw, C_DIM);
+            py += step + 8;
+        }
+        const int rows_left = (bottom - py) / step;
+        if (e->desc[0] && rows_left > 0)
+            gfx_draw_para(px, py, e->desc, LABEL_SCALE, pw, step, rows_left, C_TEXT);
+    }
+
     /* 8014: with a key the rows are the content, and the status line says
      * what is happening when there are none yet. */
     if (s_pod && podindex_state(NULL, 0, NULL) != PODINDEX_WORKING) {
@@ -2113,17 +2148,9 @@ browser_result_t browser_touch(bool down, int x, int y)
                 load_pod_act_rows();
                 return res;
             }
-            if (s_pod_nvols == 0) {
-                ESP_LOGI(TAG, "episode %lld: no card or drive to download to", (long long)s_pod_eps[i].id);
-                s_pod_note = _("no card or USB drive to download to");
-                s_dirty = true;
-                return res;
-            }
-            if (s_pod_nvols == 1) {
-                pod_download(i, s_pod_vols[0]);
-                s_dirty = true;
-                return res;
-            }
+            /* 8026: its page -- what it is, then where to put it -- for
+             * one drive, two, or none (the status line says so). */
+            s_pod_act = false;
             s_pod_pick = i;
             s_pod_level = 3;
             load_pod_pick_rows();

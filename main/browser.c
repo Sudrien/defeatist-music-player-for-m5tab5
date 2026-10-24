@@ -1615,6 +1615,11 @@ void browser_draw(void)
     gfx_fill_rect(0, LIST_TOP - 2, w, 2, C_RULE);
 
     const int rows = rows_visible();
+    /* 8028: the episode being downloaded, or paused, asked once a draw. */
+    int64_t dl_id = 0, dl_got = 0, dl_total = 0;
+    const poddl_state_t dl_st = (s_pod && s_pod_level == 2)
+        ? poddl_state(&dl_id, &dl_got, &dl_total, NULL, 0, NULL) : PODDL_IDLE;
+    const bool dl_live = dl_st == PODDL_RUNNING || dl_st == PODDL_PAUSED;
     for (int r = 0; r < rows; r++) {
         const int i = s_top + r;
         const int y = LIST_TOP + r * ROW_H;
@@ -1643,7 +1648,21 @@ void browser_draw(void)
          * to sit at the playing station's index. */
         const bool playing = s_radio
             ? (!s_radio_menu && i == s_playing_station)
-            : (!s_pod && !s_entries[i].is_dir && is_current(s_entries[i].name));  /* 8019: not an episode */
+            : s_pod                                                           /* 8028 */
+            ? (dl_live && i < s_pod_en && s_pod_eps[i].id == dl_id)
+            : (!s_entries[i].is_dir && is_current(s_entries[i].name));
+        /*
+         * 8028: the downloading episode is marked as the playing track
+         * is -- the accent on its note and title -- and a bar along the
+         * row's foot says how far it has got: the accent while it runs,
+         * dim while paused. No bar when the server gave no length.
+         */
+        if (playing && s_pod && dl_total > 0) {
+            int64_t fill = (int64_t)w * dl_got / dl_total;
+            if (fill > w) fill = w;
+            gfx_fill_rect(0, y + ROW_H - 5, w, 5, C_FAINT);
+            gfx_fill_rect(0, y + ROW_H - 5, (int)fill, 5, dl_st == PODDL_RUNNING ? C_ACCENT : C_DIM);
+        }
 
         if (s_entries[i].is_dir) {
             draw_folder_icon(48, y + ROW_H / 2, C_DIM);

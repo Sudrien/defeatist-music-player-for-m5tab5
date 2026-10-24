@@ -26430,3 +26430,14 @@ On the board, after `done:`: `I tab5_poddl: the podcast's picture: N KB
 as <dir>/cover.jpg` the first time, and `the episode's picture: ...`
 when it has its own; on playing it, `I tab5_folderart: the track's own
 picture (N KB)` or `cover.jpg from the folder`.
+
+### 8028 -- the downloading episode, marked in its list
+
+On a podcast's episode list, the episode being downloaded -- or paused
+-- is drawn as the playing track is on a volume tab: its note and title
+in the accent colour. A bar along the foot of its row, five pixels, says
+how far it has got: accent while it runs, dim while it is paused, over
+a faint track the row's width. No bar when the server gave no length;
+the title is still marked. The download's state is read once a draw, not
+once a row, and the list is already redrawn every 0.1 MB (8024), so the
+bar moves with the status line.

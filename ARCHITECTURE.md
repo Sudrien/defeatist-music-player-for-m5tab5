@@ -27188,3 +27188,19 @@ podcast's, still starts at the top.
 
 Compiled as 8037 was, against stub headers, with the same stub errors
 before and after. Not built with IDF, not run.
+
+On the board (8051): scrolled to row 9, opened row 13, went UP, and
+the next tap landed on row 13 again.
+
+### 8052 -- the actions follow the download
+
+8050 worked the actions out when they opened, so with them open before
+3 MB was in, `Play it while it downloads` never came; the listener had
+to go back and open them again. Now, while an episode's actions are
+open, each move of the download's generation (every 0.1 MB, 8024)
+builds them again -- no filesystem in it, only poddl_state() and
+poddl_live() -- so the row appears once 3 MB is in, and Pause and Go
+on follow the state as well. The list was already redrawn at that rate
+on the episode rows.
+
+Compiled as 8037 was; not built with IDF, not run.

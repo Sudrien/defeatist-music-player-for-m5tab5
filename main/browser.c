@@ -1669,7 +1669,15 @@ void browser_draw(void)
         {
             uint32_t g = 0;
             (void)poddl_state(NULL, NULL, NULL, NULL, 0, &g);
-            if (g != s_pod_dlgen) { s_pod_dlgen = g; if (s_pod_level == 2) s_dirty = true; }
+            if (g != s_pod_dlgen) {
+                s_pod_dlgen = g;
+                if (s_pod_level == 2) s_dirty = true;
+                /* 8052: an episode's actions, open while its download
+                 * moves on: "Play it while it downloads" comes once 3 MB
+                 * is in (8050), and Pause and Go on swap with the state.
+                 * Built again on each move; no filesystem in it. */
+                if (s_pod_level == 3 && s_pod_act) load_pod_act_rows();
+            }
         }
         /* 8019: a podcast's episodes arrived, or their state moved. */
         if (s_pod_level == 2 && podindex_eps_gen() != s_pod_egen) {

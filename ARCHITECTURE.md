@@ -26735,3 +26735,34 @@ numbers they were handed over with.
 Compiled with gcc -O2 -Wall -Werror=all against stub headers; not
 built with IDF, not run on the board. Expected: net near 100%, wait
 near 0, and 1.9-2.0 Mbit/s if the card was all of the difference.
+
+On the board (8036): 1.68-1.93 Mbit/s, net 99%, wait 0%, write 31-45%
+in the background, lease 0-1% with playback running; 1764 kbit/s over
+113.7 s in all. The writer used 1112 of its 6144 bytes of stack.
+Internal min-ever 69,104. That download went over the USB Ethernet
+(the default route), not Wi-Fi, so it is not like for like with
+8034's and 8035's first runs. It ended when the adapter dropped off
+the bus (`USBH_CDC: Device 1 suddenly disconnected`): `read failed
+after 25067264 bytes`, the part file kept whole for a tap to go on.
+
+### 8037 -- a stopped download, and part files, marked in the list
+
+8028 marked the downloading episode while it ran or was paused. One that
+stopped on an error (PODDL_FAILED) -- a dropped link, as at the end of
+8036's run -- went back to looking like every other row, though it keeps
+its part file and goes on at a tap. It is marked now as a paused one
+is: the title and note in the accent, the dim bar.
+
+Episodes with a part file from before -- stopped before the current
+download started, or before a reboot -- were not marked at all. Their
+rows now get the dim bar, against the size Podcast Index gave, and the
+note in the accent; the title stays plain, for this session's download.
+s_pod_part[] holds each row's part size, looked for once in
+load_pod_ep_rows() (poddl_part() on each drive that is in: up to two
+stat()s a row a drive), not once a draw. The row whose download has just
+finished is left unmarked, since its part file became the episode.
+
+Compiled with gcc -O2 -Wall -Werror=all against stub headers; browser.c
+needs more stubbing than was done, and the errors left were the same
+eight before and after this change, all from the stubs' gaps. Not built
+with IDF, not run.

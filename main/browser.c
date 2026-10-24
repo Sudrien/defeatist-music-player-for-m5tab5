@@ -190,6 +190,9 @@ static uint32_t  s_pod_fgen;
 static int       s_pod_feed;
 static podep_t   s_pod_eps[PODEPS_MAX];
 static int       s_pod_en;
+/* 8037: each episode row's part file on a drive, in bytes; 0 for none.
+ * Looked for once, when the rows are loaded, not once a draw. */
+static int64_t   s_pod_part[PODEPS_MAX];
 static uint32_t  s_pod_egen;
 /*
  * 8020: downloads. s_pod_show is the podcast's title, kept when its row
@@ -872,6 +875,8 @@ static void load_pod_feed_rows(void)
 }
 
 /* 8019: the episode rows, from podindex.c's list for s_pod_feed. */
+static bool pod_ep_where(storage_id_t vol, int ep, char *dir, size_t dsz, char *base, size_t bsz);  /* 8037 */
+
 static void load_pod_ep_rows(void)
 {
     /* 8033: as the podcasts, by the podcast's id. */
@@ -898,6 +903,22 @@ static void load_pod_ep_rows(void)
         if (!s_entries[s_count].name) break;
         s_entries[s_count].is_dir = false;      /* each is a thing to play */
         s_count++;
+    }
+    /* 8037: which have a part file -- stopped, paused or from before a
+     * reboot -- so the list can say so without a tap. Two stat()s a row
+     * a drive, here and not in the draw. */
+    {
+        static char dir[400], base[PODPATH_NAME_MAX + 16];
+        for (int i = 0; i < s_pod_en; i++) {
+            s_pod_part[i] = 0;
+            for (int v = 0; v < STORAGE_COUNT && !s_pod_part[i]; v++) {
+                int64_t sz = 0;
+                if (storage_present((storage_id_t)v) &&
+                    pod_ep_where((storage_id_t)v, i, dir, sizeof(dir), base, sizeof(base)) &&
+                    poddl_part(dir, base, &sz))
+                    s_pod_part[i] = sz > 0 ? sz : 1;
+            }
+        }
     }
     /* 8023: "Music Makers San Diego 203 - Dave Preston", forty times over:
      * the same elision a folder of files gets, and the same note under
@@ -1654,7 +1675,9 @@ void browser_draw(void)
     int64_t dl_id = 0, dl_got = 0, dl_total = 0;
     const poddl_state_t dl_st = (s_pod && s_pod_level == 2)
         ? poddl_state(&dl_id, &dl_got, &dl_total, NULL, 0, NULL) : PODDL_IDLE;
-    const bool dl_live = dl_st == PODDL_RUNNING || dl_st == PODDL_PAUSED;
+    /* 8037: and one that stopped on an error, which keeps its part file
+     * and goes on at a tap -- marked as a paused one is. */
+    const bool dl_live = dl_st == PODDL_RUNNING || dl_st == PODDL_PAUSED || dl_st == PODDL_FAILED;
     for (int r = 0; r < rows; r++) {
         const int i = s_top + r;
         const int y = LIST_TOP + r * ROW_H;
@@ -1698,11 +1721,27 @@ void browser_draw(void)
             gfx_fill_rect(0, y + ROW_H - 5, w, 5, C_FAINT);
             gfx_fill_rect(0, y + ROW_H - 5, (int)fill, 5, dl_st == PODDL_RUNNING ? C_ACCENT : C_DIM);
         }
+        /*
+         * 8037: any other episode with a part file -- one stopped before
+         * this download, or before a reboot -- gets the dim bar a paused
+         * one has, against the size Podcast Index gave, and its note in
+         * the accent; the title stays plain, which is for the one this
+         * session's download is on. Not the episode that download has
+         * just finished: its part file became the episode.
+         */
+        const bool parted = s_pod && s_pod_level == 2 && i < s_pod_en && s_pod_part[i] > 0 &&
+                            !playing && !(dl_st == PODDL_DONE && s_pod_eps[i].id == dl_id);
+        if (parted && s_pod_eps[i].size > 0) {
+            int64_t fill = (int64_t)w * s_pod_part[i] / s_pod_eps[i].size;
+            if (fill > w) fill = w;
+            gfx_fill_rect(0, y + ROW_H - 5, w, 5, C_FAINT);
+            gfx_fill_rect(0, y + ROW_H - 5, (int)fill, 5, C_DIM);
+        }
 
         if (s_entries[i].is_dir) {
             draw_folder_icon(48, y + ROW_H / 2, C_DIM);
         } else {
-            draw_note_icon(48, y + ROW_H / 2, playing ? C_ACCENT : C_DIM);
+            draw_note_icon(48, y + ROW_H / 2, playing || parted ? C_ACCENT : C_DIM);   /* 8037 */
         }
         /* Files only. See find_common_prefix() -- the name itself is
          * untouched; this is where the elision happens and the only

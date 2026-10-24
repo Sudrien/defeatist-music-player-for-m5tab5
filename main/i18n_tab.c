@@ -9,7 +9,7 @@
 #include <stddef.h>
 #include "i18n.h"
 
-const unsigned i18n_count = 430;
+const unsigned i18n_count = 437;
 const char *const i18n_keys[] = {
     "%.32s did not work. Try again.",
     "%d h",
@@ -83,6 +83,7 @@ const char *const i18n_keys[] = {
     "CHRG %d%%",
     "CLOSE",
     "Cancel",
+    "Cancel the download and delete it",
     "Cannot record",
     "Cert %.29s…",
     "Choose the network this player should use, and enter its password. It is tried before it is saved.",
@@ -130,6 +131,7 @@ const char *const i18n_keys[] = {
     "Files",
     "Focused: those two aimed out of it.",
     "For backlight life and battery. This panel cannot burn in.",
+    "Go on with the download",
     "HCUT",
     "HEADSET",
     "Headset, UAC: the jack, a USB mic.",
@@ -206,6 +208,7 @@ const char *const i18n_keys[] = {
     "Other or hidden network (type it below)",
     "Over Wi-Fi or a USB Ethernet cable.",
     "Password",
+    "Pause the download",
     "Play",
     "Play next",
     "Play or pause",
@@ -350,6 +353,7 @@ const char *const i18n_keys[] = {
     "You are reaching the player over Wi-Fi. Joining a different network drops this page; the player's NET tab shows which network it ended up on, and if the join fails it goes back to its saved networks within a minute.",
     "a guess",
     "all start with  %s",
+    "another episode is downloading",
     "app",
     "built",
     "capacity",
@@ -358,8 +362,8 @@ const char *const i18n_keys[] = {
     "connected",
     "download to which drive?",
     "downloaded - tap it again to play",
-    "downloading - %d MB",
-    "downloading - %d%%",
+    "downloading - %s",
+    "downloading - %s of %s",
     "drive",
     "episodes - Podcast Index did not answer; UP, then try again",
     "failed; the log says why",
@@ -397,6 +401,8 @@ const char *const i18n_keys[] = {
     "on the player",
     "only if not in the list",
     "optional",
+    "paused - %s",
+    "paused - %s of %s",
     "playback stopped",
     "plug in to keep playing",
     "podcasts - Podcast Index did not answer; tap PODCAST to try again",
@@ -422,16 +428,17 @@ const char *const i18n_keys[] = {
     "stations.m3u on the card",
     "stereo",
     "stop it on the player, or tap here",
+    "stopped at %s - tap it to go on",
     "stopped: the volume went away",
     "that",
     "the card would not take the write",
     "the directory did not answer",
     "the directory has nothing there",
-    "the download did not finish",
     "the setup network",
     "the station",
     "the stream did not start",
     "then http://%s/",
+    "this episode's download",
     "this player",
     "type",
     "unstar one to make room",
@@ -518,6 +525,7 @@ const unsigned char i18n_on_screen[] = {
     1,  /* 'CHRG %d%%' */
     1,  /* 'CLOSE' */
     1,  /* 'Cancel' */
+    1,  /* 'Cancel the download and delete it' */
     1,  /* 'Cannot record' */
     1,  /* 'Cert %.29s…' */
     0,  /* 'Choose the network this player should us' */
@@ -565,6 +573,7 @@ const unsigned char i18n_on_screen[] = {
     0,  /* 'Files' */
     1,  /* 'Focused: those two aimed out of it.' */
     1,  /* 'For backlight life and battery. This pan' */
+    1,  /* 'Go on with the download' */
     1,  /* 'HCUT' */
     1,  /* 'HEADSET' */
     1,  /* 'Headset, UAC: the jack, a USB mic.' */
@@ -641,6 +650,7 @@ const unsigned char i18n_on_screen[] = {
     0,  /* 'Other or hidden network (type it below)' */
     1,  /* 'Over Wi-Fi or a USB Ethernet cable.' */
     0,  /* 'Password' */
+    1,  /* 'Pause the download' */
     0,  /* 'Play' */
     0,  /* 'Play next' */
     0,  /* 'Play or pause' */
@@ -785,6 +795,7 @@ const unsigned char i18n_on_screen[] = {
     0,  /* 'You are reaching the player over Wi-Fi. ' */
     1,  /* 'a guess' */
     1,  /* 'all start with  %s' */
+    1,  /* 'another episode is downloading' */
     1,  /* 'app' */
     1,  /* 'built' */
     1,  /* 'capacity' */
@@ -793,8 +804,8 @@ const unsigned char i18n_on_screen[] = {
     1,  /* 'connected' */
     1,  /* 'download to which drive?' */
     1,  /* 'downloaded - tap it again to play' */
-    1,  /* 'downloading - %d MB' */
-    1,  /* 'downloading - %d%%' */
+    1,  /* 'downloading - %s' */
+    1,  /* 'downloading - %s of %s' */
     1,  /* 'drive' */
     1,  /* 'episodes - Podcast Index did not answer;' */
     1,  /* 'failed; the log says why' */
@@ -832,6 +843,8 @@ const unsigned char i18n_on_screen[] = {
     0,  /* 'on the player' */
     0,  /* 'only if not in the list' */
     0,  /* 'optional' */
+    1,  /* 'paused - %s' */
+    1,  /* 'paused - %s of %s' */
     1,  /* 'playback stopped' */
     1,  /* 'plug in to keep playing' */
     1,  /* 'podcasts - Podcast Index did not answer;' */
@@ -857,16 +870,17 @@ const unsigned char i18n_on_screen[] = {
     1,  /* 'stations.m3u on the card' */
     1,  /* 'stereo' */
     0,  /* 'stop it on the player, or tap here' */
+    1,  /* 'stopped at %s - tap it to go on' */
     1,  /* 'stopped: the volume went away' */
     1,  /* 'that' */
     1,  /* 'the card would not take the write' */
     1,  /* 'the directory did not answer' */
     1,  /* 'the directory has nothing there' */
-    1,  /* 'the download did not finish' */
     1,  /* 'the setup network' */
     1,  /* 'the station' */
     1,  /* 'the stream did not start' */
     1,  /* 'then http://%s/' */
+    1,  /* "this episode's download" */
     1,  /* 'this player' */
     1,  /* 'type' */
     1,  /* 'unstar one to make room' */
@@ -895,6 +909,7 @@ const unsigned char i18n_pon_screen[] = {
 /* [lang * i18n_count + key] */
 const char *const i18n_vals[] = {
     /* en */
+    NULL,
     NULL,
     NULL,
     NULL,
@@ -1024,6 +1039,7 @@ const char *const i18n_vals[] = {
     NULL,
     NULL,
     NULL,
+    NULL,
     "Insert a card or a USB\012drive to record to.",
     NULL,
     "It reached 4 GB, the\012most one file can hold.",
@@ -1071,6 +1087,7 @@ const char *const i18n_vals[] = {
     NULL,
     "Not enough memory\012to record.",
     "Nothing is plugged into\012the headset jack.",
+    NULL,
     NULL,
     NULL,
     NULL,
@@ -1255,6 +1272,7 @@ const char *const i18n_vals[] = {
     NULL,
     NULL,
     NULL,
+    NULL,
     "it played, then ran\012out of buffer",
     NULL,
     NULL,
@@ -1269,6 +1287,9 @@ const char *const i18n_vals[] = {
     NULL,
     NULL,
     "no network - check Wi-Fi or cable, tap again",
+    NULL,
+    NULL,
+    NULL,
     NULL,
     NULL,
     NULL,
@@ -1398,6 +1419,7 @@ const char *const i18n_vals[] = {
     "充电 %d%%",
     "关闭",
     "取消",
+    NULL,
     "无法录音",
     "证书 %.29s…",
     "选择本机要使用的网络并输入密码。保存前会先尝试连接。",
@@ -1445,6 +1467,7 @@ const char *const i18n_vals[] = {
     "文件",
     "定向：这两个麦克风朝屏幕外。",
     "为延长背光寿命并省电。此屏幕不会烧屏。",
+    NULL,
     "高切",
     "耳麦",
     "耳麦、UAC：插孔、USB 麦克风。",
@@ -1521,6 +1544,7 @@ const char *const i18n_vals[] = {
     "其他或隐藏网络（在下方输入）",
     "通过 Wi-Fi 或 USB 以太网线均可。",
     "密码",
+    NULL,
     "播放",
     "下一首播放",
     "播放或暂停",
@@ -1665,6 +1689,7 @@ const char *const i18n_vals[] = {
     "你正通过 Wi-Fi 连接播放器。连接其他网络会使此页面断开；播放器的 NET 标签页会显示它最终连接的网络，如果连接失败，它会在一分钟内回到已保存的网络。",
     "估计值",
     "全部以 %s 开头",
+    NULL,
     "应用",
     "构建时间",
     "容量",
@@ -1712,6 +1737,8 @@ const char *const i18n_vals[] = {
     "在播放器上",
     "仅当列表中没有时",
     "可选",
+    NULL,
+    NULL,
     "播放已停止",
     "请接上电源继续播放",
     NULL,
@@ -1737,16 +1764,17 @@ const char *const i18n_vals[] = {
     "卡上的 stations.m3u",
     "立体声",
     "在播放器上停止，或点这里",
+    NULL,
     "已停止：卷已移除",
     "该电台",
     "卡拒绝写入",
     "目录无响应",
     "目录中没有内容",
-    NULL,
     "设置网络",
     "电台",
     "音频流未能开始",
     "再打开 http://%s/",
+    NULL,
     "本机",
     "类型",
     "取消一个收藏以腾出空间",
@@ -1829,6 +1857,7 @@ const char *const i18n_vals[] = {
     "充電 %d%%",
     "閉じる",
     "キャンセル",
+    NULL,
     "録音できない",
     "証明書 %.29s…",
     "この機器が使うネットワークを選び、パスワードを入力してください。保存する前に接続を試します。",
@@ -1876,6 +1905,7 @@ const char *const i18n_vals[] = {
     "ファイル",
     "フォーカス：その2つを画面の外へ向ける。",
     "バックライト寿命と電池のため。この画面は焼き付かない。",
+    NULL,
     "HCUT",
     "ヘッドセット",
     "ヘッドセット、UAC：端子、USBマイク。",
@@ -1952,6 +1982,7 @@ const char *const i18n_vals[] = {
     "その他・非公開のネットワーク（下に入力）",
     "Wi-Fi でも USB イーサネットのケーブルでも。",
     "パスワード",
+    NULL,
     "再生",
     "次に再生",
     "再生・一時停止",
@@ -2096,6 +2127,7 @@ const char *const i18n_vals[] = {
     "あなたはWi-Fi経由でプレーヤーに接続しています。別のネットワークに接続するとこのページは切れます。プレーヤーのNETタブに接続先が表示され、接続に失敗した場合は1分以内に保存済みのネットワークに戻ります。",
     "推定",
     "すべて %s で始まる",
+    NULL,
     "アプリ",
     "ビルド日時",
     "容量",
@@ -2143,6 +2175,8 @@ const char *const i18n_vals[] = {
     "プレーヤーで",
     "リストにない場合のみ",
     "省略可",
+    NULL,
+    NULL,
     "再生停止",
     "給電して再生を続ける",
     NULL,
@@ -2168,16 +2202,17 @@ const char *const i18n_vals[] = {
     "カードの stations.m3u",
     "ステレオ",
     "プレーヤーで止めるか、ここをタップ",
+    NULL,
     "停止：ボリュームが外れた",
     "その局",
     "カードが書き込みを拒否",
     "ディレクトリが応答しない",
     "ディレクトリに何もない",
-    NULL,
     "設定用ネットワーク",
     "局",
     "ストリームが始まらない",
     "次に http://%s/",
+    NULL,
     "この機器",
     "種類",
     "1つ外して空きを作る",
@@ -2260,6 +2295,7 @@ const char *const i18n_vals[] = {
     "CARG %d%%",
     "CERRAR",
     "Cancelar",
+    NULL,
     "No se puede grabar",
     "Cert. %.29s…",
     "Elige la red que usará el reproductor e introduce su contraseña. Se prueba antes de guardarla.",
@@ -2307,6 +2343,7 @@ const char *const i18n_vals[] = {
     "Archivos",
     "Enfocado: esos dos, apuntando hacia fuera.",
     "Por la vida de la retroiluminación y la batería. Esta pantalla no se quema.",
+    NULL,
     "CAGUD",
     "AURICULAR",
     "Auricular, UAC: la toma, un micro USB.",
@@ -2383,6 +2420,7 @@ const char *const i18n_vals[] = {
     "Otra red u oculta (escríbela abajo)",
     "Por Wi-Fi o por un cable Ethernet USB.",
     "Contraseña",
+    NULL,
     "Reproducir",
     "Reproducir a continuación",
     "Reproducir o pausar",
@@ -2527,6 +2565,7 @@ const char *const i18n_vals[] = {
     "Llegas al reproductor por Wi-Fi. Conectarlo a otra red corta esta página; la pestaña NET del reproductor muestra en qué red quedó, y si falla vuelve a sus redes guardadas en menos de un minuto.",
     "estimada",
     "todos empiezan por  %s",
+    NULL,
     "aplicación",
     "compilado",
     "capacidad",
@@ -2574,6 +2613,8 @@ const char *const i18n_vals[] = {
     "en el reproductor",
     "solo si no está en la lista",
     "opcional",
+    NULL,
+    NULL,
     "reproducción detenida",
     "conéctalo para seguir",
     NULL,
@@ -2599,16 +2640,17 @@ const char *const i18n_vals[] = {
     "stations.m3u de la tarjeta",
     "estéreo",
     "detenla en el reproductor, o toca aquí",
+    NULL,
     "detenido: el volumen se fue",
     "esa",
     "la tarjeta no aceptó\012la escritura",
     "el directorio no respondió",
     "el directorio no tiene nada ahí",
-    NULL,
     "la red de configuración",
     "la emisora",
     "el flujo no empezó",
     "luego http://%s/",
+    NULL,
     "este equipo",
     "tipo",
     "quita una estrella\012para hacer sitio",
@@ -2691,6 +2733,7 @@ const char *const i18n_vals[] = {
     "CARR %d%%",
     "FECHAR",
     "Cancelar",
+    NULL,
     "Não dá p/ gravar",
     "Cert. %.29s…",
     "Escolha a rede que este player vai usar e digite a senha. Ela é testada antes de ser salva.",
@@ -2738,6 +2781,7 @@ const char *const i18n_vals[] = {
     "Arquivos",
     "Focado: esses dois, virados para fora.",
     "Pela vida útil da luz de fundo e pela bateria. Esta tela não marca.",
+    NULL,
     "CAGUD",
     "HEADSET",
     "Headset, UAC: o P2, um microfone USB.",
@@ -2814,6 +2858,7 @@ const char *const i18n_vals[] = {
     "Outra rede ou rede oculta (digite abaixo)",
     "Por Wi-Fi ou por um cabo Ethernet USB.",
     "Senha",
+    NULL,
     "Tocar",
     "Tocar em seguida",
     "Tocar ou pausar",
@@ -2958,6 +3003,7 @@ const char *const i18n_vals[] = {
     "Você está acessando o player pelo Wi-Fi. Conectá-lo a outra rede derruba esta página; a aba NET do player mostra em qual rede ele ficou, e se a conexão falhar ele volta às redes salvas em menos de um minuto.",
     "estimada",
     "todos começam com  %s",
+    NULL,
     "app",
     "compilado",
     "capacidade",
@@ -3005,6 +3051,8 @@ const char *const i18n_vals[] = {
     "no player",
     "só se não estiver na lista",
     "opcional",
+    NULL,
+    NULL,
     "reprodução parada",
     "conecte para continuar",
     NULL,
@@ -3030,16 +3078,17 @@ const char *const i18n_vals[] = {
     "stations.m3u do cartão",
     "estéreo",
     "pare no player, ou toque aqui",
+    NULL,
     "parado: o volume sumiu",
     "essa",
     "o cartão não aceitou\012a gravação",
     "o diretório não respondeu",
     "o diretório não tem nada aí",
-    NULL,
     "a rede de configuração",
     "a rádio",
     "o stream não começou",
     "depois http://%s/",
+    NULL,
     "este player",
     "tipo",
     "desmarque um favorito\012para abrir espaço",
@@ -3122,6 +3171,7 @@ const char *const i18n_vals[] = {
     "CHRG %d%%",
     "FERMER",
     "Annuler",
+    NULL,
     "Enreg. impossible",
     "Cert. %.29s…",
     "Choisissez le réseau que ce lecteur doit utiliser et saisissez son mot de passe. Il est essayé avant d'être enregistré.",
@@ -3169,6 +3219,7 @@ const char *const i18n_vals[] = {
     "Fichiers",
     "Dirigé : ces deux-là, tournés vers l'extérieur.",
     "Pour la durée du rétroéclairage et la batterie. Cet écran ne marque pas.",
+    NULL,
     "CHAUT",
     "CASQUE",
     "Casque, UAC : la prise, un micro USB.",
@@ -3245,6 +3296,7 @@ const char *const i18n_vals[] = {
     "Autre réseau ou réseau masqué (saisissez-le ci-dessous)",
     "Par Wi-Fi ou par un câble Ethernet USB.",
     "Mot de passe",
+    NULL,
     "Lire",
     "Lire ensuite",
     "Lecture ou pause",
@@ -3389,6 +3441,7 @@ const char *const i18n_vals[] = {
     "Vous joignez le lecteur par le Wi-Fi. Rejoindre un autre réseau coupe cette page ; l'onglet NET du lecteur indique sur quel réseau il a fini, et si la connexion échoue, il revient à ses réseaux enregistrés en moins d'une minute.",
     "estimé",
     "tous commencent par  %s",
+    NULL,
     "app",
     "compilé",
     "capacité",
@@ -3436,6 +3489,8 @@ const char *const i18n_vals[] = {
     "sur le lecteur",
     "seulement s'il n'est pas dans la liste",
     "facultatif",
+    NULL,
+    NULL,
     "lecture arrêtée",
     "branchez pour continuer",
     NULL,
@@ -3461,16 +3516,17 @@ const char *const i18n_vals[] = {
     "stations.m3u de la carte",
     "stéréo",
     "arrêtez-le sur le lecteur, ou touchez ici",
+    NULL,
     "arrêté : le volume a disparu",
     "celle-ci",
     "la carte a refusé\012l'écriture",
     "l'annuaire n'a pas répondu",
     "l'annuaire n'a rien ici",
-    NULL,
     "le réseau de configuration",
     "la radio",
     "le flux n'a pas démarré",
     "puis http://%s/",
+    NULL,
     "ce lecteur",
     "type",
     "retirez un favori\012pour faire de la place",
@@ -3553,6 +3609,7 @@ const char *const i18n_vals[] = {
     "CARIC %d%%",
     "CHIUDI",
     "Annulla",
+    NULL,
     "Non registra",
     "Cert. %.29s…",
     "Scegli la rete che questo lettore deve usare e inserisci la password. Viene provata prima di salvarla.",
@@ -3600,6 +3657,7 @@ const char *const i18n_vals[] = {
     "File",
     "Diretto: quei due, rivolti verso l'esterno.",
     "Per la durata della retroilluminazione e della batteria. Questo schermo non si segna.",
+    NULL,
     "TALTI",
     "CUFFIA",
     "Cuffia, UAC: il jack, un microfono USB.",
@@ -3676,6 +3734,7 @@ const char *const i18n_vals[] = {
     "Altra rete o rete nascosta (scrivila sotto)",
     "Via Wi-Fi o con un cavo Ethernet USB.",
     "Password",
+    NULL,
     "Riproduci",
     "Riproduci dopo",
     "Riproduci o pausa",
@@ -3820,6 +3879,7 @@ const char *const i18n_vals[] = {
     "Stai raggiungendo il lettore via Wi-Fi. Collegarlo a un'altra rete chiude questa pagina; la scheda NET del lettore mostra su quale rete è finito, e se il collegamento fallisce torna alle reti salvate entro un minuto.",
     "stimata",
     "iniziano tutti con  %s",
+    NULL,
     "app",
     "compilato",
     "capacità",
@@ -3867,6 +3927,8 @@ const char *const i18n_vals[] = {
     "sul lettore",
     "solo se non è nell'elenco",
     "facoltativo",
+    NULL,
+    NULL,
     "riproduzione fermata",
     "collega per continuare",
     NULL,
@@ -3892,16 +3954,17 @@ const char *const i18n_vals[] = {
     "stations.m3u della scheda",
     "stereo",
     "fermala sul lettore, o tocca qui",
+    NULL,
     "fermato: il volume è sparito",
     "quella",
     "la scheda ha rifiutato\012la scrittura",
     "la directory non ha risposto",
     "la directory non ha niente lì",
-    NULL,
     "la rete di configurazione",
     "la radio",
     "lo stream non è partito",
     "poi http://%s/",
+    NULL,
     "questo lettore",
     "tipo",
     "togli un preferito\012per fare spazio",

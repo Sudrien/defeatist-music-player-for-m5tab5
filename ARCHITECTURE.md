@@ -26321,3 +26321,36 @@ the date: there the shared start is `2026-10-` for a month's episodes,
 and the rows would read `23 Music Makers ...`. That is the existing
 behaviour for any folder and a change to find_common_prefix() if it is
 to change.
+
+### 8024 -- sizes, pause, cancel and resume
+
+**Sizes.** Each episode row shows its length and size at its right end
+(`1:15:06  556.6 MB`), from the episode's `duration` and its
+`enclosureLength`, which podeps.h now keeps. The title gives up that
+much width. The status line during a download says `downloading - 12.3
+of 556.6 MB` (or `downloading - 12.3 MB` when the server gives no
+length), not a percentage; its generation moves every 0.1 MB. MB here
+is 2^20 bytes, as a card's free space is shown.
+
+**Pause and cancel.** A tap on the episode that is downloading -- or one
+with a part file on a drive -- shows two rows: `Pause the download` (or
+`Go on with the download`) and `Cancel the download and delete it`; UP
+for neither. Another episode tapped while one downloads says so.
+
+**Resume.** The part file is now `<base>.part`, without the extension,
+which is only known once the server answers. A start finds it and asks
+for the rest with `Range: bytes=<size>-` on every hop of the redirects:
+206 appends; 200 means the server sends the whole thing, so it starts
+over; 416 drops the part and asks once for the whole. So a paused
+download, one cut off by a dropped link, and one interrupted by a
+reboot all go on from where they were. A failure keeps its part file now
+for that reason; only a cancel removes one. The size comes from
+stat()'s st_size, an off_t, so a part past 2 GB would start over rather
+than resume in the wrong place.
+
+dl_task() was restructured for this -- the request, the open mode and
+the stop at each chunk -- which is the smallest correct change and is
+said here so the diff is not read as a small one.
+
+On the board: `to <path> (B bytes, from F)`, `paused at N bytes`,
+`cancelled at N bytes`, and on a resume `206` implied by `from` > 0.

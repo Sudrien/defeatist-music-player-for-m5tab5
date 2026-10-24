@@ -202,6 +202,10 @@ static char         s_pod_show[PODFEEDS_TITLE_MAX];
 static int          s_pod_pick;
 static storage_id_t s_pod_vols[STORAGE_COUNT];
 static int          s_pod_nvols;
+/* 8024: level 3 is the drive picker, or -- for the episode that is
+ * downloading, paused or stopped -- its two actions. */
+static bool         s_pod_act;
+static storage_id_t s_pod_act_vol;      /* where that episode's part file is */
 static uint32_t     s_pod_dlgen;
 static const char  *s_pod_note;         /* a one-off answer to the last tap, or NULL */
 /*
@@ -889,6 +893,38 @@ static void pod_download(int ep, storage_id_t vol)
         ESP_LOGI(TAG, "episode %lld: another download is running", (long long)s_pod_eps[ep].id);
 }
 
+/* 8024: bytes as "12.3 MB", tenths of a MiB, which is what a card's
+ * free space and a file manager say. */
+static void fmt_mb(int64_t b, char *out, size_t cap)
+{
+    const int64_t t = b * 10 >> 20;
+    snprintf(out, cap, "%lld.%lld MB", (long long)(t / 10), (long long)(t % 10));
+}
+
+/* 8024: seconds as "1:02:03" or "2:03". */
+static void fmt_len(int32_t s, char *out, size_t cap)
+{
+    if (s >= 3600) snprintf(out, cap, "%d:%02d:%02d", (int)(s / 3600), (int)(s / 60 % 60), (int)(s % 60));
+    else           snprintf(out, cap, "%d:%02d", (int)(s / 60), (int)(s % 60));
+}
+
+/* 8024: the actions for the episode being downloaded. */
+static void load_pod_act_rows(void)
+{
+    entries_free();
+    const poddl_state_t ds = poddl_state(NULL, NULL, NULL, NULL, 0, NULL);
+    const char *rows[2] = { ds == PODDL_RUNNING ? _("Pause the download") : _("Go on with the download"),
+                            _("Cancel the download and delete it") };
+    for (int i = 0; i < 2 && s_count < MAX_ENTRIES; i++) {
+        s_entries[s_count].name = strdup(rows[i]);
+        if (!s_entries[s_count].name) break;
+        s_entries[s_count].is_dir = true;
+        s_count++;
+    }
+    s_top = 0;
+    s_dirty = true;
+}
+
 /* 8020: the drive picker's rows, one per volume that is in. */
 static void load_pod_pick_rows(void)
 {
@@ -1070,7 +1106,7 @@ static const char *status_line(void)
     if (s_pod) {                        /* 8008 */
         const podindex_state_t st = podindex_state(NULL, 0, NULL);
         if (st == PODINDEX_WORKING && s_pod_level == 3)        /* 8020 */
-            return _("download to which drive?");
+            return s_pod_act ? _("this episode's download") : _("download to which drive?");
         if (st == PODINDEX_WORKING && s_pod_level == 2) {      /* 8019 */
             static char eline[96];
             const podindex_cats_t es = podindex_eps(NULL, 0, NULL, NULL, NULL);
@@ -1082,15 +1118,23 @@ static const char *status_line(void)
                 const poddl_state_t ds = poddl_state(&id, &got, &total, NULL, 0, NULL);
                 bool mine = false;
                 for (int k = 0; k < s_pod_en && !mine; k++) mine = s_pod_eps[k].id == id;
-                if (mine && ds == PODDL_RUNNING) {
-                    if (total > 0)
-                        snprintf(eline, sizeof(eline), _("downloading - %d%%"), (int)(got * 100 / total));
-                    else
-                        snprintf(eline, sizeof(eline), _("downloading - %d MB"), (int)(got >> 20));
+                /* 8024: sizes, not a percentage; and a tap on the episode
+                 * gives its pause and cancel. */
+                char a[24], b[24];
+                fmt_mb(got, a, sizeof(a));
+                fmt_mb(total, b, sizeof(b));
+                if (mine && (ds == PODDL_RUNNING || ds == PODDL_PAUSED)) {
+                    const char *fmt = ds == PODDL_PAUSED
+                        ? (total > 0 ? _("paused - %s of %s") : _("paused - %s"))
+                        : (total > 0 ? _("downloading - %s of %s") : _("downloading - %s"));
+                    snprintf(eline, sizeof(eline), fmt, a, b);
                     return eline;
                 }
                 if (mine && ds == PODDL_DONE) return _("downloaded - tap it again to play");
-                if (mine && ds == PODDL_FAILED) return _("the download did not finish");
+                if (mine && ds == PODDL_FAILED) {
+                    snprintf(eline, sizeof(eline), _("stopped at %s - tap it to go on"), a);
+                    return eline;
+                }
             }
             if (es == PODINDEX_CATS_LOADING) return _("podcasts - asking Podcast Index for the episodes");
             if (es == PODINDEX_CATS_FAILED && s_count == 0)
@@ -1620,7 +1664,19 @@ void browser_draw(void)
         const bool starrable = s_radio ? !s_radio_menu : !s_pod;   /* 8014: nothing to star yet */
         /* 8021: nor the way back to a podcast. */
         const bool is_link = !s_radio && !s_pod && s_dir_link && i == 0;
-        const int  name_w = w - 112 - SCROLL_W - (starrable && !is_link ? STAR_W : 0);
+        /* 8024: an episode's length and size at the row's right end. */
+        char meta[40] = "";
+        if (s_pod && s_pod_level == 2 && i < s_pod_en) {
+            char l[16] = "", z[24] = "";
+            if (s_pod_eps[i].duration > 0) fmt_len(s_pod_eps[i].duration, l, sizeof(l));
+            if (s_pod_eps[i].size > 0)     fmt_mb(s_pod_eps[i].size, z, sizeof(z));
+            snprintf(meta, sizeof(meta), "%s%s%s", l, l[0] && z[0] ? "  " : "", z);
+        }
+        const int  meta_w = meta[0] ? gfx_text_w(meta, LABEL_SCALE) + 24 : 0;
+        if (meta[0])
+            gfx_draw_text(w - SCROLL_W - 16 - (meta_w - 24), y + (ROW_H - GFX_GLYPH_H(LABEL_SCALE)) / 2,
+                          meta, LABEL_SCALE, meta_w, C_DIM);
+        const int  name_w = w - 112 - SCROLL_W - (starrable && !is_link ? STAR_W : 0) - meta_w;
         gfx_draw_text(96, y + (ROW_H - GFX_GLYPH_H(NAME_SCALE)) / 2, label,
                       NAME_SCALE, name_w, playing ? C_ACCENT : C_TEXT);
 
@@ -1852,7 +1908,8 @@ browser_result_t browser_touch(bool down, int x, int y)
         if (s_pod && which == 0) {
             /* 8019: from the episodes back to the podcasts, which are
              * still held, so no request. */
-            if (s_pod_level == 3) {             /* 8020: no drive chosen */
+            if (s_pod_level == 3) {             /* 8020: no drive chosen; 8024: no action */
+                s_pod_act = false;
                 s_pod_level = 2;
                 load_pod_ep_rows();
             } else if (s_pod_level == 2 && s_pod_linked) {
@@ -1955,7 +2012,8 @@ browser_result_t browser_touch(bool down, int x, int y)
     if (i >= s_count) return res;
 
     ESP_LOGI(TAG, "button: row %d (%s) \"%s\"", i,
-             s_pod ? (s_pod_level == 3 ? "drive" : s_pod_level == 2 ? "episode"           /* 8018-8020 */
+             s_pod ? (s_pod_level == 3 ? (s_pod_act ? "action" : "drive")             /* 8024 */
+                      : s_pod_level == 2 ? "episode"           /* 8018-8020 */
                       : s_pod_level ? "podcast" : "category")
                    : s_radio ? "station" : s_entries[i].is_dir ? "dir" : "file",
              s_entries[i].name);
@@ -1992,6 +2050,17 @@ browser_result_t browser_touch(bool down, int x, int y)
             pod_fetch_eps();
             return res;
         }
+        if (s_pod_level == 3 && s_pod_act) {
+            /* 8024: pause or go on; cancel. */
+            const poddl_state_t ds = poddl_state(NULL, NULL, NULL, NULL, 0, NULL);
+            if (i == 0 && ds == PODDL_RUNNING) poddl_pause();
+            else if (i == 0 && s_pod_pick < s_pod_en) pod_download(s_pod_pick, s_pod_act_vol);
+            else if (i == 1) poddl_cancel();
+            s_pod_act = false;
+            s_pod_level = 2;
+            load_pod_ep_rows();
+            return res;
+        }
         if (s_pod_level == 3) {
             /* 8020: a drive row. */
             if (i < s_pod_nvols && s_pod_pick < s_pod_en) pod_download(s_pod_pick, s_pod_vols[i]);
@@ -2020,10 +2089,28 @@ browser_result_t browser_touch(bool down, int x, int y)
                     return res;
                 }
             }
+            /* 8024: a part file of this episode on a drive -- paused, cut
+             * off, or from before a reboot. */
+            storage_id_t part_vol = STORAGE_COUNT;
+            for (int k = 0; k < s_pod_nvols && part_vol == STORAGE_COUNT; k++)
+                if (pod_ep_where(s_pod_vols[k], i, dir, sizeof(dir), base, sizeof(base)) &&
+                    poddl_part(dir, base, NULL))
+                    part_vol = s_pod_vols[k];
             int64_t id = 0;
-            if (poddl_state(&id, NULL, NULL, NULL, 0, NULL) == PODDL_RUNNING) {
-                ESP_LOGI(TAG, "episode %lld: %s", (long long)s_pod_eps[i].id,
-                         id == s_pod_eps[i].id ? "downloading" : "another download is running");
+            const poddl_state_t ds = poddl_state(&id, NULL, NULL, NULL, 0, NULL);
+            if (ds == PODDL_RUNNING && id != s_pod_eps[i].id) {
+                ESP_LOGI(TAG, "episode %lld: another download is running", (long long)s_pod_eps[i].id);
+                s_pod_note = _("another episode is downloading");
+                s_dirty = true;
+                return res;
+            }
+            /* 8024: this episode, running or with a part file: its actions. */
+            if ((ds == PODDL_RUNNING && id == s_pod_eps[i].id) || part_vol != STORAGE_COUNT) {
+                s_pod_pick = i;
+                s_pod_act = true;
+                s_pod_act_vol = part_vol != STORAGE_COUNT ? part_vol : s_pod_vols[0];
+                s_pod_level = 3;
+                load_pod_act_rows();
                 return res;
             }
             if (s_pod_nvols == 0) {

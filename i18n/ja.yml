@@ -150,6 +150,8 @@ ja:
     "CLOSE": "閉じる"
     # ui.c
     "Cancel": "キャンセル"
+    # browser.c
+    "Cancel the download and delete it": ~
     # player.c
     "Cannot record": "録音できない"
     # panel.c
@@ -244,6 +246,8 @@ ja:
     "Focused: those two aimed out of it.": "フォーカス：その2つを画面の外へ向ける。"
     # sleeppage.c
     "For backlight life and battery. This panel cannot burn in.": "バックライト寿命と電池のため。この画面は焼き付かない。"
+    # browser.c
+    "Go on with the download": ~
     # ui.c
     "HCUT": "HCUT"
     # panel.c
@@ -396,6 +400,8 @@ ja:
     "Over Wi-Fi or a USB Ethernet cable.": "Wi-Fi でも USB イーサネットのケーブルでも。"
     # portal.c, remote.html
     "Password": "パスワード"
+    # browser.c
+    "Pause the download": ~
     # remote.html
     "Play": "再生"
     # remote.html
@@ -684,6 +690,8 @@ ja:
     "a guess": "推定"
     # browser.c
     "all start with  %s": "すべて %s で始まる"
+    # browser.c
+    "another episode is downloading": ~
     # panel.c
     "app": "アプリ"
     # panel.c
@@ -701,9 +709,9 @@ ja:
     # browser.c
     "downloaded - tap it again to play": ~
     # browser.c
-    "downloading - %d MB": ~
+    "downloading - %s": ~
     # browser.c
-    "downloading - %d%%": ~
+    "downloading - %s of %s": ~
     # panel.c
     "drive": "ドライブ"
     # browser.c
@@ -778,6 +786,10 @@ ja:
     "only if not in the list": "リストにない場合のみ"
     # portal.c, remote.html
     "optional": "省略可"
+    # browser.c
+    "paused - %s": ~
+    # browser.c
+    "paused - %s of %s": ~
     # player.c
     "playback stopped": "再生停止"
     # player.c
@@ -828,6 +840,8 @@ ja:
     "stereo": "ステレオ"
     # remote.html
     "stop it on the player, or tap here": "プレーヤーで止めるか、ここをタップ"
+    # browser.c
+    "stopped at %s - tap it to go on": ~
     # panel.c
     "stopped: the volume went away": "停止：ボリュームが外れた"
     # player.c
@@ -838,8 +852,6 @@ ja:
     "the directory did not answer": "ディレクトリが応答しない"
     # player.c
     "the directory has nothing there": "ディレクトリに何もない"
-    # browser.c
-    "the download did not finish": ~
     # panel.c
     "the setup network": "設定用ネットワーク"
     # panel.c
@@ -848,6 +860,8 @@ ja:
     "the stream did not start": "ストリームが始まらない"
     # player.c
     "then http://%s/": "次に http://%s/"
+    # browser.c
+    "this episode's download": ~
     # panel.c
     "this player": "この機器"
     # panel.c

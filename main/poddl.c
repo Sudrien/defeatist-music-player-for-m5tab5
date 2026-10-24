@@ -36,14 +36,17 @@ static const char *TAG = "tab5_poddl";
  * and extension rather than the folder's bound again -- GCC's
  * format-truncation check at -O2 proves these cannot be cut. */
 #define DL_FILE_MAX   (DL_PATH_MAX + 1 + PODPATH_NAME_MAX + 16 + 1 + 8)
-#define DL_PART_MAX   (DL_FILE_MAX + 5)
+#define DL_PART_MAX   (DL_PATH_MAX + 1 + PODPATH_NAME_MAX + 16 + 5)   /* 8024: <base>.part */
 #define DL_LINK_MAX   (DL_PATH_MAX + sizeof("/" PODPATH_LINK))
 
 static SemaphoreHandle_t s_mu;
 static poddl_state_t     s_state;
 static int64_t           s_id, s_got, s_total;
 static uint32_t          s_gen;
-static int               s_pct = -1;            /* last percent the generation moved for */
+static int64_t           s_step = -1;           /* 8024: last tenth of a MB the generation moved for */
+/* 8024: what the task should do at its next chunk. */
+enum { RUN = 0, STOP_PAUSE, STOP_CANCEL };
+static int               s_stop;
 static char              s_url[DL_URL_MAX];
 static char              s_dir[DL_PATH_MAX];
 static char              s_base[PODPATH_NAME_MAX + 16];
@@ -76,13 +79,18 @@ static esp_err_t on_event(esp_http_client_event_t *ev)
     return ESP_OK;
 }
 
-static void set_progress(int64_t got)
+/* 8024: the generation moves every tenth of a MB -- what the status line
+ * shows -- not every percent, which on a 557 MB file is 5.5 MB apart.
+ * Returns what the task has been asked to do. */
+static int set_progress(int64_t got)
 {
     lock();
     s_got = got;
-    const int pct = s_total > 0 ? (int)(got * 100 / s_total) : (int)(got >> 20);   /* MB when unknown */
-    if (pct != s_pct) { s_pct = pct; s_gen++; }
+    const int64_t step = got * 10 >> 20;
+    if (step != s_step) { s_step = step; s_gen++; }
+    const int stop = s_stop;
     unlock();
+    return stop;
 }
 
 static void finish(poddl_state_t st)
@@ -115,7 +123,7 @@ static bool make_dirs(const char *dir)
 /* Open `url`, following redirects; the client, positioned at the body,
  * with its status in *status, or NULL. `url` is rewritten with the
  * address that answered. */
-static esp_http_client_handle_t open_followed(char *url, hdrs_t *h, int *status)
+static esp_http_client_handle_t open_followed(char *url, hdrs_t *h, int *status, int64_t from)
 {
     const esp_app_desc_t *desc = esp_app_get_description();
     char ua[64];
@@ -136,6 +144,11 @@ static esp_http_client_handle_t open_followed(char *url, hdrs_t *h, int *status)
         };
         esp_http_client_handle_t c = esp_http_client_init(&cfg);
         if (!c) return NULL;
+        if (from > 0) {                             /* 8024: the rest of a part file */
+            char range[40];
+            snprintf(range, sizeof(range), "bytes=%lld-", (long long)from);
+            esp_http_client_set_header(c, "Range", range);
+        }
         if (esp_http_client_open(c, 0) != ESP_OK) {
             ESP_LOGW(TAG, "no connection to %.80s", url);
             esp_http_client_cleanup(c);
@@ -197,9 +210,41 @@ static void dl_task(void *arg)
         storage_io_release();
         if (!wrote) ESP_LOGW(TAG, "could not write %s", link);
     }
-    c = open_followed(url, &h, &status);
-    if (!c) goto out;
-    if (status != 200) {
+    /*
+     * 8024: a part file already there is the start of this download --
+     * paused, cut off by a reboot or a dropped link -- and the rest is
+     * asked for with Range. 206 appends; 200 means the server sends the
+     * whole thing, so it starts again; 416 means the part is no good to
+     * it, so it goes and the whole is asked for once.
+     *
+     * The size comes from stat(), whose st_size is off_t: a part past
+     * 2 GB here starts over rather than resuming at a wrong place.
+     */
+    snprintf(part, sizeof(part), "%s/%s.part", s_dir, s_base);
+    int64_t from = 0;
+    {
+        struct stat pst;
+        storage_io_acquire(STORAGE_IO_BACKGROUND);
+        if (stat(part, &pst) == 0 && S_ISREG(pst.st_mode) && pst.st_size > 0) from = (int64_t)pst.st_size;
+        storage_io_release();
+    }
+    for (int attempt = 0; attempt < 2; attempt++) {
+        c = open_followed(url, &h, &status, from);
+        if (!c) goto out;
+        if (status == 416 && from > 0) {
+            ESP_LOGI(TAG, "416 for the rest from %lld; starting over", (long long)from);
+            esp_http_client_close(c);
+            esp_http_client_cleanup(c);
+            c = NULL;
+            lock(); snprintf(url, sizeof(url), "%s", s_url); unlock();
+            from = 0;
+            continue;
+        }
+        break;
+    }
+    if (status == 200) {
+        from = 0;
+    } else if (status != 206 || from == 0) {
         ESP_LOGW(TAG, "HTTP %d", status);
         goto out;
     }
@@ -208,25 +253,28 @@ static void dl_task(void *arg)
     podpath_url_ext(url, ext, sizeof(ext));
     if (!ext[0]) snprintf(ext, sizeof(ext), "%s", podpath_type_ext(h.ctype));
     if (!ext[0]) snprintf(ext, sizeof(ext), "mp3");
-    lock();
-    snprintf(s_path, sizeof(s_path), "%s/%s.%s", s_dir, s_base, ext);
-    s_total = esp_http_client_get_content_length(c);
-    if (s_total <= 0) s_total = -1;
-    unlock();
-    snprintf(part, sizeof(part), "%s.part", s_path);
+    {
+        const int64_t clen = esp_http_client_get_content_length(c);
+        lock();
+        snprintf(s_path, sizeof(s_path), "%s/%s.%s", s_dir, s_base, ext);
+        s_total = clen > 0 ? from + clen : -1;
+        s_got = from;
+        unlock();
+    }
 
     storage_io_acquire(STORAGE_IO_BACKGROUND);
-    f = storage_io_open(part, "wb");
+    f = storage_io_open(part, from > 0 ? "ab" : "wb");
     storage_io_release();
     if (!f) {
-        ESP_LOGW(TAG, "could not create %s", part);
+        ESP_LOGW(TAG, "could not open %s", part);
         goto out;
     }
-    ESP_LOGI(TAG, "to %s (%lld bytes%s)", s_path, (long long)s_total,
-             s_total < 0 ? ", length not given" : "");
+    ESP_LOGI(TAG, "to %s (%lld bytes%s, from %lld)", s_path, (long long)s_total,
+             s_total < 0 ? ", length not given" : "", (long long)from);
 
-    int64_t got = 0;
+    int64_t got = from;
     bool ok = true;
+    int stop = RUN;
     for (;;) {
         int n = esp_http_client_read(c, (char *)buf, DL_CHUNK);
         if (n < 0) { ok = false; ESP_LOGW(TAG, "read failed after %lld bytes", (long long)got); break; }
@@ -240,15 +288,30 @@ static void dl_task(void *arg)
             break;
         }
         got += n;
-        set_progress(got);
+        stop = set_progress(got);
+        if (stop != RUN) break;
+    }
+    storage_io_acquire(STORAGE_IO_BACKGROUND);
+    if (storage_io_close(f) != 0) ok = false;
+    f = NULL;
+    if (stop == STOP_PAUSE) {
+        /* Kept: the next start of this episode resumes from it. */
+        storage_io_release();
+        st = PODDL_PAUSED;
+        ESP_LOGI(TAG, "paused at %lld bytes", (long long)got);
+        goto out;
+    }
+    if (stop == STOP_CANCEL) {
+        remove(part);
+        storage_io_release();
+        st = PODDL_IDLE;
+        ESP_LOGI(TAG, "cancelled at %lld bytes", (long long)got);
+        goto out;
     }
     if (ok && s_total > 0 && got != s_total) {
         ESP_LOGW(TAG, "ended at %lld of %lld bytes", (long long)got, (long long)s_total);
         ok = false;
     }
-    storage_io_acquire(STORAGE_IO_BACKGROUND);
-    if (storage_io_close(f) != 0) ok = false;
-    f = NULL;
     if (ok) {
         remove(s_path);                  /* a stale one, if any; rename will not replace */
         if (rename(part, s_path) != 0) {
@@ -256,7 +319,8 @@ static void dl_task(void *arg)
             ok = false;
         }
     }
-    if (!ok) remove(part);
+    /* 8024: a part that failed is kept too -- a dropped link is the usual
+     * reason, and the next tap takes up from it. Only a cancel removes it. */
     storage_io_release();
     if (ok) {
         st = PODDL_DONE;
@@ -290,7 +354,8 @@ bool poddl_start(int64_t id, const char *url, const char *dir, const char *base,
     s_id = id;
     s_got = 0;
     s_total = -1;
-    s_pct = -1;
+    s_step = -1;
+    s_stop = RUN;                                   /* 8024 */
     s_state = PODDL_RUNNING;
     s_gen++;
     unlock();
@@ -300,6 +365,33 @@ bool poddl_start(int64_t id, const char *url, const char *dir, const char *base,
     }
     ESP_LOGI(TAG, "episode %lld: downloading", (long long)id);
     return true;
+}
+
+void poddl_pause(void)
+{
+    lock();
+    if (s_state == PODDL_RUNNING) s_stop = STOP_PAUSE;
+    unlock();
+}
+
+void poddl_cancel(void)
+{
+    static char part[DL_PART_MAX];
+    lock();
+    const poddl_state_t st = s_state;
+    if (st == PODDL_RUNNING) s_stop = STOP_CANCEL;
+    if (st == PODDL_PAUSED || st == PODDL_FAILED) {
+        snprintf(part, sizeof(part), "%s/%s.part", s_dir, s_base);
+        s_state = PODDL_IDLE;
+        s_gen++;
+    }
+    unlock();
+    if (st == PODDL_PAUSED || st == PODDL_FAILED) {
+        storage_io_acquire(STORAGE_IO_BACKGROUND);
+        remove(part);
+        storage_io_release();
+        ESP_LOGI(TAG, "cancelled; part file removed");
+    }
 }
 
 poddl_state_t poddl_state(int64_t *id, int64_t *got, int64_t *total,
@@ -314,6 +406,16 @@ poddl_state_t poddl_state(int64_t *id, int64_t *got, int64_t *total,
     if (gen) *gen = s_gen;
     unlock();
     return st;
+}
+
+bool poddl_part(const char *dir, const char *base, int64_t *size)
+{
+    static char p[DL_PART_MAX];
+    struct stat st;
+    if (snprintf(p, sizeof(p), "%s/%s.part", dir, base) >= (int)sizeof(p)) return false;
+    if (stat(p, &st) != 0 || !S_ISREG(st.st_mode)) return false;
+    if (size) *size = (int64_t)st.st_size;
+    return true;
 }
 
 bool poddl_find(const char *dir, const char *base, char *out, size_t out_size)

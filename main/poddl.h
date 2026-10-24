@@ -31,7 +31,8 @@ typedef enum {
     PODDL_IDLE,
     PODDL_RUNNING,
     PODDL_DONE,         /* the file is whole, at `path` */
-    PODDL_FAILED,
+    PODDL_FAILED,       /* 8024: its part file is kept, for the next start */
+    PODDL_PAUSED,       /* 8024: stopped on request, part file kept */
 } poddl_state_t;
 
 /* Start `url` into `dir` (made if missing) as `base` plus an extension.
@@ -42,9 +43,23 @@ typedef enum {
 bool poddl_start(int64_t id, const char *url, const char *dir, const char *base,
                  int64_t feed, const char *show);
 
+/*
+ * 8024: stop at the next chunk and keep the part file (pause), or stop
+ * and remove it (cancel). A start of the same episode -- the same dir
+ * and base -- resumes a kept part with an HTTP Range request, after a
+ * pause, a failure or a reboot alike. Cancel on a paused or failed
+ * download removes its part file at once. Any task.
+ */
+void poddl_pause(void);
+void poddl_cancel(void);
+
+/* 8024: whether <dir>/<base>.part is there, and its size. Touches the
+ * filesystem, as poddl_find() does. */
+bool poddl_part(const char *dir, const char *base, int64_t *size);
+
 /* The current or last download: its id, bytes so far and in all (-1 if
  * the server did not say), the finished file's path, and a generation
- * that moves with every change worth redrawing (about every 1%). */
+ * that moves with every change worth redrawing (8024: every 0.1 MB). */
 poddl_state_t poddl_state(int64_t *id, int64_t *got, int64_t *total,
                           char *path, size_t path_size, uint32_t *gen);
 

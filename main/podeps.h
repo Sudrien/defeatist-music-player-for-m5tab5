@@ -10,8 +10,9 @@
  *    "count":40,"query":"6676981","description":"..."}
  *
  * The same walk as podfeeds.h, whose helpers this uses -- depth-aware,
- * top-level keys only -- over "items" instead of "feeds", keeping three
- * more things: the audio's URL, its length in seconds, and its date.
+ * top-level keys only -- over "items" instead of "feeds", keeping four
+ * more things: the audio's URL, its length in seconds, its date, and
+ * (8024) its size in bytes as the feed declares it.
  *
  * A title too long is cut (podfeeds_str()); a URL too long is DROPPED,
  * and the episode with it, because a cut URL is a different address.
@@ -38,6 +39,7 @@ typedef struct {
     int64_t id;
     int64_t published;              /* unix seconds, 0 if not given */
     int32_t duration;               /* seconds, 0 if not given */
+    int64_t size;                   /* 8024: enclosureLength, bytes, 0 if not given */
     char    title[PODEPS_TITLE_MAX];
     char    url[PODEPS_URL_MAX];
 } podep_t;
@@ -96,6 +98,7 @@ static inline int podeps_parse(const char *body, size_t n, podep_t *out, int max
         if (e->id > 0 && titled && linked) {
             e->duration = (int32_t)podeps_num(podfeeds_find(p, close, "duration"), close);
             e->published = podeps_num(podfeeds_find(p, close, "datePublished"), close);
+            e->size = podeps_num(podfeeds_find(p, close, "enclosureLength"), close);
             count++;
         }
         p = close;

@@ -25,7 +25,7 @@ static int checks, failures;
 #define EP(id, title, url) \
     "{\"id\":" #id ",\"title\":\"" title "\",\"link\":\"https://x/\"," \
     "\"description\":\"{\\\"enclosureUrl\\\":\\\"http://not.this/\\\"}\",\"datePublished\":1700000000," \
-    "\"enclosureUrl\":\"" url "\",\"enclosureType\":\"audio/mpeg\",\"duration\":3021," \
+    "\"enclosureUrl\":\"" url "\",\"enclosureType\":\"audio/mpeg\",\"enclosureLength\":583650930,\"duration\":3021," \
     "\"persons\":[{\"id\":1,\"title\":\"not this\",\"enclosureUrl\":\"http://nor.this/\"}]," \
     "\"feedId\":6676981}"
 
@@ -45,6 +45,7 @@ int main(void)
         CHECK(e[0].duration == 3021 && e[0].published == 1700000000, "%d %lld", (int)e[0].duration,
               (long long)e[0].published);
         CHECK(!strcmp(e[1].url, "http://cdn.x/ep2.m4a?x=1&y=2"), "escaped slashes: %s", e[1].url);
+        CHECK(e[0].size == 583650930, "enclosureLength: %lld", (long long)e[0].size);
     }
 
     printf("  what is dropped\n");
@@ -70,7 +71,7 @@ int main(void)
     {
         const char *r = "{\"items\":[{\"id\":7,\"title\":\"t\",\"enclosureUrl\":\"https://z/7.mp3\","
                         "\"duration\":null}]}";
-        CHECK(PARSE(r, PODEPS_MAX) == 1 && e[0].duration == 0 && e[0].published == 0, "zeros");
+        CHECK(PARSE(r, PODEPS_MAX) == 1 && e[0].duration == 0 && e[0].published == 0 && e[0].size == 0, "zeros");
         CHECK(PARSE("{\"items\":[" EP(1, "a", "https://a/1") "," EP(2, "b", "https://a/2") ",{\"id\":3,\"ti",
                     PODEPS_MAX) == 2, "cut short");
         CHECK(PARSE("{\"items\":[" EP(1, "a", "https://a/1") "," EP(2, "b", "https://a/2") "]}", 1) == 1, "max");

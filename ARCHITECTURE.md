@@ -26354,3 +26354,14 @@ said here so the diff is not read as a small one.
 
 On the board: `to <path> (B bytes, from F)`, `paused at N bytes`,
 `cancelled at N bytes`, and on a resume `206` implied by `from` > 0.
+
+### 8025 -- 512 KB for an episode list
+
+An audiobook podcast's episodes/byfeedid filled the 256 KB reply buffer
+the feeds share: `35 episodes (262143 bytes, cut at the buffer)`, the
+show notes of the first 35 using it all, and the last five lost --
+podeps.h keeps every whole item before the cut, so the list was short
+rather than wrong. The episode fetch has its own bound now,
+PI_EPS_BODY_MAX, 512 KB of PSRAM for the length of the fetch; the
+podcast lists keep 256 KB, which a category's 40 have come nowhere near
+(55 KB). The log line still says when a reply fills it.

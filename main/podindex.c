@@ -38,8 +38,11 @@ static const char *TAG = "tab5_podindex";
  * feed carries its whole description, so the reply is tens of KB. */
 #define PI_TRENDING_FMT "https://api.podcastindex.org/api/1.0/podcasts/trending?max=40&cat=%d"
 #define PI_FEEDS_BODY_MAX (256 * 1024)
-/* 8019: a podcast's episodes, newest first; each carries its show notes,
- * so the same 256 KB bound. */
+/* 8019: a podcast's episodes, newest first; each carries its show notes.
+ * 8025: 512 KB -- an audiobook podcast's 40 filled 256 KB at the 35th
+ * ("262143 bytes, cut at the buffer"), so five were lost. PSRAM, and only
+ * for the length of the fetch. */
+#define PI_EPS_BODY_MAX (512 * 1024)
 #define PI_EPISODES_FMT "https://api.podcastindex.org/api/1.0/episodes/byfeedid?max=40&id=%lld"
 #define PI_TIMEOUT_MS   10000
 /* categories/list is about 5 KB. In PSRAM, for the length of one try. */
@@ -452,17 +455,17 @@ static void eps_task(void *arg)
         nvs_close(h);
     }
     snprintf(url, sizeof(url), PI_EPISODES_FMT, (long long)feed);
-    char *body = ok ? heap_caps_malloc(PI_FEEDS_BODY_MAX, MALLOC_CAP_SPIRAM | MALLOC_CAP_8BIT) : NULL;
+    char *body = ok ? heap_caps_malloc(PI_EPS_BODY_MAX, MALLOC_CAP_SPIRAM | MALLOC_CAP_8BIT) : NULL;
     podep_t *tmp = body ? heap_caps_malloc(PODEPS_MAX * sizeof(podep_t),
                                            MALLOC_CAP_SPIRAM | MALLOC_CAP_8BIT) : NULL;
     int n = -1;
     if (body && tmp) {
         size_t got = 0;
-        const int status = ask(url, key, secret, body, PI_FEEDS_BODY_MAX, &got);
+        const int status = ask(url, key, secret, body, PI_EPS_BODY_MAX, &got);
         if (status == 200 && podauth_reply_ok(body, got)) {
             n = podeps_parse(body, got, tmp, PODEPS_MAX);
             ESP_LOGI(TAG, "podcast %lld: %d episodes (%u bytes%s)", (long long)feed, n,
-                     (unsigned)got, got + 1 >= PI_FEEDS_BODY_MAX ? ", cut at the buffer" : "");
+                     (unsigned)got, got + 1 >= PI_EPS_BODY_MAX ? ", cut at the buffer" : "");
         } else if (status) {
             ESP_LOGW(TAG, "podcast %lld: HTTP %d", (long long)feed, status);
         } else {

@@ -27080,3 +27080,18 @@ something near 8-10%, and more if TCP slows after each gap. The
 timing total's request counts and rate are the answer, beside 8046's.
 
 Nothing else changes. Compiled as 8046; not built with IDF, not run.
+
+On the board (8047): 46,686,221 bytes in 120.7 s, 3093 kbit/s, 10%
+under 8046's 3430 -- about the request gaps' cost. Keep-alive held:
+`4 request(s) on new connections, 709 on kept ones`. Write 64%, wait
+1%: the card's time a byte the same as 8046's (1.65 s a MB against
+1.70), so three layouts -- thirds, 1 MB stripes, 64 KB stripes -- all
+write at about 600 KB/s. Where the writes land does not matter to this
+card.
+
+### 8048 -- 512 KB stripes
+
+The last stripe setting tried: DL_STRIPE 512 KB, between 8046's 1 MB
+and 8047's 64 KB. About 90 requests for 48 MB. If the gaps cost in
+proportion, it should come out a little under 8046. Nothing else
+changes. Compiled as 8046; not built with IDF, not run.

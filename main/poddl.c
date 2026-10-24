@@ -65,7 +65,7 @@ static const char *TAG = "tab5_poddl";
  * stripe nobody has as soon as it finishes one, on the same connection
  * (keep-alive), so the three write within a few stripes of each other.
  * 0: 8043's thirds, one a connection. */
-#define DL_STRIPE     (64 * 1024)   /* 8047: 64 KB, a stage a stripe; 8046 tried 1 MB */
+#define DL_STRIPE     (512 * 1024)  /* 8048: 512 KB; 8046 tried 1 MB, 8047 64 KB */
 #define DL_HOPS       6             /* tracking prefixes stack */
 #define DL_URL_MAX    1024
 #define DL_PATH_MAX   400           /* a podcast's folder */

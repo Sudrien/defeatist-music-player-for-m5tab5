@@ -694,6 +694,14 @@ fr:
     "coming up": "démarrage"
     # panel.c
     "connected": "connecté"
+    # browser.c
+    "download to which drive?": ~
+    # browser.c
+    "downloaded - tap it again to play": ~
+    # browser.c
+    "downloading - %d MB": ~
+    # browser.c
+    "downloading - %d%%": ~
     # panel.c
     "drive": "clé"
     # browser.c
@@ -736,6 +744,8 @@ fr:
     "no %s on the card": "pas de %s sur la carte"
     # browser.c, panel.c
     "no card in the slot": "pas de carte dans le lecteur"
+    # browser.c
+    "no card or USB drive to download to": ~
     # player.c
     "no cover art": "pas de pochette"
     # browser.c
@@ -826,6 +836,8 @@ fr:
     "the directory did not answer": "l'annuaire n'a pas répondu"
     # player.c
     "the directory has nothing there": "l'annuaire n'a rien ici"
+    # browser.c
+    "the download did not finish": ~
     # panel.c
     "the setup network": "le réseau de configuration"
     # panel.c

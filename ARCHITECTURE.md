@@ -26219,3 +26219,47 @@ the chooser's copy, both PSRAM. The reply buffer is the feeds' 256 KB.
 On the board: `podcast N: asking for its episodes`, then `I
 tab5_podindex: podcast N: K episodes (B bytes)` and the stack line; a
 tap on one logs `episode N (S s): playing it is not done yet`.
+
+### 8020 -- an episode is downloaded, then played
+
+A tap on an episode downloads it, and a tap once it is there plays it:
+its folder becomes the list, as a file tapped on a volume tab. With both
+the card and a USB drive in, the first tap asks which (`download to
+which drive?`, a row for each, UP for neither); with one, it goes there;
+with none, the status line says so. A tap while a download runs does
+nothing; the download goes on in the background whatever the screen
+does, one at a time. On the episode list the status line shows
+`downloading - N%` (or MB, when the server gives no length), then
+`downloaded - tap it again to play`, or that it did not finish.
+
+Download first, not stream: the network player is built for radio and
+cannot seek, and speed is for files. Starting playback while a download
+is still filling the file would need the decoder to know where the file
+ends; that can come later, on top of this.
+
+**Where.** `<volume>/Podcasts/<podcast>/<YYYY-MM-DD> <episode>.<ext>`
+(podpath.h). The date first so a podcast's folder sorts oldest to
+newest; UTC, from datePublished, by arithmetic rather than gmtime_r().
+Names are made safe for FAT and exFAT -- the nine characters neither
+allows and control characters become `_`, leading spaces and trailing
+dots and spaces go, 96 bytes cut on a UTF-8 boundary -- and keep their
+script: Persian and Portuguese titles are file names as they are. The
+extension is the URL path's when it is one this player plays, else the
+Content-Type's, else mp3. "Already there" tries each extension it could
+have been given. texttest run-podpath, 26 checks.
+
+**How.** poddl.c, a `poddl` task (8192 internal: TLS, and FatFs writes).
+Redirects are followed by hand -- open() and fetch_headers() follow
+nothing (5075) and podcast hosts stack tracking prefixes two and three
+deep -- up to six, absolute or host-relative, http allowed at the far
+end as 0418 allows it for audio; Location and Content-Type come from
+the client's ON_HEADER events. The body goes in 16 KB chunks from PSRAM
+to `<name>.part` through storage_io_open(), each fwrite() under the
+BACKGROUND lease so playback wins every wait, and is renamed when the
+last byte is in -- a file without `.part` is always whole. A short body
+(fewer bytes than Content-Length), a failed write or a failed rename
+removes the part file.
+
+On the board: `I tab5_poddl: episode N: downloading`, any `30x to
+<url>`, `to <path> (B bytes)`, `done: B bytes` and the stack line; then
+on the second tap `I tab5_browser: episode N: playing <path>`.

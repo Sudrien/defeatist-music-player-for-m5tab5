@@ -9,7 +9,7 @@
 #include <stddef.h>
 #include "i18n.h"
 
-const unsigned i18n_count = 423;
+const unsigned i18n_count = 429;
 const char *const i18n_keys[] = {
     "%.32s did not work. Try again.",
     "%d h",
@@ -355,6 +355,10 @@ const char *const i18n_keys[] = {
     "code %s",
     "coming up",
     "connected",
+    "download to which drive?",
+    "downloaded - tap it again to play",
+    "downloading - %d MB",
+    "downloading - %d%%",
     "drive",
     "episodes - Podcast Index did not answer; UP, then try again",
     "failed; the log says why",
@@ -376,6 +380,7 @@ const char *const i18n_keys[] = {
     "name",
     "no %s on the card",
     "no card in the slot",
+    "no card or USB drive to download to",
     "no cover art",
     "no episodes listed",
     "no network - check Wi-Fi or the cable, then tap again",
@@ -421,6 +426,7 @@ const char *const i18n_keys[] = {
     "the card would not take the write",
     "the directory did not answer",
     "the directory has nothing there",
+    "the download did not finish",
     "the setup network",
     "the station",
     "the stream did not start",
@@ -783,6 +789,10 @@ const unsigned char i18n_on_screen[] = {
     1,  /* 'code %s' */
     1,  /* 'coming up' */
     1,  /* 'connected' */
+    1,  /* 'download to which drive?' */
+    1,  /* 'downloaded - tap it again to play' */
+    1,  /* 'downloading - %d MB' */
+    1,  /* 'downloading - %d%%' */
     1,  /* 'drive' */
     1,  /* 'episodes - Podcast Index did not answer;' */
     1,  /* 'failed; the log says why' */
@@ -804,6 +814,7 @@ const unsigned char i18n_on_screen[] = {
     1,  /* 'name' */
     1,  /* 'no %s on the card' */
     1,  /* 'no card in the slot' */
+    1,  /* 'no card or USB drive to download to' */
     1,  /* 'no cover art' */
     1,  /* 'no episodes listed' */
     1,  /* 'no network - check Wi-Fi or the cable, t' */
@@ -849,6 +860,7 @@ const unsigned char i18n_on_screen[] = {
     1,  /* 'the card would not take the write' */
     1,  /* 'the directory did not answer' */
     1,  /* 'the directory has nothing there' */
+    1,  /* 'the download did not finish' */
     1,  /* 'the setup network' */
     1,  /* 'the station' */
     1,  /* 'the stream did not start' */
@@ -1236,7 +1248,12 @@ const char *const i18n_vals[] = {
     NULL,
     NULL,
     NULL,
+    NULL,
+    NULL,
+    NULL,
+    NULL,
     "it played, then ran\012out of buffer",
+    NULL,
     NULL,
     NULL,
     NULL,
@@ -1289,6 +1306,7 @@ const char *const i18n_vals[] = {
     NULL,
     NULL,
     "the card would not take\012the write",
+    NULL,
     NULL,
     NULL,
     NULL,
@@ -1649,6 +1667,10 @@ const char *const i18n_vals[] = {
     "代码 %s",
     "启动中",
     "已连接",
+    NULL,
+    NULL,
+    NULL,
+    NULL,
     "驱动器",
     NULL,
     "失败；原因见日志",
@@ -1670,6 +1692,7 @@ const char *const i18n_vals[] = {
     "名称",
     "卡上没有 %s",
     "卡槽中无卡",
+    NULL,
     "无封面",
     NULL,
     "无网络 - 请检查 Wi-Fi 或网线后再点",
@@ -1715,6 +1738,7 @@ const char *const i18n_vals[] = {
     "卡拒绝写入",
     "目录无响应",
     "目录中没有内容",
+    NULL,
     "设置网络",
     "电台",
     "音频流未能开始",
@@ -2073,6 +2097,10 @@ const char *const i18n_vals[] = {
     "コード %s",
     "起動中",
     "接続済み",
+    NULL,
+    NULL,
+    NULL,
+    NULL,
     "ドライブ",
     NULL,
     "失敗。理由はログに",
@@ -2094,6 +2122,7 @@ const char *const i18n_vals[] = {
     "名前",
     "カードに %s がない",
     "スロットにカードなし",
+    NULL,
     "カバーなし",
     NULL,
     "ネットなし - Wi-Fiかケーブルを確認して再タップ",
@@ -2139,6 +2168,7 @@ const char *const i18n_vals[] = {
     "カードが書き込みを拒否",
     "ディレクトリが応答しない",
     "ディレクトリに何もない",
+    NULL,
     "設定用ネットワーク",
     "局",
     "ストリームが始まらない",
@@ -2497,6 +2527,10 @@ const char *const i18n_vals[] = {
     "código %s",
     "arrancando",
     "conectado",
+    NULL,
+    NULL,
+    NULL,
+    NULL,
     "unidad",
     NULL,
     "falló; el registro dice por qué",
@@ -2518,6 +2552,7 @@ const char *const i18n_vals[] = {
     "nombre",
     "no hay %s en la tarjeta",
     "no hay tarjeta en la ranura",
+    NULL,
     "sin portada",
     NULL,
     "sin red - revisa Wi-Fi o cable y vuelve a tocar",
@@ -2563,6 +2598,7 @@ const char *const i18n_vals[] = {
     "la tarjeta no aceptó\012la escritura",
     "el directorio no respondió",
     "el directorio no tiene nada ahí",
+    NULL,
     "la red de configuración",
     "la emisora",
     "el flujo no empezó",
@@ -2921,6 +2957,10 @@ const char *const i18n_vals[] = {
     "código %s",
     "iniciando",
     "conectado",
+    NULL,
+    NULL,
+    NULL,
+    NULL,
     "pendrive",
     NULL,
     "falhou; o log diz por quê",
@@ -2942,6 +2982,7 @@ const char *const i18n_vals[] = {
     "nome",
     "sem %s no cartão",
     "sem cartão no slot",
+    NULL,
     "sem capa",
     NULL,
     "sem rede - confira Wi-Fi ou cabo e toque de novo",
@@ -2987,6 +3028,7 @@ const char *const i18n_vals[] = {
     "o cartão não aceitou\012a gravação",
     "o diretório não respondeu",
     "o diretório não tem nada aí",
+    NULL,
     "a rede de configuração",
     "a rádio",
     "o stream não começou",
@@ -3345,6 +3387,10 @@ const char *const i18n_vals[] = {
     "code %s",
     "démarrage",
     "connecté",
+    NULL,
+    NULL,
+    NULL,
+    NULL,
     "clé",
     NULL,
     "échec ; le journal dit pourquoi",
@@ -3366,6 +3412,7 @@ const char *const i18n_vals[] = {
     "nom",
     "pas de %s sur la carte",
     "pas de carte dans le lecteur",
+    NULL,
     "pas de pochette",
     NULL,
     "pas de réseau - vérifiez Wi-Fi/câble, retouchez",
@@ -3411,6 +3458,7 @@ const char *const i18n_vals[] = {
     "la carte a refusé\012l'écriture",
     "l'annuaire n'a pas répondu",
     "l'annuaire n'a rien ici",
+    NULL,
     "le réseau de configuration",
     "la radio",
     "le flux n'a pas démarré",
@@ -3769,6 +3817,10 @@ const char *const i18n_vals[] = {
     "codice %s",
     "in avvio",
     "collegato",
+    NULL,
+    NULL,
+    NULL,
+    NULL,
     "chiavetta",
     NULL,
     "fallito; il log dice perché",
@@ -3790,6 +3842,7 @@ const char *const i18n_vals[] = {
     "nome",
     "nessun %s sulla scheda",
     "nessuna scheda nello slot",
+    NULL,
     "nessuna copertina",
     NULL,
     "nessuna rete - controlla Wi-Fi o cavo, ritocca",
@@ -3835,6 +3888,7 @@ const char *const i18n_vals[] = {
     "la scheda ha rifiutato\012la scrittura",
     "la directory non ha risposto",
     "la directory non ha niente lì",
+    NULL,
     "la rete di configurazione",
     "la radio",
     "lo stream non è partito",

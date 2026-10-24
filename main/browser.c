@@ -33,6 +33,8 @@
 #include "podindex.h"         /* 8008 */
 #include "remote.h"           /* 8008: remote_url() */
 #include "ethernet.h"         /* 8016: net_online() */
+#include "poddl.h"            /* 8020 */
+#include "podpath.h"          /* 8020 */
 
 static const char *TAG = "tab5_browser";
 
@@ -178,7 +180,7 @@ static bool     s_pod_wait;
  * category's podcasts. s_pod_cat is the category's row in s_pod_cats;
  * the podcasts are copied in as the categories are, row i IS podcast i.
  */
-static int       s_pod_level;        /* 0 categories, 1 podcasts, 2 episodes (8019) */
+static int       s_pod_level;        /* 0 categories, 1 podcasts, 2 episodes (8019), 3 which drive (8020) */
 static int       s_pod_cat;
 static podfeed_t s_pod_feeds[PODFEEDS_MAX];
 static int       s_pod_fn;
@@ -189,6 +191,19 @@ static int       s_pod_feed;
 static podep_t   s_pod_eps[PODEPS_MAX];
 static int       s_pod_en;
 static uint32_t  s_pod_egen;
+/*
+ * 8020: downloads. s_pod_show is the podcast's title, kept when its row
+ * is tapped, because the folder is named for it and the podcast list may
+ * be another category's by the time an episode is. Level 3 is the drive
+ * picker, shown only when both are in: s_pod_pick is the episode's row,
+ * s_pod_vols the volumes its two rows stand for.
+ */
+static char         s_pod_show[PODFEEDS_TITLE_MAX];
+static int          s_pod_pick;
+static storage_id_t s_pod_vols[STORAGE_COUNT];
+static int          s_pod_nvols;
+static uint32_t     s_pod_dlgen;
+static const char  *s_pod_note;         /* a one-off answer to the last tap, or NULL */
 
 /*
  * The station list, loaded into the same rows the files use.
@@ -799,6 +814,40 @@ static void load_pod_ep_rows(void)
     s_dirty = true;
 }
 
+/* 8020: the episode's folder and file name on `vol`. */
+static bool pod_ep_where(storage_id_t vol, int ep, char *dir, size_t dsz, char *base, size_t bsz)
+{
+    if (!podpath_dir(storage_mount_path(vol), s_pod_show, dir, dsz)) return false;
+    podpath_base(s_pod_eps[ep].published, s_pod_eps[ep].title, base, bsz);
+    return true;
+}
+
+/* 8020: download episode `ep` to `vol`; back to the episode rows. */
+static void pod_download(int ep, storage_id_t vol)
+{
+    static char dir[400], base[PODPATH_NAME_MAX + 16];
+    if (!pod_ep_where(vol, ep, dir, sizeof(dir), base, sizeof(base))) {
+        ESP_LOGW(TAG, "episode %lld: the path is too long", (long long)s_pod_eps[ep].id);
+        return;
+    }
+    if (!poddl_start(s_pod_eps[ep].id, s_pod_eps[ep].url, dir, base))
+        ESP_LOGI(TAG, "episode %lld: another download is running", (long long)s_pod_eps[ep].id);
+}
+
+/* 8020: the drive picker's rows, one per volume that is in. */
+static void load_pod_pick_rows(void)
+{
+    entries_free();
+    for (int i = 0; i < s_pod_nvols && s_count < MAX_ENTRIES; i++) {
+        s_entries[s_count].name = strdup(storage_label(s_pod_vols[i]));
+        if (!s_entries[s_count].name) break;
+        s_entries[s_count].is_dir = true;
+        s_count++;
+    }
+    s_top = 0;
+    s_dirty = true;
+}
+
 /* 8019: ask for a podcast's episodes, waiting as pod_fetch_feeds() does. */
 static void pod_fetch_eps(void)
 {
@@ -965,10 +1014,29 @@ static const char *status_line(void)
 {
     if (s_pod) {                        /* 8008 */
         const podindex_state_t st = podindex_state(NULL, 0, NULL);
+        if (st == PODINDEX_WORKING && s_pod_level == 3)        /* 8020 */
+            return _("download to which drive?");
         if (st == PODINDEX_WORKING && s_pod_level == 2) {      /* 8019 */
             static char eline[96];
             const podindex_cats_t es = podindex_eps(NULL, 0, NULL, NULL, NULL);
             if (s_pod_wait) return _("podcasts - waiting for a network");
+            if (s_pod_note) return s_pod_note;          /* 8020 */
+            /* 8020: a download of one of these episodes, ahead of the count. */
+            {
+                int64_t id = 0, got = 0, total = 0;
+                const poddl_state_t ds = poddl_state(&id, &got, &total, NULL, 0, NULL);
+                bool mine = false;
+                for (int k = 0; k < s_pod_en && !mine; k++) mine = s_pod_eps[k].id == id;
+                if (mine && ds == PODDL_RUNNING) {
+                    if (total > 0)
+                        snprintf(eline, sizeof(eline), _("downloading - %d%%"), (int)(got * 100 / total));
+                    else
+                        snprintf(eline, sizeof(eline), _("downloading - %d MB"), (int)(got >> 20));
+                    return eline;
+                }
+                if (mine && ds == PODDL_DONE) return _("downloaded - tap it again to play");
+                if (mine && ds == PODDL_FAILED) return _("the download did not finish");
+            }
             if (es == PODINDEX_CATS_LOADING) return _("podcasts - asking Podcast Index for the episodes");
             if (es == PODINDEX_CATS_FAILED && s_count == 0)
                 return _("episodes - Podcast Index did not answer; UP, then try again");
@@ -1335,7 +1403,9 @@ void browser_draw(void)
                                   ? podindex_cats(NULL, 0, NULL, NULL)
                                   : s_pod_level == 1                               /* 8019 */
                                   ? podindex_feeds(NULL, 0, NULL, NULL, NULL)
-                                  : podindex_eps(NULL, 0, NULL, NULL, NULL)) == PODINDEX_CATS_LOADING));  /* 8014 */
+                                  : podindex_eps(NULL, 0, NULL, NULL, NULL)) == PODINDEX_CATS_LOADING ||  /* 8014 */
+                                 (s_pod_level == 2 &&                              /* 8020 */
+                                  poddl_state(NULL, NULL, NULL, NULL, 0, NULL) == PODDL_RUNNING)));
     if (spin) {
         const uint32_t step = (uint32_t)(esp_timer_get_time() / 100000);
         if (step != s_spin_frame) {
@@ -1356,6 +1426,12 @@ void browser_draw(void)
             s_dirty = true;
         }
         /* 8018: a category's podcasts arrived, or their state moved. */
+        /* 8020: a download moved on. */
+        {
+            uint32_t g = 0;
+            (void)poddl_state(NULL, NULL, NULL, NULL, 0, &g);
+            if (g != s_pod_dlgen) { s_pod_dlgen = g; if (s_pod_level == 2) s_dirty = true; }
+        }
         /* 8019: a podcast's episodes arrived, or their state moved. */
         if (s_pod_level == 2 && podindex_eps_gen() != s_pod_egen) {
             load_pod_ep_rows();
@@ -1719,7 +1795,10 @@ browser_result_t browser_touch(bool down, int x, int y)
         if (s_pod && which == 0) {
             /* 8019: from the episodes back to the podcasts, which are
              * still held, so no request. */
-            if (s_pod_level == 2) {
+            if (s_pod_level == 3) {             /* 8020: no drive chosen */
+                s_pod_level = 2;
+                load_pod_ep_rows();
+            } else if (s_pod_level == 2) {
                 s_pod_level = 1;
                 s_pod_wait = false;
                 load_pod_feed_rows();
@@ -1807,11 +1886,13 @@ browser_result_t browser_touch(bool down, int x, int y)
     if (i >= s_count) return res;
 
     ESP_LOGI(TAG, "button: row %d (%s) \"%s\"", i,
-             s_pod ? (s_pod_level == 2 ? "episode" : s_pod_level ? "podcast" : "category")  /* 8018, 8019 */
+             s_pod ? (s_pod_level == 3 ? "drive" : s_pod_level == 2 ? "episode"           /* 8018-8020 */
+                      : s_pod_level ? "podcast" : "category")
                    : s_radio ? "station" : s_entries[i].is_dir ? "dir" : "file",
              s_entries[i].name);
 
     if (s_pod) {
+        s_pod_note = NULL;                      /* 8020: answered by this tap, if at all */
         if (s_pod_level == 0) {
             /* 8018: a category row opens into its podcasts. The rows go
              * now; the list replaces them when it arrives. */
@@ -1831,6 +1912,7 @@ browser_result_t browser_touch(bool down, int x, int y)
              * row opens into its podcasts. */
             if (i >= s_pod_fn) return res;
             s_pod_feed = i;
+            snprintf(s_pod_show, sizeof(s_pod_show), "%s", s_pod_feeds[i].title);   /* 8020 */
             s_pod_level = 2;
             entries_free();
             s_top = 0;
@@ -1839,11 +1921,55 @@ browser_result_t browser_touch(bool down, int x, int y)
             pod_fetch_eps();
             return res;
         }
-        /* An episode row. Playing it is the next step; until then the tap
-         * is logged and does nothing. */
-        if (i < s_pod_en)
-            ESP_LOGI(TAG, "episode %lld (%d s): playing it is not done yet",
-                     (long long)s_pod_eps[i].id, (int)s_pod_eps[i].duration);
+        if (s_pod_level == 3) {
+            /* 8020: a drive row. */
+            if (i < s_pod_nvols && s_pod_pick < s_pod_en) pod_download(s_pod_pick, s_pod_vols[i]);
+            s_pod_level = 2;
+            load_pod_ep_rows();
+            return res;
+        }
+        /*
+         * 8020: an episode row. On a drive already: play it, and its
+         * folder becomes the list, as a file tapped on a volume tab.
+         * Downloading now: nothing. Else download it -- to the one drive
+         * that is in, or ask which when both are.
+         */
+        if (i >= s_pod_en) return res;
+        {
+            static char dir[400], base[PODPATH_NAME_MAX + 16];
+            s_pod_nvols = 0;
+            for (int v = 0; v < STORAGE_COUNT; v++) {
+                if (!storage_present((storage_id_t)v)) continue;
+                s_pod_vols[s_pod_nvols++] = (storage_id_t)v;
+                if (pod_ep_where((storage_id_t)v, i, dir, sizeof(dir), base, sizeof(base)) &&
+                    poddl_find(dir, base, s_result, sizeof(s_result))) {
+                    ESP_LOGI(TAG, "episode %lld: playing %s", (long long)s_pod_eps[i].id, s_result);
+                    res.kind = BROWSER_PLAY_FILE;
+                    res.path = s_result;
+                    return res;
+                }
+            }
+            int64_t id = 0;
+            if (poddl_state(&id, NULL, NULL, NULL, 0, NULL) == PODDL_RUNNING) {
+                ESP_LOGI(TAG, "episode %lld: %s", (long long)s_pod_eps[i].id,
+                         id == s_pod_eps[i].id ? "downloading" : "another download is running");
+                return res;
+            }
+            if (s_pod_nvols == 0) {
+                ESP_LOGI(TAG, "episode %lld: no card or drive to download to", (long long)s_pod_eps[i].id);
+                s_pod_note = _("no card or USB drive to download to");
+                s_dirty = true;
+                return res;
+            }
+            if (s_pod_nvols == 1) {
+                pod_download(i, s_pod_vols[0]);
+                s_dirty = true;
+                return res;
+            }
+            s_pod_pick = i;
+            s_pod_level = 3;
+            load_pod_pick_rows();
+        }
         return res;
     }
 

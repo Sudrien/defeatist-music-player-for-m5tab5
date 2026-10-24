@@ -27095,3 +27095,30 @@ The last stripe setting tried: DL_STRIPE 512 KB, between 8046's 1 MB
 and 8047's 64 KB. About 90 requests for 48 MB. If the gaps cost in
 proportion, it should come out a little under 8046. Nothing else
 changes. Compiled as 8046; not built with IDF, not run.
+
+On the board (8048): 43,109,245 bytes in 103.3 s, 3337 kbit/s; `4
+request(s) on new connections, 79 on kept ones`; write 73%, wait 11%,
+1.75 s of card a MB.
+
+### 8049 -- 1 MB stripes, chosen
+
+The stripe test, all on Wi-Fi, one art19 episode each, 39-49 MB:
+
+| | layout | kbit/s | requests new / kept | card s a MB |
+|---|---|---|---|---|
+| 8043 | thirds, 16 KB writes | 3576 | 3 / 0 | about 1.9 |
+| 8045 | thirds, 64 KB stages | 3384 | 3 / 0 | about 1.7 |
+| 8046 | 1 MB stripes | 3430 | 4 / 43 | 1.70 |
+| 8048 | 512 KB stripes | 3337 | 4 / 79 | 1.75 |
+| 8047 | 64 KB stripes | 3093 | 4 / 709 | 1.65 |
+
+What it found: where the writes land does not matter to this card,
+which writes about 600 KB/s in every layout; the requests do, a round
+trip each, about 10% at 64 KB. 1 MB costs nothing measurable against
+thirds and fills the file nearly front to back, which 8050 uses. So
+DL_STRIPE is 1 MB, and the log line that said `stripe test: ON` says
+`stripes, claimed in turn (DL_STRIPE 1048576)` (or `thirds, one a
+connection` with DL_STRIPE 0, which stays a switch).
+
+Open: why the card writes 600 KB/s and reads 2.3 MB/s. A sequential
+write benchmark would say whether it is the card or the path to it.

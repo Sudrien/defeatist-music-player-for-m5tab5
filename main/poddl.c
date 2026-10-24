@@ -65,7 +65,7 @@ static const char *TAG = "tab5_poddl";
  * stripe nobody has as soon as it finishes one, on the same connection
  * (keep-alive), so the three write within a few stripes of each other.
  * 0: 8043's thirds, one a connection. */
-#define DL_STRIPE     (512 * 1024)  /* 8048: 512 KB; 8046 tried 1 MB, 8047 64 KB */
+#define DL_STRIPE     (1024 * 1024) /* 8049: 1 MB, chosen -- 8046-8048 tried 1 MB, 64 KB, 512 KB */
 #define DL_HOPS       6             /* tracking prefixes stack */
 #define DL_URL_MAX    1024
 #define DL_PATH_MAX   400           /* a podcast's folder */
@@ -1118,8 +1118,8 @@ static void dl_task(void *arg)
              stripe > 0 ? "in stripes" : nseg > 1 ? "in thirds" : "one stream");
     /* 8046: which side of the test this download is. */
     if (nseg > 1)
-        ESP_LOGI(TAG, "stripe test: %s (DL_STRIPE %d)",
-                 stripe > 0 ? "ON, stripes claimed in turn" : "OFF, 8043's thirds", (int)DL_STRIPE);
+        ESP_LOGI(TAG, "%s (DL_STRIPE %d)",                              /* 8049: no longer a test */
+                 stripe > 0 ? "stripes, claimed in turn" : "thirds, one a connection", (int)DL_STRIPE);
 
     int64_t got = have;                 /* received; s_wr.seg[].done is written */
     bool ok = true;

@@ -48,6 +48,11 @@ typedef struct {
     char    title[PODEPS_TITLE_MAX];
     char    url[PODEPS_URL_MAX];
     char    desc[PODEPS_DESC_MAX];  /* 8026: podhtml.h's text, "" if none */
+    /* 8027: the episode's own picture and its podcast's, http(s) and
+     * whole or "" -- podeps_url()'s rule. Often the same address, or the
+     * episode's empty. */
+    char    image[PODEPS_URL_MAX];
+    char    feed_image[PODEPS_URL_MAX];
 } podep_t;
 
 /* A non-negative integer value at `v`, or 0. */
@@ -108,6 +113,10 @@ static inline int podeps_parse(const char *body, size_t n, podep_t *out, int max
             const char *dv = podfeeds_find(p, close, "description");
             if (!dv || !podfeeds_str(dv, close, e->desc, sizeof(e->desc))) e->desc[0] = '\0';
             podhtml_text(e->desc);
+            if (!podeps_url(podfeeds_find(p, close, "image"), close, e->image, sizeof(e->image)))
+                e->image[0] = '\0';
+            if (!podeps_url(podfeeds_find(p, close, "feedImage"), close, e->feed_image, sizeof(e->feed_image)))
+                e->feed_image[0] = '\0';
             count++;
         }
         p = close;

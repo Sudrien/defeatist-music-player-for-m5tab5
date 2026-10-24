@@ -889,7 +889,8 @@ static void pod_download(int ep, storage_id_t vol)
         ESP_LOGW(TAG, "episode %lld: the path is too long", (long long)s_pod_eps[ep].id);
         return;
     }
-    if (!poddl_start(s_pod_eps[ep].id, s_pod_eps[ep].url, dir, base, s_pod_cur, s_pod_show))
+    if (!poddl_start(s_pod_eps[ep].id, s_pod_eps[ep].url, dir, base, s_pod_cur, s_pod_show,
+                     s_pod_eps[ep].feed_image, s_pod_eps[ep].image))                    /* 8027 */
         ESP_LOGI(TAG, "episode %lld: another download is running", (long long)s_pod_eps[ep].id);
 }
 

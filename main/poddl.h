@@ -39,9 +39,13 @@ typedef enum {
  * `id` is the caller's, reported back so a row can tell it is its own.
  * 8021: `feed` and `show` are the podcast's, written beside the episodes
  * as podpath.h's PODPATH_LINK so the folder leads back to them.
+ * 8027: `cover` (the podcast's picture) and `own` (the episode's) are
+ * URLs or "" / NULL; after the episode is whole, the first is kept as
+ * cover.<ext> if the folder has no cover, the second -- when it is not
+ * the first -- as folderart.h's ".<file>.<ext>" beside the episode.
  * False if one is running or the task could not start. Any task. */
 bool poddl_start(int64_t id, const char *url, const char *dir, const char *base,
-                 int64_t feed, const char *show);
+                 int64_t feed, const char *show, const char *cover, const char *own);
 
 /*
  * 8024: stop at the next chunk and keep the part file (pause), or stop

@@ -145,6 +145,15 @@ int main(void)
     CHECK(!folderart_dir_of("/b.mp3", dir, sizeof(dir)) && !dir[0], "slash at 0");
     CHECK(!folderart_dir_of("/sd/abcdefgh/x", dir, 8) && !dir[0], "too long refuses, does not cut");
     CHECK(folderart_dir_of("/sd/abc/x", dir, 8) && !strcmp(dir, "/sd/abc"), "exact fit");
+    /* 8027: a track's own picture */
+    {
+        char o[64];
+        CHECK(folderart_own_path("/sd/P/2026-10-02 Trauma!.mp3", "jpg", o, sizeof(o)) &&
+              !strcmp(o, "/sd/P/.2026-10-02 Trauma!.mp3.jpg"), "own: %s", o);
+        CHECK(folderart_own_path("/sd/a.mp3", "png", o, sizeof(o)) && !strcmp(o, "/sd/.a.mp3.png"), "own at a root: %s", o);
+        CHECK(!folderart_own_path("a.mp3", "jpg", o, sizeof(o)) && !o[0], "own: no slash");
+        CHECK(!folderart_own_path("/sd/abcdef.mp3", "jpg", o, 12) && !o[0], "own: too long refuses");
+    }
     CHECK(folderart_dir_hash("/sd/Album") == folderart_dir_hash("/sd/album"), "hash folds case");
     CHECK(folderart_dir_hash("/sd/a") != folderart_dir_hash("/sd/b"), "hash differs");
     CHECK(folderart_dir_hash("") != 0, "0 is reserved");

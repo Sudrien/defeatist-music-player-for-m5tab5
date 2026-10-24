@@ -43,6 +43,7 @@
 
 #include <stdbool.h>
 #include <stddef.h>
+#include <stdio.h>
 #include <stdint.h>
 #include <string.h>
 
@@ -83,6 +84,28 @@ static inline bool folderart_dir_of(const char *file, char *out, size_t out_size
     if (n + 1 > out_size) return false;
     memcpy(out, file, n);
     out[n] = '\0';
+    return true;
+}
+
+/*
+ * 8027: a track's own picture, beside it as a dotfile the way its
+ * ReplayGain sidecar is: "/sd/a/b.mp3" and "jpg" give "/sd/a/.b.mp3.jpg".
+ * Hidden by storage_is_hidden() as every dotfile is, and named for the
+ * whole file name, extension included, so it cannot be mistaken for a
+ * sibling's and goes where the track goes in a listing. False, with
+ * `out` empty, when the path has no '/' or the result will not fit.
+ * The podcast downloader writes these; the screen reads them first, but
+ * only in a folder that has a podcast link (8027, folderart.c).
+ */
+static inline bool folderart_own_path(const char *file, const char *ext, char *out, size_t out_size)
+{
+    if (!out || out_size == 0) return false;
+    out[0] = '\0';
+    if (!file || !ext) return false;
+    const char *slash = strrchr(file, '/');
+    if (!slash) return false;
+    const int n = snprintf(out, out_size, "%.*s/.%s.%s", (int)(slash - file), file, slash + 1, ext);
+    if (n <= 0 || (size_t)n >= out_size) { out[0] = '\0'; return false; }
     return true;
 }
 

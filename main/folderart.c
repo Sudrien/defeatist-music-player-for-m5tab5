@@ -48,6 +48,7 @@ static const char *TAG = "tab5_folderart";
 typedef struct {
     uint32_t hash;          /* 0: empty */
     int8_t   found;         /* index into FOLDERART_NAMES, or -1 for none */
+    bool     own;           /* 8027: a podcast folder: its tracks may have their own */
 } slot_t;
 
 static slot_t   s_slot[FOLDERART_SLOTS];
@@ -93,7 +94,23 @@ static slot_t *slot_new(uint32_t h, int found)
     s_next_slot = (s_next_slot + 1) % FOLDERART_SLOTS;
     s->hash = h;
     s->found = (int8_t)found;
+    s->own = false;
     return s;
+}
+
+/*
+ * 8027: whether s_dir is a podcast's folder -- it holds the downloader's
+ * ".podcast" link (podpath.h's PODPATH_LINK; the name is written out
+ * here rather than included, because folderart.c has no business with
+ * the rest of podpath.h). Only such a folder's tracks are looked for
+ * their own pictures, so every other folder keeps costing one look per
+ * folder rather than one per track.
+ */
+static bool is_podcast_dir(void)
+{
+    const int k = snprintf(s_path, FOLDERART_PATH_MAX, "%s/.podcast", s_dir);
+    struct stat st;
+    return k > 0 && k < FOLDERART_PATH_MAX && stat(s_path, &st) == 0 && S_ISREG(st.st_mode);
 }
 
 /* The candidate's full path into s_path. False if it will not fit. */
@@ -170,6 +187,7 @@ bool folderart_in_hand(const char *file)
     const uint32_t h = folderart_dir_hash(s_dir);
     const slot_t *s = slot_find(h);
     if (!s) return false;                       /* never looked */
+    if (s->own) return false;                   /* 8027: each track may have its own */
     if (s->found < 0) return true;              /* looked: none */
     return s_donor[0] && s_donor_hash == h && mediacache_art(s_donor, NULL) != NULL;
 }
@@ -191,7 +209,37 @@ esp_err_t folderart_load(const char *file, const char *key,
     const uint32_t h = folderart_dir_hash(s_dir);
 
     slot_t *s = slot_find(h);
-    if (s && s->found < 0) return ESP_ERR_NOT_FOUND;    /* asked before: none */
+
+    /*
+     * 8027: the folder is looked at once, as before, and now also asked
+     * whether it is a podcast's. In one that is, the track's own picture
+     * -- ".<file>.jpg" (or png, gif) beside it, which the downloader
+     * writes when an episode's picture is not its podcast's -- comes
+     * before the folder's. Not remembered as the donor: it is this
+     * track's, not the folder's.
+     */
+    long size = 0;
+    int found = -1;
+    const bool fresh = (s == NULL);
+    if (fresh) {
+        found = look(&size);
+        s = slot_new(h, found);
+        s->own = is_podcast_dir();
+    }
+    if (s->own) {
+        static const char *const own_ext[] = { "jpg", "png", "gif" };
+        for (int i = 0; i < 3; i++) {
+            struct stat ost;
+            if (!folderart_own_path(file, own_ext[i], s_path, FOLDERART_PATH_MAX)) break;
+            if (stat(s_path, &ost) != 0 || !S_ISREG(ost.st_mode) || ost.st_size <= 0) continue;
+            if (read_image((long)ost.st_size, img, len) == ESP_OK) {
+                if (name) *name = "its own picture";
+                ESP_LOGI(TAG, "the track's own picture (%u KB)", (unsigned)(*len / 1024));
+                return ESP_OK;
+            }
+        }
+    }
+    if (!fresh && s->found < 0) return ESP_ERR_NOT_FOUND;   /* asked before: none */
 
     if (s && from_donor(h, img, len)) {
         if (name) *name = FOLDERART_NAMES[s->found];
@@ -201,9 +249,7 @@ esp_err_t folderart_load(const char *file, const char *key,
         return ESP_OK;
     }
 
-    long size = 0;
-    int found;
-    if (s) {
+    if (!fresh) {
         /* Known name; only the bytes are missing. */
         found = s->found;
         struct stat st;
@@ -212,13 +258,11 @@ esp_err_t folderart_load(const char *file, const char *key,
             return ESP_ERR_NOT_FOUND;
         }
         size = (long)st.st_size;
-    } else {
-        found = look(&size);
-        s = slot_new(h, found);
-        if (found < 0) {
-            ESP_LOGI(TAG, "no cover image in %.120s", s_dir);
-            return ESP_ERR_NOT_FOUND;
-        }
+    } else if (found < 0) {
+        ESP_LOGI(TAG, "no cover image in %.120s", s_dir);
+        return ESP_ERR_NOT_FOUND;
+    } else if (!candidate(found)) {
+        return ESP_ERR_NOT_FOUND;               /* 8027: s_path to the folder's, again */
     }
 
     const esp_err_t err = read_image(size, img, len);

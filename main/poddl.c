@@ -20,6 +20,8 @@
 #include "freertos/semphr.h"
 #include "freertos/task.h"
 
+#include "covertag.h"           /* 8027: COVERTAG_MAX_IMAGE */
+#include "folderart.h"         /* 8027: folderart_own_path() */
 #include "podpath.h"
 #include "radiobrowser.h"       /* RADIOBROWSER_UA_FMT */
 #include "storage_io.h"
@@ -38,6 +40,11 @@ static const char *TAG = "tab5_poddl";
 #define DL_FILE_MAX   (DL_PATH_MAX + 1 + PODPATH_NAME_MAX + 16 + 1 + 8)
 #define DL_PART_MAX   (DL_PATH_MAX + 1 + PODPATH_NAME_MAX + 16 + 5)   /* 8024: <base>.part */
 #define DL_LINK_MAX   (DL_PATH_MAX + sizeof("/" PODPATH_LINK))
+/* 8027: a picture's path before its extension -- "<dir>/cover", or the
+ * episode's file with a dot in front -- then with ".gif" and ".tmp". */
+#define DL_STEM_MAX   (DL_FILE_MAX + 2)
+#define DL_PIC_MAX    (DL_STEM_MAX + 5)
+#define DL_PICTMP_MAX (DL_PIC_MAX + 4)
 
 static SemaphoreHandle_t s_mu;
 static poddl_state_t     s_state;
@@ -53,6 +60,8 @@ static char              s_base[PODPATH_NAME_MAX + 16];
 static char              s_path[DL_FILE_MAX];   /* the finished file */
 static int64_t           s_feed;                /* 8021: for the folder's link */
 static char              s_show[128];
+static char              s_cover_url[DL_URL_MAX];   /* 8027: the podcast's picture, or "" */
+static char              s_own_url[DL_URL_MAX];     /* 8027: the episode's, when not the podcast's */
 
 /* What the response headers said; filled by the event handler. */
 typedef struct {
@@ -179,6 +188,87 @@ static esp_http_client_handle_t open_followed(char *url, hdrs_t *h, int *status,
     }
     ESP_LOGW(TAG, "more than %d redirects", DL_HOPS);
     return NULL;
+}
+
+/*
+ * 8027: one picture, `url`, to `stem` plus the extension its first bytes
+ * say (jpg, png or gif; anything else is not kept), through a .tmp file
+ * renamed when whole. Bounded by the screen's own cover limit, since a
+ * picture over it would not be shown. Failure is a log line: a missing
+ * picture is not a failed download.
+ */
+static void fetch_picture(const char *what, const char *src, const char *stem)
+{
+    if (strlen(stem) + 1 > DL_STEM_MAX) return;
+    static char url[DL_URL_MAX], path[DL_PIC_MAX], tmp[DL_PICTMP_MAX];
+    static hdrs_t h;
+    snprintf(url, sizeof(url), "%s", src);
+    int status = 0;
+    esp_http_client_handle_t c = open_followed(url, &h, &status, 0);
+    if (!c) return;
+    uint8_t *img = NULL;
+    size_t got = 0;
+    if (status != 200) {
+        ESP_LOGI(TAG, "%s: HTTP %d; none kept", what, status);
+        goto done;
+    }
+    const int64_t clen = esp_http_client_get_content_length(c);
+    if (clen > (int64_t)COVERTAG_MAX_IMAGE) {
+        ESP_LOGI(TAG, "%s is %lld KB, over the %u KB cover limit; none kept", what,
+                 (long long)(clen / 1024), (unsigned)(COVERTAG_MAX_IMAGE / 1024));
+        goto done;
+    }
+    /* The size it says, when it says one, plus a byte to see it end;
+     * else the limit. PSRAM, for the length of the fetch. */
+    const size_t cap = clen > 0 ? (size_t)clen + 1 : COVERTAG_MAX_IMAGE;
+    img = heap_caps_malloc(cap, MALLOC_CAP_SPIRAM | MALLOC_CAP_8BIT);
+    if (!img) goto done;
+    for (;;) {
+        if (got >= cap) {
+            ESP_LOGI(TAG, "%s is over the %u KB cover limit; none kept", what,
+                     (unsigned)(COVERTAG_MAX_IMAGE / 1024));
+            goto done;
+        }
+        const int n = esp_http_client_read(c, (char *)img + got, (int)(cap - got));
+        if (n < 0) goto done;
+        if (n == 0) break;
+        got += (size_t)n;
+    }
+    const char *ext = got > 3 && img[0] == 0xFF && img[1] == 0xD8 && img[2] == 0xFF ? "jpg"
+                    : got > 8 && !memcmp(img, "\x89PNG\r\n\x1a\n", 8)           ? "png"
+                    : got > 6 && (!memcmp(img, "GIF87a", 6) || !memcmp(img, "GIF89a", 6)) ? "gif" : NULL;
+    if (!ext) {
+        ESP_LOGI(TAG, "%s is not a JPEG, PNG or GIF; none kept", what);
+        goto done;
+    }
+    snprintf(path, sizeof(path), "%s.%s", stem, ext);
+    snprintf(tmp, sizeof(tmp), "%s.tmp", path);
+    storage_io_acquire(STORAGE_IO_BACKGROUND);
+    FILE *f = fopen(tmp, "wb");
+    bool ok = f && fwrite(img, 1, got, f) == got;
+    if (f && fclose(f) != 0) ok = false;
+    if (ok) { remove(path); ok = rename(tmp, path) == 0; }
+    if (!ok) remove(tmp);
+    storage_io_release();
+    if (ok) ESP_LOGI(TAG, "%s: %u KB as %s", what, (unsigned)(got / 1024), path);
+    else    ESP_LOGW(TAG, "%s: could not write %s", what, path);
+done:
+    free(img);
+    esp_http_client_close(c);
+    esp_http_client_cleanup(c);
+}
+
+/* 8027: whether the folder has a cover of its own already -- one that
+ * came with an earlier episode, or one the listener put there. */
+static bool has_cover(const char *dir)
+{
+    static char p[DL_LINK_MAX + 16];
+    struct stat st;
+    for (int i = 0; i < FOLDERART_NNAMES; i++) {
+        snprintf(p, sizeof(p), "%s/%s", dir, FOLDERART_NAMES[i]);
+        if (stat(p, &st) == 0 && S_ISREG(st.st_mode)) return true;
+    }
+    return false;
 }
 
 static void dl_task(void *arg)
@@ -325,6 +415,25 @@ static void dl_task(void *arg)
     if (ok) {
         st = PODDL_DONE;
         ESP_LOGI(TAG, "done: %lld bytes", (long long)got);
+        /*
+         * 8027: the pictures, after the episode and never instead of it.
+         * The podcast's as cover.<ext> when the folder has no cover yet,
+         * so every episode in it has one; the episode's own, when it
+         * differs, as the dotfile folderart.c reads first in a podcast's
+         * folder.
+         */
+        static char stem[DL_STEM_MAX + 2];          /* + ".x", taken off again */
+        storage_io_acquire(STORAGE_IO_BACKGROUND);
+        const bool covered = has_cover(s_dir);
+        storage_io_release();
+        if (s_cover_url[0] && !covered) {
+            snprintf(stem, sizeof(stem), "%s/cover", s_dir);
+            fetch_picture("the podcast's picture", s_cover_url, stem);
+        }
+        if (s_own_url[0] && folderart_own_path(s_path, "x", stem, sizeof(stem))) {
+            stem[strlen(stem) - 2] = '\0';          /* without the ".x": fetch_picture() adds it */
+            fetch_picture("the episode's picture", s_own_url, stem);
+        }
     }
 
 out:
@@ -340,7 +449,7 @@ out:
 }
 
 bool poddl_start(int64_t id, const char *url, const char *dir, const char *base,
-                 int64_t feed, const char *show)
+                 int64_t feed, const char *show, const char *cover, const char *own)
 {
     if (!url || !dir || !base) return false;
     lock();
@@ -350,6 +459,9 @@ bool poddl_start(int64_t id, const char *url, const char *dir, const char *base,
     snprintf(s_base, sizeof(s_base), "%s", base);
     s_feed = feed;                                  /* 8021 */
     snprintf(s_show, sizeof(s_show), "%s", show ? show : "");
+    snprintf(s_cover_url, sizeof(s_cover_url), "%s", cover ? cover : "");            /* 8027 */
+    snprintf(s_own_url, sizeof(s_own_url), "%s",
+             own && own[0] && (!cover || strcmp(own, cover)) ? own : "");
     s_path[0] = '\0';
     s_id = id;
     s_got = 0;

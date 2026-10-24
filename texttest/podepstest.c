@@ -59,6 +59,18 @@ int main(void)
         CHECK(e[1].desc[0] == '\0', "none: [%s]", e[1].desc);
     }
 
+    printf("  the pictures\n");
+    {
+        const char *r = "{\"items\":[{\"id\":1,\"title\":\"t\",\"enclosureUrl\":\"https://a/1\","
+                        "\"image\":\"https:\\/\\/img\\/ep1.jpg\",\"feedImage\":\"https://img/show.jpg\"},"
+                        "{\"id\":2,\"title\":\"u\",\"enclosureUrl\":\"https://a/2\",\"image\":\"\","
+                        "\"feedImage\":\"data:image/png;base64,xyz\"}]}";
+        CHECK(PARSE(r, PODEPS_MAX) == 2, "two");
+        CHECK(!strcmp(e[0].image, "https://img/ep1.jpg") && !strcmp(e[0].feed_image, "https://img/show.jpg"),
+              "%s %s", e[0].image, e[0].feed_image);
+        CHECK(!e[1].image[0] && !e[1].feed_image[0], "empty, and not http(s): [%s] [%s]", e[1].image, e[1].feed_image);
+    }
+
     printf("  what is dropped\n");
     {
         char big[1400];

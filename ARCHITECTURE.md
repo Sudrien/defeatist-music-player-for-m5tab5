@@ -26393,3 +26393,40 @@ A 1 KB description each makes the episode lists about 100 KB, twice
 
 podeps.h guards a missing description itself: podfeeds_str() takes no
 NULL, and ASan said so the first time an episode had none.
+
+### 8027 -- pictures for downloaded episodes
+
+After an episode is whole, the downloader fetches two pictures, and a
+failure in either is a log line, never a failed download:
+
+- **The podcast's**, the episode's `feedImage`, as `cover.<ext>` in the
+  podcast's folder -- one folderart.h already looks for -- only when the
+  folder has no cover of any of FOLDERART_NAMES yet, so a cover the
+  listener put there is kept, and it is fetched once per podcast.
+- **The episode's own**, its `image`, when it is not the podcast's, as
+  `.<episode file>.<ext>` beside the episode: a dotfile, hidden as every
+  dotfile is, named for the whole file name as the ReplayGain sidecar is
+  (`.<file>.rgcache`), so the two stay together.
+
+The extension is the picture's first bytes' -- JPEG, PNG or GIF; anything
+else is not kept -- and the file goes through `.tmp` renamed when whole.
+The bound is the screen's own cover limit, COVERTAG_MAX_IMAGE (4 MB),
+refused before the first byte when the server declares more; the buffer
+is the declared size, or the limit, in PSRAM for the fetch.
+
+**On the screen**, folderart.c looks at a folder once, as before, and now
+also asks it whether it holds `.podcast`. In one that does, a track's
+own picture comes before the folder's, and folderart_in_hand() says no
+for it, since each track there may have its own. Every other folder is
+untouched: one look per folder, its answer cached. The track's own
+picture is not made the folder's donor in the cover cache, being only
+that track's. folderart_load() was restructured for the order of these
+looks, which is the smallest correct change.
+
+texttest: run-folderart gains folderart_own_path(), 444 checks;
+run-podeps the two image URLs, 21 checks.
+
+On the board, after `done:`: `I tab5_poddl: the podcast's picture: N KB
+as <dir>/cover.jpg` the first time, and `the episode's picture: ...`
+when it has its own; on playing it, `I tab5_folderart: the track's own
+picture (N KB)` or `cover.jpg from the folder`.

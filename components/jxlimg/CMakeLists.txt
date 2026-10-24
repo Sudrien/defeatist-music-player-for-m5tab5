@@ -24,3 +24,10 @@ target_compile_options(${COMPONENT_LIB} PRIVATE -fwrapv
     # And nothing in upstream's code stops the build: its warnings are
     # upstream's, and the file is fetched unmodified.
     -Wno-error)
+
+# 8031: -Os. J40 is one 130 KB translation unit of macros that -O2 inlines
+# into itself; -Os takes it to about 60%. A JPEG XL cover is rare and is
+# decoded off the UI's path, so the extra time is the price. Per source file
+# and in this directory, where the component's target is made (a property
+# set from another directory never reaches it -- 5276), and after IDF's -O2.
+set_property(SOURCE jxlimg.c APPEND PROPERTY COMPILE_OPTIONS -Os)

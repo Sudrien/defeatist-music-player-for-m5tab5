@@ -26515,3 +26515,51 @@ where `i18n_init()` fails and `_()` returns the key.
 On the board: `i18n: 71031 bytes of text inflated from 26846 in flash`.
 Not built with ESP-IDF; i18n.c and i18n_tab.c compiled at
 `-O2 -Wall -Werror=all` against stubs. No manifest or sdkconfig change.
+
+### 8031 -- the files nothing waits on, at -Os
+
+After 8030 and the graphics-handler v0.2.7 the app was still estimated
+about 10 KB over its slot (`idf.py size`: Flash 3,051,408, plus 87,234
+IRAM text and 14,930 data in the .bin; the partition table stays, for the
+launcher). The build's -O2 (`COMPILER_OPTIMIZATION_PERF`) stays for the
+app, as 5245 left it; the files in this patch are the ones no deadline
+reads.
+
+- `components/jxlimg/jxlimg.c`, all of J40, at -Os. Measured here with
+  GCC 13.3 for rv32imafc, `-ffunction-sections -fwrapv`: .text 133,023 ->
+  82,627. Espressif's GCC 14.2 will differ; the archive's .text is
+  107,448 in the last size table, so the saving is less than 50 KB, but
+  most of it. Cost: a JPEG XL cover decodes slower; nothing else uses it.
+- In `main`: mpd.c, mpdproto.c, mpdfilter.c, mpdidle.c, mpdmode.c,
+  mpduri.c (5245's set, and its small ones; not mpdqueue, which the
+  player's next-track path reads), remote.c, remoteproto.c, portal.c,
+  portalweb.c, dnsreply.c, sleeppage.c, poddl.c, podindex.c,
+  radiobrowser.c, stations.c, favorites.c, starred.c, approve.c,
+  certgen.c, devcert.c, wifijoin.c, nvsns.c, launcher_import.c.
+
+Measured the same way for the ones that compile against texttest's stubs
+(.text, -O2 -> -Os): mpdfilter 10,622 -> 6,440; mpdproto 8,035 -> 6,979;
+remoteproto 7,204 -> 5,256; sleeppage 9,530 -> 7,515; portalweb 4,573 ->
+3,663; mpdidle, mpdmode, mpduri about 10-18% each. The rest need IDF's
+headers and are not measured; 5245 had mpd.c 52,476 -> 38,748. Expect
+15-25% of their .text. The whole patch is expected at 50-70 KB; the
+build's size line is the check.
+
+Left at -O2 on purpose, because a deadline or a user's wait reads them:
+player, ui, panel, browser (drawing and the DPI path), albumart and
+decoder (decode), fx, varispeed, rateconv, loudness, replaygain, flacenc,
+recorder, waveform, bench, netstream and netdec (they feed a decoder),
+and the *seek files (they run at track start). The i18n and font tables
+are data and are not touched by -O.
+
+Per source file, `set_property(SOURCE ... APPEND PROPERTY COMPILE_OPTIONS
+-Os)`, in the directory that makes the component's target, so it lands
+after IDF's -O2 (5245, 5276). It is before O3CHECK, which still wins. The
+proof it took: `grep -c -- '-Os' build/compile_commands.json` is at least
+25 (24 main files + jxlimg.c), and `-Os` is on mpd.c's entry. No manifest
+and no sdkconfig change.
+
+Not built with ESP-IDF. Strict `-Wall -Werror=all` is unaffected in kind
+by -Os, but -Os inlines differently and can move
+-Wmaybe-uninitialized and -Wstringop-overflow: the first build is the
+test, and a warning that appears only here is -Os's.

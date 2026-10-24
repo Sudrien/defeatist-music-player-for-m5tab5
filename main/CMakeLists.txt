@@ -54,6 +54,27 @@ endif()
 # 5092's --wrap of eh_host_port_dma_alloc moved to
 # feckless-network-handler's CMakeLists.txt with hostedwrap.c (6053).
 
+# 8031: the files nothing waits on, at -Os. sdkconfig.defaults keeps
+# COMPILER_OPTIMIZATION_PERF for the whole app (the DPI underrun fixes
+# lean on it), and the app was past its 3 MB slot with the partition table
+# off limits, so what gives is code that runs on no timing path: the MPD
+# server (5245's three files and its four small ones but mpdqueue, which the
+# player's next-track path reads), the web pages and the portal, the podcast,
+# station and radio-browser lists, the certificate and Wi-Fi join code, the
+# launcher import. NOT here, and not to be added without a board run: player,
+# ui, panel and browser (drawing), albumart/decoder (decode), fx, varispeed,
+# rateconv, loudness, replaygain, flacenc, recorder, waveform, bench, netstream
+# and netdec (they feed a decoder), and the *seek files (they run at track
+# start). Per source file and APPENDed, as decoder.c's -O3 is (5276), so it
+# lands after IDF's -O2; O3CHECK below is after this, so it still wins.
+# The proof it took: build/compile_commands.json has -Os on these entries.
+set_property(SOURCE
+        mpd.c mpdproto.c mpdfilter.c mpdidle.c mpdmode.c mpduri.c
+        remote.c remoteproto.c portal.c portalweb.c dnsreply.c sleeppage.c
+        poddl.c podindex.c radiobrowser.c stations.c favorites.c starred.c
+        approve.c certgen.c devcert.c wifijoin.c nvsns.c launcher_import.c
+    APPEND PROPERTY COMPILE_OPTIONS -Os)
+
 # 5277: every file in main at -O3, off by default. Build with
 #   idf.py -DO3CHECK=1 build
 # to have GCC's stronger -O3 analysis -- deeper inlining, more unrolling,

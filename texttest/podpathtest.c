@@ -108,6 +108,18 @@ int main(void)
         CHECK(!podpath_link_parse(NULL, 0, &feed, t, sizeof(t)), "NULL");
     }
 
+    printf("  where it is while it downloads\n");
+    {
+        char o[128];
+        CHECK(podpath_part("/sd/Podcasts/LARB Radio Hour", "2026-10-02 Trauma!", o, sizeof(o)) &&
+              !strcmp(o, "/sd/Podcasts/.partial/LARB Radio Hour/2026-10-02 Trauma!.part"), "%s", o);
+        CHECK(podpath_part("/usb/Podcasts/P", NULL, o, sizeof(o)) && !strcmp(o, "/usb/Podcasts/.partial/P"),
+              "the folder alone: %s", o);
+        CHECK(!podpath_part("nodir", "b", o, sizeof(o)) && !o[0], "no slash");
+        CHECK(!podpath_part("/sd/Podcasts/", "b", o, sizeof(o)) && !o[0], "no podcast name");
+        CHECK(!podpath_part("/sd/Podcasts/P", "b", o, 20) && !o[0], "too long refuses");
+    }
+
     printf("%d checks, %d failures\n", checks, failures);
     return failures ? 1 : 0;
 }

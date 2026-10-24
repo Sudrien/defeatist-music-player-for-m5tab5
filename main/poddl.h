@@ -57,6 +57,12 @@ bool poddl_start(int64_t id, const char *url, const char *dir, const char *base,
 void poddl_pause(void);
 void poddl_cancel(void);
 
+/* 8029: discard <dir>/<base>'s part file, wherever it is, and the
+ * podcast folder if that leaves nothing in it but its link -- the cancel
+ * for a download not running, as after a reboot, when poddl_cancel() has
+ * no download to stop. Nothing while one runs. Touches the filesystem. */
+void poddl_discard(const char *dir, const char *base);
+
 /* 8024: whether <dir>/<base>.part is there, and its size. Touches the
  * filesystem, as poddl_find() does. */
 bool poddl_part(const char *dir, const char *base, int64_t *size);

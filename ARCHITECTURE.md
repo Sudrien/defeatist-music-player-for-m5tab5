@@ -26441,3 +26441,36 @@ a faint track the row's width. No bar when the server gave no length;
 the title is still marked. The download's state is read once a draw, not
 once a row, and the list is already redrawn every 0.1 MB (8024), so the
 bar moves with the status line.
+
+### 8029 -- no podcast folder until an episode is in it
+
+The downloader made the podcast's folder and its `.podcast` link before
+the first byte, so a download cancelled or failed on the first episode
+of a podcast left a folder holding only the way back -- the 557 MB
+audiobook's did.
+
+Now the part file lives in `<mount>/Podcasts/.partial/<podcast>/
+<base>.part` (podpath_part()) -- a dotted folder, hidden -- and the
+podcast's folder, its link and its cover are made only when an episode
+is whole, just before the part file is renamed into it; `.partial/
+<podcast>` goes when it is empty. Resume is unchanged: the path is fixed,
+so a pause, a dropped link or a reboot takes up from the same file.
+
+**What 8021-8028 left.** A part file in the podcast's own folder (8024's
+place) is moved to `.partial` when that episode starts again, and taken
+up from. poddl_part() finds either. A cancel -- and poddl_discard(),
+below -- removes a podcast folder that holds nothing but its link and
+part files, and the chooser no longer shows the link row in a folder
+with nothing else in it.
+
+**Cancel without a download.** After a reboot nothing is running, so
+8024's "Cancel the download and delete it" on an episode with a part
+file called poddl_cancel(), which had no download to stop, and did
+nothing. The chooser now calls poddl_discard(dir, base) whenever none
+is running: it removes the part file from either place and tidies as
+above.
+
+texttest run-podpath gains podpath_part(), 41 checks.
+
+On the board: `moved an earlier part file to ...`, `part file
+discarded`, `removed <dir>: it held no episode`.

@@ -187,3 +187,27 @@ static inline bool podpath_link_parse(const char *text, size_t n, int64_t *feed,
     if (feed) *feed = id;
     return true;
 }
+
+/*
+ * 8029: where an episode is while it downloads -- not in its podcast's
+ * folder, which is made only when an episode is whole, so a cancel or a
+ * failure leaves no folder behind. "<mount>/Podcasts/<podcast>" and a
+ * base give "<mount>/Podcasts/.partial/<podcast>/<base>.part" (a dotted
+ * folder, hidden as every dotfile is), and with base NULL the folder
+ * alone. False, `out` empty, if `dir` has no '/' or it will not fit.
+ */
+#define PODPATH_PARTIAL ".partial"
+
+static inline bool podpath_part(const char *dir, const char *base, char *out, size_t cap)
+{
+    if (!out || cap == 0) return false;
+    out[0] = '\0';
+    if (!dir) return false;
+    const char *slash = strrchr(dir, '/');
+    if (!slash || !slash[1]) return false;
+    const int n = base
+        ? snprintf(out, cap, "%.*s/" PODPATH_PARTIAL "/%s/%s.part", (int)(slash - dir), dir, slash + 1, base)
+        : snprintf(out, cap, "%.*s/" PODPATH_PARTIAL "/%s", (int)(slash - dir), dir, slash + 1);
+    if (n <= 0 || (size_t)n >= cap) { out[0] = '\0'; return false; }
+    return true;
+}

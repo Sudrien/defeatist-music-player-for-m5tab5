@@ -5,11 +5,13 @@
  */
 #include "poddl.h"
 
+#include <dirent.h>
 #include <errno.h>
 #include <stdio.h>
 #include <stdlib.h>
 #include <string.h>
 #include <sys/stat.h>
+#include <unistd.h>             /* 8029: rmdir() */
 
 #include "esp_app_desc.h"
 #include "esp_crt_bundle.h"
@@ -38,7 +40,8 @@ static const char *TAG = "tab5_poddl";
  * and extension rather than the folder's bound again -- GCC's
  * format-truncation check at -O2 proves these cannot be cut. */
 #define DL_FILE_MAX   (DL_PATH_MAX + 1 + PODPATH_NAME_MAX + 16 + 1 + 8)
-#define DL_PART_MAX   (DL_PATH_MAX + 1 + PODPATH_NAME_MAX + 16 + 5)   /* 8024: <base>.part */
+/* 8024: <base>.part; 8029: under <mount>/Podcasts/.partial/<podcast>/ */
+#define DL_PART_MAX   (DL_PATH_MAX + sizeof("/" PODPATH_PARTIAL) + 1 + PODPATH_NAME_MAX + 16 + 5)
 #define DL_LINK_MAX   (DL_PATH_MAX + sizeof("/" PODPATH_LINK))
 /* 8027: a picture's path before its extension -- "<dir>/cover", or the
  * episode's file with a dot in front -- then with ".gif" and ".tmp". */
@@ -110,23 +113,90 @@ static void finish(poddl_state_t st)
     unlock();
 }
 
-static bool make_dirs(const char *dir)
+/* mkdir that does not mind the folder being there. */
+static bool mk(const char *p)
 {
-    /* <mount>/Podcasts, then <mount>/Podcasts/<podcast>. */
-    char p[DL_PATH_MAX];
-    snprintf(p, sizeof(p), "%s", dir);
-    char *slash = strrchr(p, '/');
-    bool ok = true;
+    if (mkdir(p, 0777) == 0 || errno == EEXIST) return true;
+    ESP_LOGW(TAG, "could not make %s (errno %d)", p, errno);
+    return false;
+}
+
+/*
+ * 8029: the folders the part file needs -- <mount>/Podcasts, its
+ * .partial, and .partial/<podcast> -- and not the podcast's own folder,
+ * which waits for a whole episode (finish_dir()).
+ */
+static bool make_part_dirs(const char *dir)
+{
+    static char p[DL_PART_MAX];
+    if (!podpath_part(dir, NULL, p, sizeof(p))) return false;
+    char *leaf = strrchr(p, '/');                   /* .../.partial/<podcast> */
+    *leaf = '\0';
+    char *partial = strrchr(p, '/');                /* .../Podcasts/.partial */
     storage_io_acquire(STORAGE_IO_BACKGROUND);
-    if (slash) {
-        *slash = '\0';
-        if (mkdir(p, 0777) != 0 && errno != EEXIST) ok = false;
-        *slash = '/';
-    }
-    if (ok && mkdir(p, 0777) != 0 && errno != EEXIST) ok = false;
+    *partial = '\0';
+    bool ok = mk(p);                                /* <mount>/Podcasts */
+    *partial = '/';
+    ok = ok && mk(p);                               /* .partial */
+    *leaf = '/';
+    ok = ok && mk(p);                               /* .partial/<podcast> */
     storage_io_release();
-    if (!ok) ESP_LOGW(TAG, "could not make %s (errno %d)", p, errno);
     return ok;
+}
+
+/* 8029: the part file's folder goes when it is empty; rmdir() refuses
+ * one that is not, which is what is wanted. */
+static void drop_part_dir(const char *dir)
+{
+    static char p[DL_PART_MAX];
+    if (podpath_part(dir, NULL, p, sizeof(p))) rmdir(p);
+}
+
+/* 8021, moved by 8029: the podcast's folder and its way back, now that
+ * an episode is whole and about to go in. Rewritten each time, so a
+ * renamed podcast's folder follows; a failure costs only the link. */
+static bool finish_dir(void)
+{
+    static char link[DL_LINK_MAX], text[160];
+    if (!mk(s_dir)) return false;
+    snprintf(link, sizeof(link), "%s/" PODPATH_LINK, s_dir);
+    const int n = podpath_link_format(s_feed, s_show, text, sizeof(text));
+    FILE *lf = fopen(link, "w");
+    const bool wrote = lf && n > 0 && fwrite(text, 1, (size_t)n, lf) == (size_t)n;
+    if (lf) fclose(lf);
+    if (!wrote) ESP_LOGW(TAG, "could not write %s", link);
+    return true;
+}
+
+/*
+ * 8029: a podcast folder that holds nothing a person would see -- only
+ * the link, and part files from before 8029 put them elsewhere -- goes,
+ * with those. Anything else in it, a cover or an episode or a file the
+ * listener added, keeps it. The cancel that left 8021-8028's folders
+ * with only a link is what runs this.
+ */
+static void drop_empty_podcast_dir(const char *dir)
+{
+    static char p[DL_LINK_MAX + DL_FILE_MAX];
+    DIR *d = opendir(dir);
+    if (!d) return;
+    bool other = false;
+    struct dirent *e;
+    while ((e = readdir(d)) != NULL && !other) {
+        const char *n = e->d_name;
+        const size_t l = strlen(n);
+        if (!strcmp(n, ".") || !strcmp(n, "..") || !strcmp(n, PODPATH_LINK)) continue;
+        if (l > 5 && !strcmp(n + l - 5, ".part")) continue;
+        other = true;
+    }
+    if (other) { closedir(d); return; }
+    rewinddir(d);
+    while ((e = readdir(d)) != NULL) {
+        if (!strcmp(e->d_name, ".") || !strcmp(e->d_name, "..")) continue;
+        if (snprintf(p, sizeof(p), "%s/%s", dir, e->d_name) < (int)sizeof(p)) remove(p);
+    }
+    closedir(d);
+    if (rmdir(dir) == 0) ESP_LOGI(TAG, "removed %s: it held no episode", dir);
 }
 
 /* Open `url`, following redirects; the client, positioned at the body,
@@ -285,21 +355,7 @@ static void dl_task(void *arg)
     esp_http_client_handle_t c = NULL;
     FILE *f = NULL;
     int status = 0;
-    if (!buf || !make_dirs(s_dir)) goto out;
-    {
-        /* 8021: the folder's way back to the podcast. Rewritten each
-         * time, so a renamed podcast's folder follows; a failure here
-         * costs only the link, not the download. */
-        static char link[DL_LINK_MAX], text[160];
-        snprintf(link, sizeof(link), "%s/" PODPATH_LINK, s_dir);
-        const int n = podpath_link_format(s_feed, s_show, text, sizeof(text));
-        storage_io_acquire(STORAGE_IO_BACKGROUND);
-        FILE *lf = fopen(link, "w");
-        const bool wrote = lf && n > 0 && fwrite(text, 1, (size_t)n, lf) == (size_t)n;
-        if (lf) fclose(lf);
-        storage_io_release();
-        if (!wrote) ESP_LOGW(TAG, "could not write %s", link);
-    }
+    if (!buf || !make_part_dirs(s_dir)) goto out;
     /*
      * 8024: a part file already there is the start of this download --
      * paused, cut off by a reboot or a dropped link -- and the rest is
@@ -310,7 +366,20 @@ static void dl_task(void *arg)
      * The size comes from stat(), whose st_size is off_t: a part past
      * 2 GB here starts over rather than resuming at a wrong place.
      */
-    snprintf(part, sizeof(part), "%s/%s.part", s_dir, s_base);
+    if (!podpath_part(s_dir, s_base, part, sizeof(part))) goto out;     /* 8029 */
+    {
+        /* 8029: a part file where 8024-8028 kept it, in the podcast's
+         * own folder, is moved here and taken up from, rather than left
+         * behind while this starts again from nothing. */
+        static char old[DL_FILE_MAX];
+        struct stat ost;
+        snprintf(old, sizeof(old), "%s/%s.part", s_dir, s_base);
+        storage_io_acquire(STORAGE_IO_BACKGROUND);
+        if (stat(part, &ost) != 0 && stat(old, &ost) == 0 && S_ISREG(ost.st_mode)) {
+            if (rename(old, part) == 0) ESP_LOGI(TAG, "moved an earlier part file to %s", part);
+        }
+        storage_io_release();
+    }
     int64_t from = 0;
     {
         struct stat pst;
@@ -393,6 +462,8 @@ static void dl_task(void *arg)
     }
     if (stop == STOP_CANCEL) {
         remove(part);
+        drop_part_dir(s_dir);                       /* 8029 */
+        drop_empty_podcast_dir(s_dir);
         storage_io_release();
         st = PODDL_IDLE;
         ESP_LOGI(TAG, "cancelled at %lld bytes", (long long)got);
@@ -402,6 +473,7 @@ static void dl_task(void *arg)
         ESP_LOGW(TAG, "ended at %lld of %lld bytes", (long long)got, (long long)s_total);
         ok = false;
     }
+    if (ok && !finish_dir()) ok = false;           /* 8029: the folder, now */
     if (ok) {
         remove(s_path);                  /* a stale one, if any; rename will not replace */
         if (rename(part, s_path) != 0) {
@@ -411,6 +483,7 @@ static void dl_task(void *arg)
     }
     /* 8024: a part that failed is kept too -- a dropped link is the usual
      * reason, and the next tap takes up from it. Only a cancel removes it. */
+    if (ok) drop_part_dir(s_dir);                   /* 8029 */
     storage_io_release();
     if (ok) {
         st = PODDL_DONE;
@@ -492,15 +565,19 @@ void poddl_cancel(void)
     lock();
     const poddl_state_t st = s_state;
     if (st == PODDL_RUNNING) s_stop = STOP_CANCEL;
+    static char dir[DL_PATH_MAX];
     if (st == PODDL_PAUSED || st == PODDL_FAILED) {
-        snprintf(part, sizeof(part), "%s/%s.part", s_dir, s_base);
+        if (!podpath_part(s_dir, s_base, part, sizeof(part))) part[0] = '\0';   /* 8029 */
+        snprintf(dir, sizeof(dir), "%s", s_dir);
         s_state = PODDL_IDLE;
         s_gen++;
     }
     unlock();
     if (st == PODDL_PAUSED || st == PODDL_FAILED) {
         storage_io_acquire(STORAGE_IO_BACKGROUND);
-        remove(part);
+        if (part[0]) remove(part);
+        drop_part_dir(dir);
+        drop_empty_podcast_dir(dir);
         storage_io_release();
         ESP_LOGI(TAG, "cancelled; part file removed");
     }
@@ -520,12 +597,35 @@ poddl_state_t poddl_state(int64_t *id, int64_t *got, int64_t *total,
     return st;
 }
 
+void poddl_discard(const char *dir, const char *base)
+{
+    static char p[DL_PART_MAX];
+    lock();
+    const bool running = s_state == PODDL_RUNNING;
+    unlock();
+    if (running || !dir || !base) return;
+    storage_io_acquire(STORAGE_IO_BACKGROUND);
+    if (podpath_part(dir, base, p, sizeof(p))) remove(p);
+    if (snprintf(p, sizeof(p), "%s/%s.part", dir, base) < (int)sizeof(p)) remove(p);   /* 8024-8028's */
+    drop_part_dir(dir);
+    drop_empty_podcast_dir(dir);
+    storage_io_release();
+    lock();
+    if (s_state != PODDL_RUNNING) { s_state = PODDL_IDLE; s_gen++; }
+    unlock();
+    ESP_LOGI(TAG, "part file discarded");
+}
+
 bool poddl_part(const char *dir, const char *base, int64_t *size)
 {
     static char p[DL_PART_MAX];
     struct stat st;
-    if (snprintf(p, sizeof(p), "%s/%s.part", dir, base) >= (int)sizeof(p)) return false;
-    if (stat(p, &st) != 0 || !S_ISREG(st.st_mode)) return false;
+    if (!podpath_part(dir, base, p, sizeof(p))) return false;          /* 8029 */
+    if (stat(p, &st) != 0 || !S_ISREG(st.st_mode)) {
+        /* 8029: or where 8024-8028 kept it; dl_task() moves it over. */
+        if (snprintf(p, sizeof(p), "%s/%s.part", dir, base) >= (int)sizeof(p)) return false;
+        if (stat(p, &st) != 0 || !S_ISREG(st.st_mode)) return false;
+    }
     if (size) *size = (int64_t)st.st_size;
     return true;
 }

@@ -456,6 +456,9 @@ static void pod_link_row(const char *dir)
     fclose(f);
     text[n] = '\0';
     if (!podpath_link_parse(text, n, &s_dir_link_feed, s_dir_link_show, sizeof(s_dir_link_show))) return;
+    /* 8029: a folder with nothing in it but the link is not shown one --
+     * a cancelled or failed first download from before 8029 left those. */
+    if (s_count == 0) return;
     if (s_count >= MAX_ENTRIES) return;
     memmove(&s_entries[1], &s_entries[0], (size_t)s_count * sizeof(entry_t));
     char label[PODFEEDS_TITLE_MAX + 48];
@@ -2110,7 +2113,14 @@ browser_result_t browser_touch(bool down, int x, int y)
             const poddl_state_t ds = poddl_state(NULL, NULL, NULL, NULL, 0, NULL);
             if (i == 0 && ds == PODDL_RUNNING) poddl_pause();
             else if (i == 0 && s_pod_pick < s_pod_en) pod_download(s_pod_pick, s_pod_act_vol);
-            else if (i == 1) poddl_cancel();
+            else if (i == 1 && ds == PODDL_RUNNING) poddl_cancel();
+            else if (i == 1 && s_pod_pick < s_pod_en) {
+                /* 8029: no download running -- paused, failed, or from
+                 * before a reboot: discard the part file itself. */
+                static char dir[400], base[PODPATH_NAME_MAX + 16];
+                if (pod_ep_where(s_pod_act_vol, s_pod_pick, dir, sizeof(dir), base, sizeof(base)))
+                    poddl_discard(dir, base);
+            }
             s_pod_act = false;
             s_pod_level = 2;
             load_pod_ep_rows();

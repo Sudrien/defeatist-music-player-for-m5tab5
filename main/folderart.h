@@ -152,6 +152,10 @@ esp_err_t folderart_load(const char *file, const char *key,
  */
 bool folderart_in_hand(const char *file);
 
+/* 8055: `name`, a file in `file`'s folder that the track's sidecar says
+ * is its picture, read without looking for one. media_task only. */
+esp_err_t folderart_load_named(const char *file, const char *name, uint8_t **img, size_t *len);
+
 /* Forget every folder's answer: the volume has changed. */
 void folderart_forget(void);
 

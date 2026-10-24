@@ -5389,6 +5389,33 @@ static bool cover_still_wanted(const char *path, uint32_t gen)
     return path && path[0] && s_path[0] && strcmp(path, s_shown_path) == 0;
 }
 
+/*
+ * 8055: the picture beside a track with none in it. The sidecar's name
+ * for it first (art.ext), read without looking; else folderart_load()
+ * looks, and the name it found goes into the held record, written when
+ * the track ends, so the next play does not look. A name that is no
+ * longer there is dropped and looked for again.
+ */
+static esp_err_t beside_art(const char *file, const char *path, uint8_t **img, size_t *len)
+{
+    const bool held = rg_holding(path);
+    if (held && s_rg.art.present && !s_rg.art.has_art && s_rg.art.ext[0]) {
+        if (folderart_load_named(file, s_rg.art.ext, img, len) == ESP_OK) return ESP_OK;
+        ESP_LOGI(TAG, "the sidecar's picture %s is gone; looking again", s_rg.art.ext);
+        s_rg.art.ext[0] = '\0';
+        s_rg_dirty = true;
+    }
+    const char *name = NULL;
+    const esp_err_t err = folderart_load(file, path, img, len, &name);
+    if (err == ESP_OK && held && name && !s_rg.art.has_art &&
+        strlen(name) < sizeof(s_rg.art.ext) && strcmp(s_rg.art.ext, name) != 0) {
+        s_rg.art.present = true;
+        snprintf(s_rg.art.ext, sizeof(s_rg.art.ext), "%s", name);
+        s_rg_dirty = true;
+    }
+    return err;
+}
+
 static void show_cover(const char *path, uint8_t *jpg, size_t jpg_len,
                        bool owned, uint32_t gen)
 {
@@ -5525,7 +5552,7 @@ static void do_art(const char *path, uint32_t gen)
          * the folder may still have the album's cover. */
         uint8_t *img = NULL;
         size_t img_len = 0;
-        if (folderart_load(file, path, &img, &img_len, NULL) == ESP_OK) {
+        if (beside_art(file, path, &img, &img_len)            /* 8055 */ == ESP_OK) {
             show_cover(path, img, img_len, true, gen);
             return;
         }
@@ -5611,7 +5638,7 @@ static void do_art(const char *path, uint32_t gen)
         if (xerr == ESP_ERR_NOT_FOUND || xerr == ESP_ERR_NOT_SUPPORTED) {
             uint8_t *img = NULL;
             size_t img_len = 0;
-            if (folderart_load(file, path, &img, &img_len, NULL) == ESP_OK) {
+            if (beside_art(file, path, &img, &img_len)     /* 8055 */ == ESP_OK) {
                 show_cover(path, img, img_len, true, gen);
                 return;
             }

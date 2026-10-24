@@ -234,6 +234,13 @@ static bool parse_line(const char *line, uint32_t filesize, int64_t mtime,
          * broken record. Demoted to a definite absence rather than
          * believed, so the next look re-reads the tag. */
         if (out->art.has_art && out->art.length == 0) out->art.present = false;
+        /* 8055: a picture beside the file, by name -- one name, in the
+         * track's folder; anything with a '/' in it is not believed. */
+        const cJSON *ex = cJSON_GetObjectItemCaseSensitive(ar, "ext");
+        if (!out->art.has_art && cJSON_IsString(ex) && ex->valuestring[0] &&
+            !strchr(ex->valuestring, '/') && strcmp(ex->valuestring, "..") &&
+            strlen(ex->valuestring) < sizeof(out->art.ext))
+            snprintf(out->art.ext, sizeof(out->art.ext), "%s", ex->valuestring);
     }
 
     const cJSON *fm = cJSON_GetObjectItemCaseSensitive(root, "format");
@@ -523,6 +530,8 @@ static esp_err_t append_record(const char *path, const replaygain_t *rg,
         cJSON *ar = cJSON_AddObjectToObject(root, "art");
         if (ar) {
             cJSON_AddBoolToObject(ar, "has_art", rg->art.has_art);
+            if (!rg->art.has_art && rg->art.ext[0])                 /* 8055 */
+                cJSON_AddStringToObject(ar, "ext", rg->art.ext);
             if (rg->art.has_art) {
                 cJSON_AddNumberToObject(ar, "offset", (double)rg->art.offset);
                 cJSON_AddNumberToObject(ar, "length", (double)rg->art.length);
@@ -835,6 +844,7 @@ esp_err_t replaygain_save_art(const char *path, bool has_art,
     rg.art.has_art = has_art;
     rg.art.offset  = has_art ? offset : 0;
     rg.art.length  = has_art ? length : 0;
+    if (has_art) rg.art.ext[0] = '\0';             /* 8055: one or the other */
     return RG_SAVE_APPEND();
 }
 

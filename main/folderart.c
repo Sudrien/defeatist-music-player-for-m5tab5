@@ -233,7 +233,9 @@ esp_err_t folderart_load(const char *file, const char *key,
             if (!folderart_own_path(file, own_ext[i], s_path, FOLDERART_PATH_MAX)) break;
             if (stat(s_path, &ost) != 0 || !S_ISREG(ost.st_mode) || ost.st_size <= 0) continue;
             if (read_image((long)ost.st_size, img, len) == ESP_OK) {
-                if (name) *name = "its own picture";
+                /* 8055: the file's name, for the sidecar (was "its own
+                 * picture", which nothing read). */
+                if (name) { const char *b = strrchr(s_path, '/'); *name = b ? b + 1 : s_path; }
                 ESP_LOGI(TAG, "the track's own picture (%u KB)", (unsigned)(*len / 1024));
                 return ESP_OK;
             }
@@ -279,4 +281,28 @@ esp_err_t folderart_load(const char *file, const char *key,
              (unsigned)(*len / 1024));
     set_donor(key, file, h);
     return ESP_OK;
+}
+
+/*
+ * 8055: a picture whose name the track's sidecar remembered (art.ext),
+ * read straight from the track's folder, without the walk. The name is
+ * the sidecar's, so it is held to one name in that folder: no '/', not
+ * "." or "..". ESP_ERR_NOT_FOUND when it is not there any more, and the
+ * caller looks again as before.
+ */
+esp_err_t folderart_load_named(const char *file, const char *name, uint8_t **img, size_t *len)
+{
+    *img = NULL;
+    *len = 0;
+    if (!name || !name[0] || strchr(name, '/') || !strcmp(name, ".") || !strcmp(name, ".."))
+        return ESP_ERR_INVALID_ARG;
+    if (!ensure() || !folderart_dir_of(file, s_dir, FOLDERART_PATH_MAX)) return ESP_ERR_NOT_FOUND;
+    if (snprintf(s_path, FOLDERART_PATH_MAX, "%s/%s", s_dir, name) >= FOLDERART_PATH_MAX)
+        return ESP_ERR_NOT_FOUND;
+    struct stat st;
+    if (stat(s_path, &st) != 0 || !S_ISREG(st.st_mode)) return ESP_ERR_NOT_FOUND;
+    const esp_err_t err = read_image((long)st.st_size, img, len);
+    if (err == ESP_OK)
+        ESP_LOGI(TAG, "%s, as the sidecar said (%u KB)", name, (unsigned)(*len / 1024));
+    return err;
 }

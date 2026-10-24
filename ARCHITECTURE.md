@@ -27274,3 +27274,37 @@ translations are Claude's, not yet read by native speakers.
 
 ui.c and player.c compiled against stub headers with the same stub
 errors before and after. Not built with IDF, not run.
+
+### 8055 -- the sidecar names the picture beside the file
+
+The sidecar's art section (replaygain_art_t) said where a picture was
+in the file -- offset and length -- or that there was none. A podcast
+episode usually has none in it and its own beside it (8027,
+`.<file>.jpg`), or the folder's cover, and that was found by looking,
+every boot: folderart.c's per-folder answer is in RAM only.
+
+Now the section holds one or the other: `offset` and `length` with
+`has_art` true, or, with `has_art` false, `ext` -- the name, in the
+track's folder, of the picture shown instead. beside_art() in player.c,
+at the two places a track with no picture of its own falls back to the
+folder, reads the sidecar's name first (folderart_load_named(): stat
+and read, no walk), and otherwise looks with folderart_load() as before
+and puts the name it found into the held record, which is written when
+the track ends. A name that is no longer there is dropped and looked
+for again. folderart_load()'s `name` for a track's own picture is now
+its file name rather than "its own picture", which nothing read.
+
+The name is the sidecar's, so it is held to one name in the folder: a
+'/' in it, or "." or "..", is not believed, on read (replaygain.c) and
+on use (folderart_load_named()). replaygain_save_art() with a picture
+in the file clears ext.
+
+The fallback for a picture in the file that will not decode (6146) is
+left as it was: has_art is true there, and the record is about the
+file's picture.
+
+folderart.c and replaygain.c compiled with gcc -O2 -Wall -Wextra
+-Werror=all -Werror=extra against stub headers and cJSON, clean;
+player.c with the same stub errors before and after. texttest's
+folderart test needs the feckless components, not fetched here. Not
+built with IDF, not run.

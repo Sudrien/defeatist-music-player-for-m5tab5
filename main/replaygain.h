@@ -196,11 +196,20 @@ typedef struct {
  * has_art false means somebody looked and there is none, which is a
  * fact worth as much as an offset.
  */
+/*
+ * 8055: and, when there is none in the file, the picture beside it that
+ * was shown instead -- a podcast episode's own (".<file>.jpg", 8027) or
+ * the folder's cover -- as a name in the track's folder, so the next
+ * play reads it without looking. Empty when nothing was found. Either
+ * offset and length (has_art) or ext, never both.
+ */
+#define REPLAYGAIN_ART_EXT_MAX 128
 typedef struct {
     bool     present;
     bool     has_art;
     uint32_t offset;        /* byte offset of the image data */
     uint32_t length;        /* bytes; 0 with has_art false */
+    char     ext[REPLAYGAIN_ART_EXT_MAX];   /* 8055: with has_art false */
 } replaygain_art_t;
 
 /*

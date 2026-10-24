@@ -60,6 +60,12 @@ static const char *TAG = "tab5_poddl";
 #define DL_CONNS      3
 #define DL_SPLIT_MIN  (8 * 1024 * 1024)
 #define DL_HELP_STACK 6144
+/* 8046: the test of stripes against thirds. Nonzero: a split download is
+ * cut into stripes of this many bytes, and each connection takes the next
+ * stripe nobody has as soon as it finishes one, on the same connection
+ * (keep-alive), so the three write within a few stripes of each other.
+ * 0: 8043's thirds, one a connection. */
+#define DL_STRIPE     (1024 * 1024)
 #define DL_HOPS       6             /* tracking prefixes stack */
 #define DL_URL_MAX    1024
 #define DL_PATH_MAX   400           /* a podcast's folder */
@@ -220,11 +226,13 @@ static bool id_tmp_path(const char *part, char *out, size_t cap)
 /* Returns the number of segments read (0: a .id with no map, as 8041
  * wrote), or -1 for no .id at all. */
 static int id_read(const char *part, char *val, size_t vcap, int64_t *total,
-                   seg_t *seg, int nmax)
+                   seg_t *seg, int nmax, int64_t *front, int64_t *stripe)
 {
     static char p[DL_PART_MAX + 8];
     val[0] = '\0';
     *total = -1;
+    *front = -1;                                    /* 8046: none written */
+    *stripe = 0;
     if (!id_path(part, p, sizeof(p))) return -1;
     FILE *f = fopen(p, "r");
     if (!f && id_tmp_path(part, p, sizeof(p))) f = fopen(p, "r");
@@ -235,9 +243,10 @@ static int id_read(const char *part, char *val, size_t vcap, int64_t *total,
         *total = strtoll(line, NULL, 10);
         n = 0;
         if (fgets(val, (int)vcap, f)) val[strcspn(val, "\r\n")] = '\0';
-        while (n < nmax && fgets(line, sizeof(line), f)) {
+        while (fgets(line, sizeof(line), f)) {
             long long a, b, d;
-            if (sscanf(line, "s %lld %lld %lld", &a, &b, &d) != 3) break;
+            if (sscanf(line, "p %lld %lld", &a, &b) == 2) { *front = a; *stripe = b; continue; }   /* 8046 */
+            if (n >= nmax || sscanf(line, "s %lld %lld %lld", &a, &b, &d) != 3) break;
             seg[n].start = a; seg[n].end = b; seg[n].done = d;
             n++;
         }
@@ -246,7 +255,11 @@ static int id_read(const char *part, char *val, size_t vcap, int64_t *total,
     return n;
 }
 
-static void id_write(const char *part, const char *val, int64_t total, const seg_t *seg, int nseg)
+/* 8046: and `p <front> <stripe>` when a download is in stripes: every
+ * byte before `front` that is in none of the segments is on the card;
+ * nothing from `front` on is, but what the segments say. */
+static void id_write(const char *part, const char *val, int64_t total, const seg_t *seg, int nseg,
+                     int64_t front, int64_t stripe)
 {
     static char p[DL_PART_MAX + 8], t[DL_PART_MAX + 8];
     if (!id_path(part, p, sizeof(p)) || !id_tmp_path(part, t, sizeof(t))) return;
@@ -256,6 +269,7 @@ static void id_write(const char *part, const char *val, int64_t total, const seg
     for (int i = 0; i < nseg && ok; i++)
         ok = fprintf(f, "s %lld %lld %lld\n", (long long)seg[i].start,
                      (long long)seg[i].end, (long long)seg[i].done) > 0;
+    if (ok && front >= 0) ok = fprintf(f, "p %lld %lld\n", (long long)front, (long long)stripe) > 0;
     if (fflush(f) != 0) ok = false;
     if (ok) fsync(fileno(f));
     if (fclose(f) != 0) ok = false;
@@ -503,7 +517,10 @@ static bool has_cover(const char *dir)
 /* 8042: and where: the segment the chunk is from, and its place in the
  * file. The writer seeks only when that is not where the last chunk
  * ended, so one segment written in order never seeks. */
-typedef struct { uint8_t *p; int len; int seg; int64_t off; } wr_item_t;
+/* 8046: len WR_CLAIM is no chunk but a segment taking a new stripe,
+ * [off, end): the writer flushes what it has for the old one first. */
+typedef struct { uint8_t *p; int len; int seg; int64_t off; int64_t end; } wr_item_t;
+#define WR_CLAIM (-2)
 static struct {
     QueueHandle_t     full, free_;
     SemaphoreHandle_t done;
@@ -520,6 +537,7 @@ static struct {
     int64_t           total, since_map;
     const char       *part;
     char              val[96];
+    int64_t           front, stripe;        /* 8046 */
     /* 8045: each segment's gathered bytes, and where they go; NULL when
      * PSRAM could not be had, and then every chunk is written as it comes. */
     uint8_t          *stage;
@@ -561,7 +579,8 @@ static bool wr_out(int seg, const uint8_t *p, int len, int64_t off)
                 s_wr.since_map = 0;
                 if (fflush(s_wr.f) == 0) {
                     fsync(fileno(s_wr.f));
-                    id_write(s_wr.part, s_wr.val, s_wr.total, s_wr.seg, s_wr.nseg);
+                    id_write(s_wr.part, s_wr.val, s_wr.total, s_wr.seg, s_wr.nseg,
+                             s_wr.front, s_wr.stripe);
                 }
             }
         } else {
@@ -592,6 +611,14 @@ static void wr_task(void *arg)
     for (int i = 0; i < DL_SEGS_MAX; i++) s_wr.st_len[i] = 0;
     for (;;) {
         xQueueReceive(s_wr.full, &it, portMAX_DELAY);
+        if (it.len == WR_CLAIM) {                   /* 8046: the old stripe is whole */
+            if (s_wr.stage) wr_flush(it.seg);
+            s_wr.seg[it.seg].start = it.off;
+            s_wr.seg[it.seg].end = it.end;
+            s_wr.seg[it.seg].done = 0;
+            if (it.end > s_wr.front) s_wr.front = it.end;
+            continue;
+        }
         if (it.len <= 0) break;
         if (s_wr.err) {
             /* dropped: the readers see err and stop */
@@ -634,12 +661,16 @@ static void wr_task(void *arg)
  * any of them sets s_abort and the rest stop at their next chunk; the
  * part file and its map stay, and a tap goes on from them.
  */
-enum { SRV_DONE = 0, SRV_RERR, SRV_WERR, SRV_STOP };
+enum { SRV_DONE = 0, SRV_RERR, SRV_WERR, SRV_STOP, SRV_NOOPEN };
 
 static seg_t           s_plan[DL_SEGS_MAX];
 static int             s_nplan;
 static int64_t         s_rcv[DL_SEGS_MAX];
 static volatile bool   s_abort;
+/* 8046: the first byte no reader has taken, and the stripe size; under
+ * lock(). s_front is the download's total for thirds (nothing to take). */
+static int64_t         s_front, s_stripe;
+static int             s_conn_new, s_conn_reuse;   /* requests on new and kept connections */
 
 typedef struct {
     int64_t t_net, t_wait, t_mark, got_mark, w_net, w_wait, wl_mark, ww_mark;
@@ -712,24 +743,123 @@ static int serve(esp_http_client_handle_t c, int k, dl_timing_t *tm)
     }
 }
 
-/* Open segment k's rest on a connection of its own, checked as 8041 and
- * 8042 check a resume. NULL if the server will not give exactly that. */
-static esp_http_client_handle_t open_segment(char *url, hdrs_t *h, int k)
+/* 8046: whether a reply is exactly segment k's rest, as 8041 and 8042
+ * check a resume. */
+static bool range_ok(const hdrs_t *h, int status, int k)
 {
     const int64_t from = s_rcv[k], to = s_plan[k].end - 1;
-    int status = 0;
-    snprintf(h->if_range, sizeof(h->if_range), "%s", s_wr.val);
-    esp_http_client_handle_t c = open_followed(url, h, &status, from, to);
-    if (!c) return NULL;
     long long a = -1, b = -1, t = -1;
     const int n = sscanf(h->crange, "bytes %lld-%lld/%lld", &a, &b, &t);
     if (status == 206 && n >= 2 && a == from && b == to && (n < 3 || s_wr.total <= 0 || t == s_wr.total))
-        return c;
+        return true;
     ESP_LOGW(TAG, "segment %d: HTTP %d, Content-Range \"%s\" for %lld-%lld; not this way",
              k + 1, status, h->crange, (long long)from, (long long)to);
+    return false;
+}
+
+/* Open segment k's rest on a connection of its own. NULL if the server
+ * will not give exactly that. */
+static esp_http_client_handle_t open_segment(char *url, hdrs_t *h, int k)
+{
+    int status = 0;
+    snprintf(h->if_range, sizeof(h->if_range), "%s", s_wr.val);
+    esp_http_client_handle_t c = open_followed(url, h, &status, s_rcv[k], s_plan[k].end - 1);
+    if (!c) return NULL;
+    if (range_ok(h, status, k)) {
+        lock(); s_conn_new++; unlock();
+        return c;
+    }
     esp_http_client_close(c);
     esp_http_client_cleanup(c);
     return NULL;
+}
+
+/* 8046: ask for segment k's rest on a connection whose last reply has been
+ * read to its end: HTTP/1.1 keeps it open, and esp_http_client_open()
+ * sends on it without connecting again. False if the server closed it or
+ * answered otherwise; the caller then makes a new one. */
+static bool reopen_segment(esp_http_client_handle_t c, hdrs_t *h, int k)
+{
+    char range[48];
+    snprintf(range, sizeof(range), "bytes=%lld-%lld", (long long)s_rcv[k], (long long)(s_plan[k].end - 1));
+    esp_http_client_set_header(c, "Range", range);
+    if (h->if_range[0]) esp_http_client_set_header(c, "If-Range", h->if_range);
+    h->location[0] = h->ctype[0] = h->etag[0] = h->lastmod[0] = h->crange[0] = h->ranges[0] = '\0';
+    if (esp_http_client_open(c, 0) != ESP_OK) return false;
+    esp_http_client_fetch_headers(c);
+    if (!range_ok(h, esp_http_client_get_status_code(c), k)) return false;
+    lock(); s_conn_reuse++; unlock();
+    return true;
+}
+
+/* 8046: segment k takes the next stripe, if there is one, and tells the
+ * writer -- in the queue, after the old stripe's last chunk. */
+static bool claim(int k)
+{
+    lock();
+    const int64_t total = s_total;
+    const bool any = s_stripe > 0 && total > 0 && s_front < total;
+    int64_t start = 0, end = 0;
+    if (any) {
+        start = s_front;
+        end = start + s_stripe < total ? start + s_stripe : total;
+        s_front = end;
+    }
+    unlock();
+    if (!any) return false;
+    s_plan[k].start = start;
+    s_plan[k].end = end;
+    s_plan[k].done = 0;
+    s_rcv[k] = start;
+    const wr_item_t m = { NULL, WR_CLAIM, k, start, end };
+    xQueueSend(s_wr.full, &m, portMAX_DELAY);
+    return true;
+}
+
+/*
+ * 8046: one reader's whole share: its segment, then each stripe it can
+ * claim, on one connection while the server keeps it. `c` is a connection
+ * already open on the segment (dl_task's first), or NULL. A 200 read only
+ * part way, as the first stripe of a fresh download is, cannot be asked
+ * on again; esp_http_client_is_complete_data_received() says which.
+ */
+static int run_slot(int k, char *url, hdrs_t *h, esp_http_client_handle_t c, dl_timing_t *tm)
+{
+    int res = SRV_DONE;
+    bool ready = c != NULL;                         /* c already answers segment k */
+    for (;;) {
+        if (s_rcv[k] >= s_plan[k].end) {
+            if (!claim(k)) break;
+            ready = false;
+        }
+        if (!ready && !(c && reopen_segment(c, h, k))) {
+            if (c) {
+                esp_http_client_close(c);
+                esp_http_client_cleanup(c);
+            }
+            c = open_segment(url, h, k);
+            if (!c) { res = SRV_NOOPEN; break; }
+        }
+        ready = false;
+        res = serve(c, k, tm);
+        if (res != SRV_DONE) break;
+        if (s_rcv[k] < s_plan[k].end) {            /* the reply ended short */
+            ESP_LOGW(TAG, "segment %d: reply ended at %lld of %lld", k + 1,
+                     (long long)s_rcv[k], (long long)s_plan[k].end);
+            res = SRV_RERR;
+            break;
+        }
+        if (!esp_http_client_is_complete_data_received(c)) {
+            esp_http_client_close(c);
+            esp_http_client_cleanup(c);
+            c = NULL;
+        }
+    }
+    if (c) {
+        esp_http_client_close(c);
+        esp_http_client_cleanup(c);
+    }
+    return res;
 }
 
 /*
@@ -762,15 +892,9 @@ static void help_task(void *arg)
     for (;;) {
         ulTaskNotifyTake(pdTRUE, portMAX_DELAY);
         const int k = s_help[j].seg;
-        esp_http_client_handle_t c = open_segment(s_help[j].url, &s_help[j].h, k);
-        if (!c) {
-            s_help[j].res = SRV_DONE;               /* not served: dl_task takes it after */
-        } else {
-            s_help[j].res = serve(c, k, NULL);
-            if (s_help[j].res == SRV_RERR || s_help[j].res == SRV_WERR) s_abort = true;
-            esp_http_client_close(c);
-            esp_http_client_cleanup(c);
-        }
+        s_help[j].res = run_slot(k, s_help[j].url, &s_help[j].h, NULL, NULL);     /* 8046 */
+        if (s_help[j].res == SRV_RERR || s_help[j].res == SRV_WERR) s_abort = true;
+        /* SRV_NOOPEN: not served; dl_task takes it after */
         xSemaphoreGive(s_help_done);
     }
 }
@@ -841,12 +965,14 @@ static void dl_task(void *arg)
     static seg_t seg[DL_SEGS_MAX];
     int nseg = 0;
     int64_t id_total = -1;                          /* 8041 */
+    int64_t front = -1, stripe = 0;                 /* 8046 */
     {
         struct stat pst;
         int64_t psize = 0;
         storage_io_acquire(STORAGE_IO_BACKGROUND);
         if (stat(part, &pst) == 0 && S_ISREG(pst.st_mode) && pst.st_size > 0) psize = (int64_t)pst.st_size;
-        const int n = psize > 0 ? id_read(part, h.if_range, sizeof(h.if_range), &id_total, seg, DL_SEGS_MAX) : -1;
+        const int n = psize > 0 ? id_read(part, h.if_range, sizeof(h.if_range), &id_total, seg, DL_SEGS_MAX,
+                                          &front, &stripe) : -1;
         storage_io_release();
         if (psize > 0 && n < 0) ESP_LOGI(TAG, "part file has no .id (from before 8041); checking Content-Range only");
         if (psize > 0 && n <= 1) {
@@ -856,10 +982,21 @@ static void dl_task(void *arg)
             nseg = 1;
         } else if (n > 1) {
             nseg = n;
+            if (front < 0) front = id_total;        /* 8043's thirds: nothing past them */
         }
+        if (nseg == 1) front = -1;
     }
     int k0 = 0;                                     /* this connection's segment */
     while (k0 < nseg && seg[k0].end >= 0 && seg[k0].done >= seg[k0].end - seg[k0].start) k0++;
+    if (nseg > 1 && k0 == nseg && stripe > 0 && id_total > 0 && front < id_total) {
+        /* 8046: every stripe in hand is whole; the first one's slot takes
+         * the next, and the rest are claimed as the readers go. */
+        k0 = 0;
+        seg[0].start = front;
+        seg[0].end = front + stripe < id_total ? front + stripe : id_total;
+        seg[0].done = 0;
+        front = seg[0].end;
+    }
     if (nseg > 0 && k0 == nseg) {
         /* Whole, but not renamed: a reboot between the two. Rare enough
          * that the file is asked for again rather than finished blind. */
@@ -894,6 +1031,7 @@ static void dl_task(void *arg)
             lock(); snprintf(url, sizeof(url), "%s", s_url); unlock();
             nseg = 0; k0 = 0; from = 0; to = -1;
             id_total = -1;
+            front = -1; stripe = 0;                 /* 8046 */
             h.if_range[0] = '\0';
             continue;
         }
@@ -903,6 +1041,7 @@ static void dl_task(void *arg)
         if (nseg > 0) ESP_LOGI(TAG, "200 for the rest from %lld: %s; starting over", (long long)from,
                                h.if_range[0] ? "the file changed" : "no ranges");
         nseg = 0; k0 = 0; from = 0; to = -1;
+        front = -1; stripe = 0;                     /* 8046 */
     } else if (status != 206 || nseg == 0) {
         ESP_LOGW(TAG, "HTTP %d", status);
         goto out;
@@ -926,10 +1065,21 @@ static void dl_task(void *arg)
         if (DL_CONNS > 1 && id_total >= DL_SPLIT_MIN && id_total <= LONG_MAX &&
             !strcasecmp(h.ranges, "bytes") && helpers_ready()) {
             nseg = DL_CONNS;
-            for (int i = 0; i < nseg; i++) {
-                seg[i].start = id_total * i / nseg;
-                seg[i].end = id_total * (i + 1) / nseg;
-                seg[i].done = 0;
+            if (DL_STRIPE > 0) {                    /* 8046: a stripe each, the rest to claim */
+                stripe = DL_STRIPE;
+                for (int i = 0; i < nseg; i++) {
+                    seg[i].start = stripe * i;
+                    seg[i].end = stripe * (i + 1);
+                    seg[i].done = 0;
+                }
+                front = stripe * nseg;
+            } else {
+                for (int i = 0; i < nseg; i++) {
+                    seg[i].start = id_total * i / nseg;
+                    seg[i].end = id_total * (i + 1) / nseg;
+                    seg[i].done = 0;
+                }
+                front = id_total;
             }
         } else if (DL_CONNS > 1 && id_total >= DL_SPLIT_MIN) {
             ESP_LOGI(TAG, "one connection: Accept-Ranges \"%s\"%s", h.ranges,
@@ -940,6 +1090,11 @@ static void dl_task(void *arg)
     }
     int64_t have = 0;                               /* on the card already */
     for (int i = 0; i < nseg; i++) have += seg[i].done;
+    if (front >= 0) {                               /* 8046: and the whole stripes before front */
+        int64_t inseg = 0;
+        for (int i = 0; i < nseg; i++) inseg += seg[i].end - seg[i].start;
+        have += front - inseg;
+    }
     lock();
     snprintf(s_path, sizeof(s_path), "%s/%s.%s", s_dir, s_base, ext);
     s_total = id_total;
@@ -951,15 +1106,20 @@ static void dl_task(void *arg)
     f = storage_io_open(part, fresh ? "wb" : nseg == 1 ? "ab" : "r+b");
     if (f) {
         snprintf(s_wr.val, sizeof(s_wr.val), "%s", fresh || !h.if_range[0] ? validator(&h) : h.if_range);
-        id_write(part, s_wr.val, id_total, seg, nseg);
+        id_write(part, s_wr.val, id_total, seg, nseg, front, stripe);
     }
     storage_io_release();
     if (!f) {
         ESP_LOGW(TAG, "could not open %s", part);
         goto out;
     }
-    ESP_LOGI(TAG, "to %s (%lld bytes%s, from %lld, segment %d of %d)", s_path, (long long)s_total,
-             s_total < 0 ? ", length not given" : "", (long long)from, k0 + 1, nseg);
+    ESP_LOGI(TAG, "to %s (%lld bytes%s, from %lld, segment %d of %d, %s)", s_path, (long long)s_total,
+             s_total < 0 ? ", length not given" : "", (long long)from, k0 + 1, nseg,
+             stripe > 0 ? "in stripes" : nseg > 1 ? "in thirds" : "one stream");
+    /* 8046: which side of the test this download is. */
+    if (nseg > 1)
+        ESP_LOGI(TAG, "stripe test: %s (DL_STRIPE %d)",
+                 stripe > 0 ? "ON, stripes claimed in turn" : "OFF, 8043's thirds", (int)DL_STRIPE);
 
     int64_t got = have;                 /* received; s_wr.seg[].done is written */
     bool ok = true;
@@ -980,7 +1140,7 @@ static void dl_task(void *arg)
     xQueueReset(s_wr.free_);
     xSemaphoreTake(s_wr.done, 0);
     for (int i = 0; i < DL_NBUF; i++) {
-        wr_item_t it = { buf + (size_t)i * DL_CHUNK, 0, 0, 0 };
+        wr_item_t it = { buf + (size_t)i * DL_CHUNK, 0, 0, 0, 0 };
         xQueueSend(s_wr.free_, &it, 0);
     }
     s_wr.f = f;
@@ -996,6 +1156,8 @@ static void dl_task(void *arg)
     s_wr.since_map = 0;
     s_wr.part = part;
     s_wr.pos = nseg == 1 ? from : -1;
+    s_wr.front = front;                             /* 8046 */
+    s_wr.stripe = stripe;
     /* 8045: the stages, for this download; without them, chunk by chunk. */
     s_wr.stage = heap_caps_malloc((size_t)DL_SEGS_MAX * DL_STAGE, MALLOC_CAP_SPIRAM | MALLOC_CAP_8BIT);
     if (!s_wr.stage) ESP_LOGW(TAG, "no PSRAM for the write stages; writing each chunk as it comes");
@@ -1014,6 +1176,12 @@ static void dl_task(void *arg)
      */
     memcpy(s_plan, seg, sizeof(seg));
     s_nplan = nseg;
+    lock();
+    s_front = front;                                /* 8046 */
+    s_stripe = stripe;
+    s_conn_new = 1;                                 /* dl_task's own */
+    s_conn_reuse = 0;
+    unlock();
     for (int i = 0; i < nseg; i++) s_rcv[i] = seg[i].start + seg[i].done;
     if (nseg == 1) s_rcv[0] = from;                 /* 8042: the size, not the map */
     s_abort = false;
@@ -1024,7 +1192,8 @@ static void dl_task(void *arg)
     int helping = 0;
     if (nseg > 1 && helpers_ready()) {
         for (int i = 0; i < nseg && helping < DL_HELPERS; i++) {
-            if (i == k0 || s_rcv[i] >= seg[i].end) continue;
+            /* 8046: in stripes, a slot whose stripe is whole claims the next */
+            if (i == k0 || (s_rcv[i] >= seg[i].end && stripe == 0)) continue;
             snprintf(s_help[helping].url, sizeof(s_help[helping].url), "%s", url);
             s_help[helping].seg = i;
             s_help[helping].res = SRV_DONE;
@@ -1033,26 +1202,22 @@ static void dl_task(void *arg)
         }
     }
 
-    int res = serve(c, k0, &tm);
-    esp_http_client_close(c);
-    esp_http_client_cleanup(c);
-    c = NULL;
+    int res = run_slot(k0, url, &h, c, &tm);        /* 8046: its stripe, and the next */
+    c = NULL;                                       /* run_slot() closed it */
     if (res == SRV_RERR || res == SRV_WERR) s_abort = true;
     for (int j = 0; j < helping; j++) xSemaphoreTake(s_help_done, portMAX_DELAY);
     for (int j = 0; j < helping && res == SRV_DONE; j++)
-        if (s_help[j].res != SRV_DONE) res = s_help[j].res;
+        if (s_help[j].res != SRV_DONE && s_help[j].res != SRV_NOOPEN) res = s_help[j].res;
 
     /* 8043: a segment nobody finished -- its helper could not get it, or
      * the map has more segments than there are helpers -- is dl_task's,
-     * one after another, each on a connection of its own. */
+     * one after another, each on a connection of its own. 8046: and the
+     * stripes still to claim after them. */
     static hdrs_t h2;
     for (int i = 0; i < nseg && res == SRV_DONE && nseg > 1; i++) {
-        if (s_rcv[i] >= seg[i].end) continue;
-        esp_http_client_handle_t c2 = open_segment(url, &h2, i);
-        if (!c2) { res = SRV_RERR; break; }
-        res = serve(c2, i, &tm);
-        esp_http_client_close(c2);
-        esp_http_client_cleanup(c2);
+        if (s_rcv[i] >= s_plan[i].end) continue;
+        res = run_slot(i, url, &h2, NULL, &tm);
+        if (res == SRV_NOOPEN) res = SRV_RERR;
     }
     if (res == SRV_RERR) ok = false;
     if (res == SRV_WERR) {
@@ -1067,7 +1232,7 @@ static void dl_task(void *arg)
     const int64_t t_net = tm.t_net, t_wait = tm.t_wait;
     /* 8036: the end marker, then wait for every chunk before it to land. */
     {
-        const wr_item_t end = { NULL, 0, 0, 0 };     /* 8044: every field, for -Wextra */
+        const wr_item_t end = { NULL, 0, 0, 0, 0 };  /* 8044: every field, for -Wextra */
         xQueueSend(s_wr.full, &end, portMAX_DELAY);
         xSemaphoreTake(s_wr.done, portMAX_DELAY);
     }
@@ -1080,21 +1245,28 @@ static void dl_task(void *arg)
      * once more now so a pause or a failure resumes from all of it. */
     got = 0;
     for (int i = 0; i < s_wr.nseg; i++) got += s_wr.seg[i].done;
+    if (s_wr.front >= 0) {                          /* 8046 */
+        int64_t inseg = 0;
+        for (int i = 0; i < s_wr.nseg; i++) inseg += s_wr.seg[i].end - s_wr.seg[i].start;
+        got += s_wr.front - inseg;
+    }
     if (stop != STOP_CANCEL) {
         storage_io_acquire(STORAGE_IO_BACKGROUND);
         if (fflush(f) == 0) fsync(fileno(f));
-        id_write(part, s_wr.val, s_wr.total, s_wr.seg, s_wr.nseg);
+        id_write(part, s_wr.val, s_wr.total, s_wr.seg, s_wr.nseg, s_wr.front, s_wr.stripe);
         storage_io_release();
     }
     {
         const int64_t span = esp_timer_get_time() - t_start;
         if (span > 0)
             ESP_LOGI(TAG, "timing total: %lld bytes in %lld ms = %lld kbit/s; net %d%%, wait %d%%, "
-                     "lease %d%%, write %d%%",
+                     "lease %d%%, write %d%%; %s, %d request(s) on new connections, %d on kept ones",
                      (long long)(got - have), (long long)(span / 1000),
                      (long long)((got - have) * 8000 / span),
                      (int)(t_net * 100 / span), (int)(t_wait * 100 / span),
-                     (int)(s_wr.t_lease * 100 / span), (int)(s_wr.t_write * 100 / span));
+                     (int)(s_wr.t_lease * 100 / span), (int)(s_wr.t_write * 100 / span),
+                     s_wr.stripe > 0 ? "stripes" : s_wr.nseg > 1 ? "thirds" : "one stream",
+                     s_conn_new, s_conn_reuse);       /* 8046 */
     }
 closed:
     storage_io_acquire(STORAGE_IO_BACKGROUND);

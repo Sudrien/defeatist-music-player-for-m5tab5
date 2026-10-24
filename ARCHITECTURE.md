@@ -27011,3 +27011,50 @@ Compiled with gcc -O2 -Wall -Wextra -Werror=all -Werror=extra against
 stub headers; not built with IDF, not run. Expected: the 5-second
 line's write share well under 8043's 90%, wait near 0, and the rate up
 if the card was what held it.
+
+On the board (8045): 47,924,346 bytes in 113 s, 3384 kbit/s; the
+writer's share down from 8043's 83-98% to 65-79%, but the readers'
+wait up from 1-11% to 6-29%: a stage is written 64 KB at a time, and
+while it is no buffer comes back, so the six fill. Seeks were 18% of the
+write, not most of it; the card writes this pattern at 600-800 KB/s.
+
+### 8046 -- the stripe test
+
+The listener's question: thirds put the three writes 16 MB apart for
+the whole download; what if the connections filled neighbouring parts
+of the file instead? DL_STRIPE (1 MB here; 0 is 8043's thirds) cuts a
+split download into stripes. Each connection starts with one -- 0, 1
+and 2 MB -- and on finishing takes the next nobody has (claim()), so
+the three write within about three stripes of each other and the file
+grows nearly front to back. A stripe a request is a range request a
+megabyte, so a connection is kept for the next: HTTP/1.1 keep-alive,
+esp_http_client_open() again on a client whose last reply was read to
+its end (esp_http_client_is_complete_data_received()), with a new Range.
+A new TLS connection here costs 0.7-2.2 s, which is why the stripe is
+1 MB and not 64 KB. If the server closed it, or answers otherwise, a
+new connection is made (open_segment()). dl_task's first stripe is the
+fresh 200, read only to 1 MB, which cannot be asked on again, so dl_task
+opens one new connection after it.
+
+**The map** (8042) gains `p <front> <stripe>`: every byte before front
+that is in no segment line is on the card, nothing from front on is but
+what the segments say. The writer learns of a claim in its queue, after
+the old stripe's last chunk (len WR_CLAIM): it flushes that segment's
+stage, then the segment line is the new stripe and front moves. Bytes on
+the card are front - (the segments' lengths) + their done. 8043's thirds
+are written with front = total, so the same sum holds; one stream
+writes no front. A resume whose stripes in hand are all whole takes the
+next one at front for its first connection; the helpers, in stripes,
+start for every other slot, whole or not, and claim.
+
+**What the log says.** On starting: `stripe test: ON, stripes claimed
+in turn (DL_STRIPE 1048576)` or `stripe test: OFF, 8043's thirds`, and
+the `to ...` line ends `in stripes`, `in thirds` or `one stream`. At
+the end, `timing total: ...; stripes, N request(s) on new connections,
+M on kept ones`: for 48 MB, about 4 new and 44 kept if keep-alive
+holds, and the speed beside 8045's 3384 kbit/s is the answer.
+
+Compiled with gcc -O2 -Wall -Wextra -Werror=all -Werror=extra against
+stub headers; not built with IDF, not run. Whether esp_http_client
+reuses the socket on a second open() is IDF's behaviour, not checked
+here; the request counts say.

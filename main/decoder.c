@@ -1891,6 +1891,18 @@ static uint32_t duration_raw(decoder_t *d)
             return (uint32_t)(d->ex.samples / d->ex.info.channels /
                               d->ex.info.hz);
         }
+        /*
+         * 8053: a download being played (8050) has no index and no Xing
+         * header to count, but poddl knows its length from the start, and
+         * a podcast is nearly always constant bitrate: the bytes after
+         * the first frame over the bitrate. An estimate for VBR, exact
+         * for CBR; the next play of the finished file has the real one.
+         */
+        if (d->live && d->live->total > 0 && d->ex.info.bitrate_kbps > 0 &&
+            (int64_t)d->ex.start_offset < d->live->total) {
+            const uint64_t audio = (uint64_t)(d->live->total - (int64_t)d->ex.start_offset);
+            return (uint32_t)(audio * 8u / ((uint64_t)d->ex.info.bitrate_kbps * 1000u));
+        }
         /* No Xing/LAME header and no index: fall through to the probe,
          * which will find nothing for a bare MP3 but costs one fread. */
     }

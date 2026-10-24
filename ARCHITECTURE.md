@@ -27204,3 +27204,36 @@ on follow the state as well. The list was already redrawn at that rate
 on the episode rows.
 
 Compiled as 8037 was; not built with IDF, not run.
+
+On the board (8050, 8052): the row came by itself about 10 s into a
+54 MB download; first sound 523 ms after the tap, the open 193 ms on
+3,538,944 bytes. The download ran on at 2.4-3.3 Mbit/s beside playback
+(wait up to 37%: the card's reads go first) and finished in 149 s.
+`live: the download is done; reading the whole file from 3538944` 53 s
+later, when playback reached the first `ready` it had been given, and
+no gap was heard there. A `ring send blocked 1121 ms (ring 98%)` while
+the episode's picture was fetched was not heard either. What was
+missing: a length, the episode's tags and its picture.
+
+### 8053 -- a length, tags and a picture for an episode still arriving
+
+**Tags and picture.** Both were read from the track's path, which has
+no file until the download is done, so the screen showed the file name
+and the format card. live_file() gives the part file instead, for the
+download in hand while it is not done -- poddl_live(), no filesystem --
+in the three places that open a track for its ID3: load_tags(), the
+tag prefetch in media_task, and the cover read. An MP3's ID3 is at its
+start, which is on the card from the first 3 MB. folderart_load() is
+still given the finished path, since its folder is where a cover is.
+
+**A length.** minimp3 opened MP3D_DO_NOT_SCAN has no count, but poddl
+knows the file's length from the first reply, and a podcast is nearly
+always constant bitrate: duration_raw() gives, for a live file, the
+bytes after the first frame (ex.start_offset) over the bitrate. Exact
+for CBR, an estimate for VBR; the finished file's next play has the
+real one. Still no seeking while it plays: that wants a byte offset
+from a time, which for CBR is the same sum, and is left for later.
+
+decoder.c and player.c compiled against stub headers -- decoder.c now
+with minimp3 and minimp3_ex.h at the pinned commit -- and give the same
+stub errors before and after. Not built with IDF, not run.

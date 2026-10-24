@@ -70,6 +70,7 @@
 #include "player_diag.h"
 #include "covertag.h"
 #include "cuedir.h"
+#include "poddl.h"             /* 8053: poddl_live() */
 #include "heapcheck.h"
 #include "mediacache.h"
 #include "folderart.h"             /* 6042 */
@@ -4600,6 +4601,22 @@ static const char *s_display_name = "";
  * that gap is a few milliseconds and an empty row for it is honest,
  * where a filename for it is not.
  */
+/*
+ * 8053: the file to read a track's tags and picture from. An episode
+ * being played while it downloads (8050) has no file at its path yet;
+ * its part file has the start of it, where an MP3's ID3 tag is, from
+ * the first 3 MB on. No filesystem: poddl_live() answers from memory,
+ * and only for the one download in hand. `path` itself otherwise.
+ */
+static const char *live_file(const char *path, char *buf, size_t cap)
+{
+    int64_t ready = 0;
+    poddl_state_t st = PODDL_IDLE;
+    if (poddl_live(path, buf, cap, &ready, NULL, &st) && st != PODDL_DONE && ready > 0 && buf[0])
+        return buf;
+    return path;
+}
+
 static void load_tags(const char *path)
 {
     memset(&s_tags, 0, sizeof(s_tags));
@@ -4613,7 +4630,8 @@ static void load_tags(const char *path)
     } else if (mediacache_tags(path, &s_tags)) {
         ESP_LOGI(TAG, "tags from cache: \"%s\"", s_tags.title);
     } else {
-        FILE *af = storage_io_open(path, "rb");
+        static char live_buf[600];                                  /* 8053 */
+        FILE *af = storage_io_open(live_file(path, live_buf, sizeof(live_buf)), "rb");
         if (af) {
             if (covertag_read_tags(af, STORAGE_IO_PLAYBACK, &s_tags) == ESP_OK) {
                 ESP_LOGI(TAG, "tags: \"%s\" / \"%s\" / \"%s\"",
@@ -5522,7 +5540,10 @@ static void do_art(const char *path, uint32_t gen)
         return;
     }
 
-    FILE *af = storage_io_open(file, "rb");
+    /* 8053: the part file for an episode still downloading; `file` stays
+     * the finished path, which is the folder folderart_load() looks in. */
+    static char live_buf[600];
+    FILE *af = storage_io_open(live_file(file, live_buf, sizeof(live_buf)), "rb");
     if (!af) return;
 
     long fsize = 0;
@@ -6727,7 +6748,8 @@ static void media_task(void *arg)
                 mediacache_put_tags(path, &t);
             }
         } else if (gen == s_track_gen && !mediacache_tags(path, NULL)) {
-            FILE *tf = storage_io_open(path, "rb");
+            static char live_buf[600];                              /* 8053 */
+            FILE *tf = storage_io_open(live_file(path, live_buf, sizeof(live_buf)), "rb");
             if (tf) {
                 id3_tags_t t;
                 memset(&t, 0, sizeof(t));

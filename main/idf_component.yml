@@ -79,7 +79,7 @@ dependencies:
   # 6060: network v0.2.0 -- each scanned network's BSSID, and a quiet scan.
   feckless_network_handler:
     git: https://github.com/Sudrien/feckless-network-handler-for-m5tab5.git
-    version: "v0.2.1"
+    version: "v0.2.2"
   feckless_storage_handler:
     git: https://github.com/Sudrien/feckless-storage-handler-for-m5tab5.git
     version: "v0.1.0"

@@ -215,9 +215,6 @@
 | 設定 | `RUN` | 运行 | 実行 | MEDIR | MEDIR | LANCER | MISURA |
 | 設定 | `RESET` | 重置 | 戻す | VOLVER | VOLTAR | RÉTABLIR | AZZERA |
 | 設定 | `CLOSE` | 关闭 | 閉じる | CERRAR | FECHAR | FERMER | CHIUDI |
-| 設定 | `IMPORT` | 导入 | 取込 | IMPORTAR | IMPORTAR | IMPORTER | IMPORTA |
-| 設定 | `DONE` | 完成 | 完了 | HECHO | OK | OK | FATTO |
-| 設定 | `RETRY` | 重试 | 再試行 | REPETIR | REPETIR | RÉESSAYER | RIPROVA |
 | 設定 | `TRACK` | 每曲 | 曲ごと | PISTA | FAIXA | PISTE | BRANO |
 | 設定 | `BOOT` | 保持 | 保持 | SIEMPRE | SEMPRE | TOUJOURS | SEMPRE |
 | 録音ソース | `MONO` | 单声道 | モノラル | MONO | MONO | MONO | MONO |

@@ -240,9 +240,6 @@ units.
 | Settings | `RUN` | 运行 | 実行 | MEDIR | MEDIR | LANCER | MISURA |
 | Settings | `RESET` | 重置 | 戻す | VOLVER | VOLTAR | RÉTABLIR | AZZERA |
 | Settings | `CLOSE` | 关闭 | 閉じる | CERRAR | FECHAR | FERMER | CHIUDI |
-| Settings | `IMPORT` | 导入 | 取込 | IMPORTAR | IMPORTAR | IMPORTER | IMPORTA |
-| Settings | `DONE` | 完成 | 完了 | HECHO | OK | OK | FATTO |
-| Settings | `RETRY` | 重试 | 再試行 | REPETIR | REPETIR | RÉESSAYER | RIPROVA |
 | Settings | `TRACK` | 每曲 | 曲ごと | PISTA | FAIXA | PISTE | BRANO |
 | Settings | `BOOT` | 保持 | 保持 | SIEMPRE | SEMPRE | TOUJOURS | SEMPRE |
 | Record from | `MONO` | 单声道 | モノラル | MONO | MONO | MONO | MONO |

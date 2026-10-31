@@ -180,8 +180,6 @@ zh-CN:
     "Connecting": "连接中"
     # remote.html
     "Connecting to the player…": "正在连接播放器…"
-    # panel.c
-    "Copy saved Wi-Fi from an M5Launcher install on this board.": "从本机的 M5Launcher 复制已保存的 Wi-Fi。"
     # recorder.c
     "Could not create the recording file.": "无法创建录音文件。"
     # remote.c
@@ -212,8 +210,6 @@ zh-CN:
     "Crossfade within an album": "同一专辑内也交叉淡化"
     # browser.c
     "DN": "下页"
-    # panel.c
-    "DONE": "完成"
     # ui.c
     "DUST": "底噪"
     # portal.c
@@ -281,15 +277,9 @@ zh-CN:
     # ui.c
     "IDLE %dM": "空闲%d分"
     # panel.c
-    "IMPORT": "导入"
-    # panel.c
     "IN USE": "使用中"
     # panel.c
     "INDEXING": "索引中"
-    # panel.c
-    "Import from M5Launcher": "从 M5Launcher 导入"
-    # launcher_import.c, panel.c
-    "Imported %d, skipped %d": "已导入 %d 个，跳过 %d 个"
     # player.c, recorder.c
     "Insert a card or a USB drive to record to.": "请插入存储卡或 U 盘\n再录音。"
     # panel.c
@@ -316,8 +306,6 @@ zh-CN:
     "Longer than the dim, and the backlight goes out altogether. Never while this page is open.": "比变暗更久，背光会完全熄灭。此页面打开时不会熄灭。"
     # remote.html
     "Lost the player. Reconnecting…": "与播放器断开。正在重新连接…"
-    # launcher_import.c
-    "M5Launcher not found on this board": "本机未找到 M5Launcher"
     # panel.c
     "MONO": "单声道"
     # panel.c
@@ -354,8 +342,6 @@ zh-CN:
     "Never": "从不"
     # remote.html
     "Next": "下一首"
-    # launcher_import.c
-    "No M5Launcher config.conf on card": "卡上没有 M5Launcher 的 config.conf"
     # recorder.c
     "No USB microphone is plugged in.": "未插入 USB 麦克风。"
     # portal.c
@@ -370,8 +356,6 @@ zh-CN:
     "No password: each address is allowed on the player.": "无密码：每个地址都需在播放器上允许。"
     # panel.c
     "No password: each browser is allowed on the player.": "无密码：每个浏览器都需在播放器上允许。"
-    # launcher_import.c
-    "No saved networks to import": "没有可导入的网络"
     # streamplan.h
     "No signal": "无信号"
     # bench.c
@@ -478,8 +462,6 @@ zh-CN:
     "RESET": "重置"
     # panel.c
     "RESET: back to the build time; this boot's recordings are renamed to match.": "RESET：回到构建时间；本次启动的录音会相应改名。"
-    # panel.c
-    "RETRY": "重试"
     # browser.c
     "RLOD": "重新加载"
     # browser.c
@@ -498,8 +480,6 @@ zh-CN:
     "Reading %s without decoding…": "正在读取 %s（不解码）…"
     # remote.html
     "Reading…": "正在读取…"
-    # panel.c
-    "Reads its config.conf; no retyping, no network needed.": "读取其 config.conf，无需重输，无需联网。"
     # panel.c
     "Reads the selected station without decoding it, to tell a slow network from a slow decoder.": "只读取所选电台而不解码，用来区分是网络慢还是解码慢。"
     # streamplan.h
@@ -542,7 +522,7 @@ zh-CN:
     "Saved %.32s.": "已保存 %.32s。"
     # remote.html
     "Scan": "扫描"
-    # launcher_import.c, remote.c
+    # remote.c
     "Scanning…": "正在扫描…"
     # sleeppage.c
     "Screen": "屏幕"

@@ -111,6 +111,7 @@
 #include "screendim.h"
 #include "powerdown.h"           /* 6000 */
 #include "nvsns.h"              /* 6006 */
+#include "shim_import.h"         /* 8068 */
 #include "rtc8130.h"             /* 6003 */
 #include "sleeptimer.h"
 #include "wifistore.h"
@@ -16054,6 +16055,12 @@ void app_main(void)
     }
     if (nvs_err == ESP_OK) nvsns_migrate();     /* 6006: before anything reads it */
     wifistore_init(DEFEATIST_NVS_NS);           /* 6053: the namespace is ours to name */
+    /* 8068: M5Launcher's saved networks, once, before the radio asks for
+     * any. Does nothing unless a launcher booted this from a slot and no
+     * network is saved yet (shim_import.h); the card is up by now. This
+     * is the shim's step -- it moves to the standalone shim's app_main()
+     * ahead of feckless_abi_run() when the ELF split lands. */
+    if (nvs_err == ESP_OK) (void)shim_import_launcher_wifi(DEFEATIST_NVS_NS);
 
     /*
      * 6053: what wifi.c and ethernet.c used to call by name, now that

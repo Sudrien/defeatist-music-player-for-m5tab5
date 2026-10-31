@@ -27634,3 +27634,59 @@ Side effect to know: the M5Launcher Wi-Fi import row in the network panel
 is gated on `launcher_present()`, so it now also shows in the hosted
 layout, where Avoidant has its own import (Avoidant 0045). Removing the
 row is a separate patch.
+
+### 8068 -- the M5Launcher Wi-Fi import leaves the app for the shim's side
+
+The import was a row in the network panel -- a tap, a task of its own,
+a status line -- reading another firmware's flash and decrypting with a
+vendored AES. The app is becoming an ELF on the feckless ABI, and that is
+the one piece of it with no ABI to stand on and no reason to be in it.
+The firmware M5Launcher boots is the shim, the standalone .bin that
+embeds the ELF; so the import is the shim's step, once, before the app
+runs, and the ELF finds the networks already in NVS. Avoidant's ELF mode
+runs no shim and has its own import (its 0045).
+
+launcher_import.[ch] became two files:
+
+- **launcher.[ch]** -- `launcher_kind_now()`, `launcher_present()`,
+  `launcher_exit_to_launcher()`, unchanged from 8067 but for the new
+  accessor. The app keeps these (the exit button).
+- **shim_import.[ch]** -- the scan, AES, base64 and config.conf code,
+  moved whole, minus everything that existed for a UI: the status
+  snapshot and its lock, the worker task, `launcher_import_request()`,
+  the `N_()` strings. `shim_import_launcher_wifi(nvs_ns)` is
+  synchronous and returns the number saved.
+
+It does nothing, and reads nothing from flash, unless all of these hold:
+`launcher_kind_now() == LAUNCHER_SLOT` (booted from a launcher's table,
+as M5Launcher boots a firmware -- so not standalone, and not Avoidant's
+ELF mode); `wifistore_count() == 0` (a list the user built is never
+touched); and no u8 `limport` in the app's namespace. The last is set
+once the import got as far as the key -- done, or not recoverable --
+because the scan is seconds of flash reads that the same card and
+launcher would repeat for the same answer; "no config.conf on the card"
+sets nothing, since the card may just not be in yet. Forgetting every
+network later does not bring the import back, on purpose.
+
+Until the shim exists the call is in `app_main()` (player.c), right
+after `wifistore_init()`, where NVS and the card are up and the radio has
+asked for nothing. It moves to the shim's `app_main()` ahead of
+`feckless_abi_run()` with the ELF split.
+
+The panel loses the row, its box, its note, its tap, and `setup_y()` is
+`ntp_y()` plus the NTP row again. Strings gone from i18n (`--prune`,
+ten of them): the import row and its note, the status lines, `IMPORT`,
+`DONE`, `RETRY`; `BUSY` stays (the reindex and benchmark rows use it).
+ABBREVIATIONS lose the three labels in all seven files.
+
+Not built (no ESP-IDF in the session), not on a Tab5. launcher.c and
+shim_import.c compiled at `-O2 -Wall -Wextra -Werror` against stub
+headers; panel.c and player.c were read (no function in panel.c is left
+unused: `draw_note`, `draw_paras` and `draw_state_pill` have other
+callers). A change to main/CMakeLists.txt's source lists only; no
+manifest and no sdkconfig change. Two things to see on a board: a Tab5
+under M5Launcher with no saved networks and a config.conf boots with
+`limport: key recovered from partition ...` and `import done` in the log
+and the networks in the list; and the second boot has neither line.
+`remote_i18n.html.gz` is unchanged -- none of the pruned strings were on
+the remote page.

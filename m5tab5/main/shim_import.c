@@ -1,5 +1,5 @@
 /*
- * launcher_import.c -- see launcher_import.h.
+ * shim_import.c -- see shim_import.h.
  *
  * Shape, reimplemented from bmorcelli/Launcher src/wifi_crypto.cpp:
  *   key   = WIFI_ENC_KEY, cyclically padded/truncated to 16 bytes
@@ -9,8 +9,8 @@
  *
  * SPDX-License-Identifier: MIT
  */
-#include "launcher_import.h"
-#include "launcherpresence.h"   /* 8067 */
+#include "shim_import.h"
+#include "launcher.h"   /* launcher_kind_now() */
 
 #include <string.h>
 #include <stdio.h>
@@ -18,10 +18,8 @@
 
 #include "freertos/FreeRTOS.h"
 #include "freertos/task.h"
-#include "freertos/semphr.h"
 #include "esp_partition.h"
 #include "esp_ota_ops.h"
-#include "esp_system.h"   /* esp_restart */
 #include "esp_log.h"
 #include "cJSON.h"
 
@@ -39,7 +37,7 @@
 
 #include "storage.h"     /* STORAGE_SD_MOUNT */
 #include "wifistore.h"   /* wifistore_save() */
-#include "i18n.h"        /* N_() -- status lines are looked up at draw time */
+#include "nvs_handler.h"   /* nvsh_get_u8/nvsh_set_u8: the tried-once marker */
 
 static const char *TAG = "limport";
 
@@ -54,33 +52,6 @@ static const uint8_t LI_IV[16] = {
 #define LI_MIN_CAND     8
 #define LI_MAX_CAND     64
 #define LI_READ_CHUNK   4096
-
-/* ---- shared snapshot (copy-out, never borrowed; see portal.h) ---------- */
-static SemaphoreHandle_t s_lock;
-static li_status_t s_state = { .phase = LI_IDLE, .msg = "" };
-
-static void set_status(li_phase_t ph, int imported, int skipped, const char *msg) {
-    if (!s_lock) return;
-    xSemaphoreTake(s_lock, portMAX_DELAY);
-    s_state.phase = ph;
-    s_state.imported = imported;
-    s_state.skipped = skipped;
-    snprintf(s_state.msg, sizeof(s_state.msg), "%s", msg ? msg : "");
-    xSemaphoreGive(s_lock);
-}
-
-void launcher_import_status(li_status_t *out) {
-    if (!out) return;
-    if (!s_lock) { out->phase = LI_IDLE; out->imported = out->skipped = 0; out->msg[0] = 0; return; }
-    xSemaphoreTake(s_lock, portMAX_DELAY);
-    *out = s_state;
-    xSemaphoreGive(s_lock);
-}
-
-bool launcher_import_running(void) {
-    li_status_t s; launcher_import_status(&s);
-    return s.phase == LI_RUNNING;
-}
 
 /* ---- vendored AES-128 (decrypt only) ------------------------------------ */
 static const uint8_t AES_SB[256] = {
@@ -422,16 +393,16 @@ static bool li_classify(const char *s, bool *is_psk) {
 }
 
 /* ---- the job ------------------------------------------------------------ */
-static void li_run(void) {
-    set_status(LI_RUNNING, 0, 0, N_("Scanning…"));
+#define LI_TRIED_KEY "limport"   /* u8 in the app's namespace: 1 = ran once */
 
+static int li_run(void) {
     cJSON *wifi = NULL;
     cJSON *root = li_load_config(&wifi);
-    if (!root) { set_status(LI_FAILED, 0, 0, N_("No M5Launcher config.conf on card")); return; }
+    if (!root) return 0;                    /* no card, or no config.conf: say nothing, retry next boot */
 
     li_oracle_t oracle;
     li_fill_oracle(wifi, &oracle);
-    if (oracle.n == 0) { cJSON_Delete(root); set_status(LI_FAILED, 0, 0, N_("No saved networks to import")); return; }
+    if (oracle.n == 0) { cJSON_Delete(root); return -1; }
 
     /* Find the key in an app partition carrying the marker, skipping ours. */
     uint8_t key[16]; bool found = false;
@@ -448,7 +419,7 @@ static void li_run(void) {
     }
     if (it) esp_partition_iterator_release(it);
 
-    if (!found) { cJSON_Delete(root); set_status(LI_FAILED, 0, 0, N_("M5Launcher not found on this board")); return; }
+    if (!found) { cJSON_Delete(root); return -1; }
 
     /* Decrypt and save. Never log a passphrase, including on failure. */
     int imported = 0, skipped = 0;
@@ -469,7 +440,7 @@ static void li_run(void) {
         if (plen < 0) { ESP_LOGW(TAG, "entry '%s': decrypt failed", jssid->valuestring); skipped++; continue; }
 
         bool is_psk = false;
-        if (!li_classify((const char *)pt, &is_psk)) { skipped++; continue; }
+        if (!li_classify((const char *)pt, &is_psk)) { skipped++; memset(pt, 0, sizeof(pt)); continue; }
         if (wifistore_save(jssid->valuestring, (const char *)pt, is_psk) == ESP_OK) imported++;
         else skipped++;
         memset(pt, 0, sizeof(pt));
@@ -477,70 +448,23 @@ static void li_run(void) {
     memset(key, 0, sizeof(key));
     cJSON_Delete(root);
 
-    char msg[48];
-    snprintf(msg, sizeof(msg), N_("Imported %d, skipped %d"), imported, skipped);
-    set_status(LI_DONE, imported, skipped, msg);
     ESP_LOGI(TAG, "import done: %d imported, %d skipped", imported, skipped);
+    return imported;
 }
 
-static void li_task(void *pv) {
-    (void)pv;
-    li_run();
-    vTaskDelete(NULL);
-}
+int shim_import_launcher_wifi(const char *nvs_ns)
+{
+    /* Cheap exits first: a normal boot pays for none of the rest. */
+    if (launcher_kind_now() != LAUNCHER_SLOT) return 0;
+    if (wifistore_count() > 0) return 0;
+    uint8_t tried = 0;
+    if (nvsh_get_u8(nvs_ns, LI_TRIED_KEY, &tried) == ESP_OK && tried) return 0;
 
-esp_err_t launcher_import_request(void) {
-    if (!s_lock) {
-        s_lock = xSemaphoreCreateMutex();
-        if (!s_lock) return ESP_ERR_NO_MEM;
-    }
-    if (launcher_import_running()) return ESP_ERR_INVALID_STATE;
-    set_status(LI_RUNNING, 0, 0, N_("Scanning…"));
-    /* 6 KB stack: the 4 KB read buffer and AES/cJSON state are on the heap. */
-    if (xTaskCreate(li_task, "limport", 6144, NULL, 4, NULL) != pdPASS) {
-        set_status(LI_IDLE, 0, 0, "");
-        return ESP_FAIL;
-    }
-    return ESP_OK;
-}
-
-/* ---- launcher presence / return ----------------------------------------- */
-/* 8067: the decision is launcherpresence.h's (host-tested). Both ways of
- * being run by a launcher: a firmware in another slot of its table, and an
- * ELF it loaded, which runs from its own (factory) slot. */
-static const esp_partition_t *li_factory(void) {
-    return esp_partition_find_first(ESP_PARTITION_TYPE_APP,
-                                    ESP_PARTITION_SUBTYPE_APP_FACTORY, NULL);
-}
-
-static launcher_kind_t li_kind(void) {
-    const esp_partition_t *fac = li_factory();
-    const bool has_app2 = esp_partition_find_first(ESP_PARTITION_TYPE_APP,
-                                                   ESP_PARTITION_SUBTYPE_APP_OTA_0, "app2") != NULL;
-    return launcher_kind(fac != NULL, fac && fac == esp_ota_get_running_partition(), has_app2);
-}
-
-bool launcher_present(void) {
-    return li_kind() != LAUNCHER_NONE;
-}
-
-void launcher_exit_to_launcher(void) {
-    switch (li_kind()) {
-    case LAUNCHER_SLOT:
-        /* Choosing factory also erases otadata, which is how Avoidant
-         * tells this from a reset out of its app2 (its 0015). The call
-         * is named in the ELF build too (feckless-libs' 7002), though an
-         * ELF never reaches it. */
-        if (esp_ota_set_boot_partition(li_factory()) != ESP_OK) return;
-        esp_restart();                                /* does not return */
-        break;
-    case LAUNCHER_HOSTED:
-        /* The launcher's own slot is running, and nothing was chosen to
-         * come back to: a restart lands in its menu. */
-        esp_restart();
-        break;
-    case LAUNCHER_NONE:
-    default:
-        return;                                       /* nothing above us */
-    }
+    const int n = li_run();
+    /* An attempt that got as far as the key (or found it unrecoverable)
+     * is not repeated: the scan is seconds of flash reads, and the same
+     * card and launcher would say the same. No config.conf is not an
+     * attempt -- the card may simply not be in yet. */
+    if (n != 0) (void)nvsh_set_u8(nvs_ns, LI_TRIED_KEY, 1);
+    return n > 0 ? n : 0;
 }

@@ -18,7 +18,7 @@
 
 #include "ui.h"
 #include "i18n.h"         /* 6017 */
-#include "launcher_import.h"   /* launcher_present(), launcher_exit_to_launcher() */
+#include "launcher.h"   /* launcher_present(), launcher_exit_to_launcher() */
 #include "waveform.h"
 #include "varispeed.h"       /* 6076 */
 #include "fx.h"              /* 6097 */

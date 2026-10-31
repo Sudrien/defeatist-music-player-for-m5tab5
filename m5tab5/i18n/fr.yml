@@ -180,8 +180,6 @@ fr:
     "Connecting": "Connexion"
     # remote.html
     "Connecting to the player…": "Connexion au lecteur…"
-    # panel.c
-    "Copy saved Wi-Fi from an M5Launcher install on this board.": "Copie le Wi-Fi enregistré par M5Launcher sur cette carte."
     # recorder.c
     "Could not create the recording file.": "Impossible de créer le\nfichier d'enregistrement."
     # remote.c
@@ -212,8 +210,6 @@ fr:
     "Crossfade within an album": "Fondu enchaîné dans un album"
     # browser.c
     "DN": "PG BAS"
-    # panel.c
-    "DONE": "OK"
     # ui.c
     "DUST": "CRAQ"
     # portal.c
@@ -281,15 +277,9 @@ fr:
     # ui.c
     "IDLE %dM": "INACT %dM"
     # panel.c
-    "IMPORT": "IMPORTER"
-    # panel.c
     "IN USE": "UTILISÉ"
     # panel.c
     "INDEXING": "INDEXATION"
-    # panel.c
-    "Import from M5Launcher": "Importer depuis M5Launcher"
-    # launcher_import.c, panel.c
-    "Imported %d, skipped %d": "%d importés, %d ignorés"
     # player.c, recorder.c
     "Insert a card or a USB drive to record to.": "Insérez une carte ou une\nclé USB pour enregistrer."
     # panel.c
@@ -316,8 +306,6 @@ fr:
     "Longer than the dim, and the backlight goes out altogether. Never while this page is open.": "Plus long que l'assombrissement, et le rétroéclairage s'éteint tout à fait. Jamais quand cette page est ouverte."
     # remote.html
     "Lost the player. Reconnecting…": "Lecteur perdu. Reconnexion…"
-    # launcher_import.c
-    "M5Launcher not found on this board": "M5Launcher absent de cette carte"
     # panel.c
     "MONO": "MONO"
     # panel.c
@@ -354,8 +342,6 @@ fr:
     "Never": "Jamais"
     # remote.html
     "Next": "Suivant"
-    # launcher_import.c
-    "No M5Launcher config.conf on card": "Pas de config.conf M5Launcher"
     # recorder.c
     "No USB microphone is plugged in.": "Aucun micro USB\nn'est branché."
     # portal.c
@@ -370,8 +356,6 @@ fr:
     "No password: each address is allowed on the player.": "Sans mot de passe : chaque adresse est autorisée sur le lecteur."
     # panel.c
     "No password: each browser is allowed on the player.": "Sans mot de passe : chaque navigateur est autorisé sur le lecteur."
-    # launcher_import.c
-    "No saved networks to import": "Aucun réseau à importer"
     # streamplan.h
     "No signal": "Pas de signal"
     # bench.c
@@ -478,8 +462,6 @@ fr:
     "RESET": "RÉTABLIR"
     # panel.c
     "RESET: back to the build time; this boot's recordings are renamed to match.": "RÉTABLIR : retour à l'heure de compilation ; les enregistrements de ce démarrage sont renommés."
-    # panel.c
-    "RETRY": "RÉESSAYER"
     # browser.c
     "RLOD": "RECHARG."
     # browser.c
@@ -498,8 +480,6 @@ fr:
     "Reading %s without decoding…": "Lecture de %s sans décodage…"
     # remote.html
     "Reading…": "Lecture…"
-    # panel.c
-    "Reads its config.conf; no retyping, no network needed.": "Lit son config.conf ; rien à ressaisir, pas besoin de réseau."
     # panel.c
     "Reads the selected station without decoding it, to tell a slow network from a slow decoder.": "Lit la radio choisie sans la décoder, pour distinguer un réseau lent d'un décodeur lent."
     # streamplan.h
@@ -542,7 +522,7 @@ fr:
     "Saved %.32s.": "%.32s enregistré."
     # remote.html
     "Scan": "Rechercher"
-    # launcher_import.c, remote.c
+    # remote.c
     "Scanning…": "Recherche…"
     # sleeppage.c
     "Screen": "Écran"

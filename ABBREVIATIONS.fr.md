@@ -215,9 +215,6 @@ Gardés en anglais dans toutes les langues, par `same()` : les noms d'onglets (S
 | Réglages | `RUN` | 运行 | 実行 | MEDIR | MEDIR | LANCER | MISURA |
 | Réglages | `RESET` | 重置 | 戻す | VOLVER | VOLTAR | RÉTABLIR | AZZERA |
 | Réglages | `CLOSE` | 关闭 | 閉じる | CERRAR | FECHAR | FERMER | CHIUDI |
-| Réglages | `IMPORT` | 导入 | 取込 | IMPORTAR | IMPORTAR | IMPORTER | IMPORTA |
-| Réglages | `DONE` | 完成 | 完了 | HECHO | OK | OK | FATTO |
-| Réglages | `RETRY` | 重试 | 再試行 | REPETIR | REPETIR | RÉESSAYER | RIPROVA |
 | Réglages | `TRACK` | 每曲 | 曲ごと | PISTA | FAIXA | PISTE | BRANO |
 | Réglages | `BOOT` | 保持 | 保持 | SIEMPRE | SEMPRE | TOUJOURS | SEMPRE |
 | Enreg. depuis | `MONO` | 单声道 | モノラル | MONO | MONO | MONO | MONO |

@@ -1,7 +1,7 @@
 /*
  * launcherpresence.h -- is a launcher above us, and how do we get back to
  * it? The decision, from three facts about the partition table; the
- * lookups and the restart are launcher_import.c's.
+ * lookups and the restart are launcher.c's.
  *
  * 8067. Two ways to be run by a launcher, and they look different in the
  * table:

@@ -65,11 +65,11 @@ static void cache_clear(void)
     for (int i = 0; i < FAKE_KEYS; i++) { free(cache[i].img); cache[i].img = NULL; }
 }
 
-/* 6139: the real check, now that it is a header (artformat.h). */
-#include "../main/artformat.h"
+/* 6139: the real check, now that it is a header (feckless_image.h). */
+#include "feckless_image.h"
 bool albumart_is_supported_image(const uint8_t *p, size_t len)
 {
-    return artformat_sniff(p, len) != ART_NONE;
+    return img_sniff(p, len) != IMG_NONE;
 }
 
 /* ---- the test ---- */

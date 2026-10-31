@@ -7,9 +7,10 @@
 #
 #   dependencies.lock        every managed component and the version the
 #                            component manager resolved (git ones by commit)
-#   cmake/vendored.cmake     the commits minimp3, pngle and stb_image are
-#                            fetched at (MINIMP3_COMMIT etc., set before
-#                            project() and so in scope here)
+#   cmake/vendored.cmake     the commit minimp3 is fetched at
+#                            (MINIMP3_COMMIT, set before project() and so
+#                            in scope here); and feckless_image_handler's
+#                            own, for pngle, stb_image and J40 (8069)
 #   components/usb_host_*/   the vendored USB class drivers' own manifests;
 #     idf_component.yml      both carry fixes past that version (5026, 5035)
 #   gen_ark12.py             the Ark Pixel commit the font was cut from,
@@ -137,10 +138,9 @@ endforeach()
 # its two alternatives, MIT or the Unlicense; J40's LICENSE.txt
 # disclaims copyright, with MIT No Attribution where that cannot be
 # done (6139). A new commit in
-# cmake/vendored.cmake means checking the licence again.
-foreach(_pair "minimp3;MINIMP3_COMMIT;CC0-1.0" "pngle;PNGLE_COMMIT;MIT"
-              "stb_image;STB_COMMIT;MIT or Unlicense"
-              "j40;J40_COMMIT;public domain or MIT-0")
+# cmake/vendored.cmake, or in feckless_image_handler's, means checking the
+# licence again.
+foreach(_pair "minimp3;MINIMP3_COMMIT;CC0-1.0")
     list(GET _pair 0 _n)
     list(GET _pair 1 _var)
     list(GET _pair 2 _lic)
@@ -149,6 +149,27 @@ foreach(_pair "minimp3;MINIMP3_COMMIT;CC0-1.0" "pngle;PNGLE_COMMIT;MIT"
         list(APPEND _libs "${_n} ${_v} -- ${_lic}")
     endif()
 endforeach()
+
+# 8069: pngle, stb_image and J40 moved to feckless_image_handler, which
+# fetches them at pins of its own (IMG_*_COMMIT in its cmake/vendored.cmake,
+# a file in managed_components/ and not in scope as a variable). Read from
+# there, so the screen names what was compiled.
+set(_imgv "${_managed}/feckless_image_handler/cmake/vendored.cmake")
+if(EXISTS "${_imgv}")
+    set_property(DIRECTORY APPEND PROPERTY CMAKE_CONFIGURE_DEPENDS "${_imgv}")
+    file(READ "${_imgv}" _imgv_text)
+    foreach(_pair "pngle;IMG_PNGLE_COMMIT;MIT"
+                  "stb_image;IMG_STB_COMMIT;MIT or Unlicense"
+                  "j40;IMG_J40_COMMIT;public domain or MIT-0")
+        list(GET _pair 0 _n)
+        list(GET _pair 1 _var)
+        list(GET _pair 2 _lic)
+        if(_imgv_text MATCHES "set\\(${_var} +([0-9a-f]+)\\)")
+            _lv_short(_v "${CMAKE_MATCH_1}")
+            list(APPEND _libs "${_n} ${_v} -- ${_lic}")
+        endif()
+    endforeach()
+endif()
 
 # 6055: the generator moved to feckless-graphics-handler with the font.
 set(_ark "${_managed}/feckless_graphics_handler/tools/gen_ark12.py")

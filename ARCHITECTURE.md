@@ -27690,3 +27690,80 @@ under M5Launcher with no saved networks and a config.conf boots with
 and the networks in the list; and the second boot has neither line.
 `remote_i18n.html.gz` is unchanged -- none of the pruned strings were on
 the remote page.
+
+### 8069 -- pictures are feckless_image_handler's
+
+Defeatist's picture code moves out to `feckless_image_handler`
+(feckless-libs 7004-7009, v0.7.1), which is how an ELF build of the
+player gets one JPEG engine that the other apps share, and takes
+`albumart.c` from 2095 lines to about 850.
+
+**Gone from this repository:** `components/stbjpeg`, `components/jxlimg`,
+`components/pngle`, `main/artformat.h`, `main/icoimg.[ch]`, texttest's
+`arttest`, `stbjpegtest`, `jxltest` and `gifstacktest` with
+`fixtures/art`, `fixtures/stbjpeg` and `tools/gen_art_fixtures.py` (the
+library's own tests have the same cases, 48 + 9827 + 35 + 9347 + 105 +
+60 + 25 checks under ASan and UBSan). `cmake/vendored.cmake`,
+`tools/fetch_vendored.sh` and `.gitignore` keep only minimp3; the
+BUILD tab reads pngle's, stb_image's and J40's commits from
+feckless_image_handler's `cmake/vendored.cmake` in `managed_components/`.
+
+**What `albumart.c` is now:** the ID3 walk, the retained frame, the
+cover hash, where the cover sits (`artplace.h`), the keystone lean and
+the blit through `ui.c`. `albumart_show()` is the one entry for every
+format (`albumart_draw()` stays, calling it): hash, the retained frame if
+it matches, `img_decode(img_esp_ops(), ...)`, `blit_cover()` (`img_fit_size()`
+and `img_fit_draw()`, then the offset and the keystone), retain.
+`albumart_init()` is `img_esp_init()`; `albumart_show()` calls it again
+before a JPEG, which is a no-op with the engine in hand and the retry the
+old path made when boot-time creation had failed.
+
+**Changes in behaviour, all deliberate:**
+- A PNG, JPEG XL or GIF cover is retained like a JPEG one (at most 2 MB),
+  so a repaint of the same cover no longer decodes it again. PNG used to
+  stream straight into the frame and be kept by nothing.
+- A PNG now decodes into a buffer thinned to the screen and is fitted
+  from that, where it was streamed into the frame at its fitted size. The
+  memory is the change: the thinned buffer, up to the screen's worth of
+  RGB565. A half-transparent PNG pixel is blended over the UI background
+  (JPEG XL's rule) where it was drawn opaque; the bound is 16 megapixels
+  where it was 100000 on a side.
+- A hardware engine that cannot read the header or allocate its buffers
+  falls back to TJpgDec and stb_image, where it gave up.
+- A hardware result whose size is not the padded one is `ESP_FAIL` with a
+  line, not a sheared picture (the old path returned
+  `ESP_ERR_INVALID_SIZE`).
+- The per-cover input hash line (1011's diagnosis of one reproducible
+  file) is not carried over.
+
+Smaller: `radiobrowser.c` calls `img_ico_*`, `player.c` and `remote.c`
+`img_sniff()`/`img_mime()`, `i18n.c` takes `miniz.h` from
+feckless_image_handler's public `vendor/` (its 8002).
+
+**Manifest: every feckless pin moves from v0.4.1 to v0.7.1** (one tag for
+all, which `feckless_abi` checks) and `feckless_image_handler` is added;
+`espressif/esp_jpeg` leaves this manifest for that component's. This
+re-resolves `dependencies.lock`: the first build's diff gets read before
+it is committed. The v0.4.1-to-v0.7.1 changes to the components already
+used are additions (the network handler's `feckless_net_*`, the nvs
+migration table, `wifi_request_apply()`); storage, drivers and graphics
+changed their version lines only. `main/CMakeLists.txt`: `icoimg.c` leaves
+the sources and the `-Os` lists were never its; `pngle stbjpeg jxlimg`
+leave `PRIV_REQUIRES` and `esp_driver_jpeg` leaves `REQUIRES` (nothing in
+main includes it now; feckless_image_handler requires it); no
+`sdkconfig.defaults` change. TJpgDec still needs `CONFIG_JD_USE_SCALE=y`,
+as it did here; `sdkconfig.defaults` does not name it, so it is esp_jpeg's
+own Kconfig default that has been holding (1104 ran on it), and the first
+build's `sdkconfig` is the place to confirm it.
+
+**Not built (no ESP-IDF in the session), not on a Tab5.** `albumart.c`
+compiled at `-O2 -Wall -Wextra -Werror=all -Werror=extra` against stub
+headers and feckless_image_handler's real ones; `player.c`,
+`radiobrowser.c` and `remote.c` have one-line changes that were read, not
+compiled. texttest's `folderarttest` (444 checks) and `i18ntest` run
+against a local feckless-libs checkout with `FECKLESS_IMAGE=` set. On a
+board, what to see: `cover decoded by hardware: WxH (stride S)` for a
+baseline JPEG, `... by tjpgd` with the engine refused, `... by stb` for a
+progressive one, `by pngle` for a PNG with the cover then repainting from
+`cover from the kept frame`, and the colours right (the BGR setting moved
+with the code; a gold cover coming out blue is that line).

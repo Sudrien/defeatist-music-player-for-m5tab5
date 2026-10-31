@@ -69,12 +69,14 @@ the cover cache with no read (the log says which).
 - **JPEG**: the P4's hardware engine (baseline, sizes divisible by 8),
   then TJpgDec (baseline), then stb_image (progressive, any size, within
   free PSRAM).
-- **PNG**: pngle, streamed straight into the frame.
+- **PNG**: pngle, into a buffer thinned to the screen and fitted from
+  there (8069; it was streamed into the frame), so a PNG cover is kept
+  for a repaint like the rest.
 - **GIF**: stb_image, since 6145: the first frame.
 - **JPEG XL**: J40, since 6139. It refuses some files: lossy at 256 px
   or smaller, lossless at effort 1, flat lossy at 600 px and up, and
   some others. texttest/jxltest.c pins which.
 
-The host tests for the same decoders are texttest/arttest.c (JPEG,
-PNG) and texttest/jxltest.c (JPEG XL), on the small fixtures in
-texttest/fixtures/art.
+Since 8069 all of them are feckless-libs-for-m5tab5's
+`feckless_image_handler`, and so are the host tests for the same decoders
+and their fixtures (`make -C components/feckless_image_handler/test`).

@@ -1,35 +1,33 @@
 /*
  * ID3v2 APIC extraction and display on the Tab5's ST7121 panel.
  *
- * The ESP32-P4 has a hardware JPEG codec, so the art is decoded by the
- * jpeg_decode driver rather than in software -- a 1000x1000 cover takes
- * a few ms instead of most of a second, which matters because it runs
- * while audio is already streaming.
+ * Decoding is feckless_image_handler's (8069): img_decode() picks the
+ * P4's hardware JPEG engine, TJpgDec, stb_image, pngle or J40 by format
+ * and by what memory there is, and img_fit_draw() fits the result to the
+ * box. What stays here is what is the player's: the ID3 walk, the one
+ * retained frame, where the cover sits (artplace.h), the keystone lean,
+ * and the blit to the panel through ui.c.
  *
  * SPDX-License-Identifier: MIT
  */
 
+#include <inttypes.h>
 #include <stdbool.h>
 #include <stdint.h>
 #include <stdlib.h>
 #include <string.h>
 
-#include "driver/jpeg_decode.h"
-#include "esp_attr.h"     /* 6139: DRAM_ATTR */
 #include "esp_check.h"
 #include "esp_lcd_mipi_dsi.h"
 #include "esp_lcd_panel_ops.h"
 #include "esp_log.h"
 #include "esp_heap_caps.h"
 #include "esp_timer.h"
-#include "freertos/FreeRTOS.h"   /* 5093: soft_decode_begin() */
-#include "freertos/task.h"
 
-#include "jpeg_decoder.h"   /* espressif/esp_jpeg: TJpgDec */
-#include "pngle.h"
-#include "artformat.h"
-#include "stbjpeg.h"  /* 5062: stb_image, the last JPEG decoder */
-#include "jxlimg.h"   /* 6139: J40, JPEG XL */
+#include "feckless_image.h"
+#include "feckless_image_decode.h"
+#include "feckless_image_esp.h"
+#include "feckless_image_fit.h"
 
 #include "albumart.h"
 #include "artplace.h"
@@ -40,374 +38,6 @@
                      * and a column in landscape, and only ui.c knows */
 
 static const char *TAG = "tab5_art";
-
-/* ------------------------------------------------------------------ */
-/* ID3v2 APIC                                                          */
-/* ------------------------------------------------------------------ */
-
-/*
- * The software decode, for covers the hardware cannot allocate for.
- *
- * Picks the gentlest reduction that still leaves at least the panel's
- * worth of pixels in both directions, so the 16.16 fit below is still
- * reducing rather than enlarging and nothing visible is given away. For
- * a 3000 px cover against a 720 px box that is 1/4 -- 750 px, 1.1 MB,
- * against the 17.3 MB the hardware wanted for the same picture.
- *
- * If even that will not allocate it keeps halving, down to 1/8, and
- * accepts an upscale rather than no cover at all. Beyond that there is
- * nothing left to try and the caller reports out of memory as before.
- *
- * TJpgDec writes RGB565 tightly packed, no padding, so the caller's
- * stride is the width it gets back here.
- *
- * THE WORK BUFFER IS OURS, AND IT HAS TO BE (1104)
- *
- * esp_jpeg will allocate TJpgDec's scratch pool itself, and on the
- * board that pool was 380 bytes too small -- every cover failed at
- * jd_prepare() with JDR_MEM1 before a single MCU was decoded. It is not
- * a memory shortage and it has nothing to do with the fragmentation the
- * hardware path reports a few lines above: the same failure happens on
- * a 200x200 cover with megabytes free.
- *
- * jpeg_decoder.c picks between two sizes at compile time:
- *
- *     JD_FASTDECODE == 2  ->  65472
- *     otherwise           ->   3100   "Recommended buffer size;
- *                                      Independent on the size of the image"
- *
- * The comment is true and beside the point. The pool is independent of
- * the image's dimensions and is NOT independent of its chroma
- * subsampling or of JD_FASTDECODE. For a 4:2:0 image jd_prepare() takes
- * JD_SZBUF for the input buffer (512), two quantiser tables at 64
- * int32_t (512), four Huffman tables at 16 + np*2 + np (~1108), a
- * workbuf of n*64*2 + 64 with n = 4 (576), and an mcubuf of
- * (n + 2) * 64 * sizeof(jd_yuv_t) -- and that last type is int16_t when
- * JD_FASTDECODE >= 1 and uint8_t when it is 0. So:
- *
- *     FASTDECODE 0:  512 + 512 + 1112 + 576 + 384  =  3096   fits 3100
- *     FASTDECODE 1:  512 + 512 + 1112 + 576 + 768  =  3480   does not
- *
- * (Every block is rounded up to a word by alloc_pool(), which is where
- * the odd four bytes in the Huffman row come from.)
- *
- * 3100 is tuned for FASTDECODE 0 and clears it by FOUR BYTES. This
- * project builds with CONFIG_JD_FASTDECODE=1, which doubles the mcubuf
- * row and puts it 380 over.
- *
- * Note what this means for the shape of the bug: it depends on the
- * chroma subsampling and not on the dimensions. A 4:4:4 cover has n = 1
- * and fits either way, which is why this looked like a large-image
- * problem on a memory-starved path and was neither.
- *
- * Fixed here rather than by setting CONFIG_JD_FASTDECODE=0, because 0
- * gives up the 32-bit barrel-shifter path on a decode that is already
- * seconds of CPU on the task 1005's watchdog fired on. Making the buffer
- * the right size costs 8 KB of DRAM for the length of one decode; making
- * the decoder slower costs every cover, for ever.
- *
- * TWO CONFIG SYMBOLS THIS DEPENDS ON, which 1101 used without saying so:
- *
- *   CONFIG_JD_USE_SCALE   must be set, or tjpgdcnf.h defaults JD_USE_SCALE
- *                         to 0 and any out_scale but 1/1 comes back
- *                         JDR_PAR from jd_decomp() -- a different failure
- *                         at a later stage, and the whole point of this
- *                         path is the scale.
- *   CONFIG_JD_FORMAT      may be either. 0 is RGB888 and esp_jpeg's output
- *                         callback converts to RGB565 for us; out_color_bytes
- *                         comes from cfg.out_format, not from JD_FORMAT, so
- *                         the buffer arithmetic below is right at 2 bytes
- *                         per pixel whichever way it is set.
- */
-
-/*
- * Room for four quantiser tables and Huffman tables larger than the
- * typical ones, on top of the ~3.5 KB above. Internal DRAM, not PSRAM:
- * this is TJpgDec's hot scratch and it is touched per MCU.
- *
- * heap_caps_malloc() returns at least word-aligned, which is what
- * alloc_pool() needs -- it rounds every block size up to 4 and then
- * hands out slices from the front, so a misaligned base would misalign
- * the int32_t quantiser tables and nothing would report it.
- */
-#define JPEG_SW_WORKBUF  (8u * 1024)
-/*
- * 5093: THE SOFTWARE DECODES RUN AT IDLE PRIORITY.
- *
- * A 3000x3000 cover in a FLAC took `cover decoded in software at 1/4` 5.8 s
- * of CPU in one blocking esp_jpeg_decode(), on the media task at priority
- * 1, while the player filled its ring at the start of the track -- and
- * the task watchdog fired on IDLE0: nothing below priority 1 ran on that
- * core for five seconds. 1005 was the same shape ("ten million in a burst
- * with nothing yielding"), and neither TJpgDec nor stb_image can be asked
- * to yield part-way.
- *
- * So the calling task drops to tskIDLE_PRIORITY for the length of the
- * decode and gets it back after. The idle tasks then share its time
- * slices, the watchdog is fed, and everything else -- audio, the writer,
- * the UI -- preempts it exactly as before, so the cover takes as long as
- * spare CPU allows and costs nothing that was already running. The hardware
- * path is untouched: hundreds of milliseconds, and it waits on an
- * interrupt rather than spinning.
- */
-static UBaseType_t soft_decode_begin(void)
-{
-    const UBaseType_t prio = uxTaskPriorityGet(NULL);
-    if (prio > tskIDLE_PRIORITY) vTaskPrioritySet(NULL, tskIDLE_PRIORITY);
-    return prio;
-}
-
-static void soft_decode_end(UBaseType_t prio)
-{
-    if (uxTaskPriorityGet(NULL) != prio) vTaskPrioritySet(NULL, prio);
-}
-
-/*
- * 6147: a decoder that needs more stack than media_task has, run on a
- * task of its own whose stack is in PSRAM, at idle priority like every
- * software decode here; the caller waits. Was J40's alone (6139). stb's
- * GIF reader is the second: stbi__gif_load() keeps its LZW table on the
- * stack, 8192 entries, a 35 KB frame -- and overran media_task's 16 KB
- * on the board, a stack protection fault on the first GIF cover.
- *
- * One at a time: only media_task decodes covers, so one TCB serves.
- * The TCB is internal (CLAUDE.md); the stack is the caller's to free,
- * which is why the task suspends itself rather than deleting itself.
- */
-typedef void (*bigstack_fn_t)(void *arg);
-typedef struct { bigstack_fn_t fn; void *arg; TaskHandle_t waiter; } bigstack_job_t;
-
-static DRAM_ATTR StaticTask_t s_bigstack_tcb;  /* internal: psram_bss.lf, CLAUDE.md */
-
-static void bigstack_task(void *p)
-{
-    bigstack_job_t *j = p;
-    j->fn(j->arg);
-    xTaskNotifyGive(j->waiter);
-    vTaskSuspend(NULL);
-}
-
-static esp_err_t run_on_big_stack(const char *name, size_t stack_bytes,
-                                  bigstack_fn_t fn, void *arg)
-{
-    StackType_t *stack = heap_caps_malloc(stack_bytes, MALLOC_CAP_SPIRAM | MALLOC_CAP_8BIT);
-    if (!stack) return ESP_ERR_NO_MEM;
-    bigstack_job_t job = { .fn = fn, .arg = arg, .waiter = xTaskGetCurrentTaskHandle() };
-    TaskHandle_t t = xTaskCreateStatic(bigstack_task, name, stack_bytes, &job,
-                                       tskIDLE_PRIORITY, stack, &s_bigstack_tcb);
-    if (!t) {
-        heap_caps_free(stack);
-        return ESP_ERR_NO_MEM;
-    }
-    ulTaskNotifyTake(pdTRUE, portMAX_DELAY);
-    while (eTaskGetState(t) != eSuspended) vTaskDelay(1);
-    vTaskDelete(t);
-    heap_caps_free(stack);
-    return ESP_OK;
-}
-
-/*
- * 35 KB for stbi__gif_load()'s frame (-fstack-usage, 32-bit host), and
- * 6148: stbi__out_gif_code() recurses once per link of an LZW prefix
- * chain, 32 bytes a frame, and a chain is at most 4096 long (stb stops
- * the code size at 12 bits). 35 + 128 KB. 6147's 48 KB was the frame
- * alone, and a flat 600x600 cover overran it on the board.
- * texttest/gifstacktest.c decodes a flat 2000x2000 on a host thread of
- * exactly this size, without sanitizers. PSRAM, for the length of one
- * decode.
- */
-#define GIF_STACK  (192 * 1024)
-
-typedef struct {
-    const uint8_t *in; size_t len; int box_w, box_h;
-    uint16_t *px; size_t size; int w, h;
-    stbjpeg_err_t err; const char *why;
-} stb_job_t;
-
-static void stb_job(void *arg)
-{
-    stb_job_t *j = arg;
-    j->err = stbjpeg_decode_rgb565(j->in, j->len, j->box_w, j->box_h,
-                                   &j->px, &j->size, &j->w, &j->h, &j->why);
-}
-
-static esp_err_t decode_software(const uint8_t *in, size_t jpeg_len,
-                                 const jpeg_decode_picture_info_t *info,
-                                 int screen_w, int screen_h,
-                                 uint8_t **out_buf, size_t *out_size,
-                                 int *out_w, int *out_h)
-{
-    static const esp_jpeg_image_scale_t scales[] = {
-        JPEG_IMAGE_SCALE_0, JPEG_IMAGE_SCALE_1_2,
-        JPEG_IMAGE_SCALE_1_4, JPEG_IMAGE_SCALE_1_8,
-    };
-
-    /* Gentlest reduction that still covers the box. Starts at 1/2: 1/1
-     * is what the caller already failed to allocate. */
-    int idx = 1;
-    while (idx < 3 &&
-           (int)(info->width  >> (idx + 1)) >= screen_w &&
-           (int)(info->height >> (idx + 1)) >= screen_h) {
-        idx++;
-    }
-
-    /*
-     * One buffer for the whole ladder rather than one per attempt. Every
-     * iteration hands it to a fresh esp_jpeg_decode() which calls
-     * jd_prepare(), and jd_prepare() memsets the JDEC and resets the
-     * pool pointer to the base -- so a second attempt reuses it cleanly
-     * and there is nothing to carry between them.
-     */
-    uint8_t *work = heap_caps_malloc(JPEG_SW_WORKBUF,
-                                     MALLOC_CAP_INTERNAL | MALLOC_CAP_8BIT);
-    if (!work) {
-        ESP_LOGW(TAG, "no DRAM for the %u KB JPEG work buffer",
-                 (unsigned)(JPEG_SW_WORKBUF / 1024));
-        return ESP_ERR_NO_MEM;
-    }
-
-    for (; idx <= 3; idx++) {
-        const int w = (int)(info->width  >> idx);
-        const int h = (int)(info->height >> idx);
-        if (w < 1 || h < 1) break;
-
-        const size_t need = (size_t)w * h * 2;
-        if (heap_caps_get_largest_free_block(MALLOC_CAP_SPIRAM) < need) continue;
-
-        uint8_t *buf = heap_caps_malloc(need, MALLOC_CAP_SPIRAM | MALLOC_CAP_8BIT);
-        if (!buf) continue;
-
-        esp_jpeg_image_cfg_t cfg = {
-            .indata       = (uint8_t *)in,
-            .indata_size  = jpeg_len,
-            .outbuf       = buf,
-            .outbuf_size  = need,
-            .out_format   = JPEG_IMAGE_FORMAT_RGB565,
-            .out_scale    = scales[idx],
-            /*
-             * NOT swapped. The shadow buffer, gfx.c's RGB() macro and
-             * the DPI panel are all native little-endian RGB565 and
-             * agree with each other; the example in esp_jpeg's README
-             * sets this for LVGL, which is a different consumer. If a
-             * cover comes back with reds and blues exchanged this is the
-             * one line to flip -- and that is the same fault the
-             * hardware path's rgb_order note describes, from the other
-             * side.
-             */
-            .flags = { .swap_color_bytes = 0 },
-            /* See JPEG_SW_WORKBUF. Supplying this is the whole of 1104:
-             * esp_jpeg only allocates its own when working_buffer is
-             * NULL, and its own is the size that does not fit. */
-            .advanced = {
-                .working_buffer      = work,
-                .working_buffer_size = JPEG_SW_WORKBUF,
-            },
-        };
-        esp_jpeg_image_output_t outimg = { 0 };
-
-        const esp_err_t err = esp_jpeg_decode(&cfg, &outimg);
-        if (err != ESP_OK) {
-            free(buf);
-            /*
-             * The context, because the error code carries none.
-             * esp_jpeg_decode() collapses every TJpgDec JDR_* code into
-             * ESP_FAIL, so "failed (ESP_FAIL)" on its own cost two board
-             * runs to tell a work-pool shortage from a real allocation
-             * failure. The component prints the raw code itself at E,
-             * one line above this one; what it does not print is any of
-             * the state that says which of its meanings applies.
-             *
-             * If this line appears again, read the JPEG's own E line
-             * first: 3 is JDR_MEM1 and means the pool is still short --
-             * raise JPEG_SW_WORKBUF; 5 is JDR_PAR and means
-             * CONFIG_JD_USE_SCALE is off; 6-8 are format errors and mean
-             * the cover is progressive, which TJpgDec cannot decode at
-             * any pool size and which no change here will fix.
-             */
-            ESP_LOGW(TAG, "software decode at 1/%d failed (%s): "
-                          "%dx%d out, %u KB outbuf, %u KB workbuf",
-                     1 << idx, esp_err_to_name(err), w, h,
-                     (unsigned)(need / 1024),
-                     (unsigned)(JPEG_SW_WORKBUF / 1024));
-            heap_caps_free(work);
-            return err;
-        }
-
-        *out_buf = buf;
-        *out_size = need;
-        *out_w = (int)outimg.width;
-        *out_h = (int)outimg.height;
-        ESP_LOGI(TAG, "cover decoded in software at 1/%d: %dx%d, %u KB",
-                 1 << idx, *out_w, *out_h, (unsigned)(need / 1024));
-        heap_caps_free(work);
-        return ESP_OK;
-    }
-
-    heap_caps_free(work);
-    ESP_LOGW(TAG, "no scale of this cover fits; showing the format instead");
-    return ESP_ERR_NO_MEM;
-}
-
-/*
- * 5062: THE LAST JPEG DECODER, for what the hardware and TJpgDec both
- * refused -- a progressive cover, or a flavour TJpgDec calls JDR_FMT3
- * (BBC World Service's 145x145 logo). stb_image, in PSRAM, at full size
- * and thinned to the screen box. See components/stbjpeg/stbjpeg.h.
- *
- * Asked about memory first, because a progressive decode holds every
- * coefficient of the picture at once: about 10 bytes a pixel, so a
- * 1000x1000 cover is 10 MB for a moment. Refused with a line that says
- * how much, rather than by the allocator halfway through.
- */
-static esp_err_t decode_stb(const uint8_t *jpeg, size_t jpeg_len,
-                            int screen_w, int screen_h,
-                            uint8_t **out_buf, size_t *out_size,
-                            int *out_w, int *out_h)
-{
-    int w = 0, h = 0;
-    const stbjpeg_err_t info = stbjpeg_info(jpeg, jpeg_len, &w, &h);
-    if (info != STBJPEG_OK) {
-        ESP_LOGW(TAG, "stb_image: %s (%dx%d)", stbjpeg_err_name(info), w, h);
-        return ESP_ERR_NOT_SUPPORTED;
-    }
-    const size_t peak = artformat_sniff(jpeg, jpeg_len) == ART_GIF   /* 6145 */
-                      ? stbjpeg_gif_peak_bytes(w, h) : stbjpeg_peak_bytes(w, h);
-    const size_t free_ps = heap_caps_get_free_size(MALLOC_CAP_SPIRAM);
-    if (free_ps < peak) {
-        ESP_LOGW(TAG, "stb_image: %dx%d needs up to %u KB of PSRAM, %u KB free",
-                 w, h, (unsigned)(peak / 1024), (unsigned)(free_ps / 1024));
-        return ESP_ERR_NO_MEM;
-    }
-
-    const int64_t t0 = esp_timer_get_time();
-    uint16_t *px = NULL;
-    const char *why = NULL;
-    stbjpeg_err_t err;
-    if (artformat_sniff(jpeg, jpeg_len) == ART_GIF) {            /* 6147 */
-        stb_job_t job = { .in = jpeg, .len = jpeg_len, .box_w = screen_w, .box_h = screen_h,
-                          .err = STBJPEG_FAILED };
-        if (run_on_big_stack("gif", GIF_STACK, stb_job, &job) != ESP_OK) return ESP_ERR_NO_MEM;
-        err = job.err;
-        px = job.px;
-        why = job.why;
-        *out_size = job.size;
-        *out_w = job.w;
-        *out_h = job.h;
-    } else {
-        err = stbjpeg_decode_rgb565(jpeg, jpeg_len, screen_w, screen_h,
-                                    &px, out_size, out_w, out_h, &why);
-    }
-    if (err != STBJPEG_OK) {
-        ESP_LOGW(TAG, "stb_image: %dx%d %s (%s)", w, h, stbjpeg_err_name(err),
-                 why ? why : "no reason given");
-        return err == STBJPEG_NO_MEM ? ESP_ERR_NO_MEM : ESP_FAIL;
-    }
-    *out_buf = (uint8_t *)px;
-    ESP_LOGI(TAG, "cover decoded by stb_image: %dx%d -> %dx%d, %u KB, %lld ms",
-             w, h, *out_w, *out_h, (unsigned)(*out_size / 1024),
-             (long long)((esp_timer_get_time() - t0) / 1000));
-    return ESP_OK;
-}
 
 /*
  * MurmurHash2, 32-bit, public domain. Identity for a blob of bytes: two
@@ -487,7 +117,7 @@ static uint32_t syncsafe32(const uint8_t *p)
  */
 bool albumart_is_supported_image(const uint8_t *p, size_t len)
 {
-    return artformat_sniff(p, len) != ART_NONE;     /* 6138: artformat.h */
+    return img_sniff(p, len) != IMG_NONE;     /* 6138; 8069: feckless_image.h */
 }
 
 esp_err_t albumart_extract_at(FILE *f, storage_io_class_t cls, long base,
@@ -881,7 +511,7 @@ esp_err_t id3_read_tags(FILE *f, id3_tags_t *out)
 bool albumart_jpeg_is_baseline(const uint8_t *p, size_t len, uint8_t *sof_out,
                                uint32_t *w_out, uint32_t *h_out)
 {
-    return artformat_jpeg_sof(p, len, sof_out, w_out, h_out);   /* 6138 */
+    return img_jpeg_sof(p, len, sof_out, w_out, h_out);   /* 6138; 8069: feckless_image.h */
 }
 
 static const char *sof_name(uint8_t m)
@@ -971,40 +601,6 @@ void albumart_forget_cover(void)
     cover_drop();
 }
 
-/*
- * Centre, fit and blit a decoded RGB565 cover.
- *
- * Split out of albumart_draw() so it can be reached twice: once behind a
- * decode, and once from the retained frame when the same picture is
- * asked for again. Everything it needs is the pixels and their shape --
- * it never sees the JPEG -- which is what makes the second path possible
- * at all.
- */
-/*
- * 5088: SMALL PICTURES ARE ENLARGED BY WHOLE PIXELS.
- *
- * A station's picture is often an icon -- 16 to 64 px from a favicon.ico,
- * 180 px from an apple-touch-icon -- and the fit below takes it to the
- * box by a fraction: 180 px to 560 is 3.11x, so columns alternate
- * between three and four pixels wide and every edge in the logo wobbles.
- * At or under ART_INT_SCALE_MAX on both sides, and where at least 2x
- * fits, the factor is the largest whole number that fits instead, and
- * every source pixel becomes the same k x k block. The picture is up to
- * one factor smaller than the box (540 rather than 560 for RFI's 180 px
- * logo), centred, and sharp. 256 is the largest size a .ico can hold.
- * Larger pictures, which are album covers, keep the fractional fit: a
- * 370 px cover in a 720 px box would otherwise be drawn at 1x.
- */
-#define ART_INT_SCALE_MAX  (256)
-
-static int art_int_scale(int iw, int ih, int box_w, int box_h)
-{
-    if (iw < 1 || ih < 1 || iw > ART_INT_SCALE_MAX || ih > ART_INT_SCALE_MAX) return 0;
-    const int kx = box_w / iw, ky = box_h / ih;
-    const int k = kx < ky ? kx : ky;
-    return k >= 2 ? k : 0;
-}
-
 /* ------------------------------------------------------------------ */
 /* Keystone                                                            */
 /* ------------------------------------------------------------------ */
@@ -1046,44 +642,19 @@ static int art_int_scale(int iw, int ih, int box_w, int box_h)
 #define KEYSTONE_MAX_PM     (80)
 
 /*
- * THE HARDWARE JPEG ENGINE, MADE ONCE AT BOOT AND NEVER DESTROYED.
- *
- * It was made and destroyed per cover, and on the board a 450 KB cover
- * failed with "no memory for jpeg decode txlink" -- 128 bytes of
- * DMA-capable internal RAM it could not get. 5145's maps say why, and
- * say it is not a leak: the DMA-capable heap is 42255 bytes free at
- * boot and 475 once the station has an address. The radio takes
- * essentially all of it, at the join, and keeps it. (The HTTPS server
- * was the obvious suspect and is innocent -- free memory goes UP across
- * it, from 475 to 3259, as the handshake buffers come back.)
- *
- * After that a 128-byte aligned allocation succeeds or fails on
- * fragmentation alone: the failing log had 663 free and 256 in the
- * largest block, the next boot had 1651 and 1472 and the same cover
- * decoded. That is a coin toss per cover, which is the worst kind of
- * bug to be told about.
- *
- * So it is created in albumart_init(), from app_main, while 42 KB is
- * still free, and held. A few hundred bytes of DMA RAM spent once, for
- * a decode path that then cannot fail for want of them.
+ * The hardware JPEG engine is made once, at boot, and never destroyed:
+ * the radio takes the DMA-capable internal RAM its descriptors need when
+ * the station joins (5145), so an engine made later is a coin toss. The
+ * measurements and the reasoning moved with the code to
+ * feckless_image_handler's image_esp.c (8069); img_esp_init() is what
+ * albumart_init() calls.
  */
-static jpeg_decoder_handle_t s_engine;
-
 static uint32_t s_keystone_seed;
 static uint32_t s_keystone_key;     /* 0 = none named; see albumart_set_key() */
 
 void albumart_init(void)
 {
-    if (s_engine) return;
-    const jpeg_decode_engine_cfg_t cfg = { .timeout_ms = 5000 };
-    const esp_err_t err = jpeg_new_decoder_engine(&cfg, &s_engine);
-    if (err != ESP_OK) {
-        s_engine = NULL;
-        ESP_LOGW(TAG, "no hardware jpeg engine at boot (%s); covers will "
-                 "decode in software", esp_err_to_name(err));
-        return;
-    }
-    ESP_LOGI(TAG, "hardware jpeg engine ready, kept for the session");
+    img_esp_init();
 }
 
 void albumart_set_key(const char *key)
@@ -1207,59 +778,26 @@ static void keystone_apply(uint16_t *fb, int fbw, int dx, int dy, int cw, int ch
 #endif
 }
 
+/*
+ * Centre, fit and blit a decoded RGB565 cover.
+ *
+ * Split out so it can be reached twice: once behind a decode, and once
+ * from the retained frame when the same picture is asked for again.
+ * Everything it needs is the pixels and their shape -- it never sees the
+ * file -- which is what makes the second path possible at all.
+ *
+ * The fit (both directions, whole pixels for a small picture, 5088) and
+ * the draw are feckless_image_fit.h's; where the result sits and the
+ * keystone are ours.
+ */
 static esp_err_t blit_cover(esp_lcd_panel_handle_t panel,
                             int screen_w, int screen_h,
                             const uint8_t *rgb, int iw, int ih, int stride)
 {
     (void)panel;
 
-    /*
-     * Fitted to the box in BOTH directions -- enlarged as well as
-     * reduced. There used to be an `if (iw > screen_w || ih > screen_h)`
-     * around this, so a cover smaller than the panel was centred at its
-     * native size with black all round it. A 300 px cover on a 720 px
-     * panel occupied a sixth of the area it was given and looked like a
-     * thumbnail somebody forgot to load properly.
-     *
-     * Nothing about the arithmetic below needed to change to enlarge:
-     * the 16.16 step is simply less than 1.0 when cw > iw, and the same
-     * loop reads each source pixel several times instead of skipping
-     * some. That is the advantage of a fixed-point step over the integer
-     * one this replaced.
-     *
-     * Nearest neighbour, so enlarging is blocky -- a 300 px cover on a
-     * 720 px panel is 2.4x and the pixels show. That is the honest
-     * result: the alternative is a bilinear pass that makes a small
-     * image look soft instead of blocky, which is not obviously better
-     * and costs four reads and three lerps per output pixel during
-     * playback.
-     */
-    const int64_t fit_by_width = (int64_t)iw * screen_h;
-    const int64_t fit_by_height = (int64_t)ih * screen_w;
-
-    int cw, ch;
-    if (fit_by_width >= fit_by_height) {
-        /* Wider than the box's aspect: width is the binding dimension. */
-        cw = screen_w;
-        ch = (int)(((int64_t)ih * screen_w) / iw);
-    } else {
-        ch = screen_h;
-        cw = (int)(((int64_t)iw * screen_h) / ih);
-    }
-    if (cw < 1) cw = 1;
-    if (ch < 1) ch = 1;
-
-    /* 5088: whole pixels for a small picture; see art_int_scale(). */
-    const int kint = art_int_scale(iw, ih, screen_w, screen_h);
-    if (kint) {
-        cw = iw * kint;
-        ch = ih * kint;
-    }
-
-    /* 16.16, rounded up so the last output pixel cannot index past the
-     * last source row or column. */
-    const uint32_t xstep = (uint32_t)(((uint64_t)iw << 16) / (uint32_t)cw);
-    const uint32_t ystep = (uint32_t)(((uint64_t)ih << 16) / (uint32_t)ch);
+    int cw, ch, kint;
+    img_fit_size(iw, ih, screen_w, screen_h, &cw, &ch, &kint);
 
     int dx, dy;
     art_place(screen_w, screen_h, cw, ch, &dx, &dy);
@@ -1278,48 +816,23 @@ static esp_err_t blit_cover(esp_lcd_panel_handle_t panel,
     ESP_RETURN_ON_ERROR(fb ? ESP_OK : ESP_ERR_INVALID_STATE,
                         TAG, "no shadow buffer");
 
-    /* Clear to the UI's background, then place the crop, then copy the band up once.
+    /* Clear to the UI's background, then place the picture, then copy
+     * the band up once.
      *
      * screen_h is the height of the artwork area, not of the panel: the
      * caller passes the space above the transport bar. Clearing the full
      * panel height here would blank the bar in the shadow and blit that
-     * over it, so the bar vanished on every track change until the next
-     * ui_draw() put it back.
+     * over it.
      *
-     * AND screen_w is not the framebuffer's stride any more. In portrait
-     * the artwork band is the full width and the two are equal; in
-     * landscape the band is 560 wide inside a 1280-wide buffer, so a
-     * memset of screen_w*screen_h would run diagonally across the
-     * picture and every row write would land further left than the last.
-     * fbw is the stride, screen_w is the region -- they are different
-     * numbers and every write below uses the right one. */
+     * AND screen_w is not the framebuffer's stride. In portrait the
+     * artwork band is the full width and the two are equal; in landscape
+     * the band is 560 wide inside a 1280-wide buffer. fbw is the stride,
+     * screen_w is the region -- they are different numbers and every
+     * write uses the right one. */
     const int fbw = gfx_w();
     gfx_fill_rect(0, 0, screen_w, screen_h, UI_BG_RGB565);
-    const uint16_t *src = (const uint16_t *)rgb;
-    for (int y = 0; y < ch; y++) {
-        uint32_t syf = (uint32_t)y * ystep;
-        int srow = kint ? y / kint : (int)(syf >> 16);
-        if (srow >= ih) srow = ih - 1;
-
-        const uint16_t *row = &src[(size_t)srow * stride];
-        uint16_t *dst = &fb[(size_t)(dy + y) * fbw + dx];
-
-        if (xstep == (1u << 16)) {
-            memcpy(dst, row, (size_t)cw * 2);
-        } else if (kint) {
-            /* 5088: exact blocks. The 16.16 step for 1/3 is 21845, and
-             * 3 * 21845 is one short of a whole source pixel, so the
-             * stepped loop would make the first block four wide. */
-            for (int x = 0; x < cw; x++) dst[x] = row[x / kint];
-        } else {
-            uint32_t sxf = 0;
-            for (int x = 0; x < cw; x++, sxf += xstep) {
-                int scol = (int)(sxf >> 16);
-                if (scol >= iw) scol = iw - 1;
-                dst[x] = row[scol];
-            }
-        }
-    }
+    const img_pic_t pic = { .px = (uint16_t *)(uintptr_t)rgb, .w = iw, .h = ih, .stride = stride };
+    img_fit_draw(&pic, &fb[(size_t)dy * fbw + dx], (size_t)fbw, cw, ch, kint);
     keystone_apply(fb, fbw, dx, dy, cw, ch);
 
     /* ui_blit_art_err() knows whether the artwork is a band or a column;
@@ -1330,173 +843,37 @@ static esp_err_t blit_cover(esp_lcd_panel_handle_t panel,
 }
 
 /*
- * Decode with stb_image, put it on the glass, keep it. The whole of what
- * a software-only cover needs, in one place because there are now two
- * callers: the progressive path (5062), which no hardware here can read
- * at all, and the no-engine path, which can read it and has nowhere to
- * put the descriptors.
+ * Any picture this player shows: JPEG, PNG, JPEG XL or GIF, by its
+ * magic bytes (img_sniff), decoded by img_decode() in the order
+ * feckless_image_handler's feckless_image_decode.h describes, and drawn.
  *
- * Self-contained on purpose. The alternative was a second jump into
- * have_pixels from above the hardware path, and that jump would cross
- * five initialisers -- pad_w, pad_h, want, largest, decoded -- where the
- * existing jumps cross one. Legal C, and safe only because `soft` keeps
- * have_pixels away from the ones it skipped, which is precisely the kind
- * of reasoning this file already has a comment asking not to rely on.
+ * The retained frame answers a repeat without a decoder: the
+ * settings-panel close and the track change within an album, which the
+ * board measured at 4.6 s each (and which PNG, JPEG XL and GIF now share;
+ * only JPEG had it before).
  */
-static esp_err_t draw_in_software(esp_lcd_panel_handle_t panel,
-                                  int screen_w, int screen_h,
-                                  const uint8_t *jpeg, size_t jpeg_len,
-                                  uint32_t in_hash)
+static esp_err_t err_of(img_err_t e)
 {
-    uint8_t *rgb = NULL;
-    size_t rgb_size = 0;
-    int w = 0, h = 0;
-
-    const UBaseType_t prio = soft_decode_begin();            /* 5093 */
-    esp_err_t ret = decode_stb(jpeg, jpeg_len, screen_w, screen_h,
-                               &rgb, &rgb_size, &w, &h);
-    soft_decode_end(prio);
-    if (ret != ESP_OK) return ret;
-
-    ret = blit_cover(panel, screen_w, screen_h, rgb, w, h, w);
-    if (ret == ESP_OK && cover_retain(rgb, rgb_size, w, h, w, in_hash)) {
-        rgb = NULL;
+    switch (e) {
+    case IMG_OK:              return ESP_OK;
+    case IMG_ERR_NO_MEM:      return ESP_ERR_NO_MEM;
+    case IMG_ERR_BAD:
+    case IMG_ERR_UNSUPPORTED: return ESP_ERR_NOT_SUPPORTED;
+    default:                  return ESP_FAIL;
     }
-    free(rgb);
-    return ret;
 }
 
-/*
- * 6139: JPEG XL, through J40 (components/jxlimg).
- *
- * On a task of its own, with its stack in PSRAM. J40 is deep: 11.5 KB of
- * stack measured on a 64-bit host, which would leave media_task's 16 KB
- * too little for its own frames above it. The stack is PSRAM because
- * internal RAM is the radio's (CLAUDE.md); the TCB stays internal, as a
- * TCB must. The task runs at idle priority, which is what
- * soft_decode_begin() gives the other software decoders, and the caller
- * waits for it.
- *
- * Asked about memory first, as decode_stb() is: about 13 bytes a pixel
- * at the peak, so a 1000x1000 cover is about 13 MB for a moment.
- */
-#define JXL_STACK  (24 * 1024)
-
-typedef struct {
-    const uint8_t *in;
-    size_t len;
-    int box_w, box_h;
-    uint16_t *px;
-    size_t size;
-    int w, h;
-    jxlimg_err_t err;
-    const char *why;
-} jxl_job_t;
-
-static void jxl_job(void *arg)
+esp_err_t albumart_show(esp_lcd_panel_handle_t panel, int screen_w, int screen_h,
+                        const uint8_t *img, size_t img_len)
 {
-    jxl_job_t *j = arg;
-    j->err = jxlimg_decode_rgb565(j->in, j->len, j->box_w, j->box_h, UI_BG_RGB565,
-                                  &j->px, &j->size, &j->w, &j->h, &j->why);
-}
-
-static esp_err_t decode_jxl(const uint8_t *in, size_t len, int screen_w, int screen_h,
-                            uint8_t **out_buf, size_t *out_size, int *out_w, int *out_h)
-{
-    int w = 0, h = 0;
-    const jxlimg_err_t info = jxlimg_info(in, len, &w, &h);
-    if (info != JXLIMG_OK) {
-        ESP_LOGW(TAG, "jxl: %s (%dx%d)", jxlimg_err_name(info), w, h);
-        return ESP_ERR_NOT_SUPPORTED;
-    }
-    const size_t peak = jxlimg_peak_bytes(w, h);
-    const size_t free_ps = heap_caps_get_free_size(MALLOC_CAP_SPIRAM);
-    if (free_ps < peak + JXL_STACK) {
-        ESP_LOGW(TAG, "jxl: %dx%d needs up to %u KB of PSRAM, %u KB free",
-                 w, h, (unsigned)(peak / 1024), (unsigned)(free_ps / 1024));
-        return ESP_ERR_NO_MEM;
-    }
-    jxl_job_t job = { .in = in, .len = len, .box_w = screen_w, .box_h = screen_h,
-                      .err = JXLIMG_FAILED };
-    const int64_t t0 = esp_timer_get_time();
-    if (run_on_big_stack("jxl", JXL_STACK, jxl_job, &job) != ESP_OK) return ESP_ERR_NO_MEM;
-
-    if (job.err != JXLIMG_OK) {
-        ESP_LOGW(TAG, "jxl: %dx%d %s (%s)", w, h, jxlimg_err_name(job.err),
-                 job.why ? job.why : "no reason given");
-        return job.err == JXLIMG_NO_MEM ? ESP_ERR_NO_MEM
-             : job.err == JXLIMG_UNSUPPORTED ? ESP_ERR_NOT_SUPPORTED : ESP_FAIL;
-    }
-    *out_buf = (uint8_t *)job.px;
-    *out_size = job.size;
-    *out_w = job.w;
-    *out_h = job.h;
-    ESP_LOGI(TAG, "cover decoded by J40: %dx%d -> %dx%d, %u KB, %lld ms",
-             w, h, job.w, job.h, (unsigned)(job.size / 1024),
-             (long long)((esp_timer_get_time() - t0) / 1000));
-    return ESP_OK;
-}
-
-static esp_err_t albumart_draw_jxl(esp_lcd_panel_handle_t panel, int screen_w, int screen_h,
-                                   const uint8_t *in, size_t len)
-{
-    const uint32_t in_hash = albumart_cover_hash(in, len);
-    s_keystone_seed = s_keystone_key ? s_keystone_key : in_hash;
-    uint8_t *rgb = NULL;
-    size_t rgb_size = 0;
-    int w = 0, h = 0;
-    esp_err_t ret = decode_jxl(in, len, screen_w, screen_h, &rgb, &rgb_size, &w, &h);
-    if (ret != ESP_OK) return ret;
-    ret = blit_cover(panel, screen_w, screen_h, rgb, w, h, w);
-    if (ret == ESP_OK && cover_retain(rgb, rgb_size, w, h, w, in_hash)) {
-        rgb = NULL;
-    }
-    free(rgb);
-    return ret;
-}
-
-/* 6145: a GIF's first frame, through stb_image -- the decoder that
- * already takes the JPEGs the hardware and TJpgDec cannot. */
-static esp_err_t albumart_draw_gif(esp_lcd_panel_handle_t panel, int screen_w, int screen_h,
-                                   const uint8_t *in, size_t len)
-{
-    const uint32_t in_hash = albumart_cover_hash(in, len);
-    s_keystone_seed = s_keystone_key ? s_keystone_key : in_hash;
-    return draw_in_software(panel, screen_w, screen_h, in, len, in_hash);
-}
-
-esp_err_t albumart_draw(esp_lcd_panel_handle_t panel, int screen_w, int screen_h,
-                        const uint8_t *jpeg, size_t jpeg_len)
-{
-    esp_err_t ret = ESP_OK;
-    jpeg_decoder_handle_t dec = NULL;
-    uint8_t *in = NULL;
-    uint8_t *rgb = NULL;
-    /* Declared here, above the goto into have_pixels: a jump must not
-     * cross an initialisation, and the blit reads all three. */
-    bool soft = false;
-    int  soft_w = 0, soft_h = 0;
-    size_t in_size = 0, rgb_size = 0;
-
     /*
-     * The hash first, before an engine, a buffer or a byte of work.
-     *
-     * Taken on the caller's bitstream rather than on the DMA copy `in`.
-     * They are the same bytes -- `in` is a memcpy of this -- but hashing
-     * here is what lets the whole decode be skipped, and hashing there
-     * would mean allocating the input buffer to discover it was not
-     * needed. The log line below still reports it, so a board log reads
-     * the same on both paths.
+     * The hash first, before an engine, a buffer or a byte of work: it
+     * is what lets the whole decode be skipped.
      */
-    const uint32_t in_hash = albumart_cover_hash(jpeg, jpeg_len);
+    const uint32_t in_hash = albumart_cover_hash(img, img_len);
     s_keystone_seed = s_keystone_key ? s_keystone_key : in_hash;
 
     if (s_kept && s_kept_hash == in_hash) {
-        /*
-         * The picture already on the panel, drawn again without a
-         * decoder. This is the settings-panel close and the track change
-         * within an album -- the cases the board measured at 4.6 s each.
-         */
         ESP_LOGI(TAG, "cover from the kept frame (hash %08x, %dx%d)",
                  (unsigned)in_hash, s_kept_w, s_kept_h);
         return blit_cover(panel, screen_w, screen_h, s_kept,
@@ -1506,590 +883,73 @@ esp_err_t albumart_draw(esp_lcd_panel_handle_t panel, int screen_w, int screen_h
     /*
      * A miss, so the old frame goes NOW rather than after the decode.
      * Held across it, it is a megabyte of the contiguous block the
-     * decode is about to ask for -- on the one path where that block is
-     * already 1544 KB short of what the hardware wanted.
+     * decode is about to ask for.
      */
     cover_drop();
 
-    uint8_t sof = 0;
-    uint32_t sof_w = 0, sof_h = 0;
-    if (!albumart_jpeg_is_baseline(jpeg, jpeg_len, &sof, &sof_w, &sof_h)) {
-        if (sof != 0xC2) {
+    const bool jpeg = img_sniff(img, img_len) == IMG_JPEG;
+    if (jpeg) {
+        /* The last baseline, and the one that matters: a map taken
+         * before the FIRST hardware decode says what held the
+         * DMA-capable internal heap when the engine needed it. Once only. */
+        static bool mapped;
+        if (!mapped) {
+            mapped = true;
+            heapmap_log("before the first hardware jpeg decode");
+        }
+        /* Idempotent: with the boot engine in place it returns at once;
+         * without one (boot-time creation failed, or an old caller) it
+         * tries again, as this path always has, and software has it if
+         * that fails too. */
+        img_esp_init();
+    }
+
+    img_pic_t pic;
+    const int64_t t0 = esp_timer_get_time();
+    const img_err_t de = img_decode(img_esp_ops(), img, img_len, screen_w, screen_h,
+                                    UI_BG_RGB565, &pic);
+
+    if (pic.sof_w) {
+        ESP_LOGI(TAG, "cover is %"PRIu32"x%"PRIu32" (SOF 0x%02X)", pic.sof_w, pic.sof_h, pic.sof);
+    }
+    if (pic.skipped) {
+        ESP_LOGI(TAG, "cover: %s", pic.skipped);
+    }
+    if (de != IMG_OK) {
+        if (pic.sof && de == IMG_ERR_UNSUPPORTED) {
             ESP_LOGW(TAG, "cover is a %s JPEG (SOF marker 0x%02X), %"PRIu32"x%"PRIu32"; "
-                          "no decoder here reads it", sof_name(sof), sof,
-                     sof_w, sof_h);
-            return ESP_ERR_NOT_SUPPORTED;
+                          "no decoder here reads it", sof_name(pic.sof), pic.sof,
+                     pic.sof_w, pic.sof_h);
+        } else {
+            ESP_LOGW(TAG, "cover not decoded (%d): %s", (int)de,
+                     pic.why ? pic.why : "no reason given");
         }
-        /* 5062: progressive. Neither the hardware nor TJpgDec can read
-         * it at all, so stb_image is the only decoder asked. */
-        ESP_LOGI(TAG, "cover is a progressive JPEG, %"PRIu32"x%"PRIu32"; "
-                      "trying stb_image", sof_w, sof_h);
-        return draw_in_software(panel, screen_w, screen_h, jpeg, jpeg_len,
-                                in_hash);
+        return err_of(de);
     }
+    ESP_LOGI(TAG, "cover decoded by %s: %dx%d (stride %d), %u KB, %lld ms",
+             pic.decoder ? pic.decoder : "?", pic.w, pic.h, pic.stride,
+             (unsigned)(pic.size / 1024),
+             (long long)((esp_timer_get_time() - t0) / 1000));
 
-    /*
-     * The last baseline, and the one that matters: the engine's DMA
-     * descriptors are the allocation that failed on the board, so a map
-     * taken immediately before the FIRST attempt says what was holding
-     * the DMA-capable internal heap at the moment it was needed. Once
-     * only -- a map per cover would be noise, and the first is the one
-     * that can be compared with boot.
-     */
-    static bool mapped;
-    if (!mapped) {
-        mapped = true;
-        heapmap_log("before the first hardware jpeg decode");
-    }
-
-    /*
-     * The engine made at boot (albumart_init). If it is missing -- an
-     * old caller, or boot-time creation failed -- try once here and let
-     * the software decoder have it if that fails too, rather than
-     * returning no cover at all.
-     */
-    if (!s_engine) {
-        const jpeg_decode_engine_cfg_t cfg = { .timeout_ms = 5000 };
-        if (jpeg_new_decoder_engine(&cfg, &s_engine) != ESP_OK) {
-            /*
-             * The 128 bytes of DMA-capable internal RAM the engine wants
-             * for its descriptors, which the radio has had since it
-             * joined (5145). Software is slower and produces the same
-             * picture; no cover at all is what this used to do.
-             */
-            ESP_LOGW(TAG, "no hardware jpeg engine; decoding in software");
-            s_engine = NULL;
-            return draw_in_software(panel, screen_w, screen_h, jpeg,
-                                    jpeg_len, in_hash);
-        }
-    }
-    dec = s_engine;
-
-    jpeg_decode_picture_info_t info;
-    ESP_GOTO_ON_ERROR(jpeg_decoder_get_info(jpeg, jpeg_len, &info), cleanup, TAG, "jpeg info");
-    ESP_LOGI(TAG, "cover is %"PRIu32"x%"PRIu32, info.width, info.height);
-
-    /*
-     * The decoder works in whole MCUs, so it writes a picture rounded up
-     * to the MCU grid -- and it writes the padding too. Two consequences,
-     * and this code had both wrong.
-     *
-     * The buffer has to hold the padded picture. A 3000x3000 cover is
-     * 3008x3008 at 4:2:0, which is 18,096,128 bytes rather than the
-     * 18,000,000 an unpadded calculation asks for, and the driver
-     * refuses the whole decode over the 96 KB difference:
-     *
-     *   Given buffer size 18000000 is smaller than actual jpeg decode
-     *   output size 18096128
-     *
-     * And the padded width is the row stride. Copying out at info.width
-     * shifts every row by (padded - width) pixels relative to the one
-     * above it, which is a picture sheared diagonally across the screen.
-     * That was latent rather than absent: it needs a cover whose width is
-     * not already a multiple of the MCU, and 500 and 1000 both are not --
-     * so the bug was there all along and the log had nothing to say about
-     * it, because the decode succeeded.
-     *
-     * MCU size follows the chroma subsampling, which is why it has to be
-     * read from the header rather than assumed to be 16.
-     */
-    int mcu_w = 16, mcu_h = 16;
-    switch (info.sample_method) {
-    case JPEG_DOWN_SAMPLING_YUV420: mcu_w = 16; mcu_h = 16; break;
-    case JPEG_DOWN_SAMPLING_YUV422: mcu_w = 16; mcu_h = 8;  break;
-    case JPEG_DOWN_SAMPLING_YUV444:
-    case JPEG_DOWN_SAMPLING_GRAY:   mcu_w = 8;  mcu_h = 8;  break;
-    default: break;                 /* 16x16 is the largest, so it is safe */
-    }
-    const uint32_t pad_w = ((info.width  + mcu_w - 1) / mcu_w) * mcu_w;
-    const uint32_t pad_h = ((info.height + mcu_h - 1) / mcu_h) * mcu_h;
-
-    /* The decoder DMAs straight out of the input buffer, so the
-     * bitstream has to live in memory it can reach and be padded to the
-     * alignment it asks for -- a plain malloc'd copy is not enough. */
-    const jpeg_decode_memory_alloc_cfg_t in_cfg = {
-        .buffer_direction = JPEG_DEC_ALLOC_INPUT_BUFFER,
-    };
-    in = jpeg_alloc_decoder_mem(jpeg_len, &in_cfg, &in_size);
-    ESP_GOTO_ON_FALSE(in, ESP_ERR_NO_MEM, cleanup, TAG, "jpeg in buf");
-    memcpy(in, jpeg, jpeg_len);
-
-    /*
-     * What the decoder is about to be handed, hashed.
-     *
-     * The same 145926-byte cover decodes on some tracks and fails on
-     * others with "marker parsed by the decoder is not supported by the
-     * hardware", reproducibly, from files that are byte-identical off
-     * the card -- confirmed by extracting both with ffmpeg and comparing
-     * pixel signatures. So either the bytes arriving here are not the
-     * bytes on the card, or they are perfect and the engine is the
-     * problem. Nothing in the log distinguishes those, and they want
-     * completely different fixes.
-     *
-     * Hashed from `in` rather than from `jpeg`, deliberately: `in` is
-     * the DMA-reachable copy the hardware actually reads, so this covers
-     * the ID3 extraction, the read off the card AND the memcpy above.
-     * Hashing the source would leave the last of those untested.
-     *
-     * MurmurHash2 rather than MD5 as of 1011. The question here has
-     * always been "are these the same bytes twice", which needs
-     * distribution and not cryptographic strength -- the old comment
-     * said so while paying for the strength anyway. MD5 ran ungated over
-     * every cover: 1.8 MB of ROM MD5 per track, for a log line.
-     *
-     * The 32-bit variant on purpose. MurmurHash64A is the better hash
-     * and it leans on 64-bit multiplies, which on this RV32 target are
-     * calls into __muldi3 -- the same trap 1005 hit with __moddi3 and
-     * 1007 wrote down. A hash is exactly the shape of loop that turns
-     * that into real time.
-     *
-     * Public domain (Austin Appleby), so unlike TJpgDec it adds no
-     * licence obligation.
-     */
-    ESP_LOGI(TAG, "jpeg in: %u bytes, hash %08x",
-             (unsigned)jpeg_len, (unsigned)in_hash);
-
-    const jpeg_decode_memory_alloc_cfg_t out_cfg = {
-        .buffer_direction = JPEG_DEC_ALLOC_OUTPUT_BUFFER,
-    };
-    const size_t want = (size_t)pad_w * pad_h * 2;              /* RGB565 */
-
-    /*
-     * Ask before allocating, so a cover that does not fit says so in one
-     * line instead of failing somewhere inside the driver.
-     *
-     * There is no scaler in this hardware -- the decoder produces the
-     * picture at full size or not at all -- so a 3000x3000 cover costs
-     * 18 MB of PSRAM for a 720 px square, on a board that is also holding
-     * a 1.8 MB shadow buffer, the bitstream, and a decode ring with audio
-     * running through it. It usually fits. When it does not, the useful
-     * thing to print is how much was wanted.
-     */
-    const size_t largest = heap_caps_get_largest_free_block(MALLOC_CAP_SPIRAM);
-    if (largest < want) {
-        /*
-         * TOTAL AS WELL AS LARGEST, because they answer different
-         * questions and only one of them has been asked so far.
-         *
-         * `largest` says this allocation cannot be made now. `total`
-         * says whether it could ever be made -- if the total is also
-         * short, no amount of freeing anything else helps and the only
-         * answers are a smaller decode or none. If the total is
-         * comfortably over and the largest is not, the PSRAM is
-         * fragmented and reclaiming a tenant (the cover cache is the
-         * obvious one, at several MB of compressed images) might
-         * actually recover the block.
-         *
-         * Measured rather than assumed on purpose: "free the cache and
-         * retry" is a plausible fix that is worthless in the first case
-         * and worth writing in the second, and nothing in the log so
-         * far distinguishes them. This is the instrumentation before
-         * the patch, which this project has twice paid for skipping.
-         */
-        const size_t total = heap_caps_get_free_size(MALLOC_CAP_SPIRAM);
-        ESP_LOGW(TAG, "cover needs %u KB of PSRAM in one block, largest free is %u KB",
-                 (unsigned)(want / 1024), (unsigned)(largest / 1024));
-        ESP_LOGW(TAG, "  PSRAM free: %u KB total, %u KB largest block, "
-                      "%u KB short%s",
-                 (unsigned)(total / 1024), (unsigned)(largest / 1024),
-                 (unsigned)((want - largest) / 1024),
-                 (total >= want) ? " -- fragmentation, not exhaustion"
-                                 : " -- exhausted; no reclaim can help");
-
-        /*
-         * SOFTWARE FALLBACK, because the hardware genuinely cannot do
-         * this one.
-         *
-         * `jpeg_decode_cfg_t` carries an output format, a byte order and
-         * a colour standard, and nothing else -- no scale, no sub-
-         * rectangle, no strip. Checked against the ESP-IDF P4 driver
-         * documentation for v5.3 through v6.1: the struct has never had
-         * a scale field. So the note above is right, and it is the one
-         * load-bearing claim in this file that a check confirmed rather
-         * than refuted.
-         *
-         * TJpgDec decodes at 1/2, 1/4 or 1/8 and it is the only way to
-         * get this picture onto the panel at all. It is reached ONLY
-         * here, on the branch that until now printed a number and gave
-         * up, so every cover that fits keeps the hardware path and its
-         * milliseconds.
-         *
-         * The cost is real and is why this is not the default: TJpgDec
-         * Huffman-decodes every MCU whatever the output scale, so a
-         * nine-megapixel cover is seconds of CPU, not the hardware's
-         * hundreds of milliseconds. It runs on the media task, which is
-         * where 1005's watchdog fired, so `esp_jpeg_decode()` being
-         * blocking is the thing to watch on the first board run.
-         */
-        const UBaseType_t prio = soft_decode_begin();        /* 5093 */
-        ret = decode_software(in, jpeg_len, &info, screen_w, screen_h,
-                              &rgb, &rgb_size, &soft_w, &soft_h);
-        if (ret == ESP_FAIL) {
-            /* 5062: TJpgDec refused the format, not the memory. */
-            ESP_LOGW(TAG, "trying stb_image");
-            ret = decode_stb(jpeg, jpeg_len, screen_w, screen_h,
-                             &rgb, &rgb_size, &soft_w, &soft_h);
-        }
-        soft_decode_end(prio);
-        if (ret != ESP_OK) goto cleanup;
-        soft = true;
-        goto have_pixels;
-    }
-
-    rgb = jpeg_alloc_decoder_mem(want, &out_cfg, &rgb_size);
-    ESP_GOTO_ON_FALSE(rgb, ESP_ERR_NO_MEM, cleanup, TAG, "jpeg out buf");
-
-    /*
-     * BGR, on a panel that is RGB565 and a codebase that is RGB565
-     * everywhere else.
-     *
-     * `rgb_order` does not name the output colour order. It selects a
-     * DMA2D *byte* scramble applied after the colour conversion, and for
-     * RGB565 the two settings are:
-     *
-     *   ..._ORDER_RGB -> DMA2D_SCRAMBLE_ORDER_BYTE2_0_1
-     *   ..._ORDER_BGR -> DMA2D_SCRAMBLE_ORDER_BYTE2_1_0   (identity)
-     *
-     * A 16-bit RGB565 word in little-endian memory does not survive
-     * having its bytes reordered: red and blue come out exchanged. Which
-     * is what a gold cover on a red background rendered as silver on
-     * blue -- (200,150,50) read back as (50,150,200), with the near-grey
-     * highlights unchanged because swapping R and B does nothing to a
-     * pixel where they are equal.
-     *
-     * So the setting that looks right is the one that corrupts, and the
-     * name is describing the scramble rather than the result. The rest of
-     * the file is the control: gfx.c's RGB() macro, the pngle path and
-     * the DPI panel's own LCD_COLOR_FMT_RGB565 all agree with each other,
-     * and only the JPEG path disagreed.
-     *
-     * conv_std is stated rather than left at 0. It happens to be BT.601
-     * either way, which is the right answer for JPEG, but a colour
-     * standard arrived at by zero-initialisation is not a decision.
-     */
-    const jpeg_decode_cfg_t cfg = {
-        .output_format = JPEG_DECODE_OUT_FORMAT_RGB565,
-        .rgb_order = JPEG_DEC_RGB_ELEMENT_ORDER_BGR,
-        .conv_std = JPEG_YUV_RGB_CONV_STD_BT601,
-    };
-    uint32_t decoded = 0;
-    {
-        const esp_err_t hw = jpeg_decoder_process(dec, &cfg, in, jpeg_len, rgb,
-                                                  rgb_size, &decoded);
-        if (hw != ESP_OK) {
-            /*
-             * 5055: the hardware refuses some JPEGs outright -- a
-             * station logo at 145x145 gave "Picture sizes not divisible
-             * by 8 are not supported" -- and a refusal used to be the
-             * end of the picture. TJpgDec has no such limit, and a logo
-             * is small enough that its cost is nothing. Same fallback as
-             * the can-not-allocate branch above, reached from a second
-             * door.
-             */
-            ESP_LOGW(TAG, "hardware decode refused (%s); trying software",
-                     esp_err_to_name(hw));
-            free(rgb);
-            rgb = NULL;
-            rgb_size = 0;
-            const UBaseType_t prio = soft_decode_begin();    /* 5093 */
-            ret = decode_software(in, jpeg_len, &info, screen_w, screen_h,
-                                  &rgb, &rgb_size, &soft_w, &soft_h);
-            if (ret == ESP_FAIL) {
-                /* 5062: TJpgDec refused the format, not the memory --
-                 * JDR_FMT3 on the BBC logo. The last decoder. */
-                ESP_LOGW(TAG, "trying stb_image");
-                ret = decode_stb(jpeg, jpeg_len, screen_w, screen_h,
-                                 &rgb, &rgb_size, &soft_w, &soft_h);
-            }
-            soft_decode_end(prio);
-            if (ret != ESP_OK) goto cleanup;
-            soft = true;
-            goto have_pixels;
-        }
-    }
-
-    /*
-     * The decoder reports what it actually wrote. Cross-check it, because
-     * everything below indexes at a stride derived from the header and a
-     * disagreement there is a sheared picture rather than an error.
-     */
-    if (decoded != (uint32_t)want) {
-        ESP_LOGW(TAG, "decoder wrote %"PRIu32" bytes, expected %u for %"PRIu32"x%"PRIu32,
-                 decoded, (unsigned)want, pad_w, pad_h);
-        ret = ESP_ERR_INVALID_SIZE;
-        goto cleanup;
-    }
-
-    /*
-     * Scale to fit, at a fractional ratio, and centre the result.
-     *
-     * Two revisions here and the second is the interesting one.
-     *
-     * Cropping alone was the original: a 720 px square cut out of the
-     * middle of a 3000 px cover, which is under a quarter of the picture
-     * with no indication that anything was missing. Then an integer
-     * decimation, taking every Nth pixel, with N the largest that still
-     * covered the panel -- which fixed the 3000 px case and left the
-     * common ones badly served. 1920 over 720 is 2.67, so N was 2, the
-     * cover came out 960 px, and a quarter of it was still cropped away.
-     * An integer step can only ever land on the panel exactly when the
-     * cover is a multiple of it.
-     *
-     * So the step is 16.16 fixed point instead. The arithmetic is the
-     * same shape and the same cost -- one shift and one multiply per
-     * output pixel -- and the picture lands on the panel exactly. 1920
-     * becomes 720 whole rather than 960 cropped.
-     *
-     * Fit rather than fill, so nothing is lost. A cover that is not
-     * square gets black at two edges instead of having its other two
-     * trimmed; the cover is the thing being shown, and a player that
-     * quietly crops the artwork it was given is deciding something it was
-     * not asked to decide.
-     *
-     * Nearest neighbour, no filtering. A box filter would be visibly
-     * better on fine detail and would read every source pixel rather than
-     * one in seven, during playback. Album art is not fine detail.
-     */
-have_pixels:
-    /*
-     * Whichever path produced the pixels. The hardware pads to 16-pixel
-     * boundaries and the visible image is a window into that, so the row
-     * stride is not the image width; TJpgDec writes the scaled image
-     * tightly, so for it the stride IS the width. Everything below is
-     * unchanged and simply reads these three rather than the header.
-     */
-    const int iw     = soft ? soft_w : (int)info.width;
-    const int ih     = soft ? soft_h : (int)info.height;
-    const int stride = soft ? soft_w : (int)pad_w;
-
-    ret = blit_cover(panel, screen_w, screen_h, rgb, iw, ih, stride);
+    esp_err_t ret = blit_cover(panel, screen_w, screen_h, (const uint8_t *)pic.px,
+                               pic.w, pic.h, pic.stride);
 
     /*
      * Kept only if it was drawn. A frame that failed to blit is not
      * what is on the panel, and answering a later request with it would
      * put up a picture nobody has seen instead of retrying.
      */
-    if (ret == ESP_OK && cover_retain(rgb, rgb_size, iw, ih, stride, in_hash)) {
-        rgb = NULL;             /* ownership moved; see cleanup */
+    if (ret == ESP_OK && cover_retain((uint8_t *)pic.px, pic.size, pic.w, pic.h,
+                                      pic.stride, in_hash)) {
+        pic.px = NULL;          /* ownership moved */
     }
-
-cleanup:
-    /* NULL when the frame was kept -- cover_retain() took it. */
-    if (rgb) free(rgb);
-    if (in) free(in);
-    /* NOT deleted: it is the boot engine and it is kept for the life of
-     * the app. See albumart_init(). */
+    free(pic.px);
     return ret;
 }
 
-/* ------------------------------------------------------------------ */
-/* PNG                                                                 */
-/* ------------------------------------------------------------------ */
-
-/*
- * pngle streams: it calls back per pixel run rather than handing over a
- * bitmap, so there is never a full RGBA copy of the image in memory.
- * That matters here -- a 1400x1400 RGBA buffer is 7.8 MB, and we would
- * only be throwing most of it away to crop anyway.
- *
- * Pixels are written straight into the panel's scan buffer with the
- * same centre-and-crop arithmetic the JPEG path uses.
- */
-/*
- * The ceiling that keeps png_on_draw()'s edge map in 32-bit arithmetic.
- * 100000 * 1280 is 1.28e8, comfortably inside INT32_MAX, and no cover
- * that fits in COVERTAG_MAX_IMAGE is anywhere near this wide.
- */
-#define PNG_MAX_DIM  (100000u)
-
-typedef struct {
-    bool saw_init;
-    bool too_big;           /* dimensions would overflow the 32-bit edge map */
-    uint16_t *fb;
-    int screen_w, screen_h;
-    int fbw;                /* framebuffer stride; see blit_cover() */
-    int dx, dy;             /* top-left of the scaled image in screen space */
-    int iw, ih;             /* source size */
-    int cw, ch;             /* size on screen after fitting */
-} png_ctx_t;
-
-static void png_on_init(pngle_t *pngle, uint32_t w, uint32_t h)
+/* Kept for its callers' sake: a JPEG was once the only thing it took. */
+esp_err_t albumart_draw(esp_lcd_panel_handle_t panel, int screen_w, int screen_h,
+                        const uint8_t *jpeg, size_t jpeg_len)
 {
-    png_ctx_t *c = pngle_get_user_data(pngle);
-    c->saw_init = true;
-    c->iw = (int)w;
-    c->ih = (int)h;
-
-    /*
-     * The edge map in png_on_draw() is 32-bit, and this is what makes
-     * that safe. The largest product it forms is iw * cw, with cw and ch
-     * bounded by the panel, so a dimension under PNG_MAX_DIM cannot
-     * overflow a signed 32-bit int with three orders of magnitude to
-     * spare. Refused rather than clamped: clamping would draw a
-     * silently wrong picture, and no real cover is 100000 px on a side
-     * inside COVERTAG_MAX_IMAGE anyway.
-     */
-    if (w == 0 || h == 0 || w > PNG_MAX_DIM || h > PNG_MAX_DIM) {
-        ESP_LOGW(TAG, "cover is %"PRIu32"x%"PRIu32", which this scaler "
-                      "will not map; skipping the picture", w, h);
-        c->too_big = true;
-        return;
-    }
-
-    /*
-     * Same fit-to-box as the JPEG path, up as well as down.
-     *
-     * Scaled forwards rather than backwards, and that is forced by the
-     * streaming: pngle hands over source pixels as it finds them and
-     * never offers a bitmap to sample, so the destination rectangle has
-     * to be computed FROM each source pixel instead of the destination
-     * loop pulling from a source. Which is why the mapping below is
-     * expressed as edges -- pixel i covers [i*cw/iw, (i+1)*cw/iw) -- and
-     * not as a step. Rounding each edge the same way is what stops
-     * enlargement leaving unwritten seams between blocks.
-     */
-    if ((int64_t)w * c->screen_h >= (int64_t)h * c->screen_w) {
-        c->cw = c->screen_w;
-        c->ch = (int)(((int64_t)h * c->screen_w) / w);
-    } else {
-        c->ch = c->screen_h;
-        c->cw = (int)(((int64_t)w * c->screen_h) / h);
-    }
-    if (c->cw < 1) c->cw = 1;
-    if (c->ch < 1) c->ch = 1;
-
-    /* 5088: whole pixels for a small picture. With cw = w * k the edge
-     * map below is x * k exactly, so every block is k x k. */
-    const int kint = art_int_scale((int)w, (int)h, c->screen_w, c->screen_h);
-    if (kint) {
-        c->cw = (int)w * kint;
-        c->ch = (int)h * kint;
-    }
-
-    art_place(c->screen_w, c->screen_h, c->cw, c->ch, &c->dx, &c->dy);
-
-    ESP_LOGI(TAG, "cover is %"PRIu32"x%"PRIu32" (png)", w, h);
-    if (kint) {
-        ESP_LOGI(TAG, "cover enlarged %dx to %dx%d", kint, c->cw, c->ch);
-    } else if (c->cw != (int)w || c->ch != (int)h) {
-        ESP_LOGI(TAG, "cover %s to %dx%d",
-                 (c->cw > (int)w) ? "enlarged" : "fitted", c->cw, c->ch);
-    }
-}
-
-static void png_on_draw(pngle_t *pngle, uint32_t x, uint32_t y,
-                        uint32_t w, uint32_t h, const uint8_t rgba[4])
-{
-    png_ctx_t *c = pngle_get_user_data(pngle);
-
-    if (c->too_big) return;                     /* see png_on_init() */
-    if (rgba[3] == 0) return;                   /* fully transparent */
-    const uint16_t px = (uint16_t)(((rgba[0] & 0xF8) << 8) |
-                                   ((rgba[1] & 0xFC) << 3) |
-                                    (rgba[2] >> 3));
-
-    /*
-     * The source run [x, x+w) x [y, y+h) maps to the half-open
-     * destination rectangle between the scaled edges of its first and
-     * last pixels. Computing both edges with the same expression is what
-     * makes adjacent runs abut exactly: run A's right edge and run B's
-     * left edge are the same arithmetic on the same number.
-     *
-     * At 1:1 this reduces to the old behaviour. Below 1:1 a run can map
-     * to zero pixels and is dropped, which is the correct way to shrink
-     * -- the run that lands on that pixel wins.
-     */
-    const int px0 = c->dx + (int)(((int32_t)x * c->cw) / c->iw);
-    const int px1 = c->dx + (int)(((int32_t)(x + w) * c->cw) / c->iw);
-    const int py0 = c->dy + (int)(((int32_t)y * c->ch) / c->ih);
-    const int py1 = c->dy + (int)(((int32_t)(y + h) * c->ch) / c->ih);
-
-    for (int sy = py0; sy < py1; sy++) {
-        if (sy < 0 || sy >= c->screen_h) continue;
-        uint16_t *row = &c->fb[(size_t)sy * c->fbw];
-        for (int sx = px0; sx < px1; sx++) {
-            if (sx < 0 || sx >= c->screen_w) continue;
-            row[sx] = px;
-        }
-    }
-}
-
-static esp_err_t albumart_draw_png(esp_lcd_panel_handle_t panel,
-                                   int screen_w, int screen_h,
-                                   const uint8_t *png, size_t png_len)
-{
-    uint16_t *fb = gfx_fb();
-    ESP_RETURN_ON_FALSE(fb, ESP_ERR_INVALID_STATE, TAG, "no shadow buffer");
-    const int fbw = gfx_w();
-    gfx_fill_rect(0, 0, screen_w, screen_h, UI_BG_RGB565);
-
-    s_keystone_seed = s_keystone_key ? s_keystone_key
-                                     : albumart_cover_hash(png, png_len);
-
-    pngle_t *p = pngle_new();
-    ESP_RETURN_ON_FALSE(p, ESP_ERR_NO_MEM, TAG, "pngle_new");
-
-    png_ctx_t ctx = { .fb = fb, .screen_w = screen_w, .screen_h = screen_h,
-                      .fbw = fbw };
-    pngle_set_user_data(p, &ctx);
-    pngle_set_init_callback(p, png_on_init);
-    pngle_set_draw_callback(p, png_on_draw);
-
-    esp_err_t ret = ESP_OK;
-    /* 5103: PNG is always the software path, so it gets 5093's idle
-     * priority too, and says how long it took. */
-    const int64_t t0 = esp_timer_get_time();
-    const UBaseType_t prio = soft_decode_begin();
-    const int fed = pngle_feed(p, png, png_len);
-    soft_decode_end(prio);
-    if (ctx.saw_init) {
-        ESP_LOGI(TAG, "png: %u bytes decoded in %lld ms", (unsigned)png_len,
-                 (long long)((esp_timer_get_time() - t0) / 1000));
-    }
-    if (fed < 0) {
-        ESP_LOGE(TAG, "png decode failed: %s", pngle_error(p));
-        ret = ESP_FAIL;
-    }
-    /* pngle_feed() can consume the whole buffer, return a non-negative
-     * count and never call a single callback -- a truncated or unsupported
-     * stream is not an error to it. That reported success while drawing
-     * nothing: no dimensions logged, no warning, and a black panel where
-     * the cover should be, which is exactly what the first boot showed.
-     *
-     * The init callback firing is the only proof the decoder actually
-     * looked at an image. */
-    if (ret == ESP_OK && ctx.too_big) {
-        ret = ESP_ERR_NOT_SUPPORTED;
-    }
-    if (ret == ESP_OK && !ctx.saw_init) {
-        ESP_LOGW(TAG, "png produced no image (%d of %u bytes consumed)",
-                 fed, (unsigned)png_len);
-        ret = ESP_ERR_INVALID_SIZE;
-    }
-    pngle_destroy(p);
-
-    if (ret == ESP_OK) {
-        keystone_apply(fb, fbw, ctx.dx, ctx.dy, ctx.cw, ctx.ch);
-        /* One copy, once, when the whole image is decoded -- rather than
-         * the panel showing the picture arrive scanline by scanline. */
-        ret = ui_blit_art_err();
-    }
-    return ret;
-}
-
-/* ------------------------------------------------------------------ */
-
-esp_err_t albumart_show(esp_lcd_panel_handle_t panel, int screen_w, int screen_h,
-                        const uint8_t *img, size_t img_len)
-{
-    if (artformat_sniff(img, img_len) == ART_PNG) {
-        return albumart_draw_png(panel, screen_w, screen_h, img, img_len);
-    }
-    if (artformat_sniff(img, img_len) == ART_JXL) {                   /* 6139 */
-        return albumart_draw_jxl(panel, screen_w, screen_h, img, img_len);
-    }
-    if (artformat_sniff(img, img_len) == ART_GIF) {                   /* 6145 */
-        return albumart_draw_gif(panel, screen_w, screen_h, img, img_len);
-    }
-    return albumart_draw(panel, screen_w, screen_h, img, img_len);
+    return albumart_show(panel, screen_w, screen_h, jpeg, jpeg_len);
 }

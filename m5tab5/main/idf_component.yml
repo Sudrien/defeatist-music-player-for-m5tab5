@@ -29,19 +29,9 @@ dependencies:
   # 223% of real time for 44.1 -> 48 kHz; 1.4 and later need silicon
   # revision 3.0. See ARCHITECTURE.md.
 
-  # TJpgDec, as the software JPEG fallback for covers the hardware
-  # decoder cannot allocate for. The P4's decoder has no scaler --
-  # jpeg_decode_cfg_t carries a format, a byte order and a colour
-  # standard and nothing else -- so a 3000 px cover wants 17.3 MB in one
-  # block and does not get it. TJpgDec decodes at 1/2, 1/4 or 1/8.
-  #
-  # Not in ROM on this chip: the ROM copy exists on ESP32, S3, C3, C6, C5
-  # and C61 and the P4 is not among them, so this is about 5 KB of flash.
-  # Reached only where the hardware path has already failed.
-  #
-  # TJpgDec is ChaN's, under its own permissive licence -- the notice has
-  # to travel with a redistribution. See README.
-  espressif/esp_jpeg: "^1.3.1"
+  # 8069: TJpgDec (espressif/esp_jpeg) was named here for the software
+  # JPEG fallback. It is feckless_image_handler's now, in its own manifest,
+  # at the same "^1.3.1": a re-resolve keeps it.
 
 
   # USB mass storage host, for the flash-drive tab in the chooser. The IDF
@@ -57,7 +47,7 @@ dependencies:
   usb_host_msc:
     git: https://github.com/Sudrien/feckless-libs-for-m5tab5.git
     path: components/usb_host_msc
-    version: "v0.4.1"
+    version: "v0.7.1"
 
   # USB audio host, for the UAC output path. Same story as the MSC driver
   # above: the host stack is in IDF, this is the class driver on top of
@@ -70,7 +60,7 @@ dependencies:
   usb_host_uac:
     git: https://github.com/Sudrien/feckless-libs-for-m5tab5.git
     path: components/usb_host_uac
-    version: "v0.4.1"
+    version: "v0.7.1"
 
   # 8061: IDF's FatFs with exFAT, patched at configure time by
   # feckless-libs' fatfs; cmake/exfat.cmake and tools/enable_exfat.sh,
@@ -78,7 +68,7 @@ dependencies:
   fatfs:
     git: https://github.com/Sudrien/feckless-libs-for-m5tab5.git
     path: components/fatfs
-    version: "v0.4.1"
+    version: "v0.7.1"
 
   # 6053: Wi-Fi, the saved networks and USB Ethernet are
   # feckless-network-handler-for-m5tab5 now, and the SD card, the USB drive
@@ -103,11 +93,11 @@ dependencies:
   feckless_network_handler:
     git: https://github.com/Sudrien/feckless-libs-for-m5tab5.git
     path: components/feckless_network_handler
-    version: "v0.4.1"
+    version: "v0.7.1"
   feckless_storage_handler:
     git: https://github.com/Sudrien/feckless-libs-for-m5tab5.git
     path: components/feckless_storage_handler
-    version: "v0.4.1"
+    version: "v0.7.1"
 
   # 6054: the USB host, USB audio, HID, the battery monitor, the clock
   # and touch are feckless-drivers-for-m5tab5. The two touch controllers'
@@ -132,7 +122,7 @@ dependencies:
   feckless_drivers:
     git: https://github.com/Sudrien/feckless-libs-for-m5tab5.git
     path: components/feckless_drivers
-    version: "v0.4.1"
+    version: "v0.7.1"
 
   # 6055: the panel, the backlight and gfx, with the Ark12 and Arabixel
   # fonts, are feckless-graphics-handler-for-m5tab5. esp_lcd_st7121 moved
@@ -143,7 +133,7 @@ dependencies:
   feckless_graphics_handler:
     git: https://github.com/Sudrien/feckless-libs-for-m5tab5.git
     path: components/feckless_graphics_handler
-    version: "v0.4.1"
+    version: "v0.7.1"
 
 # 8064: feckless-libs v0.4.1 for all of them, which brings
 # feckless_nvs_handler (its 4003): settings and saves a key at a time,
@@ -152,7 +142,18 @@ dependencies:
   feckless_nvs_handler:
     git: https://github.com/Sudrien/feckless-libs-for-m5tab5.git
     path: components/feckless_nvs_handler
-    version: "v0.4.1"
+    version: "v0.7.1"
+
+# 8069: the pictures. feckless_image_handler (its 7004-7009): the format
+# sniff, every decoder this player had (stb_image, pngle, J40, TJpgDec, the
+# P4's JPEG engine) behind one img_decode(), the fit, and the favicon.ico
+# converter -- albumart.c's, icoimg's and the stbjpeg, jxlimg and pngle
+# components', moved. It brings pngle's miniz.h on its public include path
+# (its 8002), which i18n.c takes.
+  feckless_image_handler:
+    git: https://github.com/Sudrien/feckless-libs-for-m5tab5.git
+    path: components/feckless_image_handler
+    version: "v0.7.1"
 
 # minimp3 is NOT here. It is two headers with no component manifest
 # upstream, so cmake/vendored.cmake fetches them into components/minimp3/

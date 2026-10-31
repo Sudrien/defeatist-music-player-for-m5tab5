@@ -1,9 +1,9 @@
 # SPDX-License-Identifier: MIT
 cmake_minimum_required(VERSION 3.16)
 
-# Pull down minimp3 and pngle if they are not here yet. Must run before
-# project.cmake, which scans components/ -- pngle registers pngle.c and
-# miniz.c as SRCS and those files have to exist by the time it looks.
+# Pull down minimp3 if it is not here yet. Must run before project.cmake,
+# which scans components/. (pngle, stb_image and J40 are
+# feckless_image_handler's since 8069, and it fetches its own.)
 include(${CMAKE_CURRENT_LIST_DIR}/cmake/vendored.cmake)
 
 # exFAT is feckless-libs' fatfs component since 8061, named in

@@ -21,11 +21,8 @@
 # SPDX-License-Identifier: MIT
 
 set(MINIMP3_COMMIT ea99364f61c14656440e8d77e9c233ccf3124633)
-set(PNGLE_COMMIT   b1c68193f1d3f8642b3e0e095d457a828038e6fb)
-# 5062: stb_image v2.30, the last JPEG decoder. See components/stbjpeg.
-set(STB_COMMIT     013ac3beddff3dbffafd5177e7972067cd2b5083)
-# 6139: J40 version 2270, the JPEG XL decoder. See components/jxlimg.
-set(J40_COMMIT     252e7987d36d50f617f29e94eeeb741198adc617)
+# 8069: pngle, stb_image and J40 are fetched by feckless_image_handler's own
+# cmake/vendored.cmake now, at the same commits (its README has the pins).
 
 # The font is no longer fetched here. ark12 (feckless-graphics-handler's
 # fonts/ark12 since 6055) is generated from
@@ -103,29 +100,3 @@ vendored_fetch("${_minimp3_base}/minimp3.h"
 vendored_fetch("${_minimp3_base}/minimp3_ex.h"
                "${_minimp3_dir}/minimp3_ex.h"
                8437f3fc1d4d8ab2269a1624f5380a08df1967a048f8887789bae6e25db7db79)
-
-set(_pngle_base
-    "https://raw.githubusercontent.com/kikuchan/pngle/${PNGLE_COMMIT}/src")
-set(_pngle_dir "${CMAKE_CURRENT_LIST_DIR}/../components/pngle")
-
-vendored_fetch("${_pngle_base}/pngle.c" "${_pngle_dir}/pngle.c"
-               cfd047df6464ac299ecd47aeb13fecfb55f1d841da56dc57085248ef43655049)
-vendored_fetch("${_pngle_base}/pngle.h" "${_pngle_dir}/pngle.h"
-               d8aa264f80cdd884c02ca1e28b696e8bbfbc16074c9c5265fcec4463f563bb17)
-vendored_fetch("${_pngle_base}/miniz.c" "${_pngle_dir}/miniz.c"
-               97efe2132abc8346a3d11f29f84b574f5da78a1b94432ea42b0c754c7c39da4e)
-vendored_fetch("${_pngle_base}/miniz.h" "${_pngle_dir}/miniz.h"
-               8a638511f9f98e8240fc00522989fe7908a06f73a6386191e4374046c993cfa0)
-
-
-set(_stb_base "https://raw.githubusercontent.com/nothings/stb/${STB_COMMIT}")
-set(_stb_dir "${CMAKE_CURRENT_LIST_DIR}/../components/stbjpeg")
-
-vendored_fetch("${_stb_base}/stb_image.h" "${_stb_dir}/stb_image.h"
-               594c2fe35d49488b4382dbfaec8f98366defca819d916ac95becf3e75f4200b3)
-
-set(_j40_base "https://raw.githubusercontent.com/lifthrasiir/j40/${J40_COMMIT}")
-set(_j40_dir "${CMAKE_CURRENT_LIST_DIR}/../components/jxlimg")
-
-vendored_fetch("${_j40_base}/j40.h" "${_j40_dir}/j40.h"
-               981c80c07d46d7a263d7790e71f6d9713278974088235cffcf21dea4fc3b5f6d)

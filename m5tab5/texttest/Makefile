@@ -47,9 +47,10 @@ FECKLESS_NET     ?= ../managed_components/feckless_network_handler
 FECKLESS_STORAGE ?= ../managed_components/feckless_storage_handler
 FECKLESS_DRIVERS ?= ../managed_components/feckless_drivers
 FECKLESS_GRAPHICS ?= ../managed_components/feckless_graphics_handler
+FECKLESS_IMAGE   ?= ../managed_components/feckless_image_handler
 FECKLESS_INC     := -I$(FECKLESS_NET)/include -I$(FECKLESS_STORAGE)/include \
                     -I$(FECKLESS_DRIVERS)/include \
-                    -I$(FECKLESS_GRAPHICS)/include \
+                    -I$(FECKLESS_GRAPHICS)/include -I$(FECKLESS_IMAGE)/include \
                     -I$(FECKLESS_GRAPHICS)/fonts/ark12 -I$(FECKLESS_GRAPHICS)/fonts/arabixel
 
 WARNCFLAGS := -std=c11 -O2 -Wall -Wextra -Werror -Wno-unused-parameter \
@@ -251,31 +252,15 @@ MINIMP3_DIR := ../components/minimp3
 # chopping rather than as a pause.
 BUFPLAN_BIN := bufferplantest
 
-# 5062: stb_image as the last JPEG decoder -- progressive covers and the
-# flavours TJpgDec calls JDR_FMT3. stb_image.h is gitignored; fetched
-# here, pinned and hash-checked, the same as cmake/vendored.cmake.
-STBJPEG_BIN := stbjpegtest
-# 6138: cover pictures -- artformat.h, stb_image and pngle on fixtures/art.
-# -fno-sanitize=alignment: miniz turns on unaligned loads and stores for
-# x86 only (MINIZ_X86_OR_X64_CPU), so UBSan flags a host-only path the
-# board's RISC-V build never compiles.
-ART_BIN := arttest
-# 6139: JPEG XL through J40.
-JXL_BIN := jxltest
 # 6142: where an Ogg's audio starts, past a comment header with a picture.
 OGGSEEK_BIN := oggseektest
-# 6148: stb's GIF reader on a thread with GIF_STACK bytes, no sanitizers.
-GIFSTACK_BIN := gifstacktest
-JXL_DIR := ../components/jxlimg
-PNGLE_DIR := ../components/pngle
+# 8069: miniz.c for the i18n test comes from feckless_image_handler's vendor/
+# (fetched when the project is configured); the decoder tests moved there.
+PNGLE_DIR := $(FECKLESS_IMAGE)/vendor
 
 # 5068: a station URL with an address in place of its host, and the Host
 # header that puts the name back.
 ADDRPIN_BIN := addrpintest
-STB_H   := ../components/stbjpeg/stb_image.h
-STB_URL := https://raw.githubusercontent.com/nothings/stb/013ac3beddff3dbffafd5177e7972067cd2b5083/stb_image.h
-STB_SHA := 594c2fe35d49488b4382dbfaec8f98366defca819d916ac95becf3e75f4200b3
-
 # Which decoder a stream's bytes go to. The bytes win over Content-Type,
 # because handing AAC to minimp3 does not fail -- it produces noise, and
 # noise from a live stream is hard to tell from a bad connection.
@@ -330,7 +315,7 @@ LEVELHIST_BIN := levelhisttest
 # ../test_audio_files so the bytes under test are the bytes on the card.
 CUE_BIN := cuesheettest
 
-all: run-remote run-ctrl run-clock run-rotate run-cardtime run-mediaindex run-medialist run-mediasearch run-mpdqueue run-mpdproto run-mpduri run-mpdfilter run-mpdmode run-mpdidle run-uireq run-m3uline run-urlclean run-playlist run-screendim run-artplace run-mediawalk run-mediasync run-menuscroll run-fade run-tail run-portal run-old check-ui check-netbudget run-sleep run-launcherpres run-sniff run-icy run-netplan run-stations run-pcmfold run-imaadpcm run-mp4opus run-mp4mp3 run-aiff run-flacseek run-bufplan run-stbjpeg run-art run-jxl run-oggseek run-gifstack run-addrpin run-codec run-hlsplay run-hlsseg run-tsdemux run-folderart run-mp3 run-framewin run-streamplan run-stationnav run-radiobrowser run-levelhist run-favmatch run-podauth run-podcats run-podfeeds run-podeps run-podweb run-podpath run-podhtml run-lanpeer run-approve run-cue run-tagextra run-flacenc run-beam run-i18n run-varispeed run-speedring run-fx
+all: run-remote run-ctrl run-clock run-rotate run-cardtime run-mediaindex run-medialist run-mediasearch run-mpdqueue run-mpdproto run-mpduri run-mpdfilter run-mpdmode run-mpdidle run-uireq run-m3uline run-urlclean run-playlist run-screendimplace run-mediawalk run-mediasync run-menuscroll run-fade run-tail run-portal run-old check-ui check-netbudget run-sleep run-launcherpres run-sniff run-icy run-netplan run-stations run-pcmfold run-imaadpcm run-mp4opus run-mp4mp3 run-aiff run-flacseek run-bufplan run-oggseek run-addrpin run-codec run-hlsplay run-hlsseg run-tsdemux run-folderart run-mp3 run-framewin run-streamplan run-stationnav run-radiobrowser run-levelhist run-favmatch run-podauth run-podcats run-podfeeds run-podeps run-podweb run-podpath run-podhtml run-lanpeer run-approve run-cue run-tagextra run-flacenc run-beam run-i18n run-varispeed run-speedring run-fx
 
 $(CTRL_BIN): ctrltest.c
 	$(CC) $(CFLAGS) -D_GNU_SOURCE -pthread -o $@ ctrltest.c $(LDFLAGS) -pthread
@@ -338,7 +323,7 @@ $(CTRL_BIN): ctrltest.c
 run-ctrl: $(CTRL_BIN)
 	ASAN_OPTIONS=detect_leaks=1:abort_on_error=0 ./$(CTRL_BIN)
 
-# miniz, as arttest builds it: vendored, so not held to our warnings
+# miniz, as feckless_image_handler's pngimgtest builds it: vendored, so not held to our warnings
 I18N_MINIZ := -Wno-sign-compare -Wno-unused-function -Wno-unused-but-set-variable -Wno-type-limits \
     -Wno-shift-negative-value -Wno-implicit-fallthrough -Wno-attributes -fwrapv -fno-sanitize=signed-integer-overflow -fno-sanitize=alignment
 
@@ -738,7 +723,7 @@ run-old: $(OLD_BINS)
 	done
 
 clean:
-	rm -f netbudget_probe.c $(CTRL_BIN) $(I18N_BIN) $(I18N_BIN)-fixture $(CLOCK_BIN) $(FADE_BIN) $(VARISPEED_BIN) $(SPEEDRING_BIN) $(FX_BIN) $(TAIL_BIN) $(PORTAL_BIN) $(REMOTE_BIN) $(OLD_BINS) $(SLEEP_BIN) $(LAUNCHERPRES_BIN) $(SNIFF_BIN) $(ICY_BIN) $(NETPLAN_BIN) $(STATION_BIN) $(BUFPLAN_BIN) $(CODEC_BIN) $(HLSPLAY_BIN) $(HLSSEG_BIN) $(TSDEMUX_BIN) $(FOLDERART_BIN) $(MP3_BIN) $(FRAMEWIN_BIN) $(STREAMPLAN_BIN) $(STATIONNAV_BIN) $(RADIOBROWSER_BIN) $(LEVELHIST_BIN) $(SGAIN_BIN) $(JSONPICK_BIN) $(PODAUTH_BIN) $(PODCATS_BIN) $(PODFEEDS_BIN) $(PODEPS_BIN) $(PODWEB_BIN) $(PODPATH_BIN) $(PODHTML_BIN) $(FAVMATCH_BIN) $(LANPEER_BIN) $(APPROVE_BIN) $(FLACENC_BIN) $(BEAM_BIN) $(CUE_BIN) $(TAGEXTRA_BIN) $(ROTATE_BIN) $(CARDTIME_BIN) $(MEDIAINDEX_BIN) $(MEDIALIST_BIN) $(MEDIASEARCH_BIN) $(MPDQUEUE_BIN) $(MPDPROTO_BIN) $(MPDURI_BIN) $(MPDFILTER_BIN) $(MPDMODE_BIN) $(MPDIDLE_BIN) $(UIREQ_BIN) $(M3ULINE_BIN) $(URLCLEAN_BIN) $(PLAYLIST_BIN) $(SCREENDIM_BIN) $(ARTPLACE_BIN) $(MEDIAWALK_BIN) $(MEDIASYNC_BIN) $(MENUSCROLL_BIN) $(STBJPEG_BIN) $(ART_BIN) $(JXL_BIN) $(OGGSEEK_BIN) $(GIFSTACK_BIN) $(ADDRPIN_BIN) $(IMAADPCM_BIN) $(MP4OPUS_BIN) $(MP4MP3_BIN) $(AIFF_BIN) $(FLACSEEK_BIN)
+	rm -f netbudget_probe.c $(CTRL_BIN) $(I18N_BIN) $(I18N_BIN)-fixture $(CLOCK_BIN) $(FADE_BIN) $(VARISPEED_BIN) $(SPEEDRING_BIN) $(FX_BIN) $(TAIL_BIN) $(PORTAL_BIN) $(REMOTE_BIN) $(OLD_BINS) $(SLEEP_BIN) $(LAUNCHERPRES_BIN) $(SNIFF_BIN) $(ICY_BIN) $(NETPLAN_BIN) $(STATION_BIN) $(BUFPLAN_BIN) $(CODEC_BIN) $(HLSPLAY_BIN) $(HLSSEG_BIN) $(TSDEMUX_BIN) $(FOLDERART_BIN) $(MP3_BIN) $(FRAMEWIN_BIN) $(STREAMPLAN_BIN) $(STATIONNAV_BIN) $(RADIOBROWSER_BIN) $(LEVELHIST_BIN) $(SGAIN_BIN) $(JSONPICK_BIN) $(PODAUTH_BIN) $(PODCATS_BIN) $(PODFEEDS_BIN) $(PODEPS_BIN) $(PODWEB_BIN) $(PODPATH_BIN) $(PODHTML_BIN) $(FAVMATCH_BIN) $(LANPEER_BIN) $(APPROVE_BIN) $(FLACENC_BIN) $(BEAM_BIN) $(CUE_BIN) $(TAGEXTRA_BIN) $(ROTATE_BIN) $(CARDTIME_BIN) $(MEDIAINDEX_BIN) $(MEDIALIST_BIN) $(MEDIASEARCH_BIN) $(MPDQUEUE_BIN) $(MPDPROTO_BIN) $(MPDURI_BIN) $(MPDFILTER_BIN) $(MPDMODE_BIN) $(MPDIDLE_BIN) $(UIREQ_BIN) $(M3ULINE_BIN) $(URLCLEAN_BIN) $(PLAYLIST_BIN) $(SCREENDIM_BIN) $(ARTPLACE_BIN) $(MEDIAWALK_BIN) $(MEDIASYNC_BIN) $(MENUSCROLL_BIN) $(OGGSEEK_BIN) $(ADDRPIN_BIN) $(IMAADPCM_BIN) $(MP4OPUS_BIN) $(MP4MP3_BIN) $(AIFF_BIN) $(FLACSEEK_BIN)
 	rm -rf $(CTRL_BIN).dSYM $(CLOCK_BIN).dSYM $(FADE_BIN).dSYM $(TAIL_BIN).dSYM $(PORTAL_BIN).dSYM
 	rm -rf $(addsuffix .dSYM,$(OLD_BINS))
 
@@ -835,55 +820,12 @@ $(BUFPLAN_BIN): bufferplantest.c ../main/bufferplan.h
 run-bufplan: $(BUFPLAN_BIN)
 	ASAN_OPTIONS=detect_leaks=1:abort_on_error=0 ./$(BUFPLAN_BIN)
 
-$(STB_H):
-	curl -fsSL "$(STB_URL)" -o $@.tmp
-	echo "$(STB_SHA)  $@.tmp" | sha256sum -c - >/dev/null || (rm -f $@.tmp; echo "stb_image.h: hash mismatch"; exit 1)
-	mv $@.tmp $@
-
-$(STBJPEG_BIN): stbjpegtest.c ../components/stbjpeg/stbjpeg.c ../components/stbjpeg/stbjpeg.h $(STB_H)
-	$(CC) $(WARNCFLAGS) -I../components/stbjpeg -c stbjpegtest.c -o /dev/null
-	$(CC) $(CFLAGS) -I../components/stbjpeg -Wno-sign-compare -Wno-unused-function \
-	    -Wno-unused-but-set-variable -Wno-type-limits -Wno-shift-negative-value \
-	    -Wno-implicit-fallthrough -fwrapv -fno-sanitize=signed-integer-overflow -o $@ stbjpegtest.c ../components/stbjpeg/stbjpeg.c $(LDFLAGS)
-
-run-stbjpeg: $(STBJPEG_BIN)
-	ASAN_OPTIONS=detect_leaks=1:abort_on_error=0 ./$(STBJPEG_BIN)
-
-$(ART_BIN): arttest.c ../main/artformat.h ../components/stbjpeg/stbjpeg.c ../components/stbjpeg/stbjpeg.h $(STB_H) $(PNGLE_DIR)/pngle.c $(PNGLE_DIR)/miniz.c
-	$(CC) $(WARNCFLAGS) -I../components/stbjpeg -I$(PNGLE_DIR) -c arttest.c -o /dev/null
-	$(CC) $(CFLAGS) -I../components/stbjpeg -I$(PNGLE_DIR) -Wno-sign-compare -Wno-unused-function \
-	    -Wno-unused-but-set-variable -Wno-type-limits -Wno-shift-negative-value \
-	    -Wno-implicit-fallthrough -Wno-attributes -fwrapv -fno-sanitize=signed-integer-overflow \
-	    -o $@ arttest.c ../components/stbjpeg/stbjpeg.c $(PNGLE_DIR)/pngle.c $(PNGLE_DIR)/miniz.c $(LDFLAGS) -fno-sanitize=alignment
-
-run-art: $(ART_BIN)
-	ASAN_OPTIONS=detect_leaks=1:abort_on_error=0 ./$(ART_BIN)
-
-$(JXL_BIN): jxltest.c ../main/artformat.h $(JXL_DIR)/jxlimg.c $(JXL_DIR)/jxlimg.h $(JXL_DIR)/j40.h
-	$(CC) $(WARNCFLAGS) -I$(JXL_DIR) -c jxltest.c -o /dev/null
-	$(CC) $(CFLAGS) -I$(JXL_DIR) -Wno-sign-compare -Wno-unused-function \
-	    -Wno-unused-but-set-variable -Wno-type-limits -Wno-implicit-fallthrough \
-	    -Wno-unused-variable -Wno-maybe-uninitialized -Wno-missing-field-initializers -fwrapv \
-	    -o $@ jxltest.c $(JXL_DIR)/jxlimg.c $(LDFLAGS) -fno-sanitize=signed-integer-overflow
-
-run-jxl: $(JXL_BIN)
-	ASAN_OPTIONS=detect_leaks=1:abort_on_error=0 ./$(JXL_BIN)
-
 $(OGGSEEK_BIN): oggseektest.c ../main/oggseek.c ../main/oggseek.h
 	$(CC) $(WARNCFLAGS) -c oggseektest.c -o /dev/null
 	$(CC) $(CFLAGS) -o $@ oggseektest.c $(LDFLAGS)
 
 run-oggseek: $(OGGSEEK_BIN)
 	ASAN_OPTIONS=detect_leaks=1:abort_on_error=0 ./$(OGGSEEK_BIN)
-
-$(GIFSTACK_BIN): gifstacktest.c ../components/stbjpeg/stbjpeg.c ../components/stbjpeg/stbjpeg.h $(STB_H) ../main/albumart.c
-	$(CC) $(WARNCFLAGS) -I../components/stbjpeg -c gifstacktest.c -o /dev/null
-	$(CC) -std=c11 -O2 -w -I../components/stbjpeg \
-	    -DGIF_STACK_TEST="$$(sed -n 's/^#define GIF_STACK  *\(.*\)$$/\1/p' ../main/albumart.c)" \
-	    -o $@ gifstacktest.c ../components/stbjpeg/stbjpeg.c -lpthread -lm
-
-run-gifstack: $(GIFSTACK_BIN)
-	./$(GIFSTACK_BIN)
 
 $(ADDRPIN_BIN): addrpintest.c ../main/addrpin.h
 	$(CC) $(WARNCFLAGS) -c addrpintest.c -o /dev/null
@@ -1013,4 +955,4 @@ check-netbudget: $(NETBUDGET_H)
 	@rm -f netbudget_probe.c
 	@echo "netbudget: refuses below 26, accepts 26 and up, refuses unset -- all passed"
 
-.PHONY: all run-pcmfold run-ctrl run-clock run-rotate run-cardtime run-mediaindex run-medialist run-mediasearch run-mpdqueue run-mpdproto run-mpduri run-mpdmode run-mpdidle run-uireq run-m3uline run-urlclean run-playlist run-screendim run-artplace run-mediawalk run-mediasync run-menuscroll run-fade run-tail run-portal run-old check-ui check-netbudget run-sleep run-launcherpres run-sniff run-icy run-netplan run-stations run-pcmfold run-imaadpcm run-mp4opus run-mp4mp3 run-aiff run-flacseek run-bufplan run-stbjpeg run-art run-jxl run-oggseek run-gifstack run-addrpin run-codec run-hlsplay run-hlsseg run-tsdemux run-folderart run-mp3 run-framewin run-streamplan run-stationnav run-radiobrowser run-levelhist run-favmatch run-lanpeer run-approve run-cue run-tagextra run-flacenc run-beam run-i18n clean
+.PHONY: all run-pcmfold run-ctrl run-clock run-rotate run-cardtime run-mediaindex run-medialist run-mediasearch run-mpdqueue run-mpdproto run-mpduri run-mpdmode run-mpdidle run-uireq run-m3uline run-urlclean run-playlist run-screendimplace run-mediawalk run-mediasync run-menuscroll run-fade run-tail run-portal run-old check-ui check-netbudget run-sleep run-launcherpres run-sniff run-icy run-netplan run-stations run-pcmfold run-imaadpcm run-mp4opus run-mp4mp3 run-aiff run-flacseek run-bufplan run-oggseek run-addrpin run-codec run-hlsplay run-hlsseg run-tsdemux run-folderart run-mp3 run-framewin run-streamplan run-stationnav run-radiobrowser run-levelhist run-favmatch run-lanpeer run-approve run-cue run-tagextra run-flacenc run-beam run-i18n clean

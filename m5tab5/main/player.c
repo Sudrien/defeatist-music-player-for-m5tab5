@@ -63,7 +63,7 @@
 #include "esp_idf_version.h"
 
 #include "albumart.h"
-#include "artformat.h"
+#include "feckless_image.h"   /* 8069: was artformat.h */
 #include "audio_out.h"
 #include "battery.h"
 #include "bench.h"
@@ -6548,7 +6548,7 @@ static void prefetch_next(void)
 static bool stream_art_decodable(const uint8_t *img, size_t len)
 {
     if (!albumart_is_supported_image(img, len)) return false;
-    if (artformat_sniff(img, len) != ART_JPEG) return true;   /* 6138: not 0xFF */
+    if (img_sniff(img, len) != IMG_JPEG) return true;   /* 6138: not 0xFF */
     uint8_t sof = 0;
     uint32_t w = 0, h = 0;
     /* 5062: progressive too, now that stb_image is behind the other two.

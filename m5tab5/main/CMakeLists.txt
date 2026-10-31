@@ -16,14 +16,14 @@ idf_component_register(
          "playlist.c" "settings.c"
        "browser.c" "panel.c" "i18n.c" "i18n_tab.c" "duration.c" "cbrseek.c" "flacseek.c" "oggseek.c" "tsseek.c" "mp4seek.c" "waveform.c" "replaygain.c" "loudness.c"
          "portal.c" "portalweb.c" "dnsreply.c"
-         "sleeppage.c" "streamprobe.c" "netstream.c" "netdec.c" "stations.c" "favorites.c" "starred.c" "streamgain.c" "radiobrowser.c" "bench.c" "cuedir.c" "cardtime.c" "mediacat.c" "mediawalk.c" "mediasync.c" "medialib.c" "mediadir.c" "rateconv.c" "varispeed.c" "fx.c" "radiokeep.c" "icoimg.c" "heapmap.c" "flacenc.c" "recorder.c" "beam.c"
+         "sleeppage.c" "streamprobe.c" "netstream.c" "netdec.c" "stations.c" "favorites.c" "starred.c" "streamgain.c" "radiobrowser.c" "bench.c" "cuedir.c" "cardtime.c" "mediacat.c" "mediawalk.c" "mediasync.c" "medialib.c" "mediadir.c" "rateconv.c" "varispeed.c" "fx.c" "radiokeep.c" "heapmap.c" "flacenc.c" "recorder.c" "beam.c"
          "mpdqueue.c" "mpdproto.c" "mpdfilter.c" "casefold_tab.c" "mpduri.c" "mpdmode.c" "mpdidle.c" "mpd.c" "uireq.c" "m3uline.c" "urlclean.c" "remote.c" "approve.c" "podindex.c" "poddl.c" "remoteproto.c" "certgen.c" "devcert.c" "wifijoin.c" "nvsns.c" "launcher.c" "shim_import.c"
     INCLUDE_DIRS "."
     LDFRAGMENTS "psram_bss.lf"           # 6132: main's .bss in PSRAM
     EMBED_FILES "remote_i18n.html.gz"    # 6028: generated from remote.html; 6127: gzipped
                 "favicon.ico"
     REQUIRES driver esp_app_format esp_driver_i2c esp_driver_i2s esp_driver_sdmmc
-             esp_driver_jpeg esp_driver_ledc esp_driver_usb_serial_jtag esp_lcd esp_lcd_touch fatfs sdmmc
+             esp_driver_ledc esp_driver_usb_serial_jtag esp_lcd esp_lcd_touch fatfs sdmmc
              usb usb_host_msc usb_host_uac esp_timer lwip ${DMP_JSON}
              nvs_flash esp_netif esp_event esp_http_server esp_https_server esp_http_client mbedtls
              esp_usbh_asix iot_eth iot_usbh_ecm iot_usbh_cdc
@@ -32,7 +32,8 @@ idf_component_register(
              feckless_nvs_handler   # 8064
              feckless_drivers   # 6054
              feckless_graphics_handler   # 6055: gfx, lcd, ark12, arabixel
-    PRIV_REQUIRES pngle minimp3 stbjpeg jxlimg   # 6139: jxlimg, JPEG XL
+             feckless_image_handler   # 8069: every decoder, the fit, the ico converter; miniz.h
+    PRIV_REQUIRES minimp3
 )
 
 # Heap integrity checkpoints, off by default. Build with

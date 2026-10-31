@@ -146,12 +146,12 @@ Claude, do not touch this README unless explicitly asked to. Use your own file.
   licence. Free, but the grant is limited to Espressif silicon. Fine
   here; worth knowing before this code gets copied somewhere it is not.
 - pngle (kikuchan) and miniz (Rich Geldreich et al.) are MIT, fetched
-  the same way as minimp3. MIT's one condition is that the copyright and
+  the same way as minimp3, by feckless_image_handler (8069) now. MIT's one condition is that the copyright and
   permission notice go with "all copies or substantial portions", and a
   firmware image is a copy: a binary redistribution carries their
   notices (the headers of the fetched `pngle.c` and `miniz.c`) alongside
   this project's `LICENSE`.
-- stb_image (the last-resort JPEG decoder in `m5tab5/components/stbjpeg`) is
+- stb_image (the last-resort JPEG decoder, in feckless_image_handler since 8069) is
   Sean Barrett's, offered under your choice of MIT or the Unlicense
   (public domain). This project takes it under the Unlicense, so it adds
   no notice to carry. The wrapper around it is MIT.

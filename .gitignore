@@ -8,16 +8,11 @@
 # git describe). See .github/workflows/main.yml.
 /m5tab5/version.txt
 
-# minimp3 and pngle: fetched by cmake/vendored.cmake during idf.py build,
-# pinned to commits and SHA256-checked. Nothing to run by hand.
+# minimp3: fetched by cmake/vendored.cmake during idf.py build, pinned to
+# a commit and SHA256-checked. Nothing to run by hand. (pngle, stb_image
+# and J40 are feckless_image_handler's, in managed_components/.)
 /m5tab5/components/minimp3/minimp3.h
 /m5tab5/components/minimp3/minimp3_ex.h
-/m5tab5/components/pngle/pngle.c
-/m5tab5/components/pngle/pngle.h
-/m5tab5/components/pngle/miniz.c
-/m5tab5/components/pngle/miniz.h
-/m5tab5/components/stbjpeg/stb_image.h
-/m5tab5/components/jxlimg/j40.h
 /m5tab5/components/esp_lcd/
 
 # Download temporaries from a failed or interrupted vendored fetch.

@@ -58,7 +58,7 @@
 #include "freertos/semphr.h"
 
 #include "albumart.h"
-#include "icoimg.h"         /* 5088 */
+#include "feckless_image.h"   /* 5088; 8069: was icoimg.h */
 #include "jsonpick.h"
 #include "radiobrowser.h"
 #include "stations.h"
@@ -707,15 +707,15 @@ bool radiobrowser_art_fetch(const char *url, uint8_t **out, size_t *out_len)
     }
     /*
      * 5088: a favicon.ico, turned into a PNG here so nothing after this
-     * point has to know. See icoimg.h. The largest entry is taken; a
+     * point has to know. See feckless_image.h. The largest entry is taken; a
      * 16 px icon still gets a picture, which albumart enlarges by whole
      * pixels.
      */
-    if (icoimg_is_ico(buf, got)) {
+    if (img_ico_is_ico(buf, got)) {
         uint8_t *png = NULL;
         size_t png_len = 0;
-        icoimg_info_t ii = { 0 };
-        if (!icoimg_to_png(buf, got, &png, &png_len, &ii)) {
+        img_ico_info_t ii = { 0 };
+        if (!img_ico_to_png(buf, got, &png, &png_len, &ii)) {
             ESP_LOGI(TAG, "artwork is an icon with no entry this can read; skipped");
             goto close;
         }

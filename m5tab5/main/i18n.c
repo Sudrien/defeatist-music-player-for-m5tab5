@@ -16,7 +16,7 @@
 
 #include "esp_heap_caps.h"
 #include "esp_log.h"
-#include "miniz.h"      /* pngle's: tinfl, which the ROM holds (nm: A tinfl_decompress) */
+#include "miniz.h"      /* feckless_image_handler's vendor/ (8069; pngle's before): tinfl, which the ROM holds (nm: A tinfl_decompress) */
 
 static const char *TAG = "i18n";
 

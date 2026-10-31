@@ -80,7 +80,8 @@ jobs:
       # managed_components/ (storage.h, storage_io.h, ...), which only the
       # component manager writes, at configure time; and since 6138-6148
       # they compile the vendored decoders (pngle, stb_image, J40), which
-      # fetch_vendored.sh writes. Run first, on a bare checkout, they
+      # fetch_vendored.sh wrote; since 8069 miniz.h comes from
+      # feckless_image_handler's vendor/, which its own configure fetches. Run first, on a bare checkout, they
       # failed on the first missing header -- v0.7.0's run stopped here
       # with "exit code 2". set-target configures, which resolves the
       # managed components; the build step below configures again.

@@ -26,7 +26,6 @@
 #include <strings.h>
 
 #include "cJSON.h"
-#include "nvs.h"                /* clkfix's i64: nvsh has none */
 #include "nvs_handler.h"
 #include "screendim.h"
 #include "varispeed.h"          /* 6074 */
@@ -641,21 +640,22 @@ static int64_t s_clkfix;
 
 static void clkfix_load(void)
 {
-    nvs_handle_t h;
-    if (nvs_open(WIFI_NVS_NS, NVS_READONLY, &h) != ESP_OK) return;
+    /* 8066: eight bytes, where it was an i64 -- nvsh has no i64, and an
+     * .elf app has no nvs_get_i64(). A device that held the i64 reads a
+     * type mismatch here and relearns the correction from the next NTP. */
     int64_t v = 0;
-    if (nvs_get_i64(h, CLKFIX_NVS_KEY, &v) == ESP_OK && v < 0) s_clkfix = v;
-    nvs_close(h);
+    size_t len = sizeof(v);
+    if (nvsh_get_blob(WIFI_NVS_NS, CLKFIX_NVS_KEY, &v, &len) == ESP_OK &&
+        len == sizeof(v) && v < 0) s_clkfix = v;
 }
 
 static void clkfix_save(int64_t delta)
 {
     if (delta > -CLKFIX_MIN_S) return;
     s_clkfix = delta;
-    nvs_handle_t h;
-    if (nvs_open(WIFI_NVS_NS, NVS_READWRITE, &h) != ESP_OK) return;
-    if (nvs_set_i64(h, CLKFIX_NVS_KEY, delta) == ESP_OK) (void)nvs_commit(h);
-    nvs_close(h);
+    /* Erased first: the key may still hold the i64 of before 8066. */
+    (void)nvsh_erase_key(WIFI_NVS_NS, CLKFIX_NVS_KEY);
+    (void)nvsh_set_blob(WIFI_NVS_NS, CLKFIX_NVS_KEY, &delta, sizeof(delta));
 }
 
 int64_t settings_known_clock_error(void) { return s_clkfix; }

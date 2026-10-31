@@ -27566,3 +27566,36 @@ files 8064 touched were checked for the same: only settings.c still uses
 nvs.h's names (its i64), and it keeps the include.
 
 Not built (no ESP-IDF in the session).
+
+### 8066 -- no raw NVS left: clkfix as a blob, the migration from a table
+
+*8064 and 8065 on a Tab5* (`v0.8.0-pre2-2-g3ab7243-dirty`, IDF
+v6.1-829-g9a97f6c54ec, a dirty tree, so which patches it held is as
+reported): it boots with no `nvsh_init` line (the failure would have
+logged `E ... nvsh_init:`), `tab5_wifi: no saved networks`,
+`tab5_approve: 0 browsers and 0 MPD addresses allowed`, and the
+settings from /sd/.defeatist.dat. That shows NVS coming up and empty
+reads taking their defaults; it does not show a write read back -- a
+Tab5 with nothing saved. The test is a Wi-Fi network, an approved
+browser or a changed language surviving a reboot.
+
+What was left raw after 8064 is gone. settings.c's `clkfix` was an i64,
+which `nvsh` has none of and an .elf app has no `nvs_get_i64()` for; it
+is eight bytes as a blob now, under the same key, erased before each
+write in case the key still holds the old i64. A device that held the
+i64 reads a type mismatch, keeps no correction, and relearns it at the
+next NTP. And nvsns.c's migration of the 6006 namespaces walked NVS with
+`nvs_entry_find()`; it works from a table of the seven keys they ever
+held, each with its type (radiokeep: last, star, wifi_on, prefs;
+wifistore: nets; devcert: key, crt), through `nvsh_*`. Same rules as
+before: a key the new namespace already has is kept, the old namespace
+is erased only after every copy succeeded, a failed copy leaves it for
+the next boot. The one difference is the old namespace's own `clkfix`,
+which is erased with it, uncopied, for the reason above.
+
+No `nvs_open()`, `nvs_get_*` or `nvs_set_*` is left in main/ but inside
+nvsns.c's use of nvs.h's error code. nvsns.c keeps its nvs.h include for
+that (8065's lesson).
+
+Not built (no ESP-IDF in the session), not on a Tab5. The migration was
+read, not run: a Tab5 still holding the three old namespaces is its test.

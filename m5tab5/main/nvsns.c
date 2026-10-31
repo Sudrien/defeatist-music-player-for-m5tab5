@@ -1,6 +1,11 @@
 /*
  * nvsns.c -- move the old namespaces into DEFEATIST_NVS_NS, once.
  *
+ * 8066: from a table of the keys those namespaces ever held, each with
+ * its type, through nvsh_*; it walked NVS with an iterator before, which
+ * an .elf app cannot. (clkfix, an i64 in "radiokeep", is not in the
+ * table: nvsh has none, and NTP relearns it.)
+ *
  * For each old namespace: every entry is copied across unless the new
  * namespace already has that key (the new one is the newer write), the
  * new namespace is committed, and only then the old one is erased. One
@@ -19,109 +24,103 @@
 #include <stdlib.h>
 #include <string.h>
 
+#include "esp_heap_caps.h"
 #include "esp_log.h"
-#include "nvs.h"
-#include "nvs_flash.h"
+#include "nvs.h"                /* ESP_ERR_NVS_NOT_FOUND; nvs_handler.h does not bring it */
+#include "nvs_handler.h"
 
 static const char *TAG = "tab5_nvs";
 
-static const char *const k_old[] = { "radiokeep", "wifistore", "devcert" };
+typedef enum { K_BLOB, K_STR, K_U8 } ktype_t;
 
-static esp_err_t copy_one(nvs_handle_t src, nvs_handle_t dst, const char *key, nvs_type_t type)
+typedef struct {
+    const char *ns;
+    const char *key;
+    ktype_t     type;
+} oldkey_t;
+
+/* Every key the three old namespaces held (6006), by namespace. */
+static const oldkey_t k_old[] = {
+    { "radiokeep", "last",    K_BLOB },
+    { "radiokeep", "star",    K_BLOB },
+    { "radiokeep", "wifi_on", K_U8   },
+    { "radiokeep", "prefs",   K_BLOB },
+    { "wifistore", "nets",    K_BLOB },
+    { "devcert",   "key",     K_STR  },
+    { "devcert",   "crt",     K_STR  },
+};
+#define N_OLD (sizeof(k_old) / sizeof(k_old[0]))
+
+/* Is there a value of this key, of any type? NOT_FOUND is no. The size
+ * query (a NULL buffer) is how nvsh says so without reading it. */
+static esp_err_t probe(const char *ns, const char *key, ktype_t type, size_t *len)
 {
-    esp_err_t err;
+    uint8_t u8;
+    *len = 0;
     switch (type) {
-#define INT_CASE(T, ctype, get, set) \
-    case T: { ctype v; err = get(src, key, &v); if (err == ESP_OK) err = set(dst, key, v); break; }
-    INT_CASE(NVS_TYPE_U8,  uint8_t,  nvs_get_u8,  nvs_set_u8)
-    INT_CASE(NVS_TYPE_I8,  int8_t,   nvs_get_i8,  nvs_set_i8)
-    INT_CASE(NVS_TYPE_U16, uint16_t, nvs_get_u16, nvs_set_u16)
-    INT_CASE(NVS_TYPE_I16, int16_t,  nvs_get_i16, nvs_set_i16)
-    INT_CASE(NVS_TYPE_U32, uint32_t, nvs_get_u32, nvs_set_u32)
-    INT_CASE(NVS_TYPE_I32, int32_t,  nvs_get_i32, nvs_set_i32)
-    INT_CASE(NVS_TYPE_U64, uint64_t, nvs_get_u64, nvs_set_u64)
-    INT_CASE(NVS_TYPE_I64, int64_t,  nvs_get_i64, nvs_set_i64)
-#undef INT_CASE
-    case NVS_TYPE_STR: {
-        size_t len = 0;
-        err = nvs_get_str(src, key, NULL, &len);
-        if (err != ESP_OK) break;
-        char *buf = malloc(len);
-        if (!buf) return ESP_ERR_NO_MEM;
-        err = nvs_get_str(src, key, buf, &len);
-        if (err == ESP_OK) err = nvs_set_str(dst, key, buf);
-        free(buf);
-        break;
+    case K_BLOB: return nvsh_get_blob(ns, key, NULL, len);
+    case K_STR:  return nvsh_get_str(ns, key, NULL, len);
+    default:     *len = 1; return nvsh_get_u8(ns, key, &u8);
     }
-    case NVS_TYPE_BLOB: {
-        size_t len = 0;
-        err = nvs_get_blob(src, key, NULL, &len);
-        if (err != ESP_OK) break;
-        void *buf = malloc(len ? len : 1);
-        if (!buf) return ESP_ERR_NO_MEM;
-        err = nvs_get_blob(src, key, buf, &len);
-        if (err == ESP_OK) err = nvs_set_blob(dst, key, buf, len);
-        free(buf);
-        break;
-    }
-    default:
-        err = ESP_ERR_NOT_SUPPORTED;
-        break;
-    }
-    return err;
 }
 
-/* Does dst already hold `key`, of any type? */
-static bool has_key(nvs_handle_t dst, const char *key)
+static esp_err_t copy_one(const oldkey_t *k)
 {
-    nvs_type_t t;
-    return nvs_find_key(dst, key, &t) == ESP_OK;
+    size_t len = 0;
+    esp_err_t err = probe(k->ns, k->key, k->type, &len);
+    if (err != ESP_OK) return err;
+
+    if (k->type == K_U8) {
+        uint8_t v;
+        err = nvsh_get_u8(k->ns, k->key, &v);
+        return err == ESP_OK ? nvsh_set_u8(DEFEATIST_NVS_NS, k->key, v) : err;
+    }
+    void *buf = heap_caps_malloc(len ? len : 1, MALLOC_CAP_SPIRAM | MALLOC_CAP_8BIT);
+    if (!buf) return ESP_ERR_NO_MEM;
+    if (k->type == K_STR) {
+        err = nvsh_get_str(k->ns, k->key, buf, &len);
+        if (err == ESP_OK) err = nvsh_set_str(DEFEATIST_NVS_NS, k->key, buf);
+    } else {
+        err = nvsh_get_blob(k->ns, k->key, buf, &len);
+        if (err == ESP_OK) err = nvsh_set_blob(DEFEATIST_NVS_NS, k->key, buf, len);
+    }
+    heap_caps_free(buf);
+    return err;
 }
 
 static void migrate_one(const char *old)
 {
-    nvs_iterator_t it = NULL;
-    esp_err_t err = nvs_entry_find(NVS_DEFAULT_PART_NAME, old, NVS_TYPE_ANY, &it);
-    if (err != ESP_OK) return;                  /* nothing there: the usual case */
-
-    nvs_handle_t src, dst;
-    if (nvs_open(old, NVS_READWRITE, &src) != ESP_OK) { nvs_release_iterator(it); return; }
-    if (nvs_open(DEFEATIST_NVS_NS, NVS_READWRITE, &dst) != ESP_OK) {
-        nvs_close(src);
-        nvs_release_iterator(it);
-        return;
-    }
-
-    int moved = 0, kept = 0;
+    int moved = 0, kept = 0, found = 0;
     bool ok = true;
-    while (err == ESP_OK) {
-        nvs_entry_info_t info;
-        nvs_entry_info(it, &info);
-        if (has_key(dst, info.key)) {
-            kept++;
-        } else if (copy_one(src, dst, info.key, info.type) == ESP_OK) {
+    for (size_t i = 0; i < N_OLD && ok; i++) {
+        const oldkey_t *k = &k_old[i];
+        if (strcmp(k->ns, old) != 0) continue;
+
+        size_t len;
+        if (probe(old, k->key, k->type, &len) == ESP_ERR_NVS_NOT_FOUND) continue;
+        found++;
+        if (probe(DEFEATIST_NVS_NS, k->key, k->type, &len) != ESP_ERR_NVS_NOT_FOUND) {
+            kept++;                             /* the new one is the newer write */
+        } else if (copy_one(k) == ESP_OK) {
             moved++;
         } else {
             ESP_LOGE(TAG, "%s/%s not copied; %s left in place for the next boot",
-                     old, info.key, old);
+                     old, k->key, old);
             ok = false;
-            break;
         }
-        err = nvs_entry_next(&it);
     }
-    nvs_release_iterator(it);
+    if (!found) return;                         /* nothing there: the usual case */
 
-    if (ok && nvs_commit(dst) == ESP_OK) {
-        if (nvs_erase_all(src) == ESP_OK) (void)nvs_commit(src);
+    if (ok) {
+        (void)nvsh_erase_ns(old);               /* also the old clkfix, if any */
         ESP_LOGW(TAG, "moved %d entr%s from \"%s\" into \"%s\"%s", moved,
                  moved == 1 ? "y" : "ies", old, DEFEATIST_NVS_NS,
                  kept ? " (some already there, kept)" : "");
     }
-    nvs_close(dst);
-    nvs_close(src);
 }
 
 void nvsns_migrate(void)
 {
-    for (size_t i = 0; i < sizeof(k_old) / sizeof(k_old[0]); i++) migrate_one(k_old[i]);
+    static const char *const k_ns[] = { "radiokeep", "wifistore", "devcert" };
+    for (size_t i = 0; i < sizeof(k_ns) / sizeof(k_ns[0]); i++) migrate_one(k_ns[i]);
 }

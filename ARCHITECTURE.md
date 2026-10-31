@@ -27555,3 +27555,14 @@ v0.4.1 (their code is v0.3.0's, but for one comment in wifi.c) and
 Not built (no ESP-IDF in the session), not on a Tab5. Looked for by
 grep: no `nvs_open`, `nvs_commit` or `nvs_close` is left in main/ but
 the two above.
+
+### 8065 -- radiokeep.c includes nvs.h for ESP_ERR_NVS_NOT_FOUND
+
+*8064 on a build*: `radiokeep.c:87: 'ESP_ERR_NVS_NOT_FOUND' undeclared`.
+8064 swapped radiokeep.c's `#include "nvs.h"` for nvs_handler.h, which
+does not include it, and the erase-a-slot path still compares against
+that error. The include is back, with the reason beside it. The other
+files 8064 touched were checked for the same: only settings.c still uses
+nvs.h's names (its i64), and it keeps the include.
+
+Not built (no ESP-IDF in the session).

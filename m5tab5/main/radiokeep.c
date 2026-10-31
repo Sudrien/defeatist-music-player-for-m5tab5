@@ -12,6 +12,7 @@
 #include "esp_log.h"
 #include "freertos/FreeRTOS.h"
 #include "freertos/semphr.h"
+#include "nvs.h"                /* ESP_ERR_NVS_NOT_FOUND; nvs_handler.h does not bring it */
 #include "nvs_handler.h"
 
 #include "favorites.h"      /* favorites_url_eq() */

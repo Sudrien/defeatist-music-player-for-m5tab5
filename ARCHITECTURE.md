@@ -27504,3 +27504,23 @@ warnings -- so the drivers were feckless-libs' -- 0x2ec3b0 bytes, 32
 fewer than 8060's. `dependencies.lock.idf6` not updated. After applying:
 delete m5tab5/components/fatfs and build/, and `rm sdkconfig`. Not on a
 Tab5.
+
+### 8062 -- the socket budget's check reads the census from the header
+
+texttest's check-netbudget (5157) tested netbudget.h's #error at 21 and
+22, the census as it was. 8043 counted the podcast clients and raised
+the census to 26 (sdkconfig.defaults to 28) without touching the check,
+so every run since has failed `FAIL: netbudget.h refused
+CONFIG_LWIP_MAX_SOCKETS=22` -- the header right, the test stale. It
+showed on the first CI run to reach texttest after 8061. Now the check
+builds a probe that prints NETBUDGET_NEEDED and tests that: NEEDED - 1
+refused, NEEDED accepted, and the value sdkconfig.defaults sets
+accepted too, which is the line that has to stay above the census; 1,
+10 and unset refused and 61 accepted, as before. The next census change
+needs no edit here.
+
+Run here: `netbudget: census 26 -- refuses below it and unset, accepts
+it, sdkconfig.defaults' 28 and 61 -- all passed`. With
+sdkconfig.defaults at 25 it fails `refused CONFIG_LWIP_MAX_SOCKETS=25
+(census 26)`; with the #error disabled, `accepted
+CONFIG_LWIP_MAX_SOCKETS=1`. Host only; nothing in the firmware changes.

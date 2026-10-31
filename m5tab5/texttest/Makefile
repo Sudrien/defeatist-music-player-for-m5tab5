@@ -977,14 +977,14 @@ check-ui:
 # fires and an #error that always passes look identical from a green
 # build.
 #
-# NETBUDGET_NEEDED is 22; the boundary is checked at 21 and 22 rather than
+# NETBUDGET_NEEDED is 26 (8043); the boundary is checked at 25 and 26 rather than
 # at a round number, and unset is checked because unset is the stale case.
 NETBUDGET_H := ../main/netbudget.h
 
 check-netbudget: $(NETBUDGET_H)
 	@echo '#include "netbudget.h"' > netbudget_probe.c
 	@echo 'int main(void){return 0;}' >> netbudget_probe.c
-	@for v in 1 10 21; do \
+	@for v in 1 10 25; do \
 		if $(CC) -I../main -DCONFIG_LWIP_MAX_SOCKETS=$$v -c netbudget_probe.c \
 			-o /dev/null 2>/dev/null; then \
 			echo "FAIL: netbudget.h accepted CONFIG_LWIP_MAX_SOCKETS=$$v"; \
@@ -995,7 +995,7 @@ check-netbudget: $(NETBUDGET_H)
 		echo "FAIL: netbudget.h accepted an UNSET CONFIG_LWIP_MAX_SOCKETS"; \
 		rm -f netbudget_probe.c; exit 1; \
 	fi
-	@for v in 22 24 61; do \
+	@for v in 26 28 61; do \
 		if ! $(CC) -I../main -DCONFIG_LWIP_MAX_SOCKETS=$$v -c netbudget_probe.c \
 			-o /dev/null 2>/dev/null; then \
 			echo "FAIL: netbudget.h refused CONFIG_LWIP_MAX_SOCKETS=$$v"; \
@@ -1003,6 +1003,6 @@ check-netbudget: $(NETBUDGET_H)
 		fi; \
 	done
 	@rm -f netbudget_probe.c
-	@echo "netbudget: refuses below 22, accepts 22 and up, refuses unset -- all passed"
+	@echo "netbudget: refuses below 26, accepts 26 and up, refuses unset -- all passed"
 
 .PHONY: all run-pcmfold run-ctrl run-clock run-rotate run-cardtime run-mediaindex run-medialist run-mediasearch run-mpdqueue run-mpdproto run-mpduri run-mpdmode run-mpdidle run-uireq run-m3uline run-urlclean run-playlist run-screendim run-artplace run-mediawalk run-mediasync run-menuscroll run-fade run-tail run-portal run-old check-ui check-netbudget run-sleep run-sniff run-icy run-netplan run-stations run-pcmfold run-imaadpcm run-mp4opus run-mp4mp3 run-aiff run-flacseek run-bufplan run-stbjpeg run-art run-jxl run-oggseek run-gifstack run-addrpin run-codec run-hlsplay run-hlsseg run-tsdemux run-folderart run-mp3 run-framewin run-streamplan run-stationnav run-radiobrowser run-levelhist run-favmatch run-lanpeer run-approve run-cue run-tagextra run-flacenc run-beam run-i18n clean

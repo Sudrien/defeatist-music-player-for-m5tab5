@@ -69,11 +69,9 @@ jobs:
           version: ${{ github.event.inputs.idf_version || 'v6.1' }}
           target: 'esp32p4'
 
-      - name: Run exFAT and Vendored Setup Scripts
+      # 8061: exFAT is feckless-libs' fatfs, made at configure time.
+      - name: Run the Vendored Setup Script
         run: |
-          chmod +x tools/enable_exfat.sh
-          ./tools/enable_exfat.sh
-
           chmod +x tools/fetch_vendored.sh
           ./tools/fetch_vendored.sh
 

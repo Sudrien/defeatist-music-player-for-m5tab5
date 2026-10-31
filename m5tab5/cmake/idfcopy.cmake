@@ -1,6 +1,6 @@
 # 6032: which ESP-IDF the copies under components/ came from.
 #
-# exfat.cmake and dpi_instrument.cmake copy IDF's fatfs and esp_lcd into
+# dpi_instrument.cmake copies IDF's esp_lcd (exfat.cmake did fatfs, until 8061) into
 # components/ at the first configure, and after that leave them alone.
 # That was safe while there was one IDF. There are two now (5.5.5 and
 # 6.1), and a copy made from one shadows the other's component: an

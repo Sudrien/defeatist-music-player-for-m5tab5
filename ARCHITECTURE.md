@@ -27480,3 +27480,27 @@ check-netbudget, which fails the same way on the tree before 8059 --
 `FAIL: netbudget.h refused CONFIG_LWIP_MAX_SOCKETS=22`: NETBUDGET_NEEDED
 has grown past the 22 the check still assumes. Not touched here.
 `dependencies.lock.idf6` not updated. Not on a Tab5.
+
+### 8061 -- feckless-libs v0.3.0: exFAT and the class drivers from it
+
+What this project vendored for the others is in feckless-libs v0.3.0:
+its fatfs component patches IDF's FatFs for exFAT at configure time --
+tools/enable_exfat.sh's three edits (6032-6035), moved into Python, the
+result byte for byte the script's -- and its usb_host_msc and
+usb_host_uac are components/usb_host_msc and components/usb_host_uac
+from here, unchanged. The manifest moves the four feckless libraries to
+v0.3.0 and names those three; components/usb_host_msc,
+components/usb_host_uac, cmake/exfat.cmake and tools/enable_exfat.sh
+are deleted, with their .gitignore lines and the workflow's call to
+enable_exfat.sh. cmake/idfcopy.cmake stays, for dpi_instrument.cmake's
+esp_lcd. TAB5_NO_EXFAT is CONFIG_FECKLESS_FATFS_EXFAT=n now. The
+READMEs' licence notes and CLAUDE.md name where the three are now.
+libversions.cmake's loop over components/usb_host_* finds nothing; the
+two drivers are listed from dependencies.lock with the rest.
+
+Built in m5tab5/ with ESP-IDF release/v6.1 and the component manager
+off, against feckless-libs v0.3.0: `fatfs (feckless): exFAT`, no
+warnings -- so the drivers were feckless-libs' -- 0x2ec3b0 bytes, 32
+fewer than 8060's. `dependencies.lock.idf6` not updated. After applying:
+delete m5tab5/components/fatfs and build/, and `rm sdkconfig`. Not on a
+Tab5.

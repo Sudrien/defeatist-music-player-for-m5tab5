@@ -50,19 +50,35 @@ dependencies:
   # IDF.
   #
   # Vendored since 5034, in components/usb_host_msc: 1.3.0 as released
-  # (the version dependencies.lock pinned), plus the fixes in 5035. Take
-  # this line back when upstream has them.
-  # espressif/usb_host_msc: "^1.1.0"
+  # (the version dependencies.lock pinned), plus the fixes in 5035 and
+  # 6031. 8061: that copy is feckless-libs' usb_host_msc now, unchanged,
+  # and components/usb_host_msc is gone. Take it back to the registry
+  # when upstream has the fixes.
+  usb_host_msc:
+    git: https://github.com/Sudrien/feckless-libs-for-m5tab5.git
+    path: components/usb_host_msc
+    version: "v0.3.0"
 
   # USB audio host, for the UAC output path. Same story as the MSC driver
   # above: the host stack is in IDF, this is the class driver on top of
   # it. Both sit on the one bus that usbhost.c owns.
   #
   # Vendored since 5025, in components/usb_host_uac: 1.5.0 as released,
-  # plus a descriptor-parser fix the registry does not have yet (5026).
-  # The directory's name is the component's name, which is what main's
-  # REQUIRES asks for. Take this line back when upstream has the fix.
-  # espressif/usb_host_uac: "^1.5.0"
+  # plus 5026, 5032 and 6062. 8061: that copy is feckless-libs'
+  # usb_host_uac now, unchanged, and components/usb_host_uac is gone.
+  # Take it back to the registry when upstream has the fixes.
+  usb_host_uac:
+    git: https://github.com/Sudrien/feckless-libs-for-m5tab5.git
+    path: components/usb_host_uac
+    version: "v0.3.0"
+
+  # 8061: IDF's FatFs with exFAT, patched at configure time by
+  # feckless-libs' fatfs; cmake/exfat.cmake and tools/enable_exfat.sh,
+  # which did it here since 6032, are gone.
+  fatfs:
+    git: https://github.com/Sudrien/feckless-libs-for-m5tab5.git
+    path: components/fatfs
+    version: "v0.3.0"
 
   # 6053: Wi-Fi, the saved networks and USB Ethernet are
   # feckless-network-handler-for-m5tab5 now, and the SD card, the USB drive
@@ -82,14 +98,16 @@ dependencies:
   # v0.2.0, which has network v0.2.2 and storage v0.1.0 unchanged,
   # drivers v0.5.10 and graphics v0.2.9. The old repositories are
   # archived; the notes below are what each tag brought, as before.
+  # 8061: v0.3.0, whose fatfs, usb_host_msc and usb_host_uac are named
+  # above; the four libraries' code is as at v0.2.0.
   feckless_network_handler:
     git: https://github.com/Sudrien/feckless-libs-for-m5tab5.git
     path: components/feckless_network_handler
-    version: "v0.2.0"
+    version: "v0.3.0"
   feckless_storage_handler:
     git: https://github.com/Sudrien/feckless-libs-for-m5tab5.git
     path: components/feckless_storage_handler
-    version: "v0.2.0"
+    version: "v0.3.0"
 
   # 6054: the USB host, USB audio, HID, the battery monitor, the clock
   # and touch are feckless-drivers-for-m5tab5. The two touch controllers'
@@ -114,7 +132,7 @@ dependencies:
   feckless_drivers:
     git: https://github.com/Sudrien/feckless-libs-for-m5tab5.git
     path: components/feckless_drivers
-    version: "v0.2.0"
+    version: "v0.3.0"
 
   # 6055: the panel, the backlight and gfx, with the Ark12 and Arabixel
   # fonts, are feckless-graphics-handler-for-m5tab5. esp_lcd_st7121 moved
@@ -125,7 +143,7 @@ dependencies:
   feckless_graphics_handler:
     git: https://github.com/Sudrien/feckless-libs-for-m5tab5.git
     path: components/feckless_graphics_handler
-    version: "v0.2.0"
+    version: "v0.3.0"
 
 # minimp3 is NOT here. It is two headers with no component manifest
 # upstream, so cmake/vendored.cmake fetches them into components/minimp3/

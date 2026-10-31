@@ -155,13 +155,13 @@ Claude, do not touch this README unless explicitly asked to. Use your own file.
   Sean Barrett's, offered under your choice of MIT or the Unlicense
   (public domain). This project takes it under the Unlicense, so it adds
   no notice to carry. The wrapper around it is MIT.
-- **`m5tab5/components/usb_host_msc` and `m5tab5/components/usb_host_uac` are
+- **`feckless-libs-for-m5tab5/components/usb_host_msc` and `feckless-libs-for-m5tab5/components/usb_host_uac` are
   Espressif's, Apache-2.0, not MIT.** They are vendored, patched copies
   of the esp-usb class drivers; each keeps its own licence file, and the
   changed files keep Espressif's SPDX headers with a "Modified by" line
   under them (Apache-2.0 section 4(b)); the vendored manifests say
   `license: "Apache-2.0"`. A redistribution carries those licence files.
-- The exFAT-enabled fatfs that `m5tab5/cmake/exfat.cmake` vendors at configure
+- The exFAT-enabled fatfs that `feckless-libs-for-m5tab5/components/fatfs` vendors at configure
   time is IDF's component (Apache-2.0) wrapping ChaN's FatFs (FatFs
   licence, a one-clause BSD-style notice that must be retained).
 - **TJpgDec is ChaN's, under its own licence**, and arrives as the

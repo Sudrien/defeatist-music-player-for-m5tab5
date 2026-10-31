@@ -15,7 +15,7 @@ split.
 components/, cmake/, tools/, texttest/, i18n/, test_audio_files/,
 test_art_files/, partitions.csv, the sdkconfig.defaults files and
 dependencies.lock.idf6. Paths below that name those -- `main/...`,
-`make -C texttest`, `./tools/enable_exfat.sh` -- are relative to it, and
+`make -C texttest`, `./tools/fetch_vendored.sh` -- are relative to it, and
 `idf.py` runs there. The READMEs, the other documents, screenshots/ and
 stations.m3u.example stay at the top. ARCHITECTURE.md's history keeps
 the paths as they were when it was written.
@@ -53,8 +53,8 @@ the log proves the new value took.
 
 **exFAT is enabled, so a file can be larger than 4 GB.** FAT32 could
 not hold one, and a lot of code written against FAT32 quietly assumes
-it -- `tools/enable_exfat.sh` (run automatically by `cmake/exfat.cmake`)
-removes that assumption from the filesystem and not from the code. A
+it -- feckless-libs' `fatfs` (patching IDF's FatFs at configure time;
+`tools/enable_exfat.sh` until 8061) removes that assumption from the filesystem and not from the code. A
 type that holds a file's length, or a position inside one, is
 `int64_t`/`uint64_t`. Not `uint32_t`, and not `long`, which is 32 bits
 on this target.

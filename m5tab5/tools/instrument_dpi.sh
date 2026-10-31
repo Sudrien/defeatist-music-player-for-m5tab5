@@ -34,7 +34,7 @@
 # bandwidth line of attack is wrong.
 #
 # The directory is gitignored, generated and disposable, exactly like
-# components/fatfs. --revert removes it.
+# components/fatfs was before 8061. --revert removes it.
 #
 # SPDX-License-Identifier: MIT
 
@@ -42,7 +42,7 @@ set -eu
 
 DEST="components/esp_lcd"
 
-# See the same flag in enable_exfat.sh: right for a human running this
+# As enable_exfat.sh's was (until 8061): right for a human running this
 # against a built tree, catastrophic for cmake, which is executing from
 # inside build/.
 CLEAN=1

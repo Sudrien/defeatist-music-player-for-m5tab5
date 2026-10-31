@@ -299,15 +299,15 @@ letting it look like a small diff.
 
 **Wi-Fi, Ethernet, storage, the board drivers and the display are not in
 this repository** (6053-6056). wifi, wifistore, ethernet, netlink,
-ethcfg and hostedwrap are feckless-network-handler-for-m5tab5; storage and
-storage_io are feckless-storage-handler-for-m5tab5; usbhost, uac, hid,
+ethcfg and hostedwrap are feckless-libs-for-m5tab5/components/feckless_network_handler; storage and
+storage_io are feckless-libs-for-m5tab5/components/feckless_storage_handler; usbhost, uac, hid,
 battery, rtc8130, touch, micpcm, tab5io (the I2C bus and expanders),
-audio_out and polyrsp are feckless-drivers-for-m5tab5; gfx, the panel and
+audio_out and polyrsp are feckless-libs-for-m5tab5/components/feckless_drivers; gfx, the panel and
 backlight (lcd.c), bidiline, logcut, brightness and the ark12 and
-arabixel fonts are feckless-graphics-handler-for-m5tab5. A change to one
+arabixel fonts are feckless-libs-for-m5tab5/components/feckless_graphics_handler. A change to one
 of them is a patch against that repository, under the same rules as
 here, numbered in that repository's own series. The player picks it up
-by moving its tag in main/idf_component.yml, which is a manifest change
+by moving the one tag all four share in main/idf_component.yml (8060), which is a manifest change
 -- see above -- in a patch of its own.
 
 No not suggest updates to the Tab5's ESP-C6 or esp hosted. They can not be updated.

@@ -140,8 +140,8 @@
 - **`m5tab5/components/usb_host_msc` 与 `m5tab5/components/usb_host_uac` 属 Espressif，为 Apache-2.0，而非 MIT。** 它们是 esp-usb 类驱动的就地引入并打过补丁的副本；各自保留许可文件，改动过的文件保留 Espressif 的 SPDX 头，并在其下加了一行“Modified by”（Apache-2.0 第 4(b) 条）；引入的清单文件写明 `license: "Apache-2.0"`。再分发须附带这些许可文件。
 - `m5tab5/cmake/exfat.cmake` 在配置时引入的支持 exFAT 的 fatfs，是 IDF 的组件（Apache-2.0）加 ChaN 的 FatFs（FatFs 许可：须保留的单条款 BSD 式声明）。
 - **TJpgDec 属 ChaN，采用其自有许可**，以 `espressif/esp_jpeg` 组件形式引入。宽松许可——个人和商业使用均免费，允许源码再分发——但必须保留版权声明，因此它会像字体的 OFL 一样随再分发一起附带。仅用作后备，用于硬件 JPEG 解码器无法分配内存的封面：P4 的解码器没有缩放器，一张 3000 px 的封面需要一整块 17 MB 的 PSRAM，而它拿不到。
-- **Ark Pixel 字体为 SIL OFL-1.1，因此 feckless-graphics-handler-for-m5tab5 中的 `ark12` 表格（`fonts/ark12`）同样是 OFL-1.1，而非 MIT。** 把字形 PNG 转成 C 数组，使这些文件成为 OFL 第 5 节下的“修改版本”，而第 5 节要求修改版本仍以 OFL 授权。这不成问题——OFL 明确允许与任意许可的软件打包，且仅字体文件受此约束——但 `fonts/ark12/LICENSE-OFL` 必须随任何再分发（含固件镜像）一起附带，且这些表格不得单独出售。Ark 未声明保留字体名（Reserved Font Name），因此衍生版本无需改名；它仍叫 `ark12`，只因它不是原始版本。
-- **Arabixel Basic 为 CC BY 4.0**（ArabianDev，<https://arabiandev.itch.io/arabixel-basic-font>），因此 feckless-graphics-handler-for-m5tab5 中 `fonts/arabixel` 的字体文件与生成的表格亦然；其整形（shaping）代码为 MIT。CC BY（<https://creativecommons.org/licenses/by/4.0/>）要求署名、附许可链接并注明改动——该组件的 README 与表格头部已载明这些信息，再分发（含固件镜像）须随附 `fonts/arabixel/LICENSE.txt`。
+- **Ark Pixel 字体为 SIL OFL-1.1，因此 feckless-libs-for-m5tab5/components/feckless_graphics_handler 中的 `ark12` 表格（`fonts/ark12`）同样是 OFL-1.1，而非 MIT。** 把字形 PNG 转成 C 数组，使这些文件成为 OFL 第 5 节下的“修改版本”，而第 5 节要求修改版本仍以 OFL 授权。这不成问题——OFL 明确允许与任意许可的软件打包，且仅字体文件受此约束——但 `fonts/ark12/LICENSE-OFL` 必须随任何再分发（含固件镜像）一起附带，且这些表格不得单独出售。Ark 未声明保留字体名（Reserved Font Name），因此衍生版本无需改名；它仍叫 `ark12`，只因它不是原始版本。
+- **Arabixel Basic 为 CC BY 4.0**（ArabianDev，<https://arabiandev.itch.io/arabixel-basic-font>），因此 feckless-libs-for-m5tab5/components/feckless_graphics_handler 中 `fonts/arabixel` 的字体文件与生成的表格亦然；其整形（shaping）代码为 MIT。CC BY（<https://creativecommons.org/licenses/by/4.0/>）要求署名、附许可链接并注明改动——该组件的 README 与表格头部已载明这些信息，再分发（含固件镜像）须随附 `fonts/arabixel/LICENSE.txt`。
 - MurmurHash2 为公有领域。
 
 ## 参与贡献

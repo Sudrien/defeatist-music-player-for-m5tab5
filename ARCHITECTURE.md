@@ -27450,3 +27450,33 @@ managed_components/, version.txt and the generated components/ files
 (fatfs/, esp_lcd/, the vendored headers), and build in m5tab5/.
 
 Built in 8060, with the libraries it moves to.
+
+### 8060 -- the feckless libraries from feckless-libs-for-m5tab5 v0.2.0
+
+The feckless repositories became components of one,
+feckless-libs-for-m5tab5, released under one tag. The manifest names
+feckless_network_handler, feckless_storage_handler, feckless_drivers and
+feckless_graphics_handler there, each by `path:`, all at v0.2.0, in
+place of their own repositories (v0.2.2, v0.1.0, v0.5.9, v0.2.7), now
+archived. The notes on what each old tag brought stay. The documents,
+CLAUDE.md, texttest/Makefile's and fetch_vendored.sh's comments name
+the components where they are now; texttest's example paths go one
+level further up since 8059.
+
+Code that changes underneath: the drivers v0.5.9 -> v0.5.10 and the
+graphics handler v0.2.7 -> v0.2.9, which let their inits run a second
+time and a USB class register late. The network and storage handlers'
+code is as before. feckless_drivers' manifest now pins the registry's
+usb_host_uac 1.5.0; components/usb_host_uac here still takes
+precedence over it.
+
+Built in m5tab5/ with ESP-IDF release/v6.1 (9a97f6c) and the component
+manager off, against feckless-libs v0.2.0 (2edea9f), esp_audio_codec
+2.5.0 and the other registry components' sources from GitHub:
+`defeatist_music_player_for_m5tab5.bin binary size 0x2ec3d0 bytes ...
+0x13c30 bytes (3%) free`. texttest against the same components (make
+-k, FECKLESS_* pointed at them): everything passes but
+check-netbudget, which fails the same way on the tree before 8059 --
+`FAIL: netbudget.h refused CONFIG_LWIP_MAX_SOCKETS=22`: NETBUDGET_NEEDED
+has grown past the 22 the check still assumes. Not touched here.
+`dependencies.lock.idf6` not updated. Not on a Tab5.

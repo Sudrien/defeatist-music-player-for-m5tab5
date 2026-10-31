@@ -77,12 +77,19 @@ dependencies:
   # init deferred to app_main) stay in this project's file: a component
   # cannot set another's Kconfig.
   # 6060: network v0.2.0 -- each scanned network's BSSID, and a quiet scan.
+  # 8060: all four feckless libraries are components of
+  # feckless-libs-for-m5tab5 now, named by path: and all at one tag --
+  # v0.2.0, which has network v0.2.2 and storage v0.1.0 unchanged,
+  # drivers v0.5.10 and graphics v0.2.9. The old repositories are
+  # archived; the notes below are what each tag brought, as before.
   feckless_network_handler:
-    git: https://github.com/Sudrien/feckless-network-handler-for-m5tab5.git
-    version: "v0.2.2"
+    git: https://github.com/Sudrien/feckless-libs-for-m5tab5.git
+    path: components/feckless_network_handler
+    version: "v0.2.0"
   feckless_storage_handler:
-    git: https://github.com/Sudrien/feckless-storage-handler-for-m5tab5.git
-    version: "v0.1.0"
+    git: https://github.com/Sudrien/feckless-libs-for-m5tab5.git
+    path: components/feckless_storage_handler
+    version: "v0.2.0"
 
   # 6054: the USB host, USB audio, HID, the battery monitor, the clock
   # and touch are feckless-drivers-for-m5tab5. The two touch controllers'
@@ -105,8 +112,9 @@ dependencies:
   # 6098: v0.5.8 -- a USB device's volume is set by the writer between
   # blocks, not by a task that waited behind it all track (0018).
   feckless_drivers:
-    git: https://github.com/Sudrien/feckless-drivers-for-m5tab5.git
-    version: "v0.5.9"
+    git: https://github.com/Sudrien/feckless-libs-for-m5tab5.git
+    path: components/feckless_drivers
+    version: "v0.2.0"
 
   # 6055: the panel, the backlight and gfx, with the Ark12 and Arabixel
   # fonts, are feckless-graphics-handler-for-m5tab5. esp_lcd_st7121 moved
@@ -115,8 +123,9 @@ dependencies:
   # 6080: v0.2.2 -- Ark12's Number Forms, for 16⅔ and 33⅓ (its 0006).
   # 6100: v0.2.3 -- U+E000, a stacked 3/2, for the Fx sheet (its 0007).
   feckless_graphics_handler:
-    git: https://github.com/Sudrien/feckless-graphics-handler-for-m5tab5.git
-    version: "v0.2.7"
+    git: https://github.com/Sudrien/feckless-libs-for-m5tab5.git
+    path: components/feckless_graphics_handler
+    version: "v0.2.0"
 
 # minimp3 is NOT here. It is two headers with no component manifest
 # upstream, so cmake/vendored.cmake fetches them into components/minimp3/

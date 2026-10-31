@@ -173,7 +173,7 @@ Claude, do not touch this README unless explicitly asked to. Use your own file.
   scaler, so a 3000 px cover wants 17 MB of PSRAM in one block and does
   not get it.
 - **Ark Pixel Font is SIL OFL-1.1, and the `ark12` tables in
-  feckless-graphics-handler-for-m5tab5 (`fonts/ark12`) are therefore
+  feckless-libs-for-m5tab5/components/feckless_graphics_handler (`fonts/ark12`) are therefore
   OFL-1.1 too, not MIT.** Converting the glyph PNGs into C arrays makes
   those files a Modified Version under OFL section 5, and section 5
   requires Modified Versions to stay under the OFL. This is not a problem
@@ -185,7 +185,7 @@ Claude, do not touch this README unless explicitly asked to. Use your own file.
   `ark12` anyway, because it is not the Original Version.
 - **Arabixel Basic is CC BY 4.0** (ArabianDev,
   https://arabiandev.itch.io/arabixel-basic-font), and so are
-  the font file and generated table in feckless-graphics-handler-for-m5tab5's
+  the font file and generated table in feckless-libs-for-m5tab5/components/feckless_graphics_handler's
   `fonts/arabixel`; its shaping
   code is MIT. CC BY (https://creativecommons.org/licenses/by/4.0/)
   asks for credit, a link to the licence and a note

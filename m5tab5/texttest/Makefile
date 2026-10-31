@@ -1,7 +1,7 @@
 # texttest -- host builds of the player's modules.
 #
 # 6055: the gfx text-path test this directory was named for moved to
-# feckless-graphics-handler-for-m5tab5 with gfx.c; i18ntest below still
+# feckless-libs-for-m5tab5/components/feckless_graphics_handler with gfx.c; i18ntest below still
 # builds against that gfx.c, through FECKLESS_GRAPHICS.
 #
 # Same bargain as seektest: the sanitizers are the point, so they are not
@@ -36,8 +36,8 @@ CC      ?= cc
 # manager puts a git dependency in managed_components/ under its bare
 # name, so these are right after the first idf.py build or reconfigure;
 # before one, point them at clones:
-#   make FECKLESS_NET=../../feckless-network-handler-for-m5tab5 \
-#        FECKLESS_STORAGE=../../feckless-storage-handler-for-m5tab5
+#   make FECKLESS_NET=../../../feckless-libs-for-m5tab5/components/feckless_network_handler \
+#        FECKLESS_STORAGE=../../../feckless-libs-for-m5tab5/components/feckless_storage_handler
 # Their own tests (wifistoretest, netlinktest) moved with them.
 # 6054: the same for feckless-drivers (FECKLESS_DRIVERS); micpcmtest
 # moved with micpcm.h. 6055: and feckless-graphics-handler

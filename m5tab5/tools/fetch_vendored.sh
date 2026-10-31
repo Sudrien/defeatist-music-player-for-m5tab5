@@ -8,7 +8,7 @@
 #   j40       -- JPEG XL decode (6139). Public domain, or MIT-0
 #
 # The fonts are not here: they are generated and committed in
-# feckless-graphics-handler-for-m5tab5 (fonts/, tools/gen_ark12.py).
+# feckless-libs-for-m5tab5/components/feckless_graphics_handler (fonts/, tools/gen_ark12.py).
 #
 # You do not normally need to run this: cmake/vendored.cmake fetches the
 # same files, from the same pinned commits, at configure time. This is

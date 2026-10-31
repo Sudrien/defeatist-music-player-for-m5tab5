@@ -75,8 +75,13 @@ int main(void)
     CHECK(podpath_dir("/sd", "Rádio Joinville: Cultural 105,1", s, sizeof(s)) &&
           !strcmp(s, "/sd/Podcasts/Rádio Joinville_ Cultural 105,1"), "%s", s);
     {
+        /* 8062: the size through a volatile, so the compiler cannot see
+         * the truncation coming: gcc 14 and later, inlining podpath_dir(),
+         * reported it at -Werror=format-truncation -- which is the very
+         * thing this case tests podpath_dir() refuses. */
         char t[8];
-        CHECK(!podpath_dir("/sd", "long name", t, sizeof(t)), "does not fit");
+        volatile size_t tcap = sizeof(t);
+        CHECK(!podpath_dir("/sd", "long name", t, tcap), "does not fit");
     }
     podpath_base(1761177600, "Agenda | 23/10", s, sizeof(s));
     CHECK(!strcmp(s, "2025-10-23 Agenda _ 23_10"), "%s", s);

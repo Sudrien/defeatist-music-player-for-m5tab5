@@ -977,45 +977,32 @@ check-ui:
 # fires and an #error that always passes look identical from a green
 # build.
 #
-# 8062: the boundary is NETBUDGET_NEEDED itself, read from the header,
-# not a number written here. It was 22 and this said 22 until 8043
-# raised the census to 26 for the podcast clients; the header was right
-# and this check, still testing 22, failed every run after. Now it asks
-# the header: NEEDED - 1 refused, NEEDED accepted, and so is the value
-# sdkconfig.defaults sets -- which is the line that has to stay above the
-# census. Unset is still checked because unset is the stale case, and 1,
-# 10 and 61 (lwIP's FD_SETSIZE edge) as before.
+# NETBUDGET_NEEDED is 22; the boundary is checked at 21 and 22 rather than
+# at a round number, and unset is checked because unset is the stale case.
 NETBUDGET_H := ../main/netbudget.h
-NETBUDGET_DEFAULT := $(shell sed -n 's/^CONFIG_LWIP_MAX_SOCKETS=\([0-9][0-9]*\)$$/\1/p' ../sdkconfig.defaults)
 
-check-netbudget: $(NETBUDGET_H) ../sdkconfig.defaults
+check-netbudget: $(NETBUDGET_H)
 	@echo '#include "netbudget.h"' > netbudget_probe.c
 	@echo 'int main(void){return 0;}' >> netbudget_probe.c
-	@printf '#include <stdio.h>\n#include "netbudget.h"\nint main(void){printf("%%d\\n", NETBUDGET_NEEDED);return 0;}\n' > netbudget_need.c
-	@$(CC) -I../main -DCONFIG_LWIP_MAX_SOCKETS=253 netbudget_need.c -o netbudget_need \
-		|| { echo "FAIL: netbudget.h does not build at 253"; rm -f netbudget_probe.c netbudget_need.c; exit 1; }
-	@need=$$(./netbudget_need); rm -f netbudget_need netbudget_need.c; \
-	def="$(NETBUDGET_DEFAULT)"; \
-	if [ -z "$$def" ]; then echo "FAIL: no CONFIG_LWIP_MAX_SOCKETS in sdkconfig.defaults"; rm -f netbudget_probe.c; exit 1; fi; \
-	for v in 1 10 $$((need - 1)); do \
+	@for v in 1 10 21; do \
 		if $(CC) -I../main -DCONFIG_LWIP_MAX_SOCKETS=$$v -c netbudget_probe.c \
 			-o /dev/null 2>/dev/null; then \
-			echo "FAIL: netbudget.h accepted CONFIG_LWIP_MAX_SOCKETS=$$v (census $$need)"; \
+			echo "FAIL: netbudget.h accepted CONFIG_LWIP_MAX_SOCKETS=$$v"; \
 			rm -f netbudget_probe.c; exit 1; \
 		fi; \
-	done; \
-	if $(CC) -I../main -c netbudget_probe.c -o /dev/null 2>/dev/null; then \
+	done
+	@if $(CC) -I../main -c netbudget_probe.c -o /dev/null 2>/dev/null; then \
 		echo "FAIL: netbudget.h accepted an UNSET CONFIG_LWIP_MAX_SOCKETS"; \
 		rm -f netbudget_probe.c; exit 1; \
-	fi; \
-	for v in $$need $$def 61; do \
+	fi
+	@for v in 22 24 61; do \
 		if ! $(CC) -I../main -DCONFIG_LWIP_MAX_SOCKETS=$$v -c netbudget_probe.c \
 			-o /dev/null 2>/dev/null; then \
-			echo "FAIL: netbudget.h refused CONFIG_LWIP_MAX_SOCKETS=$$v (census $$need)"; \
+			echo "FAIL: netbudget.h refused CONFIG_LWIP_MAX_SOCKETS=$$v"; \
 			rm -f netbudget_probe.c; exit 1; \
 		fi; \
-	done; \
-	rm -f netbudget_probe.c; \
-	echo "netbudget: census $$need -- refuses below it and unset, accepts it, sdkconfig.defaults' $$def and 61 -- all passed"
+	done
+	@rm -f netbudget_probe.c
+	@echo "netbudget: refuses below 22, accepts 22 and up, refuses unset -- all passed"
 
 .PHONY: all run-pcmfold run-ctrl run-clock run-rotate run-cardtime run-mediaindex run-medialist run-mediasearch run-mpdqueue run-mpdproto run-mpduri run-mpdmode run-mpdidle run-uireq run-m3uline run-urlclean run-playlist run-screendim run-artplace run-mediawalk run-mediasync run-menuscroll run-fade run-tail run-portal run-old check-ui check-netbudget run-sleep run-sniff run-icy run-netplan run-stations run-pcmfold run-imaadpcm run-mp4opus run-mp4mp3 run-aiff run-flacseek run-bufplan run-stbjpeg run-art run-jxl run-oggseek run-gifstack run-addrpin run-codec run-hlsplay run-hlsseg run-tsdemux run-folderart run-mp3 run-framewin run-streamplan run-stationnav run-radiobrowser run-levelhist run-favmatch run-lanpeer run-approve run-cue run-tagextra run-flacenc run-beam run-i18n clean

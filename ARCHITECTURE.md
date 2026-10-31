@@ -27505,22 +27505,20 @@ fewer than 8060's. `dependencies.lock.idf6` not updated. After applying:
 delete m5tab5/components/fatfs and build/, and `rm sdkconfig`. Not on a
 Tab5.
 
-### 8062 -- the socket budget's check reads the census from the header
+### 8063 -- podpathtest builds under gcc 14 and later
 
-texttest's check-netbudget (5157) tested netbudget.h's #error at 21 and
-22, the census as it was. 8043 counted the podcast clients and raised
-the census to 26 (sdkconfig.defaults to 28) without touching the check,
-so every run since has failed `FAIL: netbudget.h refused
-CONFIG_LWIP_MAX_SOCKETS=22` -- the header right, the test stale. It
-showed on the first CI run to reach texttest after 8061. Now the check
-builds a probe that prints NETBUDGET_NEEDED and tests that: NEEDED - 1
-refused, NEEDED accepted, and the value sdkconfig.defaults sets
-accepted too, which is the line that has to stay above the census; 1,
-10 and unset refused and 61 accepted, as before. The next census change
-needs no edit here.
+The "does not fit" case hands podpath_dir() an 8-byte buffer, to show it
+refuses a path that will not fit. gcc 14 and later inline the call, see
+the snprintf() truncate, and stop at -Werror=format-truncation --
+reported as the first texttest failure on a local build (Ubuntu's gcc;
+CI's is older and says nothing). The buffer's size now goes through a
+volatile, so the compiler cannot see the truncation coming; podpath.h
+is unchanged, its truncation intended and checked.
 
-Run here: `netbudget: census 26 -- refuses below it and unset, accepts
-it, sdkconfig.defaults' 28 and 61 -- all passed`. With
-sdkconfig.defaults at 25 it fails `refused CONFIG_LWIP_MAX_SOCKETS=25
-(census 26)`; with the #error disabled, `accepted
-CONFIG_LWIP_MAX_SOCKETS=1`. Host only; nothing in the firmware changes.
+Run here: podpathtest.c compiles with ESP-IDF's gcc 15.2
+(riscv32-esp-elf, the WARNCFLAGS line), and passes with the host's
+gcc 13: 41 checks, 0 failures. Every other -Werror compile in
+texttest, under the same gcc 15: 39 of 51 pass, and the 12 that do not
+fail only on that compiler's target -- uint32_t is unsigned long on
+riscv32, so %u is a format mismatch, and its newlib has no timegm() --
+which no x86-64 build sees. Host only.

@@ -315,6 +315,18 @@ dependencies:
       path: components/feckless_graphics_handler
       type: git
     version: 74a88d27514ddabd33957c6b357d12a030ffb5a4
+  feckless_image_handler:
+    component_hash: 72c831465f8a6420244975b6201ad975622de74e16ed39cf1a30cba127900701
+    dependencies:
+    - name: idf
+      version: '>=5.4.2'
+    - name: espressif/esp_jpeg
+      version: ^1.3.1
+    source:
+      git: https://github.com/Sudrien/feckless-libs-for-m5tab5.git
+      path: components/feckless_image_handler
+      type: git
+    version: 9f7c505e95d660ce418d3472aa162c934d74512d
   feckless_network_handler:
     component_hash: ce259dc3860f6878a35dd24c6875259a5de0b71053c6c33ff23f277ea30a31d8
     dependencies:
@@ -407,16 +419,16 @@ dependencies:
 direct_dependencies:
 - espressif/cjson
 - espressif/esp_audio_codec
-- espressif/esp_jpeg
 - fatfs
 - feckless_drivers
 - feckless_graphics_handler
+- feckless_image_handler
 - feckless_network_handler
 - feckless_nvs_handler
 - feckless_storage_handler
 - idf
 - usb_host_msc
 - usb_host_uac
-manifest_hash: 68b5461a51bc09c11242ec54c144e70c2c67b8462b6e2ae501b17757ba1e4ad2
+manifest_hash: 7f53d7cb1b85b78b224d4ca8b577907e7c506fb68e6d562b46d323d28f782899
 target: esp32p4
 version: 3.0.0

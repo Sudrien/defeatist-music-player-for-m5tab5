@@ -3,4 +3,4 @@
 # text they would be at the mercy of core.autocrlf, and a patch carrying
 # them would lose its CRs in `git am`, which strips them by default.
 # Binary keeps every byte, in the repository and in a patch.
-test_audio_files/*.cue binary
+m5tab5/test_audio_files/*.cue binary

@@ -170,7 +170,7 @@ throughout, the way `cuedir_load()` does.
 ## Decided since
 
 Settled after this note was written, some by the code already in the
-tree and some by asking. `main/mediaindex.h` (5010) is the first code.
+tree and some by asking. `m5tab5/main/mediaindex.h` (5010) is the first code.
 
 1. **Cue sheets: the tracks.** A cue track is `<sheet>.cue#NN`
    everywhere a path goes already (`cuesheet.h`), `NN` is two digits so

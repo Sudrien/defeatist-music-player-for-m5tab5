@@ -11,6 +11,15 @@ all afternoon, never scroll to the top, and hand back patches with the
 wrong author and no numbers. That happened, which is why the two are
 split.
 
+**The firmware is in `m5tab5/`** (8059): CMakeLists.txt, main/,
+components/, cmake/, tools/, texttest/, i18n/, test_audio_files/,
+test_art_files/, partitions.csv, the sdkconfig.defaults files and
+dependencies.lock.idf6. Paths below that name those -- `main/...`,
+`make -C texttest`, `./tools/enable_exfat.sh` -- are relative to it, and
+`idf.py` runs there. The READMEs, the other documents, screenshots/ and
+stations.m3u.example stay at the top. ARCHITECTURE.md's history keeps
+the paths as they were when it was written.
+
 
 Claude should create `git am`-able patches authored as
 `Claude <noreply@anthropic.com>`.

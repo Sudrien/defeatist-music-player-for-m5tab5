@@ -27426,3 +27426,27 @@ waits on buffers 10-25% of the time.
 - **A miniseries picture's only link is the episode's sidecar** (8056);
   a sidecar lost shows the folder's cover until the episode is fetched
   again.
+
+### 8059 -- the firmware in m5tab5/
+
+As in Duplicitous, Lothesome, Mahjong and Aimless: CMakeLists.txt,
+main/, components/, cmake/, tools/, texttest/, i18n/,
+test_audio_files/, test_art_files/, partitions.csv, sdkconfig.defaults,
+sdkconfig.defaults.idf6 and dependencies.lock.idf6 move, unchanged,
+into m5tab5/. Their paths to each other are relative (cmake/'s
+../components and ../tools, texttest/Makefile's ../main, ../components
+and ../test_audio_files), so none changed. The READMEs and the other
+documents, screenshots/ and stations.m3u.example stay at the top. The
+workflow's run steps start in m5tab5/ (defaults: working-directory) and
+the paths it gives actions start with m5tab5/; the release files keep
+their names. .gitignore's rooted paths and texttest's binaries, and
+.gitattributes' cue sheets, follow. The documents' paths to firmware
+files (`cmake/...`, `components/...`, `main/...`, `texttest/...`) gain
+the m5tab5/ in front; this file's history keeps them as they were.
+CLAUDE.md says where things are.
+
+After applying: delete the top-level build/, sdkconfig,
+managed_components/, version.txt and the generated components/ files
+(fatfs/, esp_lcd/, the vendored headers), and build in m5tab5/.
+
+Built in 8060, with the libraries it moves to.

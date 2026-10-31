@@ -190,7 +190,7 @@ opens a listener the queue has been used in anger.
 `mpdproto.c` -- pure C, no ESP-IDF includes, host-testable -- and
 `mpd.c`, the socket and the task. Split for the reason `remoteproto.c`
 is split from `remote.c` (`remoteproto.h:8-12`), and so that the
-grammar can be fuzzed and mutation-checked the way `texttest/README.md`
+grammar can be fuzzed and mutation-checked the way `m5tab5/texttest/README.md`
 requires.
 
 **In `mpdproto.c`:** the greeting, argument tokenising (MPD quotes with
@@ -284,7 +284,7 @@ SNTP, a stream or a radio-browser search adds one each. IDF checks each
 instance and never the sum, and every server passes its own check, so
 nothing warned. That was already broken with no MPD in the image.
 
-`main/netbudget.h` now holds the census as arithmetic and
+`m5tab5/main/netbudget.h` now holds the census as arithmetic and
 `sdkconfig.defaults` sets 24, which leaves MPD a listener and three
 clients -- three rather than two because an idling client holds its socket
 indefinitely and the realistic case is a phone, a desktop client and one
@@ -449,7 +449,7 @@ nothing is left half-built if the series stops.
    `OK`/`ACK`, and the serialisers, with nothing on a socket. `run-mpd`
    into `all:` and `.PHONY`, the binary into `clean`, both the
    warnings-only `-O2 -Werror` pass and the sanitiser pass
-   (`texttest/Makefile:30-37, 394-399`), and the test written
+   (`m5tab5/texttest/Makefile:30-37, 394-399`), and the test written
    independently of the implementation rather than sharing its
    assumptions.
 9. **`mpd.c`**: the listener, the task, the settings switch, the panel
@@ -580,7 +580,7 @@ listplaylist, the prio filter and explicit-case operators, tagtypes
 available/reset, `protocol` (hide_playlists_in_root, always on),
 lastloadedplaylist; added-since and the sticker commands refused.
 
-Driven on the board through 5257: `tools/mpdcheck.py <ip> --destructive
+Driven on the board through 5257: `m5tab5/tools/mpdcheck.py <ip> --destructive
 --reindex` passed 438 of 438 against the greeting `OK MPD 0.24.0`, test
 files from usb, and put the listener's queue, volume and song back.
 And through 5266: 451 passed and 2 skipped (the test files have no genre

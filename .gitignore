@@ -1,26 +1,26 @@
 # ESP-IDF build output
-/build/
-/sdkconfig
-/sdkconfig.old
-/managed_components/
+/m5tab5/build/
+/m5tab5/sdkconfig
+/m5tab5/sdkconfig.old
+/m5tab5/managed_components/
 # Written by the CI build step from the release string into
 # esp_app_desc_t.version; never committed (local builds fall back to
 # git describe). See .github/workflows/main.yml.
-/version.txt
+/m5tab5/version.txt
 
 # minimp3 and pngle: fetched by cmake/vendored.cmake during idf.py build,
 # pinned to commits and SHA256-checked. Nothing to run by hand.
 # fatfs: written by ./tools/enable_exfat.sh, only needed for exFAT cards.
-/components/minimp3/minimp3.h
-/components/minimp3/minimp3_ex.h
-/components/pngle/pngle.c
-/components/pngle/pngle.h
-/components/pngle/miniz.c
-/components/pngle/miniz.h
-/components/stbjpeg/stb_image.h
-/components/jxlimg/j40.h
-/components/fatfs/
-/components/esp_lcd/
+/m5tab5/components/minimp3/minimp3.h
+/m5tab5/components/minimp3/minimp3_ex.h
+/m5tab5/components/pngle/pngle.c
+/m5tab5/components/pngle/pngle.h
+/m5tab5/components/pngle/miniz.c
+/m5tab5/components/pngle/miniz.h
+/m5tab5/components/stbjpeg/stb_image.h
+/m5tab5/components/jxlimg/j40.h
+/m5tab5/components/fatfs/
+/m5tab5/components/esp_lcd/
 
 # Download temporaries from a failed or interrupted vendored fetch.
 *.tmp
@@ -38,29 +38,29 @@
 # nineteen extensionless binaries also catches a .c file somebody
 # forgot the extension on. `make clean` removes these; the list is
 # here so a tree that has been built still reads as clean.
-texttest/texttest
-texttest/remoteprototest
-texttest/brightnesstest
-texttest/bufferplantest
-texttest/cachetest
-texttest/clocktest
-texttest/codecplantest
-texttest/ctrltest
-texttest/fadetest
-texttest/framewintest
-texttest/icydemuxtest
-texttest/netplantest
-texttest/portalwebtest
-texttest/radiobrowsertest
-texttest/sleeptimertest
-texttest/stationlisttest
-texttest/stationnavtest
-texttest/streamplantest
-texttest/streamsnifftest
-texttest/tailplantest
-texttest/wifistoretest
-texttest/micpcmtest
-texttest/*.dSYM/
+m5tab5/texttest/texttest
+m5tab5/texttest/remoteprototest
+m5tab5/texttest/brightnesstest
+m5tab5/texttest/bufferplantest
+m5tab5/texttest/cachetest
+m5tab5/texttest/clocktest
+m5tab5/texttest/codecplantest
+m5tab5/texttest/ctrltest
+m5tab5/texttest/fadetest
+m5tab5/texttest/framewintest
+m5tab5/texttest/icydemuxtest
+m5tab5/texttest/netplantest
+m5tab5/texttest/portalwebtest
+m5tab5/texttest/radiobrowsertest
+m5tab5/texttest/sleeptimertest
+m5tab5/texttest/stationlisttest
+m5tab5/texttest/stationnavtest
+m5tab5/texttest/streamplantest
+m5tab5/texttest/streamsnifftest
+m5tab5/texttest/tailplantest
+m5tab5/texttest/wifistoretest
+m5tab5/texttest/micpcmtest
+m5tab5/texttest/*.dSYM/
 
 # git format-patch output. Patch files contain trailing whitespace by
 # construction -- context lines, and the "-- " before the version
@@ -75,4 +75,4 @@ texttest/*.dSYM/
 # python bytecode from tools/
 __pycache__/
 *.pyc
-texttest/levelhisttest
+m5tab5/texttest/levelhisttest

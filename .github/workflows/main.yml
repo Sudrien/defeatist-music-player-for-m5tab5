@@ -43,6 +43,11 @@ permissions:
 jobs:
   build:
     runs-on: ubuntu-latest
+    # 8059: the firmware is in m5tab5/. Run steps start there; the paths
+    # given to actions (uses:) are from the repository's top.
+    defaults:
+      run:
+        working-directory: m5tab5
 
     steps:
       - name: Checkout Repository
@@ -111,16 +116,16 @@ jobs:
         uses: actions/attest-build-provenance@v2
         with:
           subject-path: |
-            build/defeatist_${{ steps.ver.outputs.name }}_music_player_for_m5tab5_standalone.bin
-            build/defeatist_${{ steps.ver.outputs.name }}_music_player_for_m5tab5.bin
+            m5tab5/build/defeatist_${{ steps.ver.outputs.name }}_music_player_for_m5tab5_standalone.bin
+            m5tab5/build/defeatist_${{ steps.ver.outputs.name }}_music_player_for_m5tab5.bin
 
       - name: Archive build output artifacts
         uses: actions/upload-artifact@v4
         with:
           name: defeatist_music_player_for_m5tab5-${{ steps.ver.outputs.name }}
           path: |
-            build/defeatist_${{ steps.ver.outputs.name }}_music_player_for_m5tab5_standalone.bin
-            build/defeatist_${{ steps.ver.outputs.name }}_music_player_for_m5tab5.bin
+            m5tab5/build/defeatist_${{ steps.ver.outputs.name }}_music_player_for_m5tab5_standalone.bin
+            m5tab5/build/defeatist_${{ steps.ver.outputs.name }}_music_player_for_m5tab5.bin
 
       # 6031: an IDF 6 build writes its own lock (see CMakeLists.txt) and
       # this is the only place one gets made from the registry. Upload it
@@ -130,7 +135,7 @@ jobs:
         uses: actions/upload-artifact@v4
         with:
           name: dependencies.lock.idf6-${{ steps.ver.outputs.name }}
-          path: dependencies.lock.idf6
+          path: m5tab5/dependencies.lock.idf6
 
       # Two ways in, one step. Pushing a tag releases; a manual run
       # releases only when the box is ticked, so the dispatch stays
@@ -149,5 +154,5 @@ jobs:
           generate_release_notes: true
           fail_on_unmatched_files: true
           files: |
-            build/defeatist_${{ steps.ver.outputs.name }}_music_player_for_m5tab5_standalone.bin
-            build/defeatist_${{ steps.ver.outputs.name }}_music_player_for_m5tab5.bin
+            m5tab5/build/defeatist_${{ steps.ver.outputs.name }}_music_player_for_m5tab5_standalone.bin
+            m5tab5/build/defeatist_${{ steps.ver.outputs.name }}_music_player_for_m5tab5.bin

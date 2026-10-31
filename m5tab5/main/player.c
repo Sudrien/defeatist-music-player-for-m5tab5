@@ -46,6 +46,7 @@
 #include "esp_sleep.h"     /* esp_deep_sleep_start -- the Tab5 power-off tail */
 #include "esp_system.h"    /* esp_restart */
 #include "nvs_flash.h"
+#include "nvs_handler.h"
 #include "esp_heap_caps.h"
 #include "esp_random.h"    /* 6104: the dust's seed */
 #include "esp_log.h"
@@ -16043,18 +16044,13 @@ void app_main(void)
      * lose the saved networks; only one of them can be recovered from
      * without a reflash.
      */
-    esp_err_t nvs_err = nvs_flash_init();
-    if (nvs_err == ESP_ERR_NVS_NO_FREE_PAGES ||
-        nvs_err == ESP_ERR_NVS_NEW_VERSION_FOUND) {
-        ESP_LOGW(TAG, "NVS unusable (%s); erasing", esp_err_to_name(nvs_err));
-        if (nvs_flash_erase() == ESP_OK) nvs_err = nvs_flash_init();
-    }
+    esp_err_t nvs_err = nvsh_init();    /* 8064: the erase-and-retry is in it */
     if (nvs_err != ESP_OK) {
         /* Not fatal, and wifistore_init() is still called: it logs once
          * and leaves an empty list, which is settings.c's bargain. A
          * player that will not start because it could not read its
          * network list is a worse program than one that forgets them. */
-        ESP_LOGE(TAG, "nvs_flash_init: %s", esp_err_to_name(nvs_err));
+        ESP_LOGE(TAG, "nvsh_init: %s", esp_err_to_name(nvs_err));
     }
     if (nvs_err == ESP_OK) nvsns_migrate();     /* 6006: before anything reads it */
     wifistore_init(DEFEATIST_NVS_NS);           /* 6053: the namespace is ours to name */

@@ -12,7 +12,7 @@
 #include "esp_log.h"
 #include "freertos/FreeRTOS.h"
 #include "freertos/semphr.h"
-#include "nvs.h"
+#include "nvs_handler.h"
 
 #include "favorites.h"      /* favorites_url_eq() */
 #include "stations.h"       /* 5056: the uuid of the station being kept */
@@ -48,15 +48,8 @@ static void unlock(void) { xSemaphoreGive(s_lock); }
 static bool slot_read(const char *key, station_t *out)
 {
     memset(out, 0, sizeof(*out));
-    nvs_handle_t h;
-    const esp_err_t oe = nvs_open(NVS_NAMESPACE, NVS_READONLY, &h);
-    if (oe != ESP_OK) {
-        snprintf(s_last_err, sizeof(s_last_err), "open: %s", esp_err_to_name(oe));
-        return false;
-    }
     size_t len = sizeof(s_blob);
-    const esp_err_t err = nvs_get_blob(h, key, s_blob, &len);
-    nvs_close(h);
+    const esp_err_t err = nvsh_get_blob(NVS_NAMESPACE, key, s_blob, &len);
     snprintf(s_last_err, sizeof(s_last_err), "%s: %s, %u bytes",
              key, esp_err_to_name(err), (unsigned)len);
     if (err != ESP_OK || len < 3 || s_blob[len - 1] != '\0') return false;
@@ -83,20 +76,16 @@ static bool slot_read(const char *key, station_t *out)
 /* Under the lock. A NULL station erases the slot. */
 static bool slot_write(const char *key, const station_t *st)
 {
-    nvs_handle_t h;
-    esp_err_t err = nvs_open(NVS_NAMESPACE, NVS_READWRITE, &h);
-    if (err != ESP_OK) return false;
+    esp_err_t err;
     if (st) {
         const int n = snprintf(s_blob, sizeof(s_blob), "%s%c%s%c%s",
                                st->name, 0, st->url, 0, st->uuid);
         size_t len = (n > 0 && (size_t)n < sizeof(s_blob)) ? (size_t)n + 1 : 0;
-        err = len ? nvs_set_blob(h, key, s_blob, len) : ESP_ERR_INVALID_SIZE;
+        err = len ? nvsh_set_blob(NVS_NAMESPACE, key, s_blob, len) : ESP_ERR_INVALID_SIZE;
     } else {
-        err = nvs_erase_key(h, key);
+        err = nvsh_erase_key(NVS_NAMESPACE, key);
         if (err == ESP_ERR_NVS_NOT_FOUND) err = ESP_OK;
     }
-    if (err == ESP_OK) err = nvs_commit(h);
-    nvs_close(h);
     if (err != ESP_OK) {
         ESP_LOGW(TAG, "%s: write failed (%s)", key, esp_err_to_name(err));
     }

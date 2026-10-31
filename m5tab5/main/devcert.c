@@ -15,7 +15,7 @@
 #include "esp_random.h"
 #include "esp_timer.h"
 #include "esp_wifi.h"
-#include "nvs.h"
+#include "nvs_handler.h"
 
 #include "certgen.h"
 #include "portal.h"         /* PORTAL_SSID_MAX */
@@ -40,27 +40,25 @@ static int hw_rng(void *ctx, unsigned char *buf, size_t len)
 
 static bool load(void)
 {
-    nvs_handle_t h;
-    if (nvs_open(DEVCERT_NS, NVS_READONLY, &h) != ESP_OK) return false;
     size_t kl = KEY_CAP, cl = CRT_CAP;
-    const bool ok = nvs_get_str(h, "key", s_key, &kl) == ESP_OK &&
-                    nvs_get_str(h, "crt", s_crt, &cl) == ESP_OK;
-    nvs_close(h);
+    const bool ok = nvsh_get_str(DEVCERT_NS, "key", s_key, &kl) == ESP_OK &&
+                    nvsh_get_str(DEVCERT_NS, "crt", s_crt, &cl) == ESP_OK;
     if (!ok) return false;
-    s_key_len = kl;         /* nvs_get_str counts the NUL */
+    s_key_len = kl;         /* nvsh_get_str counts the NUL */
     s_crt_len = cl;
     return true;
 }
 
 static bool store(void)
 {
-    nvs_handle_t h;
-    if (nvs_open(DEVCERT_NS, NVS_READWRITE, &h) != ESP_OK) return false;
-    const bool ok = nvs_set_str(h, "key", s_key) == ESP_OK &&
-                    nvs_set_str(h, "crt", s_crt) == ESP_OK &&
-                    nvs_commit(h) == ESP_OK;
-    nvs_close(h);
-    return ok;
+    /* 8064: one commit held both before; nvsh commits each value. So the
+     * certificate is erased first and written last, and a cut between
+     * the writes leaves a key with no certificate rather than a new key
+     * with the old certificate, which load() could not tell from a
+     * pair: it fails, and a new pair is made. */
+    (void)nvsh_erase_key(DEVCERT_NS, "crt");
+    return nvsh_set_str(DEVCERT_NS, "key", s_key) == ESP_OK &&
+           nvsh_set_str(DEVCERT_NS, "crt", s_crt) == ESP_OK;
 }
 
 bool devcert_get(const char **crt, size_t *crt_len,

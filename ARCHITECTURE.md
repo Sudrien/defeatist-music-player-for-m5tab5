@@ -27522,3 +27522,36 @@ texttest, under the same gcc 15: 39 of 51 pass, and the 12 that do not
 fail only on that compiler's target -- uint32_t is unsigned long on
 riscv32, so %u is a format mismatch, and its newlib has no timegm() --
 which no x86-64 build sees. Host only.
+
+### 8064 -- NVS through feckless_nvs_handler, toward the ELF
+
+The first step of making this an app for Avoidant: an .elf cannot hold
+an `nvs_handle_t` or use NVS's iterators, and the feckless ABI's nvs
+section (feckless-libs' 4004) offers `feckless_nvs_handler`'s one-call
+`nvsh_*` instead. So approve.c, devcert.c, radiokeep.c, podindex.c and
+settings.c read and write through it, and player.c brings NVS up with
+`nvsh_init()`, whose erase-and-retry is the one it did by hand. The
+namespaces, keys and stored types are unchanged: what 8063 left on a
+Tab5 is read as it was.
+
+Two things differ. `nvsh` commits each value, where devcert.c's and
+podindex.c's `store` put two in one commit; so each erases the value
+that depends on the other first and writes it last, and a cut between
+the writes leaves a half the loader refuses, not a new key with the old
+certificate or secret. And a read before `nvsh_init()` is
+`ESP_ERR_INVALID_STATE`, not a working read: player.c's order (init,
+then `nvsns_migrate()`, then `settings_init()`) is as it was.
+
+Still raw NVS, on purpose: settings.c's `clkfix`, an i64 (`nvsh` has no
+i64: either the section gains it, which is compatible, or the value is
+stored another way), and nvsns.c's migration of the 6006 namespaces,
+which walks NVS with an iterator. Both are the next patch's to settle.
+
+`main/idf_component.yml`: all feckless libraries to feckless-libs
+v0.4.1 (their code is v0.3.0's, but for one comment in wifi.c) and
+`feckless_nvs_handler` added; main REQUIRES it. Touches a manifest:
+`dependencies.lock.idf6` re-resolves, and its diff wants reading.
+
+Not built (no ESP-IDF in the session), not on a Tab5. Looked for by
+grep: no `nvs_open`, `nvs_commit` or `nvs_close` is left in main/ but
+the two above.

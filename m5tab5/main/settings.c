@@ -26,7 +26,8 @@
 #include <strings.h>
 
 #include "cJSON.h"
-#include "nvs.h"
+#include "nvs.h"                /* clkfix's i64: nvsh has none */
+#include "nvs_handler.h"
 #include "screendim.h"
 #include "varispeed.h"          /* 6074 */
 #include "fx.h"                 /* 6097 */
@@ -58,12 +59,8 @@
 
 static bool wifi_nvs_read(bool *on)
 {
-    nvs_handle_t h;
-    if (nvs_open(WIFI_NVS_NS, NVS_READONLY, &h) != ESP_OK) return false;
     uint8_t v = 0;
-    const esp_err_t err = nvs_get_u8(h, WIFI_NVS_KEY, &v);
-    nvs_close(h);
-    if (err != ESP_OK) return false;
+    if (nvsh_get_u8(WIFI_NVS_NS, WIFI_NVS_KEY, &v) != ESP_OK) return false;
     *on = v != 0;
     return true;
 }
@@ -72,10 +69,7 @@ static void wifi_nvs_sync(bool on)
 {
     bool cur;
     if (wifi_nvs_read(&cur) && cur == on) return;
-    nvs_handle_t h;
-    if (nvs_open(WIFI_NVS_NS, NVS_READWRITE, &h) != ESP_OK) return;
-    if (nvs_set_u8(h, WIFI_NVS_KEY, on ? 1 : 0) == ESP_OK) (void)nvs_commit(h);
-    nvs_close(h);
+    (void)nvsh_set_u8(WIFI_NVS_NS, WIFI_NVS_KEY, on ? 1 : 0);
 }
 
 static const char *TAG = "tab5_settings";
@@ -349,12 +343,9 @@ static bool s_compact_due[STORAGE_COUNT];
 /* 5064: see PREFS_NVS_KEY. */
 static void prefs_nvs_load(void)
 {
-    nvs_handle_t h;
-    if (nvs_open(WIFI_NVS_NS, NVS_READONLY, &h) != ESP_OK) return;
     prefs_nvs_t p;
     size_t len = sizeof(p);
-    const esp_err_t err = nvs_get_blob(h, PREFS_NVS_KEY, &p, &len);
-    nvs_close(h);
+    const esp_err_t err = nvsh_get_blob(WIFI_NVS_NS, PREFS_NVS_KEY, &p, &len);
     if (err != ESP_OK || len != sizeof(p) || p.version != PREFS_NVS_VERSION) return;
 
     s_prefs_nvs = p;
@@ -385,26 +376,18 @@ static void prefs_nvs_sync(void)
     };
     if (s_prefs_nvs_known && memcmp(&p, &s_prefs_nvs, sizeof(p)) == 0) return;
 
-    nvs_handle_t h;
-    if (nvs_open(WIFI_NVS_NS, NVS_READWRITE, &h) != ESP_OK) return;
-    if (nvs_set_blob(h, PREFS_NVS_KEY, &p, sizeof(p)) == ESP_OK &&
-        nvs_commit(h) == ESP_OK) {
+    if (nvsh_set_blob(WIFI_NVS_NS, PREFS_NVS_KEY, &p, sizeof(p)) == ESP_OK) {
         s_prefs_nvs = p;
         s_prefs_nvs_known = true;
     }
-    nvs_close(h);
 }
 
 /* 6015: see LANG_NVS_KEY. Absent -- first boot, or before this patch --
  * leaves i18n at English. */
 static void lang_nvs_load(void)
 {
-    nvs_handle_t h;
-    if (nvs_open(WIFI_NVS_NS, NVS_READONLY, &h) != ESP_OK) return;
     uint8_t v = I18N_EN;
-    const esp_err_t err = nvs_get_u8(h, LANG_NVS_KEY, &v);
-    nvs_close(h);
-    if (err != ESP_OK) return;
+    if (nvsh_get_u8(WIFI_NVS_NS, LANG_NVS_KEY, &v) != ESP_OK) return;
     i18n_set_lang((i18n_lang_t)v);      /* out of range -> English */
     ESP_LOGI(TAG, "from flash: language=%s", i18n_lang_name(i18n_lang()));
 }
@@ -415,13 +398,10 @@ void settings_set_language(uint8_t lang)
 {
     i18n_set_lang((i18n_lang_t)lang);
     const uint8_t v = (uint8_t)i18n_lang();     /* as clamped */
-    nvs_handle_t h;
-    if (nvs_open(WIFI_NVS_NS, NVS_READWRITE, &h) != ESP_OK) return;
     uint8_t cur;
-    if (nvs_get_u8(h, LANG_NVS_KEY, &cur) != ESP_OK || cur != v) {
-        if (nvs_set_u8(h, LANG_NVS_KEY, v) == ESP_OK) (void)nvs_commit(h);
+    if (nvsh_get_u8(WIFI_NVS_NS, LANG_NVS_KEY, &cur) != ESP_OK || cur != v) {
+        (void)nvsh_set_u8(WIFI_NVS_NS, LANG_NVS_KEY, v);
     }
-    nvs_close(h);
 }
 
 uint8_t settings_volume(void) { return s_volume; }

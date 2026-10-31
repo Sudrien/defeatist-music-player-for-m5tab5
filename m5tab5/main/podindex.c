@@ -17,7 +17,7 @@
 #include "freertos/FreeRTOS.h"
 #include "freertos/semphr.h"
 #include "freertos/task.h"
-#include "nvs.h"
+#include "nvs_handler.h"
 
 #include "nvsns.h"
 #include "podauth.h"
@@ -102,12 +102,9 @@ static void set(podindex_state_t st, int http)
 void podindex_init(void)
 {
     s_mu = xSemaphoreCreateMutex();
-    nvs_handle_t h;
-    if (nvs_open(DEFEATIST_NVS_NS, NVS_READONLY, &h) != ESP_OK) return;
     size_t kn = sizeof(s_key), sn = sizeof(s_secret);
-    const bool have = nvs_get_str(h, NVS_KEY_KEY, s_key, &kn) == ESP_OK &&
-                      nvs_get_str(h, NVS_KEY_SECRET, s_secret, &sn) == ESP_OK;
-    nvs_close(h);
+    const bool have = nvsh_get_str(DEFEATIST_NVS_NS, NVS_KEY_KEY, s_key, &kn) == ESP_OK &&
+                      nvsh_get_str(DEFEATIST_NVS_NS, NVS_KEY_SECRET, s_secret, &sn) == ESP_OK;
     memset(s_secret, 0, sizeof(s_secret));
     if (have) {
         s_state = PODINDEX_WORKING;
@@ -197,13 +194,13 @@ static bool keep_cats(const char *body, size_t got)
 
 static bool save(const char *key, const char *secret)
 {
-    nvs_handle_t h;
-    if (nvs_open(DEFEATIST_NVS_NS, NVS_READWRITE, &h) != ESP_OK) return false;
-    const bool ok = nvs_set_str(h, NVS_KEY_KEY, key) == ESP_OK &&
-                    nvs_set_str(h, NVS_KEY_SECRET, secret) == ESP_OK &&
-                    nvs_commit(h) == ESP_OK;
-    nvs_close(h);
-    return ok;
+    /* 8064: nvsh commits each value, where one commit held both. The
+     * secret is erased first and written last, so a cut between leaves a
+     * key with no secret (not a new key with the old secret): the load
+     * wants both. */
+    (void)nvsh_erase_key(DEFEATIST_NVS_NS, NVS_KEY_SECRET);
+    return nvsh_set_str(DEFEATIST_NVS_NS, NVS_KEY_KEY, key) == ESP_OK &&
+           nvsh_set_str(DEFEATIST_NVS_NS, NVS_KEY_SECRET, secret) == ESP_OK;
 }
 
 static void try_task(void *arg)
@@ -262,12 +259,10 @@ static void cats_task(void *arg)
     (void)arg;
     static char key[PODAUTH_KEY_MAX], secret[PODAUTH_SECRET_MAX];
     bool ok = false;
-    nvs_handle_t h;
-    if (nvs_open(DEFEATIST_NVS_NS, NVS_READONLY, &h) == ESP_OK) {
+    {
         size_t kn = sizeof(key), sn = sizeof(secret);
-        ok = nvs_get_str(h, NVS_KEY_KEY, key, &kn) == ESP_OK &&
-             nvs_get_str(h, NVS_KEY_SECRET, secret, &sn) == ESP_OK;
-        nvs_close(h);
+        ok = nvsh_get_str(DEFEATIST_NVS_NS, NVS_KEY_KEY, key, &kn) == ESP_OK &&
+             nvsh_get_str(DEFEATIST_NVS_NS, NVS_KEY_SECRET, secret, &sn) == ESP_OK;
     }
     char *body = ok ? heap_caps_malloc(PI_BODY_MAX, MALLOC_CAP_SPIRAM | MALLOC_CAP_8BIT) : NULL;
     bool kept = false;
@@ -338,12 +333,10 @@ static void feeds_task(void *arg)
     static char key[PODAUTH_KEY_MAX], secret[PODAUTH_SECRET_MAX];
     static char url[128];
     bool ok = false;
-    nvs_handle_t h;
-    if (nvs_open(DEFEATIST_NVS_NS, NVS_READONLY, &h) == ESP_OK) {
+    {
         size_t kn = sizeof(key), sn = sizeof(secret);
-        ok = nvs_get_str(h, NVS_KEY_KEY, key, &kn) == ESP_OK &&
-             nvs_get_str(h, NVS_KEY_SECRET, secret, &sn) == ESP_OK;
-        nvs_close(h);
+        ok = nvsh_get_str(DEFEATIST_NVS_NS, NVS_KEY_KEY, key, &kn) == ESP_OK &&
+             nvsh_get_str(DEFEATIST_NVS_NS, NVS_KEY_SECRET, secret, &sn) == ESP_OK;
     }
     snprintf(url, sizeof(url), PI_TRENDING_FMT, cat);
     char *body = ok ? heap_caps_malloc(PI_FEEDS_BODY_MAX, MALLOC_CAP_SPIRAM | MALLOC_CAP_8BIT) : NULL;
@@ -447,12 +440,10 @@ static void eps_task(void *arg)
     const int64_t feed = s_eps_feed;
     xSemaphoreGive(s_mu);
     bool ok = false;
-    nvs_handle_t h;
-    if (nvs_open(DEFEATIST_NVS_NS, NVS_READONLY, &h) == ESP_OK) {
+    {
         size_t kn = sizeof(key), sn = sizeof(secret);
-        ok = nvs_get_str(h, NVS_KEY_KEY, key, &kn) == ESP_OK &&
-             nvs_get_str(h, NVS_KEY_SECRET, secret, &sn) == ESP_OK;
-        nvs_close(h);
+        ok = nvsh_get_str(DEFEATIST_NVS_NS, NVS_KEY_KEY, key, &kn) == ESP_OK &&
+             nvsh_get_str(DEFEATIST_NVS_NS, NVS_KEY_SECRET, secret, &sn) == ESP_OK;
     }
     snprintf(url, sizeof(url), PI_EPISODES_FMT, (long long)feed);
     char *body = ok ? heap_caps_malloc(PI_EPS_BODY_MAX, MALLOC_CAP_SPIRAM | MALLOC_CAP_8BIT) : NULL;

@@ -57,7 +57,7 @@ dependencies:
   usb_host_msc:
     git: https://github.com/Sudrien/feckless-libs-for-m5tab5.git
     path: components/usb_host_msc
-    version: "v0.3.0"
+    version: "v0.4.1"
 
   # USB audio host, for the UAC output path. Same story as the MSC driver
   # above: the host stack is in IDF, this is the class driver on top of
@@ -70,7 +70,7 @@ dependencies:
   usb_host_uac:
     git: https://github.com/Sudrien/feckless-libs-for-m5tab5.git
     path: components/usb_host_uac
-    version: "v0.3.0"
+    version: "v0.4.1"
 
   # 8061: IDF's FatFs with exFAT, patched at configure time by
   # feckless-libs' fatfs; cmake/exfat.cmake and tools/enable_exfat.sh,
@@ -78,7 +78,7 @@ dependencies:
   fatfs:
     git: https://github.com/Sudrien/feckless-libs-for-m5tab5.git
     path: components/fatfs
-    version: "v0.3.0"
+    version: "v0.4.1"
 
   # 6053: Wi-Fi, the saved networks and USB Ethernet are
   # feckless-network-handler-for-m5tab5 now, and the SD card, the USB drive
@@ -103,11 +103,11 @@ dependencies:
   feckless_network_handler:
     git: https://github.com/Sudrien/feckless-libs-for-m5tab5.git
     path: components/feckless_network_handler
-    version: "v0.3.0"
+    version: "v0.4.1"
   feckless_storage_handler:
     git: https://github.com/Sudrien/feckless-libs-for-m5tab5.git
     path: components/feckless_storage_handler
-    version: "v0.3.0"
+    version: "v0.4.1"
 
   # 6054: the USB host, USB audio, HID, the battery monitor, the clock
   # and touch are feckless-drivers-for-m5tab5. The two touch controllers'
@@ -132,7 +132,7 @@ dependencies:
   feckless_drivers:
     git: https://github.com/Sudrien/feckless-libs-for-m5tab5.git
     path: components/feckless_drivers
-    version: "v0.3.0"
+    version: "v0.4.1"
 
   # 6055: the panel, the backlight and gfx, with the Ark12 and Arabixel
   # fonts, are feckless-graphics-handler-for-m5tab5. esp_lcd_st7121 moved
@@ -143,7 +143,16 @@ dependencies:
   feckless_graphics_handler:
     git: https://github.com/Sudrien/feckless-libs-for-m5tab5.git
     path: components/feckless_graphics_handler
-    version: "v0.3.0"
+    version: "v0.4.1"
+
+# 8064: feckless-libs v0.4.1 for all of them, which brings
+# feckless_nvs_handler (its 4003): settings and saves a key at a time,
+# for the feckless ABI's nvs section. The seven other components' code is
+# as at v0.3.0 (one comment in wifi.c differs).
+  feckless_nvs_handler:
+    git: https://github.com/Sudrien/feckless-libs-for-m5tab5.git
+    path: components/feckless_nvs_handler
+    version: "v0.4.1"
 
 # minimp3 is NOT here. It is two headers with no component manifest
 # upstream, so cmake/vendored.cmake fetches them into components/minimp3/

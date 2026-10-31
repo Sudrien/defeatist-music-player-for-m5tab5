@@ -29,6 +29,7 @@ idf_component_register(
              esp_usbh_asix iot_eth iot_usbh_ecm iot_usbh_cdc
              app_update spi_flash   # launcher_import.c: esp_ota_ops + esp_partition
              feckless_network_handler feckless_storage_handler   # 6053
+             feckless_nvs_handler   # 8064
              feckless_drivers   # 6054
              feckless_graphics_handler   # 6055: gfx, lcd, ark12, arabixel
     PRIV_REQUIRES pngle minimp3 stbjpeg jxlimg   # 6139: jxlimg, JPEG XL

@@ -15,7 +15,7 @@
 #include "freertos/FreeRTOS.h"
 #include "freertos/semphr.h"
 #include "lwip/sockets.h"        /* inet_ntop */
-#include "nvs.h"
+#include "nvs_handler.h"
 
 #include "mbedtls/build_info.h"
 /* certgen.c's split, for certgen.c's reason (6031): Mbed TLS 4 (IDF 6)
@@ -85,33 +85,24 @@ static void tohex(const uint8_t *in, size_t n, char *out)
     out[2 * n] = '\0';
 }
 
-static void load_one(nvs_handle_t h, const char *key, approve_list_t *l)
+static void load_one(const char *key, approve_list_t *l)
 {
     size_t n = sizeof(*l);
-    if (nvs_get_blob(h, key, l, &n) != ESP_OK || n != sizeof(*l)) approve_list_clear(l);
+    if (nvsh_get_blob(DEFEATIST_NVS_NS, key, l, &n) != ESP_OK || n != sizeof(*l)) approve_list_clear(l);
 }
 
 static void load(void)
 {
-    nvs_handle_t h;
-    if (nvs_open(DEFEATIST_NVS_NS, NVS_READONLY, &h) != ESP_OK) return;
-    load_one(h, NVS_KEY_BROWSERS, &s_browsers);
-    load_one(h, NVS_KEY_MPD, &s_mpd);                           /* 8004 */
-    nvs_close(h);
+    load_one(NVS_KEY_BROWSERS, &s_browsers);
+    load_one(NVS_KEY_MPD, &s_mpd);                              /* 8004 */
 }
 
 /* ui_task only (approve.h). From a copy: the mutex is not held here. */
 static void store(const char *key, const approve_list_t *l)
 {
-    nvs_handle_t h;
-    if (nvs_open(DEFEATIST_NVS_NS, NVS_READWRITE, &h) != ESP_OK) {
-        ESP_LOGE(TAG, "could not open NVS; the approval lasts until power off");
-        return;
-    }
-    if (nvs_set_blob(h, key, l, sizeof(*l)) != ESP_OK || nvs_commit(h) != ESP_OK) {
+    if (nvsh_set_blob(DEFEATIST_NVS_NS, key, l, sizeof(*l)) != ESP_OK) {
         ESP_LOGE(TAG, "could not save; the approval lasts until power off");
     }
-    nvs_close(h);
 }
 
 /* 8004: an address as a list key. */

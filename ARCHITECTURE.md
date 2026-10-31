@@ -27599,3 +27599,38 @@ that (8065's lesson).
 
 Not built (no ESP-IDF in the session), not on a Tab5. The migration was
 read, not run: a Tab5 still holding the three old namespaces is its test.
+
+### 8067 -- launcher_present() and launcher_exit_to_launcher() for both layouts
+
+Two layouts hold a launcher now, and the old test only knew the first.
+In the **slot** layout the launcher is a separate image in the `launcher`
+(factory) partition and Defeatist is an OTA app: `launcher_present()` is
+true when the factory partition exists and is not what is running, and
+leaving is `esp_ota_set_boot_partition(factory)` then `esp_restart()`.
+In the **hosted** layout (Avoidant) Defeatist is an .elf run *by* the
+launcher, so the running partition *is* the factory one and a `app2`
+partition (ota_0) exists beside it: `launcher_present()` is true there
+too, and leaving is only `esp_restart()` -- Avoidant is the image that
+boots, and choosing the factory partition would erase otadata for
+nothing. Factory running with no `app2` is the launcher itself (or a
+standalone build of something else): `LAUNCHER_NONE`.
+
+The decision is `launcherpresence.h` -- `launcher_kind(has_factory,
+running_is_factory, has_app2)`, three booleans in, one of
+`LAUNCHER_NONE`/`SLOT`/`HOSTED` out -- so it runs on the host
+(`make run-launcherpres` in texttest/, 7 checks). launcher_import.c only
+gathers the three booleans from `esp_partition_find_first()` and
+`esp_ota_get_running_partition()`. The ABI has no "who hosts me" query, so
+the partition table is the signal; both calls are already exported.
+
+`esp_ota_set_boot_partition` is the one new name, and an .elf build fails
+on it until feckless-libs 7002 puts it in the core exports. The slot
+build and the standalone shim are not affected by the order.
+
+Not built (no ESP-IDF in the session), not on a Tab5. The tail of
+launcher_import.c compiled at `-Wall -Wextra -Werror` against stub
+headers; the three-boolean logic was run, the partition calls were read.
+Side effect to know: the M5Launcher Wi-Fi import row in the network panel
+is gated on `launcher_present()`, so it now also shows in the hosted
+layout, where Avoidant has its own import (Avoidant 0045). Removing the
+row is a separate patch.

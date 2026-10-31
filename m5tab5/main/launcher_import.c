@@ -10,6 +10,7 @@
  * SPDX-License-Identifier: MIT
  */
 #include "launcher_import.h"
+#include "launcherpresence.h"   /* 8067 */
 
 #include <string.h>
 #include <stdio.h>
@@ -504,19 +505,42 @@ esp_err_t launcher_import_request(void) {
 }
 
 /* ---- launcher presence / return ----------------------------------------- */
+/* 8067: the decision is launcherpresence.h's (host-tested). Both ways of
+ * being run by a launcher: a firmware in another slot of its table, and an
+ * ELF it loaded, which runs from its own (factory) slot. */
 static const esp_partition_t *li_factory(void) {
     return esp_partition_find_first(ESP_PARTITION_TYPE_APP,
                                     ESP_PARTITION_SUBTYPE_APP_FACTORY, NULL);
 }
 
-bool launcher_present(void) {
+static launcher_kind_t li_kind(void) {
     const esp_partition_t *fac = li_factory();
-    return fac && fac != esp_ota_get_running_partition();
+    const bool has_app2 = esp_partition_find_first(ESP_PARTITION_TYPE_APP,
+                                                   ESP_PARTITION_SUBTYPE_APP_OTA_0, "app2") != NULL;
+    return launcher_kind(fac != NULL, fac && fac == esp_ota_get_running_partition(), has_app2);
+}
+
+bool launcher_present(void) {
+    return li_kind() != LAUNCHER_NONE;
 }
 
 void launcher_exit_to_launcher(void) {
-    const esp_partition_t *fac = li_factory();
-    if (!fac) return;                                 /* not under Launcher */
-    if (esp_ota_set_boot_partition(fac) != ESP_OK) return;
-    esp_restart();                                    /* does not return */
+    switch (li_kind()) {
+    case LAUNCHER_SLOT:
+        /* Choosing factory also erases otadata, which is how Avoidant
+         * tells this from a reset out of its app2 (its 0015). The call
+         * is named in the ELF build too (feckless-libs' 7002), though an
+         * ELF never reaches it. */
+        if (esp_ota_set_boot_partition(li_factory()) != ESP_OK) return;
+        esp_restart();                                /* does not return */
+        break;
+    case LAUNCHER_HOSTED:
+        /* The launcher's own slot is running, and nothing was chosen to
+         * come back to: a restart lands in its menu. */
+        esp_restart();
+        break;
+    case LAUNCHER_NONE:
+    default:
+        return;                                       /* nothing above us */
+    }
 }

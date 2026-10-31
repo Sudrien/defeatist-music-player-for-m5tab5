@@ -75,20 +75,23 @@ bool launcher_import_running(void);
 void launcher_import_status(li_status_t *out);
 
 /*
- * True when this firmware was launched from M5Launcher -- i.e. a factory
- * app partition (Launcher lives there) exists and is not the partition
- * we are running from. Cheap and instant (no flash scan): a single
- * partition-table lookup, safe to call from a draw path. Used to hide
- * the import row and the exit button on a standalone flash, where there
- * is no Launcher to import from or return to.
+ * True when a launcher runs this firmware: either it is installed in a
+ * slot of the launcher's partition table (a factory app exists and is not
+ * the one running -- Avoidant's app2, M5Launcher's OTA slots), or it is an
+ * ELF the launcher loaded and runs from the launcher's own slot (8067; the
+ * table has Avoidant's "app2" beside it). Cheap and instant: partition-
+ * table lookups, safe to call from a draw path. Used to hide the exit
+ * button on a firmware flashed on its own, where there is nothing to
+ * return to. launcherpresence.h has the rule.
  */
 bool launcher_present(void);
 
 /*
- * Reboot into M5Launcher by pointing the boot selection at the factory
- * partition. Does not return on success. No-op (returns) when there is
- * no factory partition -- see launcher_present(). Caller should stop
- * playback/recording first; this does not unmount or flush.
+ * Go back to the launcher. From another slot: choose the factory slot to
+ * boot and restart. As the launcher's ELF: restart, which lands in its
+ * menu. Does not return on success; a no-op (returns) when there is no
+ * launcher -- see launcher_present(). Caller should stop playback/
+ * recording first; this does not unmount or flush.
  */
 void launcher_exit_to_launcher(void);
 

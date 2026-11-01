@@ -28351,3 +28351,25 @@ whether the precompiled (not necessarily position-independent) archives
 *load* in esp_elf is a separate question that only a board answers.
 `heapmap.c` was not compiled (the stub set has no `freertos/task.h`); the
 `player.c` change is a deletion.
+
+### 8091 -- esp_audio_codec's libraries are bare names
+
+8090's configure line said what it found for `esp_audio_codec`:
+`-L .../lib/esp32p4`, twice -- the directory, and nothing naming a library.
+The same 15 codec symbols stayed undefined. The component's link interface
+is therefore `-L <dir>` followed by library names that are not flags and not
+`.a` paths, which target_link_libraries() turns into `-l<name>`. 8090's
+filter dropped them.
+
+`elf/CMakeLists.txt` now also takes an entry that is a bare name (letters,
+digits, `_ . +`) and not a CMake target, and puts `-l<name>` on the line.
+The two properties IDF fills with the same list are read once, so the
+`-L` is not doubled. The configure line still prints what it found: it
+should now list `-l` entries after the `-L`.
+
+**Not checked:** nothing ran, and I have still not seen the component's
+CMakeLists or `project_elf()`. If the line lists libraries and the symbols
+remain, the ELF's link line puts them where the archive order does not
+work, or `ELF_LIBS` is not read where I think; the two files are what to
+send then. Whether the precompiled archives load in esp_elf is a board
+question. Not on a Tab5.

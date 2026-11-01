@@ -91,21 +91,29 @@ endforeach()
 # interface, not libespressif__esp_audio_codec.a itself -- were left out and
 # showed as undefined (esp_*_dec_register, esp_audio_simple_dec_*). What a
 # component in ELF_COMPONENTS asks to be linked with, as flags and
-# archive paths, goes on the ELF's link line (ELF_LIBS, which project_elf()
-# takes). Printed, since this is read from the component manager's CMake
+# archive paths, and the bare names that are no target (-l<name>), goes on
+# the ELF's link line (ELF_LIBS, which project_elf() takes). Printed, since this is read from the component manager's CMake
 # without being run: the line says what was found.
 set(_elf_extra "")
 foreach(_c IN LISTS ELF_COMPONENTS)
     idf_component_get_property(_lib ${_c} COMPONENT_LIB)
+    set(_prev_ll "")
     foreach(_prop LINK_LIBRARIES INTERFACE_LINK_LIBRARIES)
         get_target_property(_ll ${_lib} ${_prop})
-        if(NOT _ll)
+        # IDF copies a component's link interface into both; once is enough.
+        if(NOT _ll OR _ll STREQUAL _prev_ll)
             continue()
         endif()
+        set(_prev_ll "${_ll}")
         set(_prev "")
         foreach(_l IN LISTS _ll)
             if(_l MATCHES "^-" OR _l MATCHES "\\.a$" OR _prev STREQUAL "-L")
                 list(APPEND _elf_extra "${_l}")
+            elseif(_l MATCHES "^[A-Za-z0-9_.+]+$" AND NOT TARGET "${_l}")
+                # A bare name that is no target is a library: -l<name>.
+                # (8091: esp_audio_codec names its decoders so, after a
+                # "-L <dir>"; the flags alone found no archive.)
+                list(APPEND _elf_extra "-l${_l}")
             endif()
             set(_prev "${_l}")
         endforeach()

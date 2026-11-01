@@ -47,7 +47,7 @@ dependencies:
   usb_host_msc:
     git: https://github.com/Sudrien/feckless-libs-for-m5tab5.git
     path: components/usb_host_msc
-    version: "v0.8.2"
+    version: "v0.8.3"
 
   # USB audio host, for the UAC output path. Same story as the MSC driver
   # above: the host stack is in IDF, this is the class driver on top of
@@ -60,7 +60,7 @@ dependencies:
   usb_host_uac:
     git: https://github.com/Sudrien/feckless-libs-for-m5tab5.git
     path: components/usb_host_uac
-    version: "v0.8.2"
+    version: "v0.8.3"
 
   # 8061: IDF's FatFs with exFAT, patched at configure time by
   # feckless-libs' fatfs; cmake/exfat.cmake and tools/enable_exfat.sh,
@@ -68,7 +68,7 @@ dependencies:
   fatfs:
     git: https://github.com/Sudrien/feckless-libs-for-m5tab5.git
     path: components/fatfs
-    version: "v0.8.2"
+    version: "v0.8.3"
 
   # 6053: Wi-Fi, the saved networks and USB Ethernet are
   # feckless-network-handler-for-m5tab5 now, and the SD card, the USB drive
@@ -93,11 +93,11 @@ dependencies:
   feckless_network_handler:
     git: https://github.com/Sudrien/feckless-libs-for-m5tab5.git
     path: components/feckless_network_handler
-    version: "v0.8.2"
+    version: "v0.8.3"
   feckless_storage_handler:
     git: https://github.com/Sudrien/feckless-libs-for-m5tab5.git
     path: components/feckless_storage_handler
-    version: "v0.8.2"
+    version: "v0.8.3"
 
   # 6054: the USB host, USB audio, HID, the battery monitor, the clock
   # and touch are feckless-drivers-for-m5tab5. The two touch controllers'
@@ -122,7 +122,7 @@ dependencies:
   feckless_drivers:
     git: https://github.com/Sudrien/feckless-libs-for-m5tab5.git
     path: components/feckless_drivers
-    version: "v0.8.2"
+    version: "v0.8.3"
 
   # 6055: the panel, the backlight and gfx, with the Ark12 and Arabixel
   # fonts, are feckless-graphics-handler-for-m5tab5. esp_lcd_st7121 moved
@@ -133,7 +133,7 @@ dependencies:
   feckless_graphics_handler:
     git: https://github.com/Sudrien/feckless-libs-for-m5tab5.git
     path: components/feckless_graphics_handler
-    version: "v0.8.2"
+    version: "v0.8.3"
 
 # 8064: feckless-libs v0.4.1 for all of them, which brings
 # feckless_nvs_handler (its 4003): settings and saves a key at a time,
@@ -142,7 +142,7 @@ dependencies:
   feckless_nvs_handler:
     git: https://github.com/Sudrien/feckless-libs-for-m5tab5.git
     path: components/feckless_nvs_handler
-    version: "v0.8.2"
+    version: "v0.8.3"
 
 # 8069: the pictures. feckless_image_handler (its 7004-7009): the format
 # sniff, every decoder this player had (stb_image, pngle, J40, TJpgDec, the
@@ -153,7 +153,7 @@ dependencies:
   feckless_image_handler:
     git: https://github.com/Sudrien/feckless-libs-for-m5tab5.git
     path: components/feckless_image_handler
-    version: "v0.8.2"
+    version: "v0.8.3"
 
 # minimp3 is NOT here. It is two headers with no component manifest
 # upstream, so cmake/vendored.cmake fetches them into components/minimp3/
@@ -179,24 +179,38 @@ dependencies:
   feckless_abi:
     git: https://github.com/Sudrien/feckless-libs-for-m5tab5.git
     path: components/feckless_abi
-    version: "v0.8.2"
+    version: "v0.8.3"
   feckless_abi_storage:
     git: https://github.com/Sudrien/feckless-libs-for-m5tab5.git
     path: components/feckless_abi_storage
-    version: "v0.8.2"
+    version: "v0.8.3"
   feckless_abi_nvs:
     git: https://github.com/Sudrien/feckless-libs-for-m5tab5.git
     path: components/feckless_abi_nvs
-    version: "v0.8.2"
+    version: "v0.8.3"
   feckless_abi_network:
     git: https://github.com/Sudrien/feckless-libs-for-m5tab5.git
     path: components/feckless_abi_network
-    version: "v0.8.2"
+    version: "v0.8.3"
   feckless_abi_image:
     git: https://github.com/Sudrien/feckless-libs-for-m5tab5.git
     path: components/feckless_abi_image
-    version: "v0.8.2"
+    version: "v0.8.3"
   feckless_abi_crypto:
     git: https://github.com/Sudrien/feckless-libs-for-m5tab5.git
     path: components/feckless_abi_crypto
-    version: "v0.8.2"
+    version: "v0.8.3"
+
+# 8092: feckless-libs v0.8.3 for all of them (the fifteen pins above), which
+# is v0.8.2 plus its 8008: the audio section. esp_audio_codec's decoders are
+# precompiled archives built without -fPIC, so they cannot link into the
+# player's ELF (8090's and 8091's aim; the link would stop on R_RISCV_HI20); the
+# launcher links the codec and exports its decoders, and the ELF takes
+# them from there. feckless_abi_audio pins espressif/esp_audio_codec at
+# exactly 2.5.0 -- the app's structures are read by the launcher's codec,
+# so the two must agree -- which the range on esp_audio_codec above allows
+# and the lock already holds. The build change is the next patch.
+  feckless_abi_audio:
+    git: https://github.com/Sudrien/feckless-libs-for-m5tab5.git
+    path: components/feckless_abi_audio
+    version: "v0.8.3"

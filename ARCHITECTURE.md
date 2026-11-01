@@ -28373,3 +28373,43 @@ remain, the ELF's link line puts them where the archive order does not
 work, or `ELF_LIBS` is not read where I think; the two files are what to
 send then. Whether the precompiled archives load in esp_elf is a board
 question. Not on a Tab5.
+
+### 8092 -- feckless-libs v0.8.3, and the audio section named
+
+A manifest-only patch, as 8086 was, so the lock can be read by itself.
+`main/idf_component.yml` moves its fifteen feckless pins `v0.8.2` ->
+`v0.8.3` and names `feckless_abi_audio` at the same tag. v0.8.3 is v0.8.2
+plus feckless-libs' 8008, the audio section: `feckless_abi_audio_v1` and 18
+of `esp_audio_codec`'s decoder names (`esp_audio_simple_dec_*`,
+`esp_audio_dec_*`, both `register_default()`s).
+
+**Why a section and not 8090's link line.** 8090 guessed that the codecs
+were missing from the ELF only because the link took
+`libespressif__esp_audio_codec.a` and not the archives beside it. That is
+half of it: esp_audio_codec names them as `add_prebuilt_library()` targets
+(`esp_sdec`, `esp_acodec`), not `.a` paths, so 8090's loop found nothing
+but a `-L`. 8091's `-l<name>` for a bare name that is no target does not
+reach them either: they are IMPORTED targets, so `NOT TARGET` skips them
+(from esp_audio_codec 2.5.0's CMakeLists, read at esp-adf-libs a791bb9).
+And taking them would not have linked: they are built without
+`-fPIC` (absolute `R_RISCV_HI20`/`LO12` relocations), and a `-shared`
+link of 2.5.0's esp32p4 archives with Espressif's esp-14.2.0 toolchain and
+`project_elf()`'s flags stops with 76 "can not be used when making a shared
+object; recompile with -fPIC". Only Espressif can rebuild them. So the
+launcher links the codec and exports it, as it does the JPEG engine.
+
+**The pin.** `feckless_abi_audio`'s manifest pins `espressif/esp_audio_codec`
+at exactly `2.5.0`: the player compiles the structures it hands the codec
+from its own copy of the headers and the launcher's codec reads them. This
+manifest's own `">=2.3.0,<2.6.0"` allows that, and the lock already holds
+2.5.0, so the codec should not move.
+
+**This is a manifest change, so `dependencies.lock.idf6` re-resolves on the
+next build** and the diff wants reading: the git pins move to v0.8.3, and
+`feckless_abi_audio` joins. `esp_audio_codec` should stay at 2.5.0; if it
+moves, that is the thing to stop on. Nothing requires the new component
+yet, so the firmware is as before (and the ELF still fails its check as in
+8090). The build change is the next patch.
+
+Not built (no ESP-IDF in the session, the registry not reachable), not on a
+Tab5.

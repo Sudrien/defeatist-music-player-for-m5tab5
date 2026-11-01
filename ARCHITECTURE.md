@@ -28413,3 +28413,51 @@ yet, so the firmware is as before (and the ELF still fails its check as in
 
 Not built (no ESP-IDF in the session, the registry not reachable), not on a
 Tab5.
+
+### 8093 -- the ELF takes the codec from the audio section
+
+The build half of 8092. The player's ELF no longer tries to link
+`esp_audio_codec`; it takes the codec's decoders from the launcher through
+feckless-libs' audio section, and this firmware's own shim gives them.
+
+- **`elf/CMakeLists.txt`**: `esp_audio_codec` leaves the `ELF_COMPONENTS`
+  pattern (cJSON and `esp_jpeg` stay), and 8090's loop goes with it. The
+  loop read each component's link interface for flags and `.a` paths, and
+  since 8091 for bare names that are no target; esp_audio_codec names its
+  archives as `add_prebuilt_library()` targets (`esp_sdec`, `esp_acodec`),
+  so either way it found only the `-L`. The archives would not have linked
+  anyway: they are not position-independent (8092). Nothing
+  else in `ELF_COMPONENTS` brings archives of its own. The configure line
+  `defeatist_player: ELF_COMPONENTS ...; extra link line: ...` is gone.
+- **`main/elf_main.c`**: `feckless_abi_require_audio()` beside the other
+  six, so a launcher without the section refuses the ELF by the name
+  `feckless_abi_audio_v1` rather than the player failing at its first track.
+- **`main/CMakeLists.txt`**: the ELF's `main` REQUIRES `feckless_abi_audio`
+  (the codec's headers come through it; nothing of it is linked into the
+  ELF). The .bin's `main` (the shim) PRIV_REQUIRES it, so the standalone
+  firmware links the codec and the section's table, and its
+  `feckless_abi_run()` registers them.
+
+Under Avoidant, the ELF runs only once Avoidant links `feckless_abi_audio`
+at v0.8.3 too; until then `esp_elf_relocate()` refuses it naming
+`feckless_abi_audio_v1`, which is the intended failure.
+
+**Expected from the next build:** the ABI check passes, or lists names that
+are not the codec's (8090's other three causes were fixed there). The
+check's last line should read `all in feckless_abi_v1 + ...
+feckless_abi_audio_v1`, with the other sections. The .bin's link pulls in
+the codec's archives through the section's `WHOLE_ARCHIVE` table; if it
+reports undefined `esp_*_dec_*` names, the archives did not reach that link
+and that log is what to send.
+
+**Checked:** feckless-libs' 8008 was checked there with Espressif's
+esp-14.2.0 toolchain (a test app making this player's six codec calls,
+linked as `project_elf()` does, passes `abicheck.cmake` with the section).
+Here, `elf_main.c` compiles with that toolchain at
+`-std=gnu11 -O2 -Wall -Werror=all -Wextra -Werror=extra -fPIC` against
+v0.8.3's real ABI headers, stubbing only the IDF types those headers name
+(`i2c_master_dev_handle_t`, `httpd_handle_t`, `httpd_config_t`, Mbed TLS's
+major); its object refers to `feckless_abi_audio_v1` beside the other
+sections' symbols. **Not checked:** no CMake ran (no ESP-IDF), so the
+`elf/` configure, the ELF link and the shim's link are untested; not on a
+Tab5, standalone or under Avoidant.

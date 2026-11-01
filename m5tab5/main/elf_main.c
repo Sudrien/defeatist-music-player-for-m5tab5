@@ -15,6 +15,7 @@
 #include "defeatist.h"
 
 #include "feckless_abi.h"
+#include "feckless_abi_audio.h"    /* 8093 */
 #include "feckless_abi_crypto.h"
 #include "feckless_abi_image.h"
 #include "feckless_abi_network.h"
@@ -29,5 +30,6 @@ void app_main(void)
     feckless_abi_require_network();
     feckless_abi_require_image();
     feckless_abi_require_crypto();
+    feckless_abi_require_audio();    /* 8093: esp_audio_codec's decoders */
     defeatist_main();
 }

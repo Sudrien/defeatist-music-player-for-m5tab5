@@ -1,10 +1,11 @@
 # 8087: the player as an ELF for esp_elf -- main/'s sources, linked
 # position-independent with the libraries that are not the ABI's linked in
 # (minimp3 is a header in decoder.c; cJSON; feckless_image_handler's
-# decoders; esp_audio_codec's decoders) and every other call left
-# undefined: the feckless ABI's, with its storage, nvs, network, image and
-# crypto sections (feckless_abi, feckless_abi_storage, feckless_abi_nvs,
-# feckless_abi_network, feckless_abi_image, feckless_abi_crypto from
+# decoders) and every other call left
+# undefined: the feckless ABI's, with its storage, nvs, network, image,
+# crypto and audio sections (feckless_abi, feckless_abi_storage, feckless_abi_nvs,
+# feckless_abi_network, feckless_abi_image, feckless_abi_crypto,
+# feckless_abi_audio from
 # feckless-libs-for-m5tab5). The build checks the ELF against them. The
 # shape is Errant's, Lothesome's, Unprofitable Mahjong's and Spurious's.
 #
@@ -73,55 +74,25 @@ project(defeatist_player)
 
 # Into the ELF, not the ABI: the libraries the ABI does not export, because
 # nothing on the launcher's side is built from them. Components that come
-# from the registry have the manager's name (espressif__esp_audio_codec,
+# from the registry have the manager's name (espressif__esp_jpeg,
 # espressif__cjson); IDF 5's cJSON is its own `json`. Whichever it is, it is
 # the component whose name ends so, as Errant finds it. feckless_image_handler
 # is a git dependency, so its bare name.
+#
+# 8093: not esp_audio_codec. Its decoders are precompiled archives built
+# without -fPIC, which a position-independent link refuses (R_RISCV_HI20,
+# "recompile with -fPIC"); the launcher links the codec and the ELF takes
+# it through the ABI's audio section (feckless_abi_audio). 8090's loop,
+# which put a component's link-interface archives on the ELF's link line
+# for it, found only a -L (the archives are add_prebuilt_library()
+# targets, not paths; 8091's -l<name> skips targets too) and is gone with it.
 set(ELF_COMPONENTS feckless_image_handler)
 idf_build_get_property(_comps BUILD_COMPONENTS)
 foreach(_c IN LISTS _comps)
-    if(_c MATCHES "(^|__)(c?json|esp_audio_codec|esp_jpeg)$")
+    if(_c MATCHES "(^|__)(c?json|esp_jpeg)$")
         list(APPEND ELF_COMPONENTS "${_c}")
     endif()
 endforeach()
-
-# 8090: the archives a component brings that are not its own code. The
-# ELF is linked from the components' libraries only, so esp_audio_codec's
-# decoders -- precompiled .a files the component names in its link
-# interface, not libespressif__esp_audio_codec.a itself -- were left out and
-# showed as undefined (esp_*_dec_register, esp_audio_simple_dec_*). What a
-# component in ELF_COMPONENTS asks to be linked with, as flags and
-# archive paths, and the bare names that are no target (-l<name>), goes on
-# the ELF's link line (ELF_LIBS, which project_elf() takes). Printed, since this is read from the component manager's CMake
-# without being run: the line says what was found.
-set(_elf_extra "")
-foreach(_c IN LISTS ELF_COMPONENTS)
-    idf_component_get_property(_lib ${_c} COMPONENT_LIB)
-    set(_prev_ll "")
-    foreach(_prop LINK_LIBRARIES INTERFACE_LINK_LIBRARIES)
-        get_target_property(_ll ${_lib} ${_prop})
-        # IDF copies a component's link interface into both; once is enough.
-        if(NOT _ll OR _ll STREQUAL _prev_ll)
-            continue()
-        endif()
-        set(_prev_ll "${_ll}")
-        set(_prev "")
-        foreach(_l IN LISTS _ll)
-            if(_l MATCHES "^-" OR _l MATCHES "\\.a$" OR _prev STREQUAL "-L")
-                list(APPEND _elf_extra "${_l}")
-            elseif(_l MATCHES "^[A-Za-z0-9_.+]+$" AND NOT TARGET "${_l}")
-                # A bare name that is no target is a library: -l<name>.
-                # (8091: esp_audio_codec names its decoders so, after a
-                # "-L <dir>"; the flags alone found no archive.)
-                list(APPEND _elf_extra "-l${_l}")
-            endif()
-            set(_prev "${_l}")
-        endforeach()
-    endforeach()
-endforeach()
-# In order and not de-duplicated: a --start-group needs its --end-group.
-list(APPEND ELF_LIBS ${_elf_extra})
-message(STATUS "defeatist_player: ELF_COMPONENTS ${ELF_COMPONENTS}; extra link line: ${_elf_extra}")
 feckless_abi_elf(defeatist_player)
 
 # 5283: libversions.h, the BUILD tab's list -- moved here from the top-level

@@ -12,7 +12,6 @@
 #include "freertos/task.h"
 #include "esp_heap_caps.h"
 #include "esp_log.h"
-#include "esp_memory_utils.h"
 #include "esp_timer.h"
 #include "sdkconfig.h"
 #if CONFIG_HEAP_TASK_TRACKING
@@ -91,9 +90,15 @@ static void scrape_callers(size_t size, uint32_t caps)
     unsigned found = 0;
     for (unsigned i = 0; i < SCRAPE_WORDS && found < SCRAPE_MAX_ADDRS; i++) {
         const uint32_t *w = sp + i;
-        if (!esp_ptr_byte_accessible(w)) break;   /* off the end of RAM */
         const uint32_t v = *w;
-        if (!esp_ptr_executable((const void *)(uintptr_t)v)) continue;
+        /* 8090: esp_ptr_executable() and esp_ptr_byte_accessible() are
+         * out-of-line IDF calls the feckless ABI does not carry, and the
+         * player is an ELF. Code is 0x4xxxxxxx on this chip: flash at
+         * 0x40000000, and PSRAM at 0x48000000, which is where this ELF's
+         * own code is. The 192 words are read from the frame upward, inside
+         * the task's stack or the memory next to it, so the old bounds
+         * check against the end of RAM goes with them. */
+        if (v < 0x40000000u || v >= 0x50000000u) continue;
         used += (size_t)snprintf(line + used, sizeof(line) - used, " 0x%08x",
                                  (unsigned)v);
         found++;

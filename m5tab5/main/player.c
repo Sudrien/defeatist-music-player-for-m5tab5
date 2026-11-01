@@ -165,19 +165,14 @@ static const char *TAG = "tab5_mp3";
  * LCD_H_RES and LCD_V_RES come from its lcd.h. */
 
 /*
- * DSI bridge underruns, counted in the ISR.
- *
- * Defined in the vendored components/esp_lcd -- see cmake/dpi_instrument.cmake
- * and tools/instrument_dpi.sh, which replace that ISR's ESP_DRAM_LOGE with
- * an increment of this. The log call was never seen once in any capture,
- * and there was no way to tell whether that meant no underruns or a
- * printf that never reached the USB console. This tells them apart.
- *
- * Read without a lock. It is a single aligned word written by one ISR and
- * read by one task, and a report that is one behind is a report about the
- * same second.
+ * 8090: the DSI underrun counter (g_tab5_dpi_underruns, incremented by the
+ * instrumented ISR in the vendored components/esp_lcd, see
+ * cmake/dpi_instrument.cmake) is not read here any more. The player is an
+ * ELF; the counter is a variable in the host's esp_lcd, which the feckless
+ * ABI does not export, and under Avoidant the ISR is IDF's own. The report
+ * that read it, once a second and only when it moved, is gone from
+ * ui_task(). The ISR's counting is the .bin's, unread.
  */
-extern uint32_t g_tab5_dpi_underruns;
 
 /*
  * DIAGNOSTIC. Not a feature, and not meant to survive.
@@ -10020,28 +10015,6 @@ static void ui_task(void *arg)
          * 10 Hz does not read as movement, it reads as a title jumping
          * three pixels at a time; ui_animating() is false the moment the
          * title fits, so a short one costs nothing. */
-        /*
-         * The underrun counter, once a second and only when it has
-         * moved. Silence means the DPI is keeping up; a line here next
-         * to a flash is the confirmation five patches of bandwidth work
-         * have been assuming, and a flash with no line here means those
-         * patches were aimed at the wrong thing entirely.
-         */
-        {
-            static uint32_t   last_underruns;
-            static TickType_t last_report;
-            const TickType_t now = xTaskGetTickCount();
-            if (pdTICKS_TO_MS(now - last_report) >= 1000) {
-                const uint32_t n = g_tab5_dpi_underruns;
-                if (n != last_underruns) {
-                    ESP_LOGW(TAG, "DSI underruns: %" PRIu32 " (+%" PRIu32 ")",
-                             n, n - last_underruns);
-                    last_underruns = n;
-                }
-                last_report = now;
-            }
-        }
-
         int period = 100;
         if (down || behind) period = 20;    /* 5188: back to the page soon */
         else if (!s_screen_off && ui_animating()) period = 40;

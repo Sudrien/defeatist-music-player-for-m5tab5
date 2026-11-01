@@ -80,10 +80,40 @@ project(defeatist_player)
 set(ELF_COMPONENTS feckless_image_handler)
 idf_build_get_property(_comps BUILD_COMPONENTS)
 foreach(_c IN LISTS _comps)
-    if(_c MATCHES "(^|__)(c?json|esp_audio_codec)$")
+    if(_c MATCHES "(^|__)(c?json|esp_audio_codec|esp_jpeg)$")
         list(APPEND ELF_COMPONENTS "${_c}")
     endif()
 endforeach()
+
+# 8090: the archives a component brings that are not its own code. The
+# ELF is linked from the components' libraries only, so esp_audio_codec's
+# decoders -- precompiled .a files the component names in its link
+# interface, not libespressif__esp_audio_codec.a itself -- were left out and
+# showed as undefined (esp_*_dec_register, esp_audio_simple_dec_*). What a
+# component in ELF_COMPONENTS asks to be linked with, as flags and
+# archive paths, goes on the ELF's link line (ELF_LIBS, which project_elf()
+# takes). Printed, since this is read from the component manager's CMake
+# without being run: the line says what was found.
+set(_elf_extra "")
+foreach(_c IN LISTS ELF_COMPONENTS)
+    idf_component_get_property(_lib ${_c} COMPONENT_LIB)
+    foreach(_prop LINK_LIBRARIES INTERFACE_LINK_LIBRARIES)
+        get_target_property(_ll ${_lib} ${_prop})
+        if(NOT _ll)
+            continue()
+        endif()
+        set(_prev "")
+        foreach(_l IN LISTS _ll)
+            if(_l MATCHES "^-" OR _l MATCHES "\\.a$" OR _prev STREQUAL "-L")
+                list(APPEND _elf_extra "${_l}")
+            endif()
+            set(_prev "${_l}")
+        endforeach()
+    endforeach()
+endforeach()
+# In order and not de-duplicated: a --start-group needs its --end-group.
+list(APPEND ELF_LIBS ${_elf_extra})
+message(STATUS "defeatist_player: ELF_COMPONENTS ${ELF_COMPONENTS}; extra link line: ${_elf_extra}")
 feckless_abi_elf(defeatist_player)
 
 # 5283: libversions.h, the BUILD tab's list -- moved here from the top-level

@@ -28309,3 +28309,45 @@ ELF run by Avoidant does not migrate namespaces from before 6006;
 `vTaskPrioritySet(NULL, 5)` in `defeatist_main()` now raises the launcher's
 main task; the main task's stack (netdec wants 24576) under Avoidant is
 unconfirmed.
+
+### 8090 -- the first ELF link's undefined symbols
+
+The first `elf/` link (8087) stopped in the ABI check with 19 names outside
+it. Four causes:
+
+- **`esp_jpeg_decode`**: `espressif__esp_jpeg` joins `ELF_COMPONENTS`
+  (`feckless_image_handler` calls it; the image section exports the P4's
+  engine, not the software decoder).
+- **`esp_ptr_executable`, `esp_ptr_byte_accessible`**: `heapmap.c`'s
+  who-asked scrape of the stack (5116). They are out-of-line IDF calls the
+  ABI does not carry. The scrape now tests for a code address by range
+  (`0x40000000` to `0x4fffffff`: flash, and PSRAM, where this ELF's own code
+  runs) and drops the bounds check against the end of RAM; it reads 192
+  words from its own frame upward, as it did. Only runs on an allocation
+  failure.
+- **`g_tab5_dpi_underruns`**: a variable in the vendored `components/esp_lcd`
+  (`dpi_instrument.cmake`), read by `ui_task()` to log "DSI underruns" once
+  a second when it moved. The ELF cannot reach the host's variable, and under
+  Avoidant there is none. The report is removed; the ISR still counts in the
+  .bin, unread. The vendoring itself is left alone here (the instrumented
+  `esp_lcd` still builds into the .bin, now with nothing reading it);
+  removing it is its own patch, if you want it.
+- **`esp_*_dec_register`, `esp_audio_simple_dec_*`** (13 names): the
+  codecs in `esp_audio_codec`, which are precompiled archives the component
+  names in its link interface and not in `libespressif__esp_audio_codec.a`,
+  the only one of its files the ELF link took. `elf/CMakeLists.txt` now reads
+  each `ELF_COMPONENTS` library's `LINK_LIBRARIES` and
+  `INTERFACE_LINK_LIBRARIES`, takes the flags and `.a` paths from them, and
+  adds them to `ELF_LIBS` in order, which `project_elf()` puts on the link
+  line. Configure prints one line, `defeatist_player: ELF_COMPONENTS ...;
+  extra link line: ...`, naming what it found.
+
+**Not checked, and this last one is a guess:** nothing here ran, and I have
+not seen `esp_audio_codec`'s CMakeLists or `elf_loader`'s `project_elf()`;
+the mechanism above is inferred from the error and from `feckless_abi_elf()`'s
+comment about `ELF_LIBS`. If the extra link line comes out empty, the
+codecs are reached some other way and that file is what to send. If it links,
+whether the precompiled (not necessarily position-independent) archives
+*load* in esp_elf is a separate question that only a board answers.
+`heapmap.c` was not compiled (the stub set has no `freertos/task.h`); the
+`player.c` change is a deletion.

@@ -11,23 +11,80 @@ else()
     set(DMP_JSON json)
 endif()
 
+# 8087: one directory, two builds. ../elf/ sets DEFEATIST_ELF and builds the
+# player into an ELF for esp_elf, checked against the feckless ABI -- every
+# source here but the three that are the shim's (standalone.c, shim_import.c,
+# nvsns.c); the top level builds those and launcher.c, which ui.c uses too,
+# runs ../elf/ and embeds what it made. The shape is Errant's,
+# Lothesome's, Unprofitable Mahjong's and Spurious's.
+idf_build_get_property(_dmp_elf DEFEATIST_ELF)
+
+if(NOT _dmp_elf)
+    idf_component_register(
+        SRCS "standalone.c" "shim_import.c" "nvsns.c" "launcher.c"
+        INCLUDE_DIRS "."
+        PRIV_REQUIRES feckless_abi feckless_abi_storage feckless_abi_network
+                      feckless_abi_nvs feckless_abi_image feckless_abi_crypto
+                      nvs_flash app_update spi_flash esp_driver_usb_serial_jtag
+                      feckless_drivers feckless_storage_handler
+                      feckless_network_handler feckless_nvs_handler ${DMP_JSON}
+    )
+    if(NOT CMAKE_BUILD_EARLY_EXPANSION)
+        include(ExternalProject)
+        idf_build_get_property(_idf_path IDF_PATH)
+        idf_build_get_property(_target IDF_TARGET)
+        idf_build_get_property(_build_dir BUILD_DIR)
+        idf_build_get_property(_sdkconfig SDKCONFIG)
+        idf_build_get_property(_project_dir PROJECT_DIR)
+        idf_build_get_property(_project_ver PROJECT_VER)
+
+        set(_elf_dir "${_build_dir}/elf")
+        set(_elf "${_elf_dir}/defeatist_player.app.elf")
+
+        externalproject_add(defeatist_elf
+            SOURCE_DIR "${_project_dir}/elf"
+            BINARY_DIR "${_elf_dir}"
+            CMAKE_ARGS -DIDF_PATH=${_idf_path}
+                       -DIDF_TARGET=${_target}
+                       -DSDKCONFIG=${_elf_dir}/sdkconfig
+                       -DDEFEATIST_HOST_SDKCONFIG=${_sdkconfig}
+                       -DDEFEATIST_PROJECT_VER=${_project_ver}
+            CMAKE_GENERATOR "Unix Makefiles"
+            BUILD_COMMAND make elf
+            BUILD_ALWAYS 1
+            BUILD_BYPRODUCTS "${_elf}"
+            INSTALL_COMMAND ""
+        )
+
+        # elf/ checked it against the ABI as it linked it; embedding
+        # waits for that.
+        add_dependencies(${COMPONENT_LIB} defeatist_elf)
+
+        # elf_loader's: 4-byte aligned, as esp_elf_relocate() wants it.
+        elf_embed_aligned_binary(${COMPONENT_LIB} "${_elf}" BINARY)
+    endif()
+    return()
+endif()
+
 idf_component_register(
     SRCS "player.c" "decoder.c" "albumart.c" "covertag.c" "folderart.c" "tagextra.c" "mediacache.c" "ui.c"
          "playlist.c" "settings.c"
        "browser.c" "panel.c" "i18n.c" "i18n_tab.c" "duration.c" "cbrseek.c" "flacseek.c" "oggseek.c" "tsseek.c" "mp4seek.c" "waveform.c" "replaygain.c" "loudness.c"
          "portal.c" "portalweb.c" "dnsreply.c"
          "sleeppage.c" "streamprobe.c" "netstream.c" "netdec.c" "stations.c" "favorites.c" "starred.c" "streamgain.c" "radiobrowser.c" "bench.c" "cuedir.c" "cardtime.c" "mediacat.c" "mediawalk.c" "mediasync.c" "medialib.c" "mediadir.c" "rateconv.c" "varispeed.c" "fx.c" "radiokeep.c" "heapmap.c" "flacenc.c" "recorder.c" "beam.c"
-         "mpdqueue.c" "mpdproto.c" "mpdfilter.c" "casefold_tab.c" "mpduri.c" "mpdmode.c" "mpdidle.c" "mpd.c" "uireq.c" "m3uline.c" "urlclean.c" "remote.c" "approve.c" "podindex.c" "poddl.c" "remoteproto.c" "wifijoin.c" "nvsns.c" "launcher.c" "shim_import.c" "standalone.c"
+         "mpdqueue.c" "mpdproto.c" "mpdfilter.c" "casefold_tab.c" "mpduri.c" "mpdmode.c" "mpdidle.c" "mpd.c" "uireq.c" "m3uline.c" "urlclean.c" "remote.c" "approve.c" "podindex.c" "poddl.c" "remoteproto.c" "wifijoin.c" "launcher.c"
+         "elf_main.c"
     INCLUDE_DIRS "."
-    LDFRAGMENTS "psram_bss.lf"           # 6132: main's .bss in PSRAM
     EMBED_FILES "remote_i18n.html.gz"    # 6028: generated from remote.html; 6127: gzipped
                 "favicon.ico"
-    REQUIRES driver esp_app_format esp_driver_i2c esp_driver_i2s esp_driver_sdmmc
+    REQUIRES feckless_abi feckless_abi_storage feckless_abi_network   # 8087
+             feckless_abi_nvs feckless_abi_image feckless_abi_crypto
+             driver esp_app_format esp_driver_i2c esp_driver_i2s esp_driver_sdmmc
              esp_driver_ledc esp_driver_usb_serial_jtag esp_lcd esp_lcd_touch fatfs sdmmc
              usb usb_host_msc usb_host_uac esp_timer lwip ${DMP_JSON}
              nvs_flash esp_netif esp_event esp_http_server esp_https_server esp_http_client mbedtls
              esp_usbh_asix iot_eth iot_usbh_ecm iot_usbh_cdc
-             app_update spi_flash   # launcher.c, shim_import.c: esp_ota_ops + esp_partition
+             app_update spi_flash   # launcher.c: esp_ota_ops + esp_partition
              feckless_network_handler feckless_storage_handler   # 6053
              feckless_nvs_handler   # 8064
              feckless_drivers   # 6054
@@ -74,7 +131,7 @@ set_property(SOURCE
         mpd.c mpdproto.c mpdfilter.c mpdidle.c mpdmode.c mpduri.c
         remote.c remoteproto.c portal.c portalweb.c dnsreply.c sleeppage.c
         poddl.c podindex.c radiobrowser.c stations.c favorites.c starred.c
-        approve.c wifijoin.c nvsns.c launcher.c shim_import.c
+        approve.c wifijoin.c launcher.c
     APPEND PROPERTY COMPILE_OPTIONS -Os)
 # 8032: -Os inlines further, and -Wformat-truncation then sees ranges it did
 # not at -O2 (poddl.c's picture path was the first). Those files only, a
@@ -85,7 +142,7 @@ set_property(SOURCE
         mpd.c mpdproto.c mpdfilter.c mpdidle.c mpdmode.c mpduri.c
         remote.c remoteproto.c portal.c portalweb.c dnsreply.c sleeppage.c
         poddl.c podindex.c radiobrowser.c stations.c favorites.c starred.c
-        approve.c wifijoin.c nvsns.c launcher.c shim_import.c
+        approve.c wifijoin.c launcher.c
     APPEND PROPERTY COMPILE_OPTIONS -Wno-error=format-truncation)
 
 # 5277: every file in main at -O3, off by default. Build with

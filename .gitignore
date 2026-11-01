@@ -3,6 +3,12 @@
 /m5tab5/sdkconfig
 /m5tab5/sdkconfig.old
 /m5tab5/managed_components/
+# 8087: the ELF's own build (elf/CMakeLists.txt): the component manager's
+# copy of the managed components, and what a build of elf/ on its own writes.
+/m5tab5/elf/managed_components/
+/m5tab5/elf/sdkconfig
+/m5tab5/elf/sdkconfig.old
+/m5tab5/elf/build-elf/
 # Written by the CI build step from the release string into
 # esp_app_desc_t.version; never committed (local builds fall back to
 # git describe). See .github/workflows/main.yml.

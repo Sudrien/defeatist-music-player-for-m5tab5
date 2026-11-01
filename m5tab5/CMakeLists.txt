@@ -115,13 +115,10 @@ endif()
 # The check above covers one symbol. 5072's 64 KB DMA pool was judged on
 # the board (5075) from a build whose boot log said `Reserving pool of
 # 32K` -- a stale sdkconfig again, the same trap as 5033. This compares
-# every line of the defaults with the build and warns here; the list of
-# keys that differ also goes into main as SDKCONFIG_DRIFT, and player.c
-# prints it under the banner, because the boot log is what reaches a
-# bug report and a configure warning is not.
+# every line of the defaults with the build and warns here. The list of
+# keys that differ also goes into the player, which prints it under the
+# banner, because the boot log is what reaches a bug report and a
+# configure warning is not -- but the player is the ELF now (8087), so
+# elf/CMakeLists.txt runs this again for it, and so does libversions.cmake
+# (5283: libversions.h, the BUILD tab's list of libraries).
 include(${CMAKE_CURRENT_LIST_DIR}/cmake/defaults_check.cmake)
-idf_component_get_property(main_lib main COMPONENT_LIB)
-# 5283: libversions.h, the BUILD tab's list of libraries. See the file.
-include(${CMAKE_CURRENT_LIST_DIR}/cmake/libversions.cmake)
-target_include_directories(${main_lib} PRIVATE "${LIBVERSIONS_DIR}")
-target_compile_definitions(${main_lib} PRIVATE "SDKCONFIG_DRIFT=\"${SDKCONFIG_DRIFT}\"")

@@ -11,22 +11,16 @@
  */
 #pragma once
 
-#include "esp_err.h"
-
 #ifdef __cplusplus
 extern "C" {
 #endif
 
-/* The player. Does not return. Assumes what standalone.c brings up: NVS,
- * the bus and expanders, the USB host's owner, storage, and the network
- * brought up to be asked for. Every board init it repeats returns ESP_OK
- * when run again. */
+/* The player. Does not return. Assumes what a launcher brings up before it
+ * runs an app -- Avoidant, or standalone.c: NVS, the bus and expanders, the
+ * USB host's owner, storage, and the network brought up to be asked for.
+ * Every board init it repeats returns ESP_OK when run again. In the ELF
+ * (8087) it is called from elf_main.c's app_main(). */
 void defeatist_main(void);
-
-/* How installing the console driver went (5089), for the banner's line
- * under it. A program whose console is a launcher's never calls this and
- * prints no such line. */
-void defeatist_note_console(esp_err_t err);
 
 #ifdef __cplusplus
 }

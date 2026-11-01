@@ -14,14 +14,19 @@
  * so the same code under a launcher that has the port up already does
  * nothing.
  *
- * Today this is linked into the player's one build. The ELF split puts
- * defeatist_main() in the ELF and keeps this in the .bin that embeds it.
+ * 8087: the player is the ELF that ../elf/ built from the rest of main/
+ * (elf_main.c is its app_main()), embedded here and run through the feckless
+ * ABI, as a launcher runs a published copy. This links the ABI's sections
+ * (feckless_abi, _storage, _nvs, _network, _image, _crypto) so that the
+ * ELF's calls resolve against what is brought up below.
  */
-#include "defeatist.h"
+#include <stddef.h>
+#include <stdint.h>
 
 #include "driver/usb_serial_jtag.h"      /* 5082: the console TX buffer */
 #include "driver/usb_serial_jtag_vfs.h"
 #include "esp_log.h"
+#include "feckless_abi.h"
 #include "feckless_net.h"
 #include "nvs_handler.h"
 #include "nvsns.h"
@@ -32,6 +37,10 @@
 #include "usbhost.h"
 
 static const char *TAG = "standalone";
+
+/* The player: elf_loader's embed of build/elf/defeatist_player.app.elf. */
+extern const uint8_t elf_start[] asm("_binary_defeatist_player_app_elf_start");
+extern const uint8_t elf_end[]   asm("_binary_defeatist_player_app_elf_end");
 
 void app_main(void)
 {
@@ -59,7 +68,16 @@ void app_main(void)
         if (usj_err == ESP_OK) {
             usb_serial_jtag_vfs_use_driver();
         }
-        defeatist_note_console(usj_err);        /* 5089: said under the banner */
+        /* 5087's line, as 5089 had it under the banner: the banner is
+         * the ELF's now, and prints after this one. A cut line in a log
+         * that says `4096-byte` is the host not reading, not the buffer
+         * missing. */
+        if (usj_err == ESP_OK) {
+            ESP_LOGI(TAG, "console: USB-serial-JTAG driver, 4096-byte TX buffer");
+        } else {
+            ESP_LOGW(TAG, "console: driver not installed (%s); unbuffered",
+                     esp_err_to_name(usj_err));
+        }
     }
 
     /*
@@ -120,5 +138,7 @@ void app_main(void)
      * network is saved yet (shim_import.h); the card is up by now. */
     if (nvs_err == ESP_OK) (void)shim_import_launcher_wifi(DEFEATIST_NVS_NS);
 
-    defeatist_main();
+    /* 8087: the player. Does not return unless it could not start. */
+    const int ret = feckless_abi_run(elf_start, (size_t)(elf_end - elf_start));
+    ESP_LOGE(TAG, "the player did not start: %d", ret);
 }

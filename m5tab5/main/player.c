@@ -112,7 +112,7 @@
 #include "powerdown.h"           /* 6000 */
 #include "nvsns.h"              /* 6006 */
 #include "shim_import.h"         /* 8068 */
-#include "defeatist.h"            /* 8074: defeatist_main(), the console note */
+#include "defeatist.h"            /* 8074: defeatist_main() */
 #include "rtc8130.h"             /* 6003 */
 #include "sleeptimer.h"
 #include "wifistore.h"
@@ -15825,16 +15825,6 @@ static void player_loop(void)
     }
 }
 
-/* 5089: the console driver's install result, held for the banner.
- * 8074: the driver is the standalone firmware's to install (standalone.c);
- * it says how it went through defeatist_note_console(), and an app that
- * no launcher-side code ran before (an ELF, where the launcher owns the
- * console) leaves this at "not ours", which prints nothing. */
-#define CONSOLE_NOT_OURS ESP_ERR_NOT_SUPPORTED
-static esp_err_t s_console_err = CONSOLE_NOT_OURS;
-
-void defeatist_note_console(esp_err_t err) { s_console_err = err; }
-
 /* 8074: what app_main() was, less the launcher's side of it (standalone.c:
  * the console, NVS, the bus, the USB host's owner, storage, the network
  * brought up to be asked for, the Wi-Fi import). The board inits here are
@@ -15867,22 +15857,6 @@ void defeatist_main(void)
         ESP_LOGW(TAG, "=== Defeatist Music Player === %s, IDF %s, built %s %s",
                  d ? d->version : "?", d ? d->idf_ver : "?",
                  d ? d->date : "?", d ? d->time : "?");
-    }
-    /*
-     * 5087's line, moved here by 5089. It was printed before the banner,
-     * and the banner is where a pasted log starts -- so the first board
-     * log with 5087 in it did not have the line 5087 was for. Printed
-     * after the switch either way, so it goes through whichever path is
-     * now in use. A cut line in a log that says `4096-byte` is the host
-     * not reading, not the buffer missing.
-     */
-    if (s_console_err == CONSOLE_NOT_OURS) {
-        /* 8074: a launcher owns the console; nothing to say. */
-    } else if (s_console_err == ESP_OK) {
-        ESP_LOGI(TAG, "console: USB-serial-JTAG driver, 4096-byte TX buffer");
-    } else {
-        ESP_LOGW(TAG, "console: driver not installed (%s); unbuffered",
-                 esp_err_to_name(s_console_err));
     }
     heapmap_init();     /* 5097: failed allocations say where memory went */
 #ifdef SDKCONFIG_DRIFT

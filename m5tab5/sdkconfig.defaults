@@ -50,8 +50,10 @@ CONFIG_ESP_CONSOLE_USB_SERIAL_JTAG=y
 # MP3 decode buffers live in PSRAM.
 CONFIG_SPIRAM=y
 CONFIG_SPIRAM_SPEED_200M=y
-# 6132: lets main/psram_bss.lf put main's zero-initialised statics in
-# PSRAM, out of the internal RAM the radio's DMA pool comes from. An
+# 6132: let a component's zero-initialised statics go to PSRAM, out of the
+# internal RAM the radio's DMA pool comes from. (main/psram_bss.lf used it
+# for main until 8087; the player is an ELF loaded to PSRAM now, which
+# does the same for all of it, and the .bin's own main is small.) An
 # existing sdkconfig keeps its old value: delete it, or set this in
 # menuconfig (Component config > ESP PSRAM).
 CONFIG_SPIRAM_ALLOW_BSS_SEG_EXTERNAL_MEMORY=y
@@ -711,3 +713,17 @@ CONFIG_ESP_HTTPS_SERVER_ENABLE=y
 # check is the same: `grep CONFIG_LWIP_MAX_SOCKETS sdkconfig` reads 28,
 # and a stale one fails the build at netbudget.h's #error.
 CONFIG_LWIP_MAX_SOCKETS=28
+
+# 8087: the player is an ELF that elf_loader (esp_elf) loads, and these two
+# are what feckless_abi's config check asks of the host. The ELF's code and
+# data go to PSRAM, not the internal RAM that is short already (the radio's
+# DMA pool); and the memory protection that would make that region
+# non-executable is off, which is the reason Errant, Lothesome, Spurious
+# and Unprofitable Mahjong have both too.
+#
+# rm sdkconfig before building. Proof it took: no "stale sdkconfig" warning
+# naming CONFIG_ELF_LOADER_LOAD_PSRAM or CONFIG_ESP_SYSTEM_MEMPROT_FEATURE
+# at configure (cmake/defaults_check.cmake), and no feckless_abi error
+# "needs CONFIG_SPIRAM=y and CONFIG_ELF_LOADER_LOAD_PSRAM=y".
+CONFIG_ELF_LOADER_LOAD_PSRAM=y
+CONFIG_ESP_SYSTEM_MEMPROT_FEATURE=n

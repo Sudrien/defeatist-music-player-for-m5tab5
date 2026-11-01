@@ -28251,3 +28251,61 @@ the patch that links it.
 
 Not built (no ESP-IDF in the session, the registry and the tag are not
 reachable), not on a Tab5.
+
+### 8087 -- the player builds as an ELF
+
+Step 4 of 8070's order. `m5tab5/main/` is now two builds, as Errant's,
+Lothesome's, Spurious's and Unprofitable Mahjong's are.
+
+- **`elf/CMakeLists.txt`** (new) builds `main/` as `defeatist_player.app.elf`
+  through `feckless_abi_elf()`: position-independent, the libraries the ABI
+  does not export linked in, every other call left undefined and checked
+  against the ABI. In: `feckless_image_handler`, cJSON (found by name, as
+  Errant finds it: `json` on IDF 5, `espressif__cjson` on 6) and
+  `esp_audio_codec`. minimp3 is a header inside `decoder.c`. The
+  configuration is the .bin's `sdkconfig` copied whole (partition path made
+  absolute), the lock is the top level's, and the version is the .bin's.
+  `libversions.cmake` and `defaults_check.cmake` moved here from the top
+  level's `project()` tail, since `panel.c` and the `SDKCONFIG_DRIFT` line
+  are the ELF's now (the top level keeps `defaults_check` for its warning).
+- **`main/CMakeLists.txt`** branches on the build property `DEFEATIST_ELF`.
+  Without it: the .bin registers `standalone.c`, `shim_import.c`, `nvsns.c`
+  and `launcher.c` (which `ui.c` also uses, so the ELF has it too), runs
+  `elf/` as an ExternalProject and embeds `defeatist_player.app.elf`. With
+  it: the old source list less those three, plus `elf_main.c`, and the six
+  ABI components in REQUIRES.
+- **`main/elf_main.c`** (new): the ELF's `app_main()` -- the six
+  `feckless_abi_require*()` calls, then `defeatist_main()`.
+- **`main/standalone.c`** no longer calls `defeatist_main()`. It runs the
+  embedded ELF with `feckless_abi_run()`, and logs the console line the
+  banner used to carry (`defeatist_note_console()` and `s_console_err` are
+  gone from `player.c` and `defeatist.h`; the ELF never owns the console).
+- **`sdkconfig.defaults`** gains `CONFIG_ELF_LOADER_LOAD_PSRAM=y` and
+  `CONFIG_ESP_SYSTEM_MEMPROT_FEATURE=n`. **`rm sdkconfig` before building.**
+  Proof it took: configure prints no "sdkconfig differs from
+  sdkconfig.defaults" warning naming either key, and the build stops with no
+  feckless_abi "needs CONFIG_SPIRAM=y and CONFIG_ELF_LOADER_LOAD_PSRAM=y".
+- **`main/psram_bss.lf` is deleted.** It put `libmain.a`'s `.bss` in PSRAM;
+  the player is loaded to PSRAM now, and what is left in the .bin's `main`
+  is small.
+- `.gitignore`: `m5tab5/elf/managed_components/` and what a build of `elf/`
+  on its own writes.
+
+No `idf_component.yml` change (8086 named the components). The lock was
+resolved with them in; the ELF reads the same one.
+
+**Checked:** `elf_main.c` and `standalone.c` compile at
+`-std=gnu11 -O2 -Wall -Werror=all -Wextra -Werror=extra` against stubs of
+the IDF headers, with feckless-libs' real ABI headers; the only errors are
+the stubs' missing `esp_err_to_name` and `ESP_ERROR_CHECK`. **Not checked:**
+no CMake of this ran (no ESP-IDF), so the ExternalProject wiring, the
+`elf/` configure and the link are all untested; this is a first build and
+should be expected to list undefined symbols the ABI lacks -- those come
+back as the next patches (a feckless-libs name, or a library into
+`ELF_COMPONENTS`). `esp_audio_codec` ships precompiled archives and may not
+link into a position-independent ELF. Not run on a Tab5, under Avoidant or
+standalone. Known gaps this leaves: `nvsns_migrate()` is the shim's, so an
+ELF run by Avoidant does not migrate namespaces from before 6006;
+`vTaskPrioritySet(NULL, 5)` in `defeatist_main()` now raises the launcher's
+main task; the main task's stack (netdec wants 24576) under Avoidant is
+unconfirmed.

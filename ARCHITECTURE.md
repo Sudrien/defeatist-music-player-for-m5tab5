@@ -28196,3 +28196,21 @@ PSRAM block could not be had (`no PSRAM for the recording buffers`, whose
 wording is now slightly off for this one); blocks already allocated are kept
 for the next try, as the comment above says. Checked and not run as 8083. On
 the board: start and stop a recording.
+
+### 8085 -- player.c's PCM ring control blocks are on the heap
+
+The last `DRAM_ATTR` static in main. `s_pcm_struct[]` becomes an array of
+pointers; `defeatist_main()` allocates each from the internal heap just before
+it creates that ring, and a failure `continue`s, leaving `s_ring[i]` NULL,
+which the all-or-none test below it already turns into "no PCM ring; this
+boot cannot play audio". Order inside the loop is unchanged (the level-strip
+mutex first). With this, nothing in main depends on `.dram` placement for a
+FreeRTOS object, and `psram_bss.lf`'s note, CLAUDE.md's `DRAM_ATTR` rule and
+the stale `esp_attr.h` comment in `poddl.c` describe a thing that is gone;
+none is touched here, and the rule can be reworded with the ELF step (a
+static FreeRTOS object in the ELF would still be wrong). Checked: changed
+lines compile against stubs; not built with ESP-IDF, not on a Tab5. On the
+board: the boot log's banner through `heap map (boot)`, then play a file;
+internal free at `heap map (boot)` is the number to compare (this moves the
+control blocks from `.dram` to the heap, which should leave it about
+as it was).

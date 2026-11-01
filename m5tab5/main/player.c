@@ -879,7 +879,9 @@ static inline uint64_t ring_frames_of(uint64_t file_frames,
  * the usable size -- the implementation keeps head and tail distinct
  * that way -- and it is the caller's job to know that.
  */
-static DRAM_ATTR StaticStreamBuffer_t s_pcm_struct[PCM_RINGS];   /* internal: psram_bss.lf */
+/* 8085: each control struct from the internal heap, once, never freed (a
+ * spinlock is in it). */
+static StaticStreamBuffer_t *s_pcm_struct[PCM_RINGS];
 static uint8_t             *s_pcm_store[PCM_RINGS];
 static StreamBufferHandle_t s_ring[PCM_RINGS];
 
@@ -15954,8 +15956,11 @@ void defeatist_main(void)
             s_levelhist_lock = xSemaphoreCreateMutex();
             levelhist_reset(&s_levelhist);
         }
+        if (!s_pcm_struct[i])
+            s_pcm_struct[i] = heap_caps_calloc(1, sizeof(*s_pcm_struct[i]), MALLOC_CAP_INTERNAL | MALLOC_CAP_8BIT);
+        if (!s_pcm_struct[i]) continue;     /* no ring i: the all-or-none test below */
         s_ring[i] = xStreamBufferCreateStatic(PCM_RING_BYTES, PCM_CHUNK_BYTES,
-                                              s_pcm_store[i], &s_pcm_struct[i]);
+                                              s_pcm_store[i], s_pcm_struct[i]);
     }
     /*
      * ALL OR NONE. One ring short would play, but every boundary would

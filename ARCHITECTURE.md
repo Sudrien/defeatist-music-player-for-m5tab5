@@ -27871,3 +27871,27 @@ Defeatist's own build does not use that table.
 
 Not built (no ESP-IDF in the session, and the registry is not reachable),
 not on a Tab5. No source file or sdkconfig change, so no `rm sdkconfig`.
+
+### 8072 -- wifijoin.c asks feckless_network_handler for the PSK
+
+`wifijoin.c` carried its own copy of the WPA2 PSK derivation
+(PBKDF2-HMAC-SHA1, the SSID as salt, 4096 rounds), split at Mbed TLS 4 into
+PSA key derivation and 3.6's `mbedtls_pkcs5_pbkdf2_hmac_ext()` (6031). That
+function has been `wifi_psk()` in `feckless_network_handler` since 6003, which
+says in its header that it is from this file and Errant's so that an app's
+ELF need not reach Mbed TLS itself; this is the other half of that. The
+local function and its `mbedtls`/`psa` includes are deleted, the one call is
+`wifi_psk(ssid, pass, key)` (its arguments are the other way round from the
+old function's), and the log line prints `esp_err_to_name()` of its result
+where it printed the Mbed TLS code. Nothing else in `wifijoin.c` changes; the
+retry with the passphrase when the derivation fails or the join is refused
+is as it was. The two bodies are line for line the same.
+
+Checked: `wifijoin.c` compiled at `-std=gnu11 -O2 -Wall -Werror=all -Wextra
+-Werror=extra` against stub `wifi.h`, `wifistore.h`, `esp_wifi.h` (one gap in
+the stubs: `esp_err_to_name()`, which the file already called). Not built
+with ESP-IDF, not on a Tab5; a join with a passphrase typed in the portal
+(the PSK-then-passphrase path) is the test, and the log shows `trying ...
+(PSK, then passphrase ...)` then `saved ... as PSK`. This is one of the
+four mbedtls users the survey (8070) listed; `approve.c`'s SHA-256 remains
+for the hashing section, `certgen.c` goes with the next patch.

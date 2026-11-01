@@ -28474,3 +28474,47 @@ name." The space is back; nothing else changes.
 `idf_component_register()` calls, comments stripped, are 8090's plus
 `feckless_abi_audio` and nothing else; 8093's other hunks (`elf_main.c`,
 `elf/CMakeLists.txt`, the shim's PRIV_REQUIRES) are as intended. Not built.
+
+### 8095 -- assertions and error checks silent, for size
+
+The first full build after 8094 linked the ELF, which passed the ABI check
+(407 symbols, all seven sections), and then failed `app_check_size`: the
+.bin is 0x311770 against the Arduino layout's 0x300000 app slots, 71,536
+bytes over. The slot stays 3 MB (5247: the Arduino layout is what SD-card
+launchers load into).
+
+Where it went, from `idf.py size-components` and the map: the player's ELF
+is 835 KB of `libmain.a` (its `-shared` overhead -- dynamic symbols,
+relocations, PLT and GOT -- about 52 KB of that); the fonts 389 KB
+(`ark12_lit` 265 KB, `ark12_tiles` 71 KB); esp_audio_codec about 360 KB,
+already down to the decoders the player uses (sdkconfig.defaults turns off
+MP3, G711, AMR, SBC, LC3, G722); TLS about 250 KB with the 67 KB
+certificate bundle. `size-components` put 217 KB of `.rodata` on
+`libesp_stdio.a`, which is about 1.3 KB by its own symbols: the map shows
+the entry is `.rodata.esp_stdio_register.str1.4`, 0x34e98 bytes -- the
+linker's pool of every mergeable string literal on the launcher side,
+credited to the first input it took (with a warning from the size tool's
+map parser). Nothing to remove there by itself; it is every library's log,
+assert and check text together.
+
+So this takes the two settings in ESP-IDF's "Minimizing Binary Size" that
+drop text and nothing else:
+`CONFIG_COMPILER_OPTIMIZATION_ASSERTIONS_SILENT=y` (asserts still check and
+abort, without expression or file name) and
+`CONFIG_COMPILER_OPTIMIZATION_CHECKS_SILENT=y` (no message from
+`ESP_RETURN_ON_*` / `ESP_EXIT_ON_*`). Both names read from release/v6.1's
+`Kconfig`; both exist on 5.x. The sdkconfig is shared, so the ELF is built
+the same way. Kept: the log level at Info (board runs are read from the
+log) and `ESP_ERR_TO_NAME_LOOKUP` (22 log lines in main/ print names).
+
+**The cost:** a failed assert names an address, not `file:line`. In the
+launcher that is `addr2line` on the .bin's ELF; in the player it is an
+address in PSRAM where esp_elf relocated it, so the load address is needed
+as well.
+
+**This changes sdkconfig.defaults: `rm sdkconfig` before building.** Proof
+it took: configure's drift warning names neither key, and `app_check_size`
+reports a different size. How much this saves is not known; if the .bin is
+still over, the overflow it reports is what the next patch has to find
+(compiling the player's non-timing files `-Os`, as 5245 did for MPD, is
+the next lever). Not built here, not on a Tab5.

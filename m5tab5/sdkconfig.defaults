@@ -263,6 +263,16 @@ CONFIG_USB_HOST_HW_BUFFER_BIAS_PERIODIC_OUT=y
 CONFIG_LOG_DYNAMIC_LEVEL_CONTROL=y
 
 CONFIG_COMPILER_OPTIMIZATION_PERF=y
+
+# 8095: the .bin outgrew its 3 MB slot by 71,536 bytes once it carried the
+# launcher side and the player's ELF (8093). 217 KB of the launcher side is
+# merged string literals -- IDF's, esp_hosted's, lwIP's, Mbed TLS's -- some
+# of it assert expressions and file names and ESP_RETURN_ON_* messages.
+# Silent keeps every assert and check, and drops their text: a failed
+# assert reports an address, not file:line. In the ELF that address is in
+# PSRAM where esp_elf put it, so addr2line needs the load address too.
+CONFIG_COMPILER_OPTIMIZATION_ASSERTIONS_SILENT=y
+CONFIG_COMPILER_OPTIMIZATION_CHECKS_SILENT=y
 CONFIG_FREERTOS_HZ=1000
 
 # --- decode ---------------------------------------------------------

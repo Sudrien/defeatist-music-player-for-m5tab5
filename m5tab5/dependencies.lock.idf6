@@ -429,6 +429,6 @@ direct_dependencies:
 - idf
 - usb_host_msc
 - usb_host_uac
-manifest_hash: 7f53d7cb1b85b78b224d4ca8b577907e7c506fb68e6d562b46d323d28f782899
+manifest_hash: 3e38b1e31714d6c51a80c051a535d88289c37d214d1803d02d60ecca17ced46d
 target: esp32p4
 version: 3.0.0

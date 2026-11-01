@@ -27846,3 +27846,28 @@ after each, not only after the last.
 
 Not built (no ESP-IDF in the session), not on a Tab5. No source file,
 manifest or sdkconfig change.
+
+### 8071 -- feckless-libs v0.8.1
+
+The nine `version: "v0.7.1"` pins in `main/idf_component.yml` become
+`"v0.8.1"`, the one tag all of them share, and nothing else changes: this is
+the manifest patch 8060 asked to be a patch of its own, ahead of the ones that
+use what v0.8 brought. That is `feckless_https_start()` and
+`feckless_https_redirect()` (feckless-libs 8004: the device's certificate and
+key made once, kept in NVS and shared by every app, the SHA-256 fingerprint,
+and a handler that sends a request addressed by IP to `https://<name>.local`),
+and the mDNS responder for that name (8005). The next patch moves `remote.c`
+onto them.
+
+**This is a manifest change, so `dependencies.lock.idf6` re-resolves on the
+next build**, and the diff wants reading before it is committed: besides the
+git pins moving to v0.8.1, `feckless_network_handler` now depends on
+`espressif/mdns >=1.8.0` from the registry (a range, so it takes whatever
+the registry has newest), which is new in the lock; `esp_http_server`'s
+HTTPS half (`esp_https_server`) is already a requirement here. v0.8.1 and not
+v0.8.0: v0.8.0's network section exported `httpd_resp_send_404`, an inline in
+the IDF header, and a launcher built from it did not link (its 8006).
+Defeatist's own build does not use that table.
+
+Not built (no ESP-IDF in the session, and the registry is not reachable),
+not on a Tab5. No source file or sdkconfig change, so no `rm sdkconfig`.

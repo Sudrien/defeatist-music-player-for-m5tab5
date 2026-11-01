@@ -187,7 +187,9 @@ _Static_assert(NETSTREAM_TITLE_MAX == ICY_TITLE_MAX,
  * buffer over a permanent allocation has no allocator to mispair a free
  * with. A stream that starts and stops forty times allocates nothing. */
 static StreamBufferHandle_t s_ring;
-static DRAM_ATTR StaticStreamBuffer_t s_ring_struct;   /* internal: psram_bss.lf */
+/* 8083: the control struct from the internal heap, once, never freed (it holds
+ * a spinlock, so it cannot be in PSRAM; 8075 has the ELF reason). */
+static StaticStreamBuffer_t *s_ring_struct;
 static uint8_t             *s_ring_storage;
 
 static TaskHandle_t      s_task;
@@ -2208,10 +2210,15 @@ bool netstream_init(void)
         ESP_LOGE(TAG, "no PSRAM for a %d KB stream ring", NETSTREAM_RING_BYTES / 1024);
         return false;
     }
+    if (!s_ring_struct) s_ring_struct = heap_caps_calloc(1, sizeof(*s_ring_struct), MALLOC_CAP_INTERNAL | MALLOC_CAP_8BIT);
+    if (!s_ring_struct) {
+        ESP_LOGE(TAG, "no internal RAM for the stream ring's control block");
+        return false;
+    }
     /* +1 is the stream buffer's own requirement: it keeps one byte to
      * tell full from empty. */
     s_ring = xStreamBufferCreateStatic(NETSTREAM_RING_BYTES + 1, 1,
-                                       s_ring_storage, &s_ring_struct);
+                                       s_ring_storage, s_ring_struct);
 
     /* The working set, also PSRAM, also never freed. One block so a
      * partial failure cannot leave half of it live. */

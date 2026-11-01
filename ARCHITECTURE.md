@@ -28170,3 +28170,20 @@ is left of 8070's `DRAM_ATTR` list is the three stream-buffer structs
 the ABI can only create with the static variant, so they need a decision
 first. Checked as 8079; no error on the changed lines. Not built with
 ESP-IDF, not on a Tab5. On the board: start and stop a recording.
+
+### 8083 -- netstream.c's ring control block is on the heap
+
+The first of the three stream-buffer structs. `StaticStreamBuffer_t` holds
+a spinlock, so it must be internal; the ring's storage is PSRAM as before.
+The ABI exports only `xStreamBufferGenericCreateStatic` (the macro
+`xStreamBufferCreateStatic()` expands to it), not the dynamic create, and
+a dynamic create would put the storage in the internal heap besides, so the
+struct is allocated with `heap_caps_calloc(..., MALLOC_CAP_INTERNAL |
+MALLOC_CAP_8BIT)` in `netstream_init()` and passed to the static create. No
+ABI change. Once, never freed; `netstream_init()` was already idempotent
+(`if (s_ring) return true`), and the struct is kept if a later step fails.
+If it cannot be had, `netstream_init()` logs `no internal RAM for the stream
+ring's control block` and returns false, which is what a failed storage
+allocation does (`defeatist_main()` then logs "internet radio disabled"). Checked: changed lines compile at `-O2 -Wall
+-Werror=all -Wextra` against stubs; not built with ESP-IDF, not on a Tab5.
+On the board: play a station.

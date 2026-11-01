@@ -28214,3 +28214,40 @@ board: the boot log's banner through `heap map (boot)`, then play a file;
 internal free at `heap map (boot)` is the number to compare (this moves the
 control blocks from `.dram` to the heap, which should leave it about
 as it was).
+
+### 8086 -- the ABI's components, named in the manifest
+
+Step 4 of 8070's order begins. A manifest-only patch, so the lock can be read
+by itself before the build changes. `main/idf_component.yml` moves its
+nine feckless pins `v0.8.1` -> `v0.8.2` and names six more components of
+feckless-libs at the same tag: `feckless_abi` (the core list, and the
+`feckless_abi_elf()` macro the ELF's CMake will call), and the sections the
+player takes names from -- `feckless_abi_storage` (the card and the drive,
+libc's file I/O), `feckless_abi_nvs`, `feckless_abi_network` (Wi-Fi,
+sockets, the HTTP server, `feckless_https_*`), `feckless_abi_image` (the
+P4's JPEG engine) and `feckless_abi_crypto` (a SHA-256). Which sections: from
+8070's survey and what has happened since (8073 took the certificate out of
+the app, 8007 shrank crypto to the one hash `approve.c` takes); the camera
+section is not named, nothing here reads the camera. The list can only be
+confirmed by the ELF's own check, which fails on any undefined symbol the
+ABI lacks.
+
+**v0.8.2 is v0.8.1 plus 8007**, and the tag must exist before this
+configures. (v0.8.1's crypto section is still the large version 1; a
+launcher should not link that for one hash.) Avoidant's 0048 moves to the
+same tag and links the image and crypto sections, so the ELF this leads to
+runs there.
+
+**This is a manifest change, so `dependencies.lock.idf6` re-resolves on the
+next build** and the diff wants reading: the git pins move to v0.8.2; six
+components join; `espressif/elf_loader` (`2.*`, from `feckless_abi`'s own
+manifest) is new in this lock and is a registry dependency. Nothing links
+the new components yet (main does not REQUIRE them, and `MINIMAL_BUILD`
+builds only what is required), so the firmware is as before. No
+`sdkconfig.defaults` change in this patch: `CONFIG_ELF_LOADER_LOAD_PSRAM`
+only exists once `elf_loader` is in the build, and `defaults_check.cmake`
+would warn about an unknown symbol until then, so the two lines move with
+the patch that links it.
+
+Not built (no ESP-IDF in the session, the registry and the tag are not
+reachable), not on a Tab5.

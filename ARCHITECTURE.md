@@ -28156,3 +28156,17 @@ that cannot be had does the same, so a download falls back to the
 connections it can make. Checked as 8079; no error on the changed lines. Not
 built with ESP-IDF, not on a Tab5. On the board: a podcast episode download
 (`/pod/dl`) with segments in flight.
+
+### 8082 -- recorder.c's two tasks have heap TCBs
+
+The input and encoder task control blocks, `s_in_tcb` and `s_enc_tcb`, were
+two `StaticTask_t` in `.dram`; they are pointers, each allocated once from the
+internal heap in `tasks_ready()` just before its task is made and never
+freed (the tasks never end). A TCB that cannot be had is the same outcome as
+a stack that could not: that task is not made and `tasks_ready()` returns
+false, so a recording is refused. That finishes the task control blocks. What
+is left of 8070's `DRAM_ATTR` list is the three stream-buffer structs
+(`netstream.c`, `player.c`'s `s_pcm_struct[]`, `recorder.c`'s ring), which
+the ABI can only create with the static variant, so they need a decision
+first. Checked as 8079; no error on the changed lines. Not built with
+ESP-IDF, not on a Tab5. On the board: start and stop a recording.

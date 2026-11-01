@@ -430,7 +430,8 @@ static void rec_enc_run(void)
 #if !CONFIG_FREERTOS_TASK_CREATE_ALLOW_EXT_MEM
 #error "recorder.c puts its task stacks in PSRAM and needs CONFIG_FREERTOS_TASK_CREATE_ALLOW_EXT_MEM=y"
 #endif
-static DRAM_ATTR StaticTask_t s_in_tcb, s_enc_tcb;   /* internal: psram_bss.lf */
+/* 8082: the two TCBs from the internal heap, once, never freed. */
+static StaticTask_t *s_in_tcb, *s_enc_tcb;
 static StackType_t *s_in_stack, *s_enc_stack;
 static TaskHandle_t s_in_task, s_enc_task;
 
@@ -452,16 +453,18 @@ static bool tasks_ready(void)
     const uint32_t caps = MALLOC_CAP_SPIRAM | MALLOC_CAP_8BIT;
     if (!s_enc_task) {
         if (!s_enc_stack) s_enc_stack = heap_caps_malloc(REC_ENC_STACK, caps);
-        if (s_enc_stack) {
+        if (!s_enc_tcb) s_enc_tcb = heap_caps_calloc(1, sizeof(*s_enc_tcb), MALLOC_CAP_INTERNAL | MALLOC_CAP_8BIT);
+        if (s_enc_stack && s_enc_tcb) {
             s_enc_task = xTaskCreateStatic(rec_enc_task, "rec_enc", REC_ENC_STACK, NULL,
-                                           REC_ENC_PRIO, s_enc_stack, &s_enc_tcb);
+                                           REC_ENC_PRIO, s_enc_stack, s_enc_tcb);
         }
     }
     if (!s_in_task) {
         if (!s_in_stack) s_in_stack = heap_caps_malloc(REC_IN_STACK, caps);
-        if (s_in_stack) {
+        if (!s_in_tcb) s_in_tcb = heap_caps_calloc(1, sizeof(*s_in_tcb), MALLOC_CAP_INTERNAL | MALLOC_CAP_8BIT);
+        if (s_in_stack && s_in_tcb) {
             s_in_task = xTaskCreateStatic(rec_in_task, "rec_in", REC_IN_STACK, NULL,
-                                          REC_IN_PRIO, s_in_stack, &s_in_tcb);
+                                          REC_IN_PRIO, s_in_stack, s_in_tcb);
         }
     }
     return s_enc_task && s_in_task;

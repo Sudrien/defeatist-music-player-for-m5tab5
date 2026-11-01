@@ -28103,3 +28103,16 @@ listing's locking changes. Checked as 8076; the only compile errors left
 are on unchanged lines (`storage_id_t` and similar, the stubs'). Not built
 with ESP-IDF, not on a Tab5. On the board: open a folder, go back, switch
 between the SD and USB tabs.
+
+### 8078 -- cuedir.c's lookup lock is a dynamic mutex
+
+The fourth. `look()` in `cuedir.c` made `s_look_lock` over a `DRAM_ATTR`
+buffer inside a critical section; same change as 8076's, and `look()` and
+`done()` skip a NULL handle. `look()` still returns with the lock held on
+success and released on failure, which is what its callers rely on
+(`cuedir_file_of()` and the others copy out and call `done()`); with no lock
+made, nothing is held and `done()` does nothing. Checked as 8076; compile
+errors left are on an unchanged line (`cuedir_track()` and
+`STORAGE_IO_BACKGROUND`, stub gaps). Not built with ESP-IDF, not on a Tab5.
+On the board: play a `.cue` image and look for its track titles in the
+log (`tab5_cue: ... N tracks`) and on screen.

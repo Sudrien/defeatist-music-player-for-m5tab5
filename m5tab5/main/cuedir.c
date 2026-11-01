@@ -393,22 +393,29 @@ bool cuedir_track(const char *vpath, storage_io_class_t cls, cuetrack_t *out)
  * because one is a kilobyte, and one lock around the copy out.
  */
 static cuetrack_t        s_look;
-static DRAM_ATTR StaticSemaphore_t s_look_buf;   /* internal: psram_bss.lf */
 static SemaphoreHandle_t s_look_lock;
 
+/* 8078: a dynamic mutex, not a static one over a DRAM_ATTR buffer (8075 has
+ * the reason). Made outside the critical section, because the heap is not
+ * something to enter one for; if two callers race, the loser's is deleted.
+ * If it cannot be made, the lock is skipped. */
 static bool look(const char *vpath)
 {
     static portMUX_TYPE mux = portMUX_INITIALIZER_UNLOCKED;
-    taskENTER_CRITICAL(&mux);
-    if (!s_look_lock) s_look_lock = xSemaphoreCreateMutexStatic(&s_look_buf);
-    taskEXIT_CRITICAL(&mux);
-    xSemaphoreTake(s_look_lock, portMAX_DELAY);
+    if (!s_look_lock) {
+        SemaphoreHandle_t m = xSemaphoreCreateMutex();
+        taskENTER_CRITICAL(&mux);
+        if (!s_look_lock) { s_look_lock = m; m = NULL; }
+        taskEXIT_CRITICAL(&mux);
+        if (m) vSemaphoreDelete(m);
+    }
+    if (s_look_lock) xSemaphoreTake(s_look_lock, portMAX_DELAY);
     const bool ok = cuedir_track(vpath, STORAGE_IO_BACKGROUND, &s_look);
-    if (!ok) xSemaphoreGive(s_look_lock);
+    if (!ok && s_look_lock) xSemaphoreGive(s_look_lock);
     return ok;      /* held on success; the caller copies, then done() */
 }
 
-static void done(void) { xSemaphoreGive(s_look_lock); }
+static void done(void) { if (s_look_lock) xSemaphoreGive(s_look_lock); }
 
 const char *cuedir_file_of(const char *path, char *out, size_t out_size)
 {

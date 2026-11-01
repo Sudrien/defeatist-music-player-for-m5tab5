@@ -28518,3 +28518,29 @@ reports a different size. How much this saves is not known; if the .bin is
 still over, the overflow it reports is what the next patch has to find
 (compiling the player's non-timing files `-Os`, as 5245 did for MPD, is
 the next lever). Not built here, not on a Tab5.
+
+### 8096 -- the partition table's absolute path is not drift
+
+The first standalone run of the ELF build (8095) printed, under the banner,
+`stale sdkconfig -- not as sdkconfig.defaults says:
+CONFIG_PARTITION_TABLE_CUSTOM_FILENAME (rm sdkconfig and build)`, and
+configure warned the same. It is not stale: `elf/CMakeLists.txt` (8087)
+writes that path absolute in the ELF's copy of the sdkconfig, because the
+ELF's project is `elf/` and a relative `partitions.csv` would be looked for
+there. `defaults_check.cmake` compared the strings, so the ELF build, whose
+`SDKCONFIG_DRIFT` is the one `player.c` prints, reported it on every boot,
+and `rm sdkconfig` could not clear it. A line that always fires gets read
+past, which is what the check exists to prevent (5033, 5075).
+
+`defaults_check.cmake` now takes a relative path in the defaults and an
+absolute one in the sdkconfig as the same setting when the first, resolved
+against `m5tab5/`, is the second. Nothing else changes: a different file,
+absolute or relative, is still drift.
+
+**Checked** on a host, `cmake -P` on the real file with a sdkconfig that
+matches the defaults and one change per case: the partition path as the ELF
+writes it (`<m5tab5>/partitions.csv`) and with `elf/../` in it, no drift;
+`/elsewhere/partitions.csv` and `other.csv`, drift as before; the ELF's
+path plus `CONFIG_FREERTOS_HZ=100`, drift naming only the second. Before
+the change the ELF's path alone was drift. Not built; the board check is
+the next boot's banner without the `stale sdkconfig` line.

@@ -67,6 +67,20 @@ if(EXISTS "${_defaults_file}")
         if(_have STREQUAL _want)
             continue()
         endif()
+        # 8096: a relative path in the defaults and an absolute one in the
+        # sdkconfig that name the same file are the same setting. The ELF's
+        # build (elf/CMakeLists.txt) writes CONFIG_PARTITION_TABLE_CUSTOM_FILENAME
+        # absolute on purpose -- its project is elf/, where the relative
+        # name would be looked for -- and rm sdkconfig cannot change that.
+        if(IS_ABSOLUTE "${_have}" AND NOT _want STREQUAL ""
+           AND NOT IS_ABSOLUTE "${_want}")
+            get_filename_component(_want_abs "${_want}" ABSOLUTE
+                                   BASE_DIR "${CMAKE_CURRENT_LIST_DIR}/..")
+            get_filename_component(_have_abs "${_have}" ABSOLUTE)
+            if(_want_abs STREQUAL _have_abs)
+                continue()
+            endif()
+        endif()
         if(_have STREQUAL "")
             set(_have "n")
         endif()

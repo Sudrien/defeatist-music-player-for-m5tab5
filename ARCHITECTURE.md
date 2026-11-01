@@ -27767,3 +27767,82 @@ baseline JPEG, `... by tjpgd` with the engine refused, `... by stb` for a
 progressive one, `by pngle` for a PNG with the cover then repainting from
 `cover from the kept frame`, and the colours right (the BGR setting moved
 with the code; a gold cover coming out blue is that line).
+
+### 8070 -- toward the ELF: what the split has to settle
+
+A survey, no code. 8064-8069 moved NVS, the launcher calls and pictures
+onto the feckless libraries "toward the ELF"; this is what is left
+before `elf/` and a shim can exist, found by reading main/ against
+feckless-libs v0.7.1's `exports.txt` and `sections/*.txt` (Lothesome's,
+Errant's, Spurious's and Mahjong's `elf/CMakeLists.txt` are the
+pattern: `feckless_abi_elf()`, one directory two builds, the .bin's
+`app_main()` a shim that calls `feckless_abi_run()` on the embedded
+ELF). It is a grep for called names not defined in main/ and not
+exported, not a link: no ESP-IDF in the session, so `feckless_abi_elf()`'s
+own check (undefined symbols against the exports) has not run. Expect
+it to find more, and to list some of what is below as fine.
+
+**Not a problem, linked into the ELF** (the ABI exports none of them; the
+other apps do the same with `ELF_COMPONENTS`): minimp3 (header-only, in
+decoder.c), cJSON (replaygain.c, settings.c, mediacat.c, shim_import.c),
+`tinfl` from feckless_image_handler's miniz (i18n.c), and
+`esp_audio_simple_dec` from esp_audio_codec (decoder.c, netdec.c). The
+last is the heavy one: it is every non-MP3 decoder, and its size against
+the 3 MB slot is unknown until it is linked.
+
+**Not in the ABI, needing a decision:**
+- **mbedtls and PSA** -- certgen.c (42 calls: key generation, the X.509
+  writer, PEM), wifijoin.c (PBKDF2 through a PSA key derivation) and
+  approve.c (one SHA-256). Either linked into the ELF, which costs mbedtls
+  twice (the launcher has one for the HTTPS server), or a crypto section
+  in the ABI (a feckless-libs patch, v0.8.0 or a minor of v0.7).
+- **`httpd_ssl_start()` / `httpd_ssl_stop()`** -- remote.c's HTTPS server
+  on 443 (5121). The network section has `httpd_start` and no `ssl`
+  variant; `HTTPD_SSL_CONFIG_DEFAULT()` is a header struct whose layout
+  the configuration decides, as the section's own note says of the others.
+  A feckless-libs patch to add the two names, or the remote stays HTTP in
+  the ELF.
+- **`usb_serial_jtag_driver_install()` and `usb_serial_jtag_vfs_use_driver()`**
+  -- player.c (5082, ~line 15848), the console's TX buffer. In the ELF the
+  launcher owns the console; the block belongs to the shim (or to
+  nothing), not to the app.
+
+**Launcher's side, to be guarded or dropped in the ELF:** `nvsh_init()`
+(player.c; the nvs section has everything but it, "the launcher brings
+NVS up") and `storage_init()`. The shim keeps both, as 8068 said it keeps
+the Wi-Fi import (`shim_import_launcher_wifi()`, still called from
+`app_main()`, which moves with the rest of `app_main()` to the shim).
+
+**To check by linking, not by reading:** `htons`/`htonl`/`ntohl`
+(lwip's functions; the exports hold `lwip_getaddrinfo`, `lwip_shutdown`
+and `select` but I did not find the byte-order ones), `xTaskGetStackStart`
+against `pxTaskGetStackStart` (netdec.c calls the second; the exports
+list the first -- the name differs between IDF 5.5 and 6.1),
+`esp_cpu_get_cycle_count()` (an inline over a CSR on this target, so
+probably no symbol), `esp_wifi_get_mac()`/`esp_efuse_mac_get_default()`
+(both exported).
+
+**Also for the split, not yet done:** `psram_bss.lf` maps main's `.bss`
+to PSRAM through the linker fragment, which an ELF has no use for -- the
+loader puts the whole image in PSRAM, so the 6132 gain (about 104 KB of
+internal RAM) is already how an ELF is, and `DRAM_ATTR` statics (CLAUDE.md)
+cannot stay internal in an ELF loaded to PSRAM: each `StaticTask_t`,
+`StaticSemaphore_t` and the rest needs to be a heap allocation from
+`MALLOC_CAP_INTERNAL`, or a dynamic create. That is the part of the
+conversion most likely to fail without a board. The stack rules also
+change: the app's main task is the launcher's, and `feckless_abi_run()`
+runs `app_main()` on it (README, "A launcher").
+
+Proposed order, each a patch of its own: (1) the feckless-libs patches
+the above chooses (crypto, ssl, any byte-order names); (2) `app_main()`
+split into what the shim does (console, `nvsh_init`, `storage_init`, the
+Wi-Fi import) and what the app does; (3) `DRAM_ATTR` statics to heap;
+(4) `elf/CMakeLists.txt` and `main/standalone.c` with `main/CMakeLists.txt`
+split on `DEFEATIST_ELF`, the workflow attaching
+`build/elf/defeatist_player.app.elf` renamed beside the `.bin`s, and the
+manifest dropping what only the ELF links; (5) a Tab5 under Avoidant.
+Each of 2-4 touches the .bin's boot path, so a standalone Tab5 run is due
+after each, not only after the last.
+
+Not built (no ESP-IDF in the session), not on a Tab5. No source file,
+manifest or sdkconfig change.

@@ -657,7 +657,9 @@ static uint32_t      s_seen_gen = UINT32_MAX;
 #if !CONFIG_FREERTOS_TASK_CREATE_ALLOW_EXT_MEM
 #error "medialib.c puts its task stack in PSRAM and needs CONFIG_FREERTOS_TASK_CREATE_ALLOW_EXT_MEM=y"
 #endif
-static DRAM_ATTR StaticTask_t s_tcb;   /* internal: psram_bss.lf */
+/* 8079: the TCB from the internal heap, once, never freed (8075: a static
+ * over DRAM_ATTR cannot stay internal in an ELF loaded to PSRAM). */
+static StaticTask_t *s_tcb;
 static StackType_t  *s_stack;
 static TaskHandle_t  s_task;
 
@@ -724,9 +726,10 @@ bool medialib_request(storage_id_t vol)
         if (!s_stack) {
             s_stack = heap_caps_malloc(MEDIALIB_STACK, MALLOC_CAP_SPIRAM | MALLOC_CAP_8BIT);
         }
-        if (s_stack) {
+        if (!s_tcb) s_tcb = heap_caps_calloc(1, sizeof(*s_tcb), MALLOC_CAP_INTERNAL | MALLOC_CAP_8BIT);
+        if (s_stack && s_tcb) {
             s_task = xTaskCreateStatic(reindex_task, "reindex", MEDIALIB_STACK, NULL, 1,
-                                       s_stack, &s_tcb);
+                                       s_stack, s_tcb);
         }
     }
     if (!s_task) {

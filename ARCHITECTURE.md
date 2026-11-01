@@ -28116,3 +28116,20 @@ errors left are on an unchanged line (`cuedir_track()` and
 `STORAGE_IO_BACKGROUND`, stub gaps). Not built with ESP-IDF, not on a Tab5.
 On the board: play a `.cue` image and look for its track titles in the
 log (`tab5_cue: ... N tracks`) and on screen.
+
+### 8079 -- medialib.c's reindex task has a heap TCB
+
+The fifth `DRAM_ATTR` static, and the first task control block. The reindex
+task keeps its stack in PSRAM (`CONFIG_FREERTOS_TASK_CREATE_ALLOW_EXT_MEM`)
+and is made with `xTaskCreateStatic()`, which wants the `StaticTask_t`
+internal; a static over `DRAM_ATTR` cannot be in an ELF loaded to PSRAM. The
+call stays `xTaskCreateStatic()` (the ABI exports it, and the reasons for a
+static create in the file's comment are unchanged); the TCB is
+`heap_caps_calloc(1, sizeof(StaticTask_t), MALLOC_CAP_INTERNAL |
+MALLOC_CAP_8BIT)`, made on the first request and kept, never freed, as the
+task never ends. If it cannot be had the request fails the way a missing
+stack already did: `no memory for the reindex task`, state FAILED.
+Checked: changed lines compile against stubs at `-O2 -Wall -Werror=all
+-Wextra` (the "defined but not used" errors name `s_stack` too, which was
+not touched, so they are the stubs'); not built with ESP-IDF, not on a Tab5.
+On the board: a reindex (`medialib: reindex microSD: started` ... `done`).

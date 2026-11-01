@@ -112,6 +112,7 @@
 #include "powerdown.h"           /* 6000 */
 #include "nvsns.h"              /* 6006 */
 #include "shim_import.h"         /* 8068 */
+#include "defeatist.h"            /* 8074: defeatist_main(), the console note */
 #include "rtc8130.h"             /* 6003 */
 #include "sleeptimer.h"
 #include "wifistore.h"
@@ -15822,38 +15823,22 @@ static void player_loop(void)
     }
 }
 
-/* 5089: the console driver's install result, held for the banner. */
-static esp_err_t s_console_err = ESP_FAIL;
+/* 5089: the console driver's install result, held for the banner.
+ * 8074: the driver is the standalone firmware's to install (standalone.c);
+ * it says how it went through defeatist_note_console(), and an app that
+ * no launcher-side code ran before (an ELF, where the launcher owns the
+ * console) leaves this at "not ours", which prints nothing. */
+#define CONSOLE_NOT_OURS ESP_ERR_NOT_SUPPORTED
+static esp_err_t s_console_err = CONSOLE_NOT_OURS;
 
-void app_main(void)
+void defeatist_note_console(esp_err_t err) { s_console_err = err; }
+
+/* 8074: what app_main() was, less the launcher's side of it (standalone.c:
+ * the console, NVS, the bus, the USB host's owner, storage, the network
+ * brought up to be asked for, the Wi-Fi import). The board inits here are
+ * the ones that return ESP_OK a second time, as Errant's do. */
+void defeatist_main(void)
 {
-    /*
-     * 5082: THE CONSOLE'S 4 KB TX BUFFER, WHICH WAS NEVER THERE.
-     *
-     * sdkconfig.defaults has asked for it since 3a88a45 with
-     * CONFIG_ESP_CONSOLE_USB_SERIAL_JTAG_TX_BUF_SIZE=4096, and IDF 5.5
-     * has no such symbol (5077 found it). Without the driver the console
-     * writes byte by byte into the peripheral's 64-byte FIFO, spinning
-     * while it is full, and after 50 ms without progress drops bytes
-     * until it drains -- which is how a board log came to read
-     * `stalleI (78827) ...`, a line cut off by the next one. The only
-     * way to a buffer is to install the driver and point the console at
-     * it. Once a write fails to make room in 50 ms, later bytes drop at
-     * once until one gets through, so with no host reading the log
-     * nothing blocks. Before the banner, so everything from here is
-     * buffered; the 4 KB ring comes from internal RAM, as the defaults'
-     * note always meant it to.
-     */
-    {
-        usb_serial_jtag_driver_config_t usj = USB_SERIAL_JTAG_DRIVER_CONFIG_DEFAULT();
-        usj.tx_buffer_size = 4096;
-        const esp_err_t usj_err = usb_serial_jtag_driver_install(&usj);
-        if (usj_err == ESP_OK) {
-            usb_serial_jtag_vfs_use_driver();
-        }
-        s_console_err = usj_err;        /* 5089: said under the banner */
-    }
-
     /* The SD drivers narrate every probe; let this file decide what is
      * worth printing. Needs CONFIG_LOG_DYNAMIC_LEVEL_CONTROL on v6.
      *
@@ -15889,7 +15874,9 @@ void app_main(void)
      * now in use. A cut line in a log that says `4096-byte` is the host
      * not reading, not the buffer missing.
      */
-    if (s_console_err == ESP_OK) {
+    if (s_console_err == CONSOLE_NOT_OURS) {
+        /* 8074: a launcher owns the console; nothing to say. */
+    } else if (s_console_err == ESP_OK) {
         ESP_LOGI(TAG, "console: USB-serial-JTAG driver, 4096-byte TX buffer");
     } else {
         ESP_LOGW(TAG, "console: driver not installed (%s); unbuffered",
@@ -15914,7 +15901,7 @@ void app_main(void)
     esp_log_level_set("USBH", ESP_LOG_WARN);
     esp_log_level_set("Hub", ESP_LOG_WARN);
 
-    ESP_ERROR_CHECK(tab5io_init());             /* 6056: bus, then expanders */
+    ESP_ERROR_CHECK(tab5io_init());             /* 6056: bus, then expanders; 8074: again, the shim did */
     s_i2c_bus = tab5io_bus();
     s_exp1 = tab5io_exp1();
     s_exp2 = tab5io_exp2();
@@ -15991,82 +15978,23 @@ void app_main(void)
         ESP_LOGE(TAG, "no PCM ring; this boot cannot play audio");
     }
 
-    /* Both volumes, and the poll task that keeps them up to date. Not
-     * ESP_ERROR_CHECK'd on the media itself: an empty slot and an empty
-     * port are a normal way to boot now, and the chooser says so on
-     * screen. */
-    /* The bus owner before anything that registers a class driver with
-     * it: registration is refused once the port is up, and storage_init()
-     * registers one. */
-    ESP_ERROR_CHECK(usbhost_init(s_exp2));
-    /* 6054: which configuration a Realtek adapter gets. usbhost.c used
-     * to call this itself; it is in feckless-drivers now and does not
-     * know about Ethernet. */
-    usbhost_set_config_select(ethcfg_select);
-
-    /*
-     * Before storage_init(), because settings.c reads through the same
-     * arbiter and the first mount happens in there. It degrades to plain
-     * stdio if it is ever reached before this, which is the reason
-     * nothing here is ESP_ERROR_CHECK()ed: an unarbitrated player is
-     * what this replaced, and that one played.
-     */
-    storage_io_init();
-
-    /* 6053: storage lives in feckless-storage-handler now and does not
-     * own the bus; this is the bus. */
-    static const storage_usb_t storage_usb = {
-        .register_class = usbhost_register_class,
-        .set_power      = usbhost_set_power,
-        .powered        = usbhost_powered,
-    };
-    ESP_ERROR_CHECK(storage_init(&storage_usb));
-
-    /*
-     * Starts the writer task; loads nothing, because which volume the
-     * settings live on is not known until a track plays. What it leaves
-     * here is the built-in default, pushed at audio_out.c so the codec
-     * and the player agree on something. The real value arrives at the
-     * first settings_note_path() in player_loop().
-     */
-    /*
-     * NVS, and the saved networks in it.
-     *
-     * Before wifi_init(), and before the first wifi_apply_settings()
-     * that could bring the radio up -- the store is the only thing that
-     * will want them,
-     * and before settings_init(), which reads the Wi-Fi switch from here
-     * (5049, 5051).
-     *
-     * The erase-and-retry is IDF's documented idiom, not defensiveness:
-     * a partition that is full or was written by a different NVS version
-     * cannot be opened, and the alternative to erasing it is a player
-     * that has no network list and no way to acquire one. Both failures
-     * lose the saved networks; only one of them can be recovered from
-     * without a reflash.
-     */
-    esp_err_t nvs_err = nvsh_init();    /* 8064: the erase-and-retry is in it */
-    if (nvs_err != ESP_OK) {
-        /* Not fatal, and wifistore_init() is still called: it logs once
-         * and leaves an empty list, which is settings.c's bargain. A
-         * player that will not start because it could not read its
-         * network list is a worse program than one that forgets them. */
-        ESP_LOGE(TAG, "nvsh_init: %s", esp_err_to_name(nvs_err));
-    }
-    if (nvs_err == ESP_OK) nvsns_migrate();     /* 6006: before anything reads it */
-    wifistore_init(DEFEATIST_NVS_NS);           /* 6053: the namespace is ours to name */
-    /* 8068: M5Launcher's saved networks, once, before the radio asks for
-     * any. Does nothing unless a launcher booted this from a slot and no
-     * network is saved yet (shim_import.h); the card is up by now. This
-     * is the shim's step -- it moves to the standalone shim's app_main()
-     * ahead of feckless_abi_run() when the ELF split lands. */
-    if (nvs_err == ESP_OK) (void)shim_import_launcher_wifi(DEFEATIST_NVS_NS);
+    /* 8074: the volumes, and the USB host's owner they register with, are
+     * the launcher's (standalone.c, in Avoidant's order): NVS, the bus,
+     * usbhost_init(), storage, and the network brought up to be asked for
+     * (feckless_net_start(): the saved networks, the config selector Ethernet
+     * answers, wifi_init(), ethernet_init()). This is the app's side,
+     * and it finds all of that up. An empty slot and an empty port are a
+     * normal way to boot, and the chooser says so on screen. */
 
     /*
      * 6053: what wifi.c and ethernet.c used to call by name, now that
      * they live in feckless-network-handler. Before anything can run
      * them: settings_init() below may ask for the radio. Every one of
      * these is the function the call site named before the move.
+     * 8074: set after feckless_net_start(), which the shim runs, not before
+     * wifi_init(); the radio comes up when asked and not before, and
+     * feckless_net_set_hooks() does for a network already online what its
+     * coming up would have done with these (SNTP, online()).
      */
     static const feckless_net_hooks_t net_hooks = {
         .heap_note          = heapmap_log,
@@ -16101,7 +16029,6 @@ void app_main(void)
      */
     albumart_init();
 
-    wifi_init(s_exp2);
     portal_init(player_is_playing, player_force_pause);
 
     /*
@@ -16140,11 +16067,8 @@ void app_main(void)
         ESP_LOGW(TAG, "no USB remote support this boot");
     }
 
-    /* A USB Ethernet adapter, the fourth class on the port. Not fatal
-     * either: Wi-Fi is the route every build already had. */
-    if (ethernet_init() != ESP_OK) {
-        ESP_LOGW(TAG, "no USB Ethernet support this boot");
-    }
+    /* 8074: the USB Ethernet class was registered by feckless_net_start(),
+     * with the port still down, so it is installed with these two. */
 
     /*
      * And power it, unconditionally.

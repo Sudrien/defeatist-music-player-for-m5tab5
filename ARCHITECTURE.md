@@ -27966,3 +27966,76 @@ no "made" line.
 
 This is the Mbed TLS step of 8070's list. What is left of it: splitting
 `app_main()` into the shim and the app, the statics, and `elf/`.
+
+### 8074 -- app_main() split: the launcher's side is standalone.c
+
+Step 2 of 8070's order. `app_main()` is two functions in two files, so the
+second can go into an ELF and the first stay in the `.bin` that embeds it.
+`main/standalone.c` is `app_main()` now: what a launcher brings up before it
+runs an app, in the order Avoidant and Errant's `standalone.c` use. The
+console driver (5082); `nvsh_init()` and `nvsns_migrate()`; `tab5io_init()`;
+`usbhost_init()`; `storage_io_init()` and `storage_init()`;
+`feckless_net_start()` (feckless-libs 6005: the saved networks in
+`DEFEATIST_NVS_NS`, the USB host's config selector, `wifi_init()`,
+`ethernet_init()`; nothing powered); then M5Launcher's Wi-Fi import (8068).
+Then `defeatist_main()` (`main/defeatist.h`), which is the rest of the old
+`app_main()` in `player.c`, unchanged and still the last thing it does,
+`player_loop()`.
+
+**Moved, not rewritten:** the console block with its comment, the NVS
+comment, the storage struct. **Left out of `defeatist_main()`:** the console
+driver, NVS, `usbhost_init()`, `usbhost_set_config_select()` (now inside
+`feckless_net_start()`), `storage_io_init()`, `storage_init()`,
+`wifistore_init()`, the import, `wifi_init()` and `ethernet_init()`.
+**Kept in it, deliberately:** `tab5io_init()` again (returns ESP_OK when run
+again, as Errant's ELF calls it), `uac_init()`, `hid_init()` and
+`usbhost_start()`. The two classes register while the port is still down,
+so the standalone `.bin` registers them as it always did, with no VBUS
+cycle; and `usbhost_start()` returns at once if the port is up, so under a
+launcher that already started it (Avoidant) `uac_init()` and `hid_init()`
+are installed late, which `usbhost_register_class()` has done since the
+feckless-abi work (it cycles VBUS once so a device already plugged in
+meets them). `vTaskPrioritySet(NULL, 5)` is also kept; under a launcher it
+would raise the launcher's main task, which is for the ELF step to decide.
+
+**What changes in the standalone boot, because the order moved:**
+- NVS, the bus, the USB host's owner and storage come up *before* the
+  panel, the backlight, the codec and the PCM rings, where they came after.
+  The SD card mounts earlier, with the display dark; Errant's `.bin` does
+  the same.
+- `feckless_net_set_hooks()` is called after `wifi_init()` and not before
+  it. `feckless_net_start()` does not power anything, and
+  `feckless_net_set_hooks()` does for a network already online what its
+  coming up would have done with the hooks (feckless-libs 6006); so the
+  case to look at is a cable plugged in at boot: NTP and `online()` should
+  come once the hooks arrive.
+- `heapmap_init()` (5097) runs after storage and the network drivers
+  instead of before, so a failed allocation in those is not named by it.
+- The console line under the banner (5089) is printed by `defeatist_main()`
+  as before, from a result the shim passes through
+  `defeatist_note_console()`; with no shim (an ELF under a launcher) the
+  result is "not ours" and the line is not printed.
+- The log line `no USB Ethernet support this boot` is gone with the call;
+  `feckless_net_start()` logs `network up to be asked for: N saved
+  networks, Ethernet registered` (or `not registered`) in its place.
+
+**Not done:** `nvsns_migrate()` is the shim's, before the saved networks
+are read; an ELF run by Avoidant on a device whose NVS still holds the
+pre-6006 namespaces would not migrate them. That belongs to the ELF step
+(an app-side call, with NVS up), and I have not added it. Nor is anything
+made conditional on an ELF build: `standalone.c` is in the one build.
+
+**Checked:** `standalone.c` compiled at `-std=gnu11 -O2 -Wall -Werror=all
+-Wextra -Werror=extra` against stub headers (all of them mine, for what it
+includes: IDF's usb_serial_jtag, `nvs_handler.h`, `storage.h`, `tab5io.h`,
+`usbhost.h`, plus the real `feckless_net.h` and `shim_import.h`); clean.
+`player.c` does not compile against stubs here, so it is the weaker check
+CLAUDE.md allows: its error list with empty stand-ins for the headers it
+cannot find, before and after, with line numbers removed. The only
+differences are two that went away: `wifi_init` and `usbhost_init`
+call-site errors, both of calls that left the file. **Not built, not on a
+Tab5, and this touches the .bin's boot path, so a standalone run is due
+now, before the next step:** boot with a card and a cable and a USB
+headset plugged in, and look for `network up to be asked for` in the log,
+the banner's `console:` line under it, no second USB enumeration of the
+headset, and Wi-Fi coming up on a saved network.

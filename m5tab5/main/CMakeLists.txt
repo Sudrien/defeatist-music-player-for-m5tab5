@@ -17,7 +17,7 @@ idf_component_register(
        "browser.c" "panel.c" "i18n.c" "i18n_tab.c" "duration.c" "cbrseek.c" "flacseek.c" "oggseek.c" "tsseek.c" "mp4seek.c" "waveform.c" "replaygain.c" "loudness.c"
          "portal.c" "portalweb.c" "dnsreply.c"
          "sleeppage.c" "streamprobe.c" "netstream.c" "netdec.c" "stations.c" "favorites.c" "starred.c" "streamgain.c" "radiobrowser.c" "bench.c" "cuedir.c" "cardtime.c" "mediacat.c" "mediawalk.c" "mediasync.c" "medialib.c" "mediadir.c" "rateconv.c" "varispeed.c" "fx.c" "radiokeep.c" "heapmap.c" "flacenc.c" "recorder.c" "beam.c"
-         "mpdqueue.c" "mpdproto.c" "mpdfilter.c" "casefold_tab.c" "mpduri.c" "mpdmode.c" "mpdidle.c" "mpd.c" "uireq.c" "m3uline.c" "urlclean.c" "remote.c" "approve.c" "podindex.c" "poddl.c" "remoteproto.c" "certgen.c" "devcert.c" "wifijoin.c" "nvsns.c" "launcher.c" "shim_import.c"
+         "mpdqueue.c" "mpdproto.c" "mpdfilter.c" "casefold_tab.c" "mpduri.c" "mpdmode.c" "mpdidle.c" "mpd.c" "uireq.c" "m3uline.c" "urlclean.c" "remote.c" "approve.c" "podindex.c" "poddl.c" "remoteproto.c" "wifijoin.c" "nvsns.c" "launcher.c" "shim_import.c"
     INCLUDE_DIRS "."
     LDFRAGMENTS "psram_bss.lf"           # 6132: main's .bss in PSRAM
     EMBED_FILES "remote_i18n.html.gz"    # 6028: generated from remote.html; 6127: gzipped
@@ -74,7 +74,7 @@ set_property(SOURCE
         mpd.c mpdproto.c mpdfilter.c mpdidle.c mpdmode.c mpduri.c
         remote.c remoteproto.c portal.c portalweb.c dnsreply.c sleeppage.c
         poddl.c podindex.c radiobrowser.c stations.c favorites.c starred.c
-        approve.c certgen.c devcert.c wifijoin.c nvsns.c launcher.c shim_import.c
+        approve.c wifijoin.c nvsns.c launcher.c shim_import.c
     APPEND PROPERTY COMPILE_OPTIONS -Os)
 # 8032: -Os inlines further, and -Wformat-truncation then sees ranges it did
 # not at -O2 (poddl.c's picture path was the first). Those files only, a
@@ -85,7 +85,7 @@ set_property(SOURCE
         mpd.c mpdproto.c mpdfilter.c mpdidle.c mpdmode.c mpduri.c
         remote.c remoteproto.c portal.c portalweb.c dnsreply.c sleeppage.c
         poddl.c podindex.c radiobrowser.c stations.c favorites.c starred.c
-        approve.c certgen.c devcert.c wifijoin.c nvsns.c launcher.c shim_import.c
+        approve.c wifijoin.c nvsns.c launcher.c shim_import.c
     APPEND PROPERTY COMPILE_OPTIONS -Wno-error=format-truncation)
 
 # 5277: every file in main at -O3, off by default. Build with

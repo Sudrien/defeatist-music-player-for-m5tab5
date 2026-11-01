@@ -27895,3 +27895,74 @@ with ESP-IDF, not on a Tab5; a join with a passphrase typed in the portal
 (PSK, then passphrase ...)` then `saved ... as PSK`. This is one of the
 four mbedtls users the survey (8070) listed; `approve.c`'s SHA-256 remains
 for the hashing section, `certgen.c` goes with the next patch.
+
+### 8073 -- the remote's certificate is the launcher's
+
+`remote.c` starts its HTTPS server with `feckless_https_start()` and answers
+port 80 with `feckless_https_redirect()` (feckless-libs 8004, v0.8.1 by
+8071), and the player no longer makes or holds a key. Gone: `certgen.c`
+(the P-256 key and the self-signed certificate, 141 lines),
+`devcert.c` (their keeping in NVS, 114), their headers, and `remote.c`'s
+own `h_redirect()`. The Mbed TLS users left in main/ are `approve.c`'s
+SHA-256 and nothing else (`wifijoin.c` was 8072).
+
+**What changed in `start()`.** `httpd_ssl_start()` was given
+`HTTPD_SSL_CONFIG_DEFAULT()`; `feckless_https_start()` copies an
+`httpd_config_t` over that default whole, so what the SSL default set that
+`HTTPD_DEFAULT_CONFIG()` does not is set here: `stack_size = 10240`, and the
+sockets (`REMOTE_SOCKETS`, 4) and `lru_purge_enable` the file already set.
+Everything else was set explicitly before (control port, 16 URI handlers, the
+PSRAM `task_caps` of 6005, the `open_fn` of 8001) and is as it was; the
+defaults the two macros disagree on other than those (the HTTPD defaults'
+`recv_wait_timeout`, `send_wait_timeout` and `backlog_conn`) are, from my
+memory of the headers, equal at 5, 5 and 5, **which I could not check
+without the IDF**: if a log shows a timeout different from before, that is
+where to look. A failed start now logs the error's name. `stop()` is
+`feckless_https_stop()`.
+
+**What a person sees.**
+- *A new certificate, once.* The device identity is the launcher's, in the
+  `feckless_https` NVS namespace, made the first time any app starts a
+  server. The old `devcert` key and certificate (already moved by 6006 into
+  this player's namespace) are not read again: **every browser that had
+  accepted the old one warns once more**, and the panel's `Cert ...` line shows
+  the new fingerprint, from `feckless_https_fingerprint()` (the same 95
+  characters, `fp[]` is `FECKLESS_HTTPS_FP_SIZE`). The old two entries stay in NVS,
+  a few hundred bytes, until something erases them; nothing deletes them
+  here, and `nvsns.c`'s migration of an older `devcert` namespace is
+  untouched. A cleanup patch can drop them once this has been on a board.
+- *Names.* The certificate carries `feckless-xxxxxx.local` (the MAC's last
+  three bytes), not an IP, and port 80 now sends a request that came by IP to
+  that name, so the URL on the panel (still the IP, `remote_url()`) works
+  and ends at the name. It is a 307 and not the old 301, and it no longer
+  keeps whatever `Host` header arrived when that was an address. The
+  name resolves by mDNS over Wi-Fi only (8005): over USB Ethernet it will not
+  unless the network's DNS knows it, and **a browser on the cable is
+  redirected to a name it cannot resolve** -- the case to test, and the one to
+  fix in feckless-libs if it matters.
+- The Wi-Fi AP's portal name `Defeatist-XXXX` is unrelated and unchanged.
+
+**Build.** `main/CMakeLists.txt` drops `certgen.c` and `devcert.c` from SRCS
+and from the two `-Os` property lists. Nothing is added to REQUIRES:
+`feckless_network_handler` is already there. `CONFIG_ESP_HTTPS_SERVER_ENABLE`
+(in `sdkconfig.defaults`) and `CONFIG_MBEDTLS_X509_CREATE_C` (the idf6 file)
+are what the library needs and are already set, so no `sdkconfig` change.
+`tools/remotecheck.py`'s comment names `feckless_https` where it named
+devcert. `remote.h`'s comment too.
+
+**Checked.** `remote.c` and `panel.c` do not compile against stubs here (they
+need most of IDF), so the check is the weaker one CLAUDE.md allows: both
+compiled at `-O2 -Wall -Wextra` against stubs with the headers they cannot
+find emptied, once before and once after, and the error lists compared with
+line numbers removed. The only differences are the removed
+`httpd_resp_send_404`, and errors that the stubs make (`httpd_config_t`
+having no `stack_size` in the stub; one more of them for the line added), so
+this shows no new kind of error and nothing more. **Not built, not on a Tab5.**
+The boot log to look for: `feckless_https: made a certificate for
+feckless-xxxxxx in N ms` on the first start (a second or so on the P4, on
+`ui_task` as `devcert_get()` was), `answering mDNS as
+feckless-xxxxxx.local`, then `remote: up at https://<ip>/`; on the next boot
+no "made" line.
+
+This is the Mbed TLS step of 8070's list. What is left of it: splitting
+`app_main()` into the shim and the app, the statics, and `elf/`.

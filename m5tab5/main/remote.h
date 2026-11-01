@@ -62,7 +62,8 @@ extern "C" {
 #define REMOTE_PORT_PLAIN (80)
 /*
  * 5121: the controls themselves are HTTPS, with a certificate this
- * player made for itself (devcert.h). Port 80 above is only a redirect
+ * device made for itself and the launcher keeps (feckless_https.h, 8073).
+ * Port 80 above is only a redirect
  * to here, and only while the portal is not using it.
  */
 #define REMOTE_PORT     (443)

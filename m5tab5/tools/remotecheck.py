@@ -44,7 +44,7 @@ By default:
 listing, the refusals, /art, /stations' GET, /wifi's GET, the port-80
 redirect. Wi-Fi scan and join are never sent.
 
-TLS: the player's certificate is its own (devcert), so it is not
+TLS: the player's certificate is its own (feckless_https), so it is not
 verified. This checks the player, not the certificate.
 
 USAGE

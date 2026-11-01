@@ -16,7 +16,6 @@
 
 #include "esp_heap_caps.h"
 #include "esp_http_server.h"
-#include "esp_https_server.h"
 #include "esp_netif.h"           /* 8001: the interface a peer reached */
 #include "esp_log.h"
 #include "esp_timer.h"
@@ -29,8 +28,8 @@
 
 #include "cuedir.h"
 #include "decoder.h"
-#include "devcert.h"
 #include "ethernet.h"
+#include "feckless_https.h"   /* 8073: the device's certificate and its redirect */
 #include "mediacache.h"
 #include "portal.h"
 #include "portalweb.h"
@@ -1479,36 +1478,15 @@ static esp_err_t h_gate(httpd_req_t *req)
 }
 
 /*
- * 5121: port 80 answers everything with a redirect to the same path on
- * https://. Nothing else is served in the clear -- a page that loaded
- * over HTTP could post a password over HTTP, which is the thing 5121
- * exists to stop. The Host header is used so a name that reached the
- * player (defeatist-xxxx.local, a router's DNS name) is kept; it is
- * checked to be a plain host before it goes into a header.
+ * 5121: port 80 answers everything with a redirect to https://, and nothing
+ * else is served in the clear -- a page that loaded over HTTP could post a
+ * password over HTTP, which is the thing 5121 exists to stop. 8073: the
+ * handler is feckless_https_redirect(), the launcher's: a request by IP
+ * address goes to the name the certificate carries (https://<name>.local),
+ * one that came by a name keeps it. It was a 301 that kept the Host header;
+ * it is a 307 now, so a browser does not remember a redirect to a name
+ * that may change.
  */
-static esp_err_t h_redirect(httpd_req_t *req)
-{
-    char host[64] = "";
-    if (httpd_req_get_hdr_value_str(req, "Host", host, sizeof(host)) != ESP_OK) host[0] = '\0';
-    char *colon = strchr(host, ':');
-    if (colon) *colon = '\0';
-    for (const char *p = host; *p; p++) {
-        const char c = *p;
-        if (!((c >= 'a' && c <= 'z') || (c >= 'A' && c <= 'Z') ||
-              (c >= '0' && c <= '9') || c == '.' || c == '-')) { host[0] = '\0'; break; }
-    }
-    if (!host[0]) {
-        char ip[20];
-        if (!have_ip(ip, sizeof(ip))) return httpd_resp_send_404(req);
-        snprintf(host, sizeof(host), "%s", ip);
-    }
-    char loc[64 + 16 + 64];
-    const char *uri = req->uri[0] == '/' ? req->uri : "/";
-    snprintf(loc, sizeof(loc), "https://%s%.64s", host, uri);
-    httpd_resp_set_status(req, "301 Moved Permanently");
-    httpd_resp_set_hdr(req, "Location", loc);
-    return httpd_resp_send(req, NULL, 0);
-}
 
 static void plain_start(void)
 {
@@ -1522,7 +1500,7 @@ static void plain_start(void)
     cfg.uri_match_fn = httpd_uri_match_wildcard;
     cfg.open_fn = open_plain;           /* 8001 */
     if (httpd_start(&s_plain, &cfg) != ESP_OK) { s_plain = NULL; return; }
-    const httpd_uri_t any = { .uri = "/*", .method = HTTP_GET, .handler = h_redirect };
+    const httpd_uri_t any = { .uri = "/*", .method = HTTP_GET, .handler = feckless_https_redirect };
     httpd_register_uri_handler(s_plain, &any);
 }
 
@@ -1640,18 +1618,20 @@ static esp_err_t h_pair_post(httpd_req_t *req)
 
 static void start(void)
 {
-    const char *crt, *key;
-    size_t crt_len, key_len;
-    if (!devcert_get(&crt, &crt_len, &key, &key_len)) {
-        s_retry_us = esp_timer_get_time() + REMOTE_RETRY_US;
-        ESP_LOGW(TAG, "no certificate; not starting");
-        return;
-    }
-    httpd_ssl_config_t cfg = HTTPD_SSL_CONFIG_DEFAULT();
-    cfg.httpd.ctrl_port = REMOTE_CTRL_PORT;
-    cfg.httpd.max_open_sockets = REMOTE_SOCKETS;
-    cfg.httpd.lru_purge_enable = true;
-    cfg.httpd.max_uri_handlers = 16;    /* 8002: the two /pair; 8006: the two /podindex; 8033: /pod* */
+    /*
+     * 8073: feckless_https_start() (the launcher's: the certificate is made
+     * once, kept in NVS and shared by every app, and this code never holds
+     * the key) takes a plain httpd_config_t. httpd_ssl_start() was given
+     * HTTPD_SSL_CONFIG_DEFAULT()'s, whose differences from
+     * HTTPD_DEFAULT_CONFIG() are set here, so the server is what it was:
+     * four sockets, the 10 KB stack, and the LRU purge.
+     */
+    httpd_config_t cfg = HTTPD_DEFAULT_CONFIG();
+    cfg.stack_size = 10240;
+    cfg.ctrl_port = REMOTE_CTRL_PORT;
+    cfg.max_open_sockets = REMOTE_SOCKETS;
+    cfg.lru_purge_enable = true;
+    cfg.max_uri_handlers = 16;    /* 8002: the two /pair; 8006: the two /podindex; 8033: /pod* */
     /*
      * 6005: the server task's 10 KB stack in PSRAM, not internal RAM --
      * the remote coming up took internal free from 27343 to 15915 on the
@@ -1663,17 +1643,14 @@ static void start(void)
      * path -- and the cleanup helper vTaskDeleteWithCaps() spawns from
      * internal RAM is likelier to get its memory with 10 KB more free.
      */
-    cfg.httpd.task_caps = MALLOC_CAP_SPIRAM | MALLOC_CAP_8BIT;
-    cfg.httpd.open_fn = open_tls;       /* 8001 */
-    cfg.port_secure = REMOTE_PORT;
-    cfg.servercert = (const uint8_t *)crt;
-    cfg.servercert_len = crt_len;
-    cfg.prvtkey_pem = (const uint8_t *)key;
-    cfg.prvtkey_len = key_len;
-    if (httpd_ssl_start(&s_srv, &cfg) != ESP_OK) {
+    cfg.task_caps = MALLOC_CAP_SPIRAM | MALLOC_CAP_8BIT;
+    cfg.open_fn = open_tls;       /* 8001 */
+    const esp_err_t herr = feckless_https_start(&s_srv, &cfg, REMOTE_PORT);
+    if (herr != ESP_OK) {
         s_srv = NULL;
         s_retry_us = esp_timer_get_time() + REMOTE_RETRY_US;
-        ESP_LOGW(TAG, "could not start on port %d; trying again in 5 s", REMOTE_PORT);
+        ESP_LOGW(TAG, "could not start on port %d (%s); trying again in 5 s", REMOTE_PORT,
+                 esp_err_to_name(herr));
         return;
     }
     const httpd_uri_t uris[] = {
@@ -1721,7 +1698,7 @@ static void stop(const char *why)
 {
     plain_stop();
     if (!s_srv) return;
-    httpd_ssl_stop(s_srv);
+    feckless_https_stop(s_srv);
     s_srv = NULL;
     ESP_LOGI(TAG, "down: %s", why);
 }

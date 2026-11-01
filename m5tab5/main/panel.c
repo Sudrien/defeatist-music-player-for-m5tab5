@@ -27,7 +27,7 @@
 #include "menuscroll.h"
 #include "panel.h"
 #include "settings.h"
-#include "devcert.h"         /* 5121 */
+#include "feckless_https.h"  /* 5121; 8073: the fingerprint */
 #include "remote.h"          /* 5117 */
 #include "approve.h"         /* 8003 */
 #include "mpd.h"             /* 5158 */
@@ -1098,8 +1098,8 @@ static int draw_net(void)
              * against the browser's one-time warning. 10 of 32 bytes is
              * what fits; it is what a person will actually compare. */
             static char fp_line[48];
-            char fp[96];
-            if (devcert_fingerprint(fp, sizeof(fp))) {
+            char fp[FECKLESS_HTTPS_FP_SIZE];
+            if (feckless_https_fingerprint(fp, sizeof(fp))) {
                 snprintf(fp_line, sizeof(fp_line), _("Cert %.29s…"), fp);
                 rn[1] = fp_line;
             } else {

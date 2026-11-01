@@ -949,7 +949,8 @@ static int run_slot(int k, char *url, hdrs_t *h, esp_http_client_handle_t c, dl_
 #define DL_HELPERS (DL_CONNS - 1)
 _Static_assert(DL_CONNS <= NETBUDGET_PODDL, "netbudget.h counts fewer sockets for poddl than DL_CONNS");
 _Static_assert(DL_CONNS <= DL_SEGS_MAX, "a segment a connection");
-static DRAM_ATTR StaticTask_t s_help_tcb[DL_HELPERS > 0 ? DL_HELPERS : 1];
+/* 8081: each TCB from the internal heap, once, never freed. */
+static StaticTask_t *s_help_tcb[DL_HELPERS > 0 ? DL_HELPERS : 1];
 static struct {
     TaskHandle_t  task;
     StackType_t  *stack;
@@ -983,8 +984,10 @@ static bool helpers_ready(void)
         if (!s_help[j].stack)
             s_help[j].stack = heap_caps_malloc(DL_HELP_STACK, MALLOC_CAP_SPIRAM | MALLOC_CAP_8BIT);
         if (!s_help[j].stack) return false;
+        if (!s_help_tcb[j]) s_help_tcb[j] = heap_caps_calloc(1, sizeof(*s_help_tcb[j]), MALLOC_CAP_INTERNAL | MALLOC_CAP_8BIT);
+        if (!s_help_tcb[j]) return false;
         s_help[j].task = xTaskCreateStatic(help_task, "poddl_h", DL_HELP_STACK, (void *)(intptr_t)j,
-                                           3, s_help[j].stack, &s_help_tcb[j]);
+                                           3, s_help[j].stack, s_help_tcb[j]);
         if (!s_help[j].task) return false;
     }
     return true;

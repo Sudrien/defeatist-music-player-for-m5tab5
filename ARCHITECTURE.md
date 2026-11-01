@@ -28145,3 +28145,14 @@ task has gone, so it is allocated once, on the first start, and never freed
 warning `could not create the task; trying again in 5 s`. Checked as 8079,
 with no error on the changed lines. Not built with ESP-IDF, not on a Tab5.
 On the board: MPD on, a client connects (`mpc status`), MPD off and on again.
+
+### 8081 -- poddl.c's helper tasks have heap TCBs
+
+The seventh. `s_help_tcb[]` was an array of `StaticTask_t` in `.dram`; it is an
+array of pointers, each allocated from the internal heap in `helpers_ready()`
+just before its task is made, and kept (the helpers never end).
+`helpers_ready()` already returns false when a stack could not be had; a TCB
+that cannot be had does the same, so a download falls back to the
+connections it can make. Checked as 8079; no error on the changed lines. Not
+built with ESP-IDF, not on a Tab5. On the board: a podcast episode download
+(`/pod/dl`) with segments in flight.

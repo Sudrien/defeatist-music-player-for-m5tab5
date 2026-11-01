@@ -28133,3 +28133,15 @@ Checked: changed lines compile against stubs at `-O2 -Wall -Werror=all
 -Wextra` (the "defined but not used" errors name `s_stack` too, which was
 not touched, so they are the stubs'); not built with ESP-IDF, not on a Tab5.
 On the board: a reindex (`medialib: reindex microSD: started` ... `done`).
+
+### 8080 -- mpd.c's task has a heap TCB
+
+The sixth. Same change as 8079 with one thing to keep: this TCB is used again
+each time the MPD server is stopped and started, and `mpd_poll()` calls
+`eTaskGetState()` on the old handle (which is the TCB's address) after the
+task has gone, so it is allocated once, on the first start, and never freed
+(the comment that said "`&s_tcb`, which is ours and never freed" says
+"`s_tcb`" now). A failed allocation is the existing failed create: the
+warning `could not create the task; trying again in 5 s`. Checked as 8079,
+with no error on the changed lines. Not built with ESP-IDF, not on a Tab5.
+On the board: MPD on, a client connects (`mpc status`), MPD off and on again.

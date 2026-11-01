@@ -406,7 +406,7 @@ static char              *s_text;           /* MPD_TEXT_MAX, PSRAM */
 /* Non-NULL while a task exists or has not yet been seen to be deleted;
  * only mpd_poll() writes it (5159). */
 static TaskHandle_t       s_task;
-static DRAM_ATTR StaticTask_t s_tcb;     /* 5159: internal; psram_bss.lf */
+static StaticTask_t     *s_tcb;             /* 5159: internal; 8080: from the heap, once, never freed */
 static StackType_t       *s_stack;          /* 5159: MPD_STACK, PSRAM */
 static volatile bool      s_stop;
 static volatile bool      s_listening;
@@ -5368,7 +5368,7 @@ void mpd_poll(bool want)
      * 5159: a task that has exited -- stopped, or failed to bind -- is let
      * go only once FreeRTOS says it is deleted, because its stack is the
      * one the next task will be given. eTaskGetState() is safe on the
-     * handle afterwards: it is &s_tcb, which is ours and never freed, and
+     * handle afterwards: it is s_tcb, which is ours and never freed, and
      * a TCB on the termination list or on none reads as eDeleted. The
      * handle is only ever written here, so the old race -- a task that
      * failed to bind clearing it before xTaskCreate() had returned it --
@@ -5386,7 +5386,9 @@ void mpd_poll(bool want)
     if (!want || !net || esp_timer_get_time() < s_retry_us) return;
 
     s_stop = false;
-    s_task = xTaskCreateStatic(mpd_task, "mpd", MPD_STACK, NULL, MPD_PRIO, s_stack, &s_tcb);
+    if (!s_tcb) s_tcb = heap_caps_calloc(1, sizeof(*s_tcb), MALLOC_CAP_INTERNAL | MALLOC_CAP_8BIT);
+    s_task = s_tcb ? xTaskCreateStatic(mpd_task, "mpd", MPD_STACK, NULL, MPD_PRIO, s_stack, s_tcb)
+                   : NULL;
     if (!s_task) {
         ESP_LOGW(TAG, "could not create the task; trying again in 5 s");
         s_retry_us = esp_timer_get_time() + MPD_RETRY_US;

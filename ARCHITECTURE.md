@@ -28039,3 +28039,35 @@ now, before the next step:** boot with a card and a cable and a USB
 headset plugged in, and look for `network up to be asked for` in the log,
 the banner's `console:` line under it, no second USB enumeration of the
 headset, and Wi-Fi coming up on a saved network.
+
+### 8075 -- starred.c's lock is a dynamic mutex
+
+Step 3 of 8070's order, the first of ten `DRAM_ATTR` statics. An ELF is
+loaded to PSRAM whole, so a `StaticSemaphore_t` in it is in PSRAM, where
+CLAUDE.md says a FreeRTOS object does not belong (the P4 cannot do the
+atomics a spinlock needs there). The ABI exports `xQueueCreateMutex`
+(`xSemaphoreCreateMutex()`) as well as the static variant, and the dynamic
+one takes its storage from the internal heap, which is where the object has
+to be whichever way the program is linked. So `starred.c` drops
+`s_lock_buf` and its `DRAM_ATTR`, and `lock()` makes the mutex with
+`xSemaphoreCreateMutex()`. Same lazy create as before (the race it always
+had on the first two callers is not touched).
+
+One behaviour added: a static create could not fail and a dynamic one can
+(internal RAM gone), so `lock()` and `unlock()` skip the semaphore when
+`s_lock` is NULL rather than pass NULL to FreeRTOS. The list is then
+used without a lock; that is a worse state than a crash only if two tasks
+touch it at once, and it needs a small internal allocation to fail
+first.
+
+The mutex's storage is internal heap now instead of internal `.dram`: the
+same RAM, a different pool; I have not measured the difference.
+`psram_bss.lf`'s note about which statics stay internal loses this entry
+when the last of the ten goes; it is not touched here.
+
+Checked: the lines changed compile with no error at `-O2 -Wall
+-Werror=all -Wextra` against the stubs (the file as a whole does not: stub
+headers lack `STORAGE_COUNT`, `storage_id_t`, and `xSemaphoreCreateMutex`,
+which I declared for the check). Not built with ESP-IDF, not on a Tab5. To
+look for on the board: the Starred tab, a star added and removed, no
+change in the boot log; nothing about the saved list's format changed.

@@ -32,14 +32,17 @@ typedef struct {
 
 static vol_t             s_vol[STORAGE_COUNT];
 static SemaphoreHandle_t s_lock;
-static DRAM_ATTR StaticSemaphore_t s_lock_buf;   /* internal: psram_bss.lf */
 
+/* 8075: a dynamic mutex, not a static one over a DRAM_ATTR buffer: it comes
+ * from the internal heap whichever way this is linked, and an ELF loaded to
+ * PSRAM has no way to keep a static there. If it cannot be made (internal RAM
+ * gone) the list is used unlocked rather than the call crashing. */
 static void lock(void)
 {
-    if (!s_lock) s_lock = xSemaphoreCreateMutexStatic(&s_lock_buf);
-    xSemaphoreTake(s_lock, portMAX_DELAY);
+    if (!s_lock) s_lock = xSemaphoreCreateMutex();
+    if (s_lock) xSemaphoreTake(s_lock, portMAX_DELAY);
 }
-static void unlock(void) { xSemaphoreGive(s_lock); }
+static void unlock(void) { if (s_lock) xSemaphoreGive(s_lock); }
 
 /* The key: path relative to its volume, '/' appended for a folder.
  * STORAGE_COUNT when the path is on no volume or does not fit. */

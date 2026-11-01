@@ -28187,3 +28187,12 @@ ring's control block` and returns false, which is what a failed storage
 allocation does (`defeatist_main()` then logs "internet radio disabled"). Checked: changed lines compile at `-O2 -Wall
 -Werror=all -Wextra` against stubs; not built with ESP-IDF, not on a Tab5.
 On the board: play a station.
+
+### 8084 -- recorder.c's ring control block is on the heap
+
+As 8083, for the recording ring. `buffers()` allocates the struct with the
+rest and adds it to the one check that already refuses a recording when any
+PSRAM block could not be had (`no PSRAM for the recording buffers`, whose
+wording is now slightly off for this one); blocks already allocated are kept
+for the next try, as the comment above says. Checked and not run as 8083. On
+the board: start and stop a recording.

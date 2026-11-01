@@ -91,7 +91,8 @@ static const char *TAG = "tab5_rec";
  * + 2 KB, none of it touched when nothing is recording.
  */
 static StreamBufferHandle_t s_ring;
-static DRAM_ATTR StaticStreamBuffer_t s_ring_struct;   /* internal: psram_bss.lf */
+/* 8084: from the internal heap, once, never freed (a spinlock is in it). */
+static StaticStreamBuffer_t *s_ring_struct;
 static uint8_t             *s_ring_storage;
 static int32_t             *s_in_buf;       /* REC_IN_FRAMES frames */
 static int32_t             *s_enc_buf;      /* REC_BLOCK frames */
@@ -482,12 +483,13 @@ static bool buffers(void)
     s_enc_buf = heap_caps_malloc(REC_BLOCK * REC_FRAME_BYTES, MALLOC_CAP_SPIRAM | MALLOC_CAP_8BIT);
     s_beam    = heap_caps_malloc(sizeof(beam_t), MALLOC_CAP_SPIRAM | MALLOC_CAP_8BIT);
     s_fix     = heap_caps_calloc(REC_FIX_MAX, sizeof(rec_fix_t), MALLOC_CAP_SPIRAM | MALLOC_CAP_8BIT);
-    if (!s_ring_storage || !s_in_buf || !s_enc_buf || !s_beam || !s_fix) {
+    if (!s_ring_struct) s_ring_struct = heap_caps_calloc(1, sizeof(*s_ring_struct), MALLOC_CAP_INTERNAL | MALLOC_CAP_8BIT);
+    if (!s_ring_storage || !s_in_buf || !s_enc_buf || !s_beam || !s_fix || !s_ring_struct) {
         /* Kept for the next try rather than freed: see the rule above. */
         ESP_LOGE(TAG, "no PSRAM for the recording buffers");
         return false;
     }
-    s_ring = xStreamBufferCreateStatic(REC_RING_BYTES + 1, 1, s_ring_storage, &s_ring_struct);
+    s_ring = xStreamBufferCreateStatic(REC_RING_BYTES + 1, 1, s_ring_storage, s_ring_struct);
     return s_ring != NULL;
 }
 

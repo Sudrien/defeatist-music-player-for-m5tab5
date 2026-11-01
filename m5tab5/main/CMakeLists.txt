@@ -81,7 +81,7 @@ idf_component_register(
     REQUIRES feckless_abi feckless_abi_storage feckless_abi_network   # 8087
              feckless_abi_nvs feckless_abi_image feckless_abi_crypto
              feckless_abi_audio   # 8093: esp_audio_codec's headers; its code is the launcher's
-             driveresp_app_format esp_driver_i2c esp_driver_i2s esp_driver_sdmmc
+             driver esp_app_format esp_driver_i2c esp_driver_i2s esp_driver_sdmmc
              esp_driver_ledc esp_driver_usb_serial_jtag esp_lcd esp_lcd_touch fatfs sdmmc
              usb usb_host_msc usb_host_uac esp_timer lwip ${DMP_JSON}
              nvs_flash esp_netif esp_event esp_http_server esp_https_server esp_http_client mbedtls

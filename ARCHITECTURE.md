@@ -28461,3 +28461,16 @@ major); its object refers to `feckless_abi_audio_v1` beside the other
 sections' symbols. **Not checked:** no CMake ran (no ESP-IDF), so the
 `elf/` configure, the ELF link and the shim's link are untested; not on a
 Tab5, standalone or under Avoidant.
+
+### 8094 -- `driver` and `esp_app_format` are two words again
+
+8093 put `feckless_abi_audio` into the ELF build's REQUIRES on the line
+before `driver esp_app_format ...`, and the edit lost the space after
+`driver`. IDF 6.1's configure stopped at once: "Failed to resolve
+component 'driveresp_app_format' required by component 'main': unknown
+name." The space is back; nothing else changes.
+
+**Checked:** that line was the only damage. The words of both
+`idf_component_register()` calls, comments stripped, are 8090's plus
+`feckless_abi_audio` and nothing else; 8093's other hunks (`elf_main.c`,
+`elf/CMakeLists.txt`, the shim's PRIV_REQUIRES) are as intended. Not built.

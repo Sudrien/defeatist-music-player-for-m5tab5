@@ -424,24 +424,43 @@ static void stars_resolve(void)
  * under it, so a draw that queued behind browser_open() does not then
  * replace the folder that was just opened with the root.
  */
+/* 8077: a dynamic mutex, not a static one over a DRAM_ATTR buffer (8075 has
+ * the reason). Made outside the critical section, because the heap is not
+ * something to enter one for; if two callers race, the loser's is deleted.
+ * If it cannot be made, the lock is skipped. */
 static SemaphoreHandle_t load_lock(void)
 {
     static portMUX_TYPE mux = portMUX_INITIALIZER_UNLOCKED;
-    static DRAM_ATTR StaticSemaphore_t buf;   /* internal: see psram_bss.lf */
     static SemaphoreHandle_t h;
-    taskENTER_CRITICAL(&mux);
-    if (!h) h = xSemaphoreCreateMutexStatic(&buf);
-    taskEXIT_CRITICAL(&mux);
+    if (!h) {
+        SemaphoreHandle_t m = xSemaphoreCreateMutex();
+        taskENTER_CRITICAL(&mux);
+        if (!h) { h = m; m = NULL; }
+        taskEXIT_CRITICAL(&mux);
+        if (m) vSemaphoreDelete(m);
+    }
     return h;
+}
+
+static void load_take(void)
+{
+    SemaphoreHandle_t h = load_lock();
+    if (h) xSemaphoreTake(h, portMAX_DELAY);
+}
+
+static void load_give(void)
+{
+    SemaphoreHandle_t h = load_lock();
+    if (h) xSemaphoreGive(h);
 }
 
 static void load_dir_locked(const char *dir);
 
 static void load_dir(const char *dir)
 {
-    xSemaphoreTake(load_lock(), portMAX_DELAY);
+    load_take();
     load_dir_locked(dir);
-    xSemaphoreGive(load_lock());
+    load_give();
 }
 
 /*
@@ -1616,7 +1635,7 @@ void browser_draw(void)
                  * Adopting the volume that just appeared is not
                  * overriding a choice, because none has been made.
                  */
-                xSemaphoreTake(load_lock(), portMAX_DELAY);
+                load_take();
                 if (!s_dir[0] && !storage_present((storage_id_t)s_tab)) {
                     for (int i = 0; i < STORAGE_COUNT; i++) {
                         if (!storage_present((storage_id_t)i)) continue;
@@ -1625,12 +1644,12 @@ void browser_draw(void)
                         break;
                     }
                 }
-                xSemaphoreGive(load_lock());
+                load_give();
             }
         } else if (s_count == 0 || !s_dir[0]) {
-            xSemaphoreTake(load_lock(), portMAX_DELAY);
+            load_take();
             if (s_count == 0 || !s_dir[0]) load_dir_locked(s_dir[0] ? s_dir : tab_root());
-            xSemaphoreGive(load_lock());
+            load_give();
         }
         }
     }

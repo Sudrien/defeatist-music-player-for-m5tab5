@@ -28089,3 +28089,17 @@ against stubs (with the create and delete declared and `taskENTER_CRITICAL`
 made a no-op); the rest of the file was not clean against stubs. Not
 built with ESP-IDF, not on a Tab5. On the board: save a station and read it
 back after a reboot.
+
+### 8077 -- browser.c's load lock is a dynamic mutex
+
+The third. `load_lock()` in `browser.c` made a static mutex over a
+`DRAM_ATTR` buffer inside a critical section; it now creates a dynamic one
+outside it (8076's way) and returns the handle, which may now be NULL if the
+create failed. Its six users took and gave the handle directly, so they
+call `load_take()` and `load_give()`, which skip a NULL handle (three
+`xSemaphoreTake(load_lock(), ...)` and three `xSemaphoreGive(load_lock())`,
+in `load_dir()` and `browser_draw()`). Nothing else about the folder
+listing's locking changes. Checked as 8076; the only compile errors left
+are on unchanged lines (`storage_id_t` and similar, the stubs'). Not built
+with ESP-IDF, not on a Tab5. On the board: open a folder, go back, switch
+between the SD and USB tabs.

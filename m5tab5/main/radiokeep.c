@@ -32,18 +32,25 @@ static char s_blob[BLOB_MAX];
 static char s_last_err[64];     /* 5051: why the last read went as it did */
 
 static SemaphoreHandle_t s_lock;
-static DRAM_ATTR StaticSemaphore_t s_lock_buf;   /* internal: psram_bss.lf */
+/* 8076: a dynamic mutex, not a static one over a DRAM_ATTR buffer (8075 has
+ * the reason). Made outside the critical section, because the heap is not
+ * something to enter one for; if two callers race, the loser's is deleted.
+ * If it cannot be made, the lock is skipped. */
 static portMUX_TYPE      s_init_mux = portMUX_INITIALIZER_UNLOCKED;
 
 static void lock(void)
 {
-    taskENTER_CRITICAL(&s_init_mux);
-    if (!s_lock) s_lock = xSemaphoreCreateMutexStatic(&s_lock_buf);
-    taskEXIT_CRITICAL(&s_init_mux);
-    xSemaphoreTake(s_lock, portMAX_DELAY);
+    if (!s_lock) {
+        SemaphoreHandle_t m = xSemaphoreCreateMutex();
+        taskENTER_CRITICAL(&s_init_mux);
+        if (!s_lock) { s_lock = m; m = NULL; }
+        taskEXIT_CRITICAL(&s_init_mux);
+        if (m) vSemaphoreDelete(m);
+    }
+    if (s_lock) xSemaphoreTake(s_lock, portMAX_DELAY);
 }
 
-static void unlock(void) { xSemaphoreGive(s_lock); }
+static void unlock(void) { if (s_lock) xSemaphoreGive(s_lock); }
 
 /* Under the lock. False when absent or malformed; `out` zeroed then. */
 static bool slot_read(const char *key, station_t *out)

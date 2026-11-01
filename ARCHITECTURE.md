@@ -28071,3 +28071,21 @@ headers lack `STORAGE_COUNT`, `storage_id_t`, and `xSemaphoreCreateMutex`,
 which I declared for the check). Not built with ESP-IDF, not on a Tab5. To
 look for on the board: the Starred tab, a star added and removed, no
 change in the boot log; nothing about the saved list's format changed.
+
+### 8076 -- radiokeep.c's lock is a dynamic mutex
+
+The second of ten `DRAM_ATTR` statics (8075 has the reason: an ELF is loaded
+to PSRAM, and a FreeRTOS object's storage must be internal). `s_lock_buf` and
+its `DRAM_ATTR` go; `lock()` makes the mutex with `xSemaphoreCreateMutex()`.
+Two things differ from 8075's file. The create is done *outside* the
+`s_init_mux` critical section and published inside it, with the loser of a race
+deleting its own (`vSemaphoreDelete()` is `vQueueDelete()`, exported),
+because the heap is not something to enter a critical section for, and the
+old code created inside it. And `lock()`/`unlock()` skip a NULL handle, as
+8075 does, if the create fails. The station slots are then read and written
+unlocked, which needs an internal allocation to fail first.
+Checked: the changed lines compile at `-O2 -Wall -Werror=all -Wextra`
+against stubs (with the create and delete declared and `taskENTER_CRITICAL`
+made a no-op); the rest of the file was not clean against stubs. Not
+built with ESP-IDF, not on a Tab5. On the board: save a station and read it
+back after a reboot.

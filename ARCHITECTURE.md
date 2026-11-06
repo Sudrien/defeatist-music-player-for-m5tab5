@@ -28544,3 +28544,54 @@ writes it (`<m5tab5>/partitions.csv`) and with `elf/../` in it, no drift;
 path plus `CONFIG_FREERTOS_HZ=100`, drift naming only the second. Before
 the change the ELF's path alone was drift. Not built; the board check is
 the next boot's banner without the `stale sdkconfig` line.
+
+### 8097 -- feckless-libs v0.9.2, and esp_hosted held below 3.1.0
+
+A manifest-only patch, as 8092 was, so the lock can be read by itself.
+`main/idf_component.yml` moves its sixteen feckless pins `v0.8.4` ->
+`v0.9.2`. Of what feckless-libs did between, two things reach the
+components named here: IPA glyphs in Ark12 (v0.9.0), and in v0.9.2 its
+9003 -- `feckless_fetch`, this player's own `poddl.c` lifted into
+`feckless_network_handler` less what was a podcast's, with eight names
+added to the network section -- for which the network handler now
+requires `feckless_storage_handler` by name, already named here. Nothing
+in the player calls `feckless_fetch` yet. The rest is `feckless_keyboard`,
+`feckless_mail` and `feckless_libversions`, which the player does not
+name (its library list is its own `cmake/libversions.cmake`).
+
+**esp_hosted is held below 3.1.0.** The lock holds 3.0.10, but this is a
+manifest change, so the lock re-resolves, and `feckless_network_handler`
+asks only `>=3.0.2`. esp_hosted 3.1.0, released 2026-11-05, sizes its
+SDIO RX staging buffers once at init, and for a co-processor that sends
+no SDIO_MODE TLV -- the Tab5's C6 firmware sends none -- fixes them at
+1536 bytes and refuses any larger read, though the host still streams
+and the C6 still batches frames. On a Tab5 running Jinxed Writer (the
+same C6 and the same handler) that build dropped a 3584- and a
+5120-byte read half a second after the join, each the server's
+certificate chain, and no TLS connection opened; 3.0.10 resized to the
+read and worked. So `espressif/esp_hosted: ">=3.0.7,<3.1.0"`, 3.0.7
+being the network handler's recorded last-known-good. This keeps the
+host side where the lock already has it; it updates neither side.
+
+**Under Avoidant**, an ELF built against v0.9.2 may take names that
+arrived after the launcher's tag, and a launcher refuses an app whose
+names it lacks; Avoidant at v0.9.2 or later runs it.
+
+**This is a manifest change, so `dependencies.lock.idf6` re-resolves on
+the next build** and the diff wants reading: the git pins move to v0.9.2;
+`esp_hosted` should stay at 3.0.10 and `esp_audio_codec` at 2.5.0, and
+either moving is the thing to stop on. `esp_wifi_remote` is unpinned and
+may move from 1.6.5 with whatever esp_hosted allows.
+
+**What comes next.** `feckless_fetch.c`'s statics are 16 KB of `.bss`,
+and in the player they would be the launcher's -- the code runs in the
+`.bin`, which exports it -- where a component's statics are internal
+RAM: more than 5178's 12 KB, which stopped the radio. `poddl.c`'s are in
+the ELF, in PSRAM. feckless-libs' 9004 puts them in PSRAM with
+`EXT_RAM_BSS_ATTR` where an app sets
+`CONFIG_SPIRAM_ALLOW_BSS_SEG_EXTERNAL_MEMORY` (this one does, 6132);
+once it is tagged, a tag move, then `poddl.c` onto `feckless_fetch`.
+
+*Checked:* the manifest parses, with every feckless pin at v0.9.2 and the
+esp_hosted range as written. Not built (no ESP-IDF in the session, the
+registry not reachable), not on a Tab5.

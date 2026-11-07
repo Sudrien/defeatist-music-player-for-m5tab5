@@ -37,7 +37,7 @@ dependencies:
       type: service
     version: 0.5.3
   espressif/elf_loader:
-    component_hash: 212114ae0b6f3b31e20409a9cdcabc6cdba077bf4725de2fc32b06fa9b50d534
+    component_hash: fdd946751b18002ea8dffc1768ce835b78c5a8f36476e9cbbc59e527ff038be1
     dependencies:
     - name: espressif/cmake_utilities
       registry_url: https://components.espressif.com
@@ -58,7 +58,7 @@ dependencies:
     - esp32c6
     - esp32c61
     - esp32p4
-    version: 2.0.0
+    version: 2.1.0
   espressif/eppp_link:
     component_hash: c1369b37f2b0b427b198ae14e07e7547d3da92b95fe4dc7f949e5de560b35f21
     dependencies:
@@ -272,7 +272,7 @@ dependencies:
     - esp32p4
     version: 0.4.0
   espressif/mdns:
-    component_hash: ef0766474b37459f6ad22461e453a8713e780e831a7c993b16919d817988dff6
+    component_hash: 2fa43caa78cc170842255bc7bf71f306bc815cae12e9496bfb12372423019ac7
     dependencies:
     - name: idf
       require: private
@@ -280,7 +280,7 @@ dependencies:
     source:
       registry_url: https://components.espressif.com/
       type: service
-    version: 1.14.1
+    version: 1.15.1
   espressif/usb:
     component_hash: 99eee72ea224d9117d4c342442717a1f20bf8112e2ab5d7d7038b827874f4c92
     dependencies:
@@ -528,6 +528,7 @@ dependencies:
 direct_dependencies:
 - espressif/cjson
 - espressif/esp_audio_codec
+- espressif/esp_hosted
 - fatfs
 - feckless_abi
 - feckless_abi_audio
@@ -545,6 +546,6 @@ direct_dependencies:
 - idf
 - usb_host_msc
 - usb_host_uac
-manifest_hash: 7d4adece14bbdea9600c43636f1c3772a5cc47cd4fae04bb71b56448dd106551
+manifest_hash: 8a058760ac989cf5850b2c64ff60085ab337fbc0e9a58a70911bfb0255634849
 target: esp32p4
 version: 3.0.0

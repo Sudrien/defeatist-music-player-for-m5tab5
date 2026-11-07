@@ -56,6 +56,12 @@ void *decoder_dsd_alloc(size_t n);
 #define DSD_ALLOC(n) decoder_dsd_alloc(n)
 #include "esp_timer.h"
 #define DSD_CLOCK() ((uint64_t)esp_timer_get_time())
+/* The ESP32-P4's PIE vector unit sums stage 1's table entries; dsd.h
+ * checks it against the plain C sum at the first open and drops it if
+ * they differ. -DDSD_NO_PIE builds without it. */
+#if defined(CONFIG_IDF_TARGET_ESP32P4) && !defined(DSD_NO_PIE)
+#define DSD_PIE 1
+#endif
 #include "dsd.h"
 /* ape.h allocates its predictors and filter histories through this: the
  * Insane level's three filters alone hold 40 KB a channel, and all of it
@@ -1909,6 +1915,17 @@ static esp_err_t dsd_open(decoder_t *d, const char *path)
         d->f = NULL;
         return ESP_ERR_NO_MEM;
     }
+#ifdef DSD_HAVE_PIE
+    {
+        static bool logged;
+        if (!logged) {
+            logged = true;
+            ESP_LOGI(TAG, "DSD: the PIE group sum %s", dsd_pie_on
+                     ? "passed its self-test; using it"
+                     : "FAILED its self-test; using the C sum");
+        }
+    }
+#endif
     const size_t plen = strlen(path) + 1;
     d->dsd_path = heap_caps_malloc(plen, MALLOC_CAP_SPIRAM | MALLOC_CAP_8BIT);
     if (d->dsd_path) memcpy(d->dsd_path, path, plen);

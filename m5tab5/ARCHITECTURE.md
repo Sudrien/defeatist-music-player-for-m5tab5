@@ -495,3 +495,40 @@ of a 5-minute file is four times DSD64's wait.
 test's third target moved from 3 s to 2 s + 30001 frames, because 43 is 3 s
 long. *Not checked:* on a board. Expect DSD256 stereo at roughly 1.6-2.3x.
 Send the `dsd timing` line for 43.
+
+### 8117 -- DSD stage 1 in integers, summed on the PIE unit
+
+8116's log: DSD256 stereo 1.67x, DSD128 2.36x, DSD64 3.45x. Stage 1 is still
+most of it: K float lookups an output, each a byte load, an index, a float
+load and a dependent add.
+
+**What changed.** PIE has no floating point, so stage 1 became integer, with
+the same filter. A byte takes part in `Mr = K / S1` outputs (6 at DSD256, 8
+at DSD64 and DSD128), once at each row of the window, so the table now holds
+for every byte value and position `s` in an `S1`-byte group those `Mr`
+contributions side by side: `tbl[(v * S1 + s) * 8 + m]`, eight int32 lanes
+(the spare two zero), scale 2^28. A group's vector is the sum of `S1`
+entries (two 16-byte loads and two four-lane `esp.vadd.s32` a byte); output
+`j` is lane `m` of group `j + m`, summed over `m` in scalar, from a ring of
+eight vectors. Per output that is `S1 * 11 + 15` instructions against `4 * K`:
+37 / 59 / 103 against 64 / 128 / 192 at DSD64 / 128 / 256. The history bytes
+that carry over a call are summed again (K - S1 a call, under 1% of a 4 KB
+read). The table is 16 / 32 / 64 KB (DSD256's lanes are padded to eight).
+The two halfbands are still float, since PIE cannot do them: their sums now
+run four at a time instead of in one chain (the 34-tap one was a chain of 34
+dependent adds).
+
+**Safety.** `dsd_pie_selftest()` runs the vector kernel against the C one
+on random tables and bytes at hops 2, 4 and 8 at the first open, and the
+log says which is used: "DSD: the PIE group sum passed its self-test".
+`-DDSD_NO_PIE` builds without it; the C kernel is the same arithmetic. The
+vector add saturates where C wraps; the sums stay far inside the limits.
+
+*Checked:* `dsdtest` (127 checks) with the C kernel and with the host model
+of the vector one, SNR to the digit as before; against 8116's float output
+the new one differs by at most 1 LSB in 0.03% of samples (rounding). *Not
+checked:* the assembly: there is no RISC-V assembler with `xesppie` here, so
+the instruction spellings (`esp.vld.128.ip`, `esp.vadd.s32`, `esp.vst.128.ip`)
+come from the APE kernel and the manual, and the first build is the test.
+Not run on a board. Expect stage 1 near twice as fast: DSD256 stereo about
+2.5-3x, DSD128 about 3.5-4x, DSD64 about 4.5-5x.

@@ -295,11 +295,145 @@ typedef struct {
     dsd_hb_state_t  s1, s2;
 } dsd_ch_t;
 
+/* ------------------------------------------------------------------ */
+/* Stage 1, in integers                                                */
+/* ------------------------------------------------------------------ */
+/*
+ * The window is K bytes, S1 bytes to an output, so a byte takes part in
+ * Mr = K / S1 <= 8 outputs, each time at a different row of the window.
+ * Per byte value v and position s within an S1-byte group the table holds
+ * those Mr contributions side by side, eight int32 lanes (the spare lanes
+ * zero): tbl[(v * S1 + s) * 8 + m] is what byte (q * S1 + s) = v adds to
+ * output q - m. A group's vector V_q is the sum of S1 such entries, and
+ * output j is lane m of V_{j+m} summed over m. Scale 2^28: the window's
+ * absolute sum stays under 2, so the int32 sums do not overflow, and an
+ * entry's rounding is 2^-29, below a float's.
+ */
+#define DSD_TBL_SCALE   268435456.0f        /* 2^28 */
+
+/* V[0..8) = sum over s of T[(b[s] * S1 + s) * 8 + lane], wrapping. */
+static inline void dsd_grp_c(const uint8_t *b, const int32_t *T, uint32_t S1,
+                             int32_t *V)
+{
+    uint32_t a[8] = { 0, 0, 0, 0, 0, 0, 0, 0 };
+    for (uint32_t s = 0; s < S1; s++) {
+        const int32_t *e = T + ((size_t)b[s] * S1 + s) * 8;
+        for (int m = 0; m < 8; m++) a[m] += (uint32_t)e[m];
+    }
+    for (int m = 0; m < 8; m++) V[m] = (int32_t)a[m];
+}
+
+#if defined(DSD_PIE_MODEL)
+/* The host's stand-in for the vector kernel: the same sums. */
+static inline void dsd_grp_pie(const uint8_t *b, const int32_t *T, uint32_t S1,
+                               int32_t *V)
+{
+    dsd_grp_c(b, T, S1, V);
+}
+#define DSD_HAVE_PIE 1
+#elif defined(DSD_PIE) && defined(__riscv)
+/*
+ * The ESP32-P4's PIE does the group sum: per byte, one scalar load, the
+ * address (table + ((v * S1 + s) << 5)), two 16-byte vector loads and two
+ * four-lane int32 adds, against Mr * 4 instructions of lookups. q0/q1 are
+ * the sum, q2/q3 the entry. The first byte loads straight into the sum
+ * (S1 >= 2, so the loop runs at least once). PIE reaches a0-a5 among the
+ * registers used here: a0 bytes, a1 the entry's s-th slot, a2 count, a3
+ * the address, a4 the result, a5 the shift 5 + log2(S1). esp.vadd.s32
+ * saturates at the int32 limits where the C code wraps; the sums stay far
+ * inside them.
+ */
+static inline void dsd_grp_pie(const uint8_t *b, const int32_t *T, uint32_t S1,
+                               int32_t *V)
+{
+    register const uint8_t *r0 __asm__("a0") = b;
+    register const int32_t *r1 __asm__("a1") = T;
+    register uint32_t r2 __asm__("a2") = S1 - 1;
+    register uint32_t r3 __asm__("a3");
+    register int32_t *r4 __asm__("a4") = V;
+    register uint32_t r5 __asm__("a5") = 5u + (uint32_t)__builtin_ctz(S1);
+    __asm__ volatile(
+        ".option push\n .option arch, +xesppie\n .option norvc\n"
+        "lbu a3, 0(a0)\n"
+        "addi a0, a0, 1\n"
+        "sll a3, a3, a5\n"
+        "add a3, a3, a1\n"
+        "addi a1, a1, 32\n"
+        "esp.vld.128.ip q0, a3, 16\n"
+        "esp.vld.128.ip q1, a3, 0\n"
+        "1:\n"
+        "lbu a3, 0(a0)\n"
+        "addi a0, a0, 1\n"
+        "sll a3, a3, a5\n"
+        "add a3, a3, a1\n"
+        "addi a1, a1, 32\n"
+        "esp.vld.128.ip q2, a3, 16\n"
+        "esp.vld.128.ip q3, a3, 0\n"
+        "addi a2, a2, -1\n"
+        "esp.vadd.s32 q0, q0, q2\n"
+        "esp.vadd.s32 q1, q1, q3\n"
+        "bnez a2, 1b\n"
+        "esp.vst.128.ip q0, a4, 16\n"
+        "esp.vst.128.ip q1, a4, 0\n"
+        ".option pop\n"
+        : "+r"(r0), "+r"(r1), "+r"(r2), "=r"(r3), "+r"(r4)
+        : "r"(r5)
+        : "memory");
+}
+#define DSD_HAVE_PIE 1
+#endif
+
+#ifdef DSD_HAVE_PIE
+static bool dsd_pie_on = true;      /* false after a failed self-test */
+static inline void dsd_grp(const uint8_t *b, const int32_t *T, uint32_t S1,
+                           int32_t *V)
+{
+    if (dsd_pie_on) dsd_grp_pie(b, T, S1, V);
+    else dsd_grp_c(b, T, S1, V);
+}
+
+/* The vector kernel against the C one on random tables and bytes, at every
+ * hop there is; once, from the first dsd_conv_new(). A mismatch turns the
+ * vector kernel off (dsd_pie_on stays false) and the C one carries on. */
+static inline bool dsd_pie_selftest(void)
+{
+    static bool done = false;
+    if (done) return dsd_pie_on;
+    done = true;
+    static int32_t traw[256 * 8 * 8 + 4];
+    int32_t *T = (int32_t *)(((uintptr_t)traw + 15) & ~(uintptr_t)15);
+    int32_t vraw[2 * 8 + 4];
+    int32_t *va = (int32_t *)(((uintptr_t)vraw + 15) & ~(uintptr_t)15), *vb = va + 8;
+    uint32_t r = 2463534242u;
+    for (int i = 0; i < 256 * 8 * 8; i++) {
+        r = r * 1664525u + 1013904223u;
+        T[i] = (int32_t)(r >> 3) - (1 << 28);       /* about +-2^28 */
+    }
+    bool ok = true;
+    for (uint32_t S1 = 2; S1 <= 8 && ok; S1 *= 2) {
+        for (int t = 0; t < 200 && ok; t++) {
+            uint8_t b[8];
+            for (uint32_t i = 0; i < S1; i++) { r = r * 1664525u + 1013904223u; b[i] = (uint8_t)(r >> 24); }
+            dsd_grp_c(b, T, S1, va);
+            dsd_grp_pie(b, T, S1, vb);
+            if (memcmp(va, vb, 8 * sizeof(int32_t)) != 0) ok = false;
+        }
+    }
+    dsd_pie_on = ok;
+    return ok;
+}
+#else
+#define dsd_grp dsd_grp_c
+static inline bool dsd_pie_selftest(void) { return false; }
+#endif
+
 typedef struct {
     dsd_t     d;
     uint32_t  S1;           /* stage-1 hop in bytes: rate / 176400 / 8 */
     uint32_t  K;            /* stage-1 window in bytes */
-    float    *tbl;          /* K * 256 */
+    int32_t  *tbl;          /* [byte value][S1][8 lanes], 16-byte aligned */
+    void     *tbl_raw;      /* what DSD_ALLOC returned */
+    int32_t   vring_raw[8 * 8 + 4];     /* see dsd_vring() */
     float     hb1[(DSD_HB1_H + 1) / 2];     /* taps at offsets 1,3,5.. */
     float     hb2[(DSD_HB2_H + 1) / 2];
     dsd_ch_t  ch[2];
@@ -353,7 +487,7 @@ static inline void dsd_conv_free(dsd_conv_t *c)
         free(c->ch[i].s1.x);
         free(c->ch[i].s2.x);
     }
-    free(c->tbl);
+    free(c->tbl_raw);
     free(c);
 }
 
@@ -382,7 +516,8 @@ static inline dsd_conv_t *dsd_conv_new(const dsd_t *d, uint32_t in_chunk)
     c->S1 = 2u * mult;                          /* bytes per 176.4 kHz sample */
     c->K = DSD_K_BYTES(mult);
     c->frame_bytes = 8u * mult;
-    if (c->K < 6u * c->S1 || (c->K & 3u)) {      /* see dsd_conv_reset() */
+    if (c->K < 6u * c->S1 || c->K > 8u * c->S1 || c->K % c->S1) {
+        /* dsd_conv_reset() wants 6 hops, the table's lanes allow 8 */
         free(c);
         return NULL;
     }
@@ -390,12 +525,14 @@ static inline dsd_conv_t *dsd_conv_new(const dsd_t *d, uint32_t in_chunk)
 
     /* Stage 1: windowed sinc at the DSD rate, cut at 88.2 kHz. */
     float *h = (float *)DSD_ALLOC(sizeof(float) * taps1);
-    c->tbl = (float *)DSD_ALLOC(sizeof(float) * c->K * 256);
-    if (!h || !c->tbl) {
+    const size_t tbl_n = (size_t)256 * c->S1 * 8;
+    c->tbl_raw = DSD_ALLOC(sizeof(int32_t) * tbl_n + 16);
+    if (!h || !c->tbl_raw) {
         free(h);
         dsd_conv_free(c);
         return NULL;
     }
+    c->tbl = (int32_t *)(((uintptr_t)c->tbl_raw + 15) & ~(uintptr_t)15);
     const double fc = 88200.0 / (double)d->rate;
     double sum = 0;
     for (uint32_t n = 0; n < taps1; n++) {
@@ -406,22 +543,32 @@ static inline dsd_conv_t *dsd_conv_new(const dsd_t *d, uint32_t in_chunk)
         sum += v;
     }
     for (uint32_t n = 0; n < taps1; n++) h[n] = (float)(h[n] / sum);
-    /* tbl[k][v]: byte k of the window, bit i of v. A set bit is +1.
-     * MSB-first files hold the oldest bit in bit 7, LSB-first in bit 0;
-     * the window is oldest-first either way. */
-    for (uint32_t k = 0; k < c->K; k++) {
-        for (int v = 0; v < 256; v++) {
-            float a = 0;
-            for (int i = 0; i < 8; i++) {
-                const int t = d->lsb_first ? i : 7 - i;
-                const float w = h[k * 8 + (uint32_t)t];
-                a += ((v >> i) & 1) ? w : -w;
+    /* The window's byte `row` is (v, s, m) with row = s + m * S1 (see
+     * the block comment at dsd_grp_c). A set bit is +1. MSB-first files
+     * hold the oldest bit in bit 7, LSB-first in bit 0; the window is
+     * oldest-first either way. */
+    const uint32_t Mr = c->K / c->S1;
+    for (int v = 0; v < 256; v++) {
+        for (uint32_t s = 0; s < c->S1; s++) {
+            for (uint32_t m = 0; m < 8; m++) {
+                int32_t e = 0;
+                if (m < Mr) {
+                    const uint32_t row = s + m * c->S1;
+                    double a = 0;
+                    for (int i = 0; i < 8; i++) {
+                        const int t = d->lsb_first ? i : 7 - i;
+                        const double w = h[row * 8 + (uint32_t)t];
+                        a += ((v >> i) & 1) ? w : -w;
+                    }
+                    e = (int32_t)lrint(a * (double)DSD_TBL_SCALE);
+                }
+                c->tbl[((size_t)v * c->S1 + s) * 8 + m] = e;
             }
-            c->tbl[k * 256 + (uint32_t)v] = a;
         }
     }
     free(h);
 
+    (void)dsd_pie_selftest();
     dsd_halfband(c->hb1, DSD_HB1_H, 9.65);
     dsd_halfband(c->hb2, DSD_HB2_H, 9.65);
 
@@ -465,11 +612,22 @@ static inline int dsd_hb_run(dsd_hb_state_t *st, const float *taps, int H,
     const int nt = (H + 1) / 2;
     while (pos + N <= st->n) {
         const float *x = st->x + pos;
-        float a = 0.5f * x[H];
-        for (int i = 0; i < nt; i++) {
-            const int off = 2 * i + 1;
-            a += taps[i] * (x[H - off] + x[H + off]);
+        /* Four sums: with one the 34 multiply-adds of the second halfband
+         * are a chain, each waiting for the one before. */
+        float a = 0.5f * x[H], b = 0, c2 = 0, d = 0;
+        int i = 0;
+        for (; i + 3 < nt; i += 4) {
+            const int o = 2 * i + 1;
+            a  += taps[i]     * (x[H - o]     + x[H + o]);
+            b  += taps[i + 1] * (x[H - o - 2] + x[H + o + 2]);
+            c2 += taps[i + 2] * (x[H - o - 4] + x[H + o + 4]);
+            d  += taps[i + 3] * (x[H - o - 6] + x[H + o + 6]);
         }
+        for (; i < nt; i++) {
+            const int o = 2 * i + 1;
+            a += taps[i] * (x[H - o] + x[H + o]);
+        }
+        a = (a + b) + (c2 + d);
         out[no++] = a;
         pos += 2;
     }
@@ -477,6 +635,12 @@ static inline int dsd_hb_run(dsd_hb_state_t *st, const float *taps, int H,
     memmove(st->x, st->x + pos, sizeof(float) * (size_t)left);
     st->n = left;
     return no;
+}
+
+/* The ring of group vectors, 16-byte aligned for the vector loads. */
+static inline int32_t *dsd_vring(dsd_conv_t *c)
+{
+    return (int32_t *)(((uintptr_t)c->vring_raw + 15) & ~(uintptr_t)15);
 }
 
 /*
@@ -499,49 +663,26 @@ static inline size_t dsd_conv_feed(dsd_conv_t *c, const uint8_t *in,
         for (size_t i = 0; i < nbytes; i++) s->bh[s->bn + (int)i] = src[i * stride];
         const int avail = s->bn + (int)nbytes;
         int pos = 0;
-        const uint32_t K = c->K;
-        const int S1 = (int)c->S1;
-        /* Two outputs per pass (S1 bytes apart): eight independent sums
-         * and eight loads in flight, where one output's four leave the
-         * in-order core waiting on each load. An output's sum is the same
-         * in either loop, so the result does not depend on the pairing.
-         * Four running sums per output, not one: a single `a += ...` is a
-         * chain of dependent float adds, each waiting for the one before.
-         * K is a multiple of four. The sum differs from the one-accumulator
-         * order in the last bit or so, far below the converter's noise. */
-        while (pos + S1 + (int)K <= avail) {
-            const uint8_t *b = s->bh + pos;
-            const uint8_t *e = b + S1;
-            float a0 = 0, a1 = 0, a2 = 0, a3 = 0;
-            float c0 = 0, c1 = 0, c2 = 0, c3 = 0;
-            const float *t = c->tbl;
-            for (uint32_t k = 0; k < K; k += 4, t += 1024) {
-                a0 += t[b[k]];
-                c0 += t[e[k]];
-                a1 += t[256 + b[k + 1]];
-                c1 += t[256 + e[k + 1]];
-                a2 += t[512 + b[k + 2]];
-                c2 += t[512 + e[k + 2]];
-                a3 += t[768 + b[k + 3]];
-                c3 += t[768 + e[k + 3]];
+        /* Stage 1: one group vector per S1 bytes, one output per group
+         * once Mr of them are in (see dsd_grp_c). The vectors are kept in
+         * a ring of eight; the history bytes that carry over from the last
+         * call are summed again, which is K - S1 bytes a call. */
+        const uint32_t S1 = c->S1, Mr = c->K / c->S1;
+        const int nq = avail / (int)S1;
+        int32_t *ring = dsd_vring(c);
+        float *x1 = s->s1.x + s->s1.n;
+        for (int q = 0; q < nq; q++) {
+            dsd_grp(s->bh + (size_t)q * S1, c->tbl, S1, ring + (q & 7) * 8);
+            if ((uint32_t)q + 1 >= Mr) {
+                const int j = q - (int)Mr + 1;
+                uint32_t t = 0;
+                for (uint32_t m = 0; m < Mr; m++)
+                    t += (uint32_t)ring[((j + (int)m) & 7) * 8 + (int)m];
+                *x1++ = (float)(int32_t)t * (1.0f / DSD_TBL_SCALE);
+                pos += (int)S1;
             }
-            s->s1.x[s->s1.n++] = (a0 + a1) + (a2 + a3);
-            s->s1.x[s->s1.n++] = (c0 + c1) + (c2 + c3);
-            pos += 2 * S1;
         }
-        while (pos + (int)K <= avail) {
-            const uint8_t *b = s->bh + pos;
-            float a0 = 0, a1 = 0, a2 = 0, a3 = 0;
-            const float *t = c->tbl;
-            for (uint32_t k = 0; k < K; k += 4, t += 1024) {
-                a0 += t[b[k]];
-                a1 += t[256 + b[k + 1]];
-                a2 += t[512 + b[k + 2]];
-                a3 += t[768 + b[k + 3]];
-            }
-            s->s1.x[s->s1.n++] = (a0 + a1) + (a2 + a3);
-            pos += S1;
-        }
+        s->s1.n = (int)(x1 - s->s1.x);
         memmove(s->bh, s->bh + pos, (size_t)(avail - pos));
         s->bn = avail - pos;
 

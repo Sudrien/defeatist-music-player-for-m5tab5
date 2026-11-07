@@ -199,3 +199,63 @@ reads from 0.
 
 *Checked:* `dsdtest` (101 checks, ASan/UBSan clean), forward skips land on
 the same samples with no seek. *Not checked:* on the board.
+
+### 8107 -- APE: Monkey's Audio, decoded in `ape.h`
+
+**What this is.** `.ape` files play: `ape.h` (header-only, like `dsd.h`) is a
+decoder for Monkey's Audio file versions 3990 and later, which is what every
+encoder has written since 3.99. It is written from the format, tested against
+files made by the reference encoder (`mac`, 48-56), and uses the reference's
+constants and filter structure; the licence note is in the file's header.
+Older files, 8- and 32-bit, more than two channels, a file with an ID3v2 prefix
+and anything over 4 GB are refused with the reason in the log.
+
+**The format, as far as it mattered here.** A 52-byte descriptor, a 24-byte
+header, a seek table of 32-bit file offsets (one per frame), then the frames.
+Frames are independent: predictors, Rice state and history reset at each one,
+so a seek is "open the frame the target is in and decode up to it". A frame
+is a CRC, optionally a word of special codes (silence, pseudo-stereo), and a
+range-coded stream of residuals. Two things cost time to find: the stream is
+little-endian 32-bit words read from the top byte, so each group of four
+bytes is reversed (aligned to the first frame's offset, not the file's); and
+24-bit files use the same 32-bit wrapping predictor as 16-bit ones, not a
+wider one. The decoded frame is checked against its own CRC in the host test.
+
+**The decoder.** Per channel: up to three NN filters (16/11 Normal, 64/11 High,
+32/10 and 256/13 Extra High, 16/11 256/13 1280/15 Insane; none for Fast), then
+a two-stage predictor over the channel and its partner, then the Rice-like
+range decode. Stereo is mid/side by the reference's order (Y first, then X).
+24-bit is folded to 16 as `pcmfold_24_to_16` does. All the memory is PSRAM:
+about 40 KB a channel at Insane, a 16 KB read buffer.
+
+**In `decoder.c`.** `BACKEND_APE`; `ape_open` logs version, level, bits,
+channels, rate and frame size. `ape_read` decodes straight into the caller's
+buffer and stops at the header's block count (a tag after the audio is
+never read: `data_end`). `ape_seek` opens the frame and decodes and drops
+the rest, exact to the block; a frame is 73,728 blocks up to High and four
+times that for Extra High and Insane. `duration.c` reads the length from the
+header. **`ape timing:`** is logged when a track ends or a seek begins:
+audio ms, decode ms and its realtime factor (audio seconds per second of
+decoding alone, card reads excluded), card ms and factor, reads, and bad
+frames. Under 1.00x on the decode figure means that level cannot play on this
+board in plain C.
+
+**Seek and the card.** A frame open is an lseek, and 8100-8104 found that
+after one the card reads on this board cost 14 ms an 8 KB block. APE needs
+60-110 KB/s, which even that rate covers, so APE seeks plainly and does not do
+DSD's read-and-discard. If `ape timing` shows slow reads after a seek and the
+decode factor is fine, that is the 8100 effect again.
+
+**Expected, not measured:** NN taps a sample per channel are 16, 64, 288 and
+1,552 for Normal, High, Extra High and Insane. Plain C on a 400 MHz RISC-V
+should manage Normal and High easily and probably Extra High; Insane is the
+one to watch, and file 53 (noisy, `-c5000`) is the worst case. If it does not
+keep up, the dot product and the adapt step are the PIE SIMD candidates.
+
+*Checked, on a host:* `apetest` (173 checks, ASan/UBSan clean): all nine
+files bit-exact with the reference decode, every frame's CRC good, 16-bit
+files equal to 01's samples, seeks into three frames land on the same
+samples as playing through, the refusals, and damaged data caught.
+`decoder.c` does not build on a host, so the integration was syntax-checked
+on its own with stubs. *Not checked:* any of it on the board.
+

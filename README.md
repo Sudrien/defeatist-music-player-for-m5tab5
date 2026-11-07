@@ -125,7 +125,7 @@ Claude, do not touch this README unless explicitly asked to. Use your own file.
   - Will one save you if your device requires enough power to brownout the Tab5? Uh. Define save.
   - Multiple device speeds is what isn't supported by the libraries, and I can't tell you what any given device's speed is.
 - DRM'd files are no-go.
-- APE requires too much processing
+- APE files from before Monkey's Audio 3.99 (2003), 8- and 32-bit APE, and APE with more than two channels. Whether the Extra High and Insane levels keep up with realtime is for the board's `ape timing` log line to say.
 - DSD256, and DST-compressed DFF. DSD256 is a measured-nothing refusal (`DSD_MAX_MULT` in `dsd.h`); DST is a different codec nobody here has written.
 - DSD passthrough (DoP) to a USB DAC: the PCM rings are 16-bit
 

@@ -57,6 +57,13 @@ void *decoder_dsd_alloc(size_t n);
 #include "esp_timer.h"
 #define DSD_CLOCK() ((uint64_t)esp_timer_get_time())
 #include "dsd.h"
+/* ape.h allocates its predictors and filter histories through this: the
+ * Insane level's three filters alone hold 40 KB a channel, and all of it
+ * is PSRAM for the same reason as above. */
+void *decoder_ape_alloc(size_t n);
+#define APE_ALLOC(n) decoder_ape_alloc(n)
+#define APE_CLOCK() ((uint64_t)esp_timer_get_time())
+#include "ape.h"
 #include "duration.h"
 #include "cuedir.h"
 
@@ -81,8 +88,10 @@ static const char *TAG = "tab5_dec";
  * pcmconv.h (6154). esp_audio_codec has no AIFF parser at all. */
 /* BACKEND_DSD is DSF and DFF, found and converted to 44.1 kHz PCM in
  * dsd.h. There is no esp_audio_codec type for it. */
+/* BACKEND_APE is Monkey's Audio, decoded in ape.h. Nor does
+ * esp_audio_codec know it. */
 typedef enum { BACKEND_MINIMP3, BACKEND_ESP_CODEC, BACKEND_ADPCM,
-               BACKEND_AIFF, BACKEND_DSD } backend_t;
+               BACKEND_AIFF, BACKEND_DSD, BACKEND_APE } backend_t;
 
 /*
  * A cue track: one span of a real file, presented as if it were the
@@ -227,6 +236,13 @@ struct decoder {
     dsd_conv_t *dsd;
     dsd_rd_t    dsd_rd;
     char       *dsd_path;       /* to reopen the file on a seek, see dsd_seek() */
+
+    /* APE: the decoder writes straight into the caller's buffer, so
+     * only a seek uses `pcm`, as scratch for what it decodes and drops.
+     * `ape_hdr` owns the seek table that `ape->a.seek` points into;
+     * `done` counts frames against ape_hdr.blocks. */
+    ape_dec_t  *ape;
+    ape_t       ape_hdr;
 };
 
 #define ESP_IN_BUF  (8 * 1024)
@@ -290,6 +306,9 @@ static const struct {
      * and the converter's delay is compensated. */
     { ".dsf",  BACKEND_DSD,       0,                              "dsd",  DECODER_TRIM_EXACT   },
     { ".dff",  BACKEND_DSD,       0,                              "dsd",  DECODER_TRIM_EXACT   },
+    /* Monkey's Audio, decoded in ape.h. Exact: the block count is in
+     * the header and every frame is checked against its own CRC. */
+    { ".ape",  BACKEND_APE,       0,                              "ape",  DECODER_TRIM_EXACT   },
 };
 
 const char *decoder_trim_name(decoder_trim_t t)
@@ -2015,6 +2034,155 @@ decoder_t *decoder_open(const char *path)
     return decoder_open_indexed(path, NULL);
 }
 
+/* ------------------------------------------------------------------ */
+/* APE (Monkey's Audio)                                                */
+/* ------------------------------------------------------------------ */
+
+void *decoder_ape_alloc(size_t n)
+{
+    return heap_caps_malloc(n, MALLOC_CAP_SPIRAM | MALLOC_CAP_8BIT);
+}
+
+/* Blocks a seek decodes at a time into `pcm` to throw away. */
+#define APE_SCRATCH_BLOCKS 2048
+
+/*
+ * ESP_ERR_NOT_SUPPORTED, handle closed, for anything this does not play,
+ * and the log says why: the versions before 3.99, the 8- and 32-bit
+ * files and the multichannel ones are different things to be told.
+ */
+static esp_err_t ape_open(decoder_t *d, const char *path)
+{
+    d->f = storage_io_open(path, "rb");
+    if (!d->f) return ESP_ERR_NOT_FOUND;
+    int64_t size = -1;
+    if (fseek(d->f, 0, SEEK_END) == 0) size = ftell(d->f);
+    const ape_status_t st = ape_probe(d->f, size, &d->ape_hdr, STORAGE_IO_PLAYBACK);
+    if (st != APE_OK) {
+        if (st == APE_UNSUPPORTED) {
+            ESP_LOGE(TAG, "APE this does not play: %s",
+                     d->ape_hdr.why ? d->ape_hdr.why : "unsupported");
+        } else {
+            ESP_LOGE(TAG, "not an APE, or damaged: %s",
+                     d->ape_hdr.why ? d->ape_hdr.why : "bad header");
+        }
+        storage_io_close(d->f);
+        d->f = NULL;
+        return ESP_ERR_NOT_SUPPORTED;
+    }
+    const ape_t *a = &d->ape_hdr;
+    d->ape = ape_dec_new(a, STORAGE_IO_PLAYBACK);
+    d->pcm = heap_caps_malloc(sizeof(int16_t) * 2 * APE_SCRATCH_BLOCKS,
+                              MALLOC_CAP_SPIRAM | MALLOC_CAP_8BIT);
+    if (!d->ape || !d->pcm || !ape_frame_open(d->ape, d->f, 0)) {
+        const bool mem = !d->ape || !d->pcm;
+        ape_dec_free(d->ape);
+        ape_free(&d->ape_hdr);
+        free(d->pcm);
+        d->ape = NULL;
+        d->pcm = NULL;
+        storage_io_close(d->f);
+        d->f = NULL;
+        if (!mem) ESP_LOGE(TAG, "APE: the first frame does not open");
+        return mem ? ESP_ERR_NO_MEM : ESP_ERR_NOT_SUPPORTED;
+    }
+    static const char *const lvl[] = { "", "Fast", "Normal", "High",
+                                       "Extra High", "Insane" };
+    const unsigned li = a->level / 1000u;
+    d->done = 0;
+    d->info.codec = "ape";
+    d->info.trim = DECODER_TRIM_EXACT;
+    d->info.sample_rate = (int)a->rate;
+    d->info.channels = a->channels;
+    d->info.bitrate_kbps = (int)((uint64_t)size * 8u * a->rate / a->blocks / 1000u);
+    d->probed = true;
+    d->probe_sec = (uint32_t)(a->blocks / a->rate);
+    ESP_LOGI(TAG, "APE %u.%02u, %s (%u), %u-bit, %u ch, %" PRIu32 " Hz, %"
+             PRIu32 " frames of %" PRIu32 " blocks",
+             (unsigned)(a->version / 1000u), (unsigned)(a->version % 1000u / 10u),
+             li >= 1 && li <= 5 ? lvl[li] : "?", (unsigned)a->level,
+             (unsigned)a->bits, (unsigned)a->channels, a->rate,
+             a->total_frames, a->blocks_per_frame);
+    return ESP_OK;
+}
+
+/*
+ * What the time went on, once per stretch: the decoding against the card.
+ * `realtime` is audio seconds per second of that part alone, so under
+ * 1.00 it could not keep up with nothing else running. The decoding
+ * figure does not include the reads. Whole numbers: no float in printf.
+ */
+static void ape_log_timing(decoder_t *d)
+{
+    ape_dec_t *a = d ? d->ape : NULL;
+    if (!a || !a->blocks_done || !a->us_decode) return;
+    const uint64_t audio_ms = a->blocks_done * 1000u / d->ape_hdr.rate;
+    const uint64_t f = audio_ms * 100000u / a->us_decode;
+    const uint64_t r = a->us_read ? audio_ms * 100000u / a->us_read : 0;
+    const uint64_t each = a->reads ? a->us_read / a->reads / 100u : 0;
+    ESP_LOGI(TAG, "ape timing: %" PRIu64 " ms of audio; decode %" PRIu64
+                  " ms (%" PRIu64 ".%02" PRIu64 "x realtime), card reads %"
+                  PRIu64 " ms (%" PRIu64 ".%02" PRIu64 "x) in %" PRIu32
+                  " reads, %" PRIu64 ".%" PRIu64 " ms each; bad frames %" PRIu32,
+             audio_ms, a->us_decode / 1000u, f / 100u, f % 100u,
+             a->us_read / 1000u, r / 100u, r % 100u, a->reads,
+             each / 10u, each % 10u, a->crc_bad);
+    a->us_read = a->us_decode = a->blocks_done = 0;     /* per stretch */
+    a->reads = 0;
+    a->crc_bad = 0;
+}
+
+static int ape_read(decoder_t *d, int16_t *out, int max_int16)
+{
+    const uint32_t ch = d->ape_hdr.channels;
+    const uint64_t total = d->ape_hdr.blocks;
+    if (d->done >= total) {
+        ape_log_timing(d);              /* once: it zeroes what it reports */
+        return 0;
+    }
+    uint64_t blocks = (uint64_t)max_int16 / ch;
+    if (blocks > total - d->done) blocks = total - d->done;
+    if (!blocks) return 0;
+    const uint32_t n = ape_next(d->ape, d->f, out, (uint32_t)blocks);
+    if (!n) {
+        ESP_LOGW(TAG, "APE: %s at block %" PRIu64 " of %" PRIu64,
+                 d->ape->err ? "unreadable data" : "the file ended early",
+                 d->done, total);
+        return 0;
+    }
+    d->done += n;
+    return (int)(n * ch);
+}
+
+/* Exact to the block: the frame the target is in opens, and what comes
+ * before the target in it is decoded and dropped. A frame is 73728
+ * blocks at the levels up to High, so a second and a half; the Extra
+ * High and Insane ones are four times that, and a seek there costs the
+ * time to decode up to that much. */
+static esp_err_t ape_seek(decoder_t *d, uint32_t sec, uint32_t *landed_cs)
+{
+    ape_log_timing(d);                  /* the stretch the seek is ending */
+    const ape_t *a = &d->ape_hdr;
+    uint64_t target = (uint64_t)sec * a->rate;
+    if (target >= a->blocks) target = a->blocks ? a->blocks - 1 : 0;
+    const uint32_t fr = (uint32_t)(target / a->blocks_per_frame);
+    if (!ape_frame_open(d->ape, d->f, fr)) return ESP_FAIL;
+    uint64_t skip = target - (uint64_t)fr * a->blocks_per_frame;
+    while (skip) {
+        const uint32_t want = skip > APE_SCRATCH_BLOCKS ? APE_SCRATCH_BLOCKS
+                                                        : (uint32_t)skip;
+        const uint32_t n = ape_decode(d->ape, d->f, d->pcm, want);
+        if (!n) return ESP_FAIL;
+        skip -= n;
+    }
+    d->done = target;
+    d->ape->blocks_done = 0;            /* the dropped part is not playback */
+    d->ape->us_decode = d->ape->us_read = 0;
+    d->ape->reads = 0;
+    if (landed_cs) *landed_cs = (uint32_t)(target * 100 / a->rate);
+    return ESP_OK;
+}
+
 static decoder_t *open_file(const char *path, const decoder_index_t *ix);
 static decoder_t *cue_open(const char *vpath, const decoder_index_t *ix);
 
@@ -2050,6 +2218,8 @@ static decoder_t *open_file(const char *path, const decoder_index_t *ix)
     }
     if (d->backend == BACKEND_DSD) {
         ret = dsd_open(d, path);
+    } else if (d->backend == BACKEND_APE) {
+        ret = ape_open(d, path);
     } else if (d->backend == BACKEND_AIFF) {
         if (k_formats[fmt].backend == BACKEND_AIFF) ret = aiff_open(d, path, false);
     } else if (d->backend != BACKEND_ADPCM) {
@@ -2069,6 +2239,7 @@ static int read_raw(decoder_t *d, int16_t *out, int max_int16)
     if (d->backend == BACKEND_ADPCM) return adpcm_read(d, out, max_int16);
     if (d->backend == BACKEND_AIFF) return aiff_read(d, out, max_int16);
     if (d->backend == BACKEND_DSD) return dsd_read(d, out, max_int16);
+    if (d->backend == BACKEND_APE) return ape_read(d, out, max_int16);
     return (d->backend == BACKEND_MINIMP3)
          ? minimp3_read(d, out, max_int16)
          : esp_codec_read(d, out, max_int16);
@@ -2167,7 +2338,7 @@ bool decoder_can_seek(decoder_t *d)
     if (!d) return false;
 
     if (d->backend == BACKEND_ADPCM || d->backend == BACKEND_AIFF ||
-        d->backend == BACKEND_DSD) {
+        d->backend == BACKEND_DSD || d->backend == BACKEND_APE) {
         return true;
     }
 
@@ -2208,6 +2379,7 @@ static esp_err_t seek_raw(decoder_t *d, uint32_t sec, uint32_t *landed_cs)
     if (d->backend == BACKEND_ADPCM) return adpcm_seek(d, sec, landed_cs);
     if (d->backend == BACKEND_AIFF) return aiff_seek(d, sec, landed_cs);
     if (d->backend == BACKEND_DSD) return dsd_seek(d, sec, landed_cs);
+    if (d->backend == BACKEND_APE) return ape_seek(d, sec, landed_cs);
     if (d->backend != BACKEND_MINIMP3) return esp_codec_seek(d, sec, landed_cs);
 
     if (!d->ex.info.hz || !d->ex.info.channels) return ESP_ERR_INVALID_STATE;
@@ -2373,6 +2545,9 @@ void decoder_close(decoder_t *d)
         dsd_log_timing(d->dsd);
         dsd_conv_free(d->dsd);
         free(d->dsd_path);
+        ape_log_timing(d);
+        ape_dec_free(d->ape);
+        ape_free(&d->ape_hdr);
     }
     if (d->f) storage_io_close(d->f);
     free(d->live);                      /* 8050 */

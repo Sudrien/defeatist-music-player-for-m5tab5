@@ -18,6 +18,7 @@
 #include "duration.h"
 #include "aiff.h"
 #include "dsd.h"
+#include "ape.h"
 #include "mp3count.h"         /* 5263: mp3_frame_len() */
 #include "oggseek.h"
 #include "storage_io.h"
@@ -458,6 +459,14 @@ uint32_t duration_probe(FILE *f, storage_io_class_t cls)
             if (fseek(f, 0, SEEK_END) == 0 &&
                 dsd_probe(f, ftell(f), &dd, cls) == DSD_OK && dd.rate) {
                 sec = (uint32_t)(dd.bits / dd.rate);
+            }
+        } else if (memcmp(magic, "MAC ", 4) == 0) {
+            /* Monkey's Audio states its block count in the header. */
+            ape_t ap;
+            if (fseek(f, 0, SEEK_END) == 0 &&
+                ape_probe(f, ftell(f), &ap, cls) == APE_OK) {
+                if (ap.rate) sec = (uint32_t)(ap.blocks / ap.rate);
+                ape_free(&ap);
             }
         } else if (memcmp(magic + 4, "ftyp", 4) == 0) {
             sec = probe_mp4(f, cls);

@@ -29,6 +29,12 @@ bool storage_io_read_at(FILE *f, int64_t off, void *dst, size_t len,
     return fseek(f, (long)off, SEEK_SET) == 0 && fread(dst, 1, len, f) == len;
 }
 
+size_t storage_io_fread(void *dst, size_t len, FILE *f, storage_io_class_t cls)
+{
+    (void)cls;
+    return fread(dst, 1, len, f);
+}
+
 static int checks, failures;
 
 #define CHECK(cond, ...) do {                           \

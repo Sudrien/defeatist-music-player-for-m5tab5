@@ -290,7 +290,7 @@ typedef struct {
     float     mid[1088], fin[576];
     /* Where dsd_next() spent its time (DSD_CLOCK units, cumulative over
      * seeks), and the frames the filters produced, preroll included. */
-    uint64_t  us_read, us_feed, frames_fed;
+    uint64_t  us_read, us_feed, frames_fed, reads;
 } dsd_conv_t;
 
 static inline double dsd_i0(double x)
@@ -515,6 +515,7 @@ typedef struct {
     uint64_t pos;       /* bytes per channel fed so far */
     uint64_t skip;      /* output frames still to discard */
     bool     flushed;   /* the idle tail that drains the filters is in */
+    int64_t  at;        /* file offset the stream is positioned at, or -1 */
 } dsd_rd_t;
 
 /* Start at output frame `frame` (a seek, or 0 for the start). Resets the
@@ -531,6 +532,7 @@ static inline void dsd_seek_plan(dsd_conv_t *c, dsd_rd_t *r, uint64_t frame)
     r->pos = start;
     r->skip = frame - start / fb + c->latency;
     r->flushed = false;
+    r->at = -1;
     dsd_conv_reset(c);
 }
 
@@ -562,13 +564,25 @@ static inline size_t dsd_next(dsd_conv_t *c, dsd_rd_t *r, FILE *f,
                 want = (size_t)d->block * d->channels;      /* a whole group */
             }
             const uint64_t t0 = DSD_CLOCK();
-            if (!storage_io_read_at(f, off, buf, want, cls)) return 0;
+            /* Only seek when the stream is not already there. The next
+             * block of a run is where the last one ended, and a seek
+             * before every read -- which is what storage_io_read_at() is --
+             * is a stdio fseek() per 4-8 KB on a handle whose buffer is 16
+             * KB, for no reason: the other decoders read a run with
+             * storage_io_fread() after one seek, and this does too. */
+            if (r->at == off) {
+                if (storage_io_fread(buf, want, f, cls) != want) return 0;
+            } else if (!storage_io_read_at(f, off, buf, want, cls)) {
+                return 0;
+            }
+            r->at = off + (int64_t)want;
             const uint64_t t1 = DSD_CLOCK();
             n = d->dff ? dsd_conv_feed(c, buf, nb, 1, d->channels, out)
                        : dsd_conv_feed(c, buf, nb, d->block, 1, out);
             c->us_read += t1 - t0;
             c->us_feed += DSD_CLOCK() - t1;
             c->frames_fed += n;
+            c->reads++;
             r->pos += nb;
         } else if (!r->flushed) {
             const size_t nb = (size_t)(c->latency + 4) * c->frame_bytes;

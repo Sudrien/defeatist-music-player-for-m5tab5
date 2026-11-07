@@ -2086,6 +2086,12 @@ static esp_err_t ape_open(decoder_t *d, const char *path)
         ESP_LOGI(TAG, "APE: the PIE filter %s its self-test (%" PRIu64 " us); %s",
                  on ? "passed" : "FAILED", APE_CLOCK() - t0,
                  on ? "using it" : "using the C one");
+        if (on) {
+            /* 8-tap steps in ns, hot in the cache; 360 MHz: 2.8 ns a cycle */
+            const uint32_t ns = ape_pie_bench_ns();
+            ESP_LOGI(TAG, "APE: PIE loop hot in cache: %" PRIu32 " ns an 8-tap step "
+                          "(about %" PRIu32 " cycles at 360 MHz)", ns, ns * 36u / 100u);
+        }
     }
 #endif
     d->ape = ape_dec_new(a, STORAGE_IO_PLAYBACK);

@@ -670,6 +670,27 @@ static inline bool ape_pie_selftest(void)
     ape_pie_on = ok;
     return ok;
 }
+
+/* How long the vector loop takes with everything in the data cache: the
+ * same 1280-tap filter run over the same few KB, many times, in
+ * nanoseconds an eight-tap step (a step is eight multiply-accumulates and
+ * the weight update). Against what `ape timing` implies in play, this says
+ * whether the loop is instruction-bound (the two agree) or waiting on
+ * memory (play is slower). 0 if the clock is not there. */
+static inline uint32_t ape_pie_bench_ns(void)
+{
+    ape_nn_t n;
+    if (!ape_nn_init(&n, 1280, 15)) return 0;
+    for (int i = 0; i < n.total; i++) { n.in[i] = (int16_t)(i * 37); n.dl[i] = (int16_t)(i % 3 - 1); }
+    const int runs = 400;
+    int32_t sink = 0;
+    const uint64_t t0 = APE_CLOCK();
+    for (int r = 0; r < runs; r++) sink += ape_taps_pie(n.in + (r & 7), n.m, n.dl + (r & 7), 1280, 1 + (r & 1) * -2);
+    const uint64_t us = APE_CLOCK() - t0;
+    free(n.raw);
+    (void)sink;
+    return (uint32_t)(us * 1000u / ((uint64_t)runs * (1280u / 8u)));
+}
 #endif
 
 static inline ape_dec_t *ape_dec_new(const ape_t *a, storage_io_class_t cls)

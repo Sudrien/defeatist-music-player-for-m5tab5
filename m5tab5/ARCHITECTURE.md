@@ -344,3 +344,30 @@ The model asserts the shared offset.
 *Checked, on a host:* `apetest`, both runs, 173/174 checks, ASan/UBSan
 clean. *Not checked:* that it assembles, or the speed. If the shared SAR is
 wrong the self-test says so and the C loop is used.
+
+### 8112 -- APE: time the PIE loop hot in the cache, to say what is slow
+
+**8111's log:** Insane 0.83x (52) and 1.04x (53), Extra High 3.01x, High
+6.47x, Normal 7.3x, Fast 11.5x, 24-bit 7.6x, mono 32.6x; every frame's CRC
+good; seeks in a Normal file land in about 0.4 s. 8111's two changes bought
+about 10% (0.76 -> 0.83, 0.96 -> 1.04): not what taking the stalls out of
+the loop should have bought.
+
+**What the numbers say.** Working back from the timings, an eight-tap step
+costs about 23-25 cycles at Insane and Extra High alike, about three cycles
+for each of the eight PIE instructions in it. That is either the vector unit
+issuing slower than one instruction in three cycles, or the loop waiting on
+memory: an Insane channel's filters, rings and predictor are some 30 KB,
+two channels alternate, and the data cache is 64 KB shared with everything.
+Those have different cures (fused load-and-accumulate instructions, or
+internal RAM for the rings), so 8112 measures instead of guessing.
+
+**The change.** At the first APE open, after the self-test, the player runs
+the vector loop 400 times over one 1,280-tap filter held in the cache, and
+logs `APE: PIE loop hot in cache: N ns an 8-tap step (about C cycles at
+360 MHz)`. If C is near 24, the loop is instruction-bound and the next step
+is fewer instructions per tap. If it is near 8-10, play is waiting on
+memory and the next step is where the rings live.
+
+*Checked, on a host:* the bench under the model, ASan/UBSan clean; `apetest`
+unchanged. *Not checked:* on the board, which is the point.

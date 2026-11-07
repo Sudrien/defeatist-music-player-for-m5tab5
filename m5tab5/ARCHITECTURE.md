@@ -318,3 +318,29 @@ documented): both bit-exact on all nine files, 174 checks, ASan/UBSan
 clean. That tests the pointer, chunk and ring arithmetic, **not the
 instruction semantics.** *Not checked:* that it assembles, and everything
 about its behaviour on the board.
+
+### 8111 -- APE: PIE for a zero input too, and the loads grouped
+
+**8110's log** (`-DAPECRC=1`, so `bad frames 0` is a real check now; the
+PIE self-test passed, 78 ms, and it assembled first time): High 5.84x
+(was 3.25), Extra High 2.73x (was 1.09), Insane 0.76x (was 0.24), noisy
+Insane (53) 0.96x (was 0.21), Fast 10.9x, Normal 7.3x, 24-bit 6.9x, mono
+31x. Every frame's CRC good. Extra High is now comfortable; Insane is
+close and not there.
+
+**Two things left on the table.** (1) A zero input to a filter took the C
+loop: it needs no weight update, so 8110 sent it past the vector code. File
+52 is tones and silence, where zeros are common, which is why it trails the
+noisy file (53) that has none. (2) The loop loaded, shifted, then used, one
+stream at a time, so each use waited on the instruction before it.
+
+**The change.** A zero input has its own vector loop (sum only: no delta
+stream, no store). And the two streams are read together: the sample ring
+and the delta ring are both vector-aligned and read at the same offset, so
+they share a `SAR_BYTE`, and the loop issues both loads, the weight load,
+then both `esp.src.q`, which gives each shift two instructions of slack.
+The model asserts the shared offset.
+
+*Checked, on a host:* `apetest`, both runs, 173/174 checks, ASan/UBSan
+clean. *Not checked:* that it assembles, or the speed. If the shared SAR is
+wrong the self-test says so and the C loop is used.

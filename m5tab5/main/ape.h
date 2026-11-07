@@ -317,6 +317,10 @@ static inline int32_t ape_taps_pie(const int16_t *x, int16_t *m, const int16_t *
 {
     ape_q_t x0, x1, d0, d1, xs, ds, mv;
     int64_t acc = 0;
+    /* The kernels rely on both streams having the same misalignment, so
+     * one SAR_BYTE serves both: `in` and `dl` are vector-aligned and their
+     * read positions move together. */
+    if (((uintptr_t)x & 15) != ((uintptr_t)dd & 15)) abort();
     ape_m_ld_usar(&x0, &x, 16);
     ape_m_ld_usar(&d0, &dd, 16);
     for (int n = order / 16; n; n--) {
@@ -350,8 +354,10 @@ static inline int32_t ape_taps_pie(const int16_t *x, int16_t *m, const int16_t *
  * unaligned-load pairs alternate registers:
  *   q0/q1 x, q4/q5 dd (the two aligned chunks a step straddles)
  *   q2 aligned x, q3 aligned dd, q6 weights, q7 updated weights.
- * Each esp.src.q follows the esp.ld.128.usar.ip of its own stream, because
- * SAR_BYTE is one register. The registers PIE can address are a0-a5, s0-s1,
+ * SAR_BYTE is one register, and one serves both streams: the sample ring
+ * and the delta ring are vector-aligned and read at the same offset, so
+ * the loads of both come first and then both esp.src.q, with a vector
+ * load of the weights between to cover the latency. The registers PIE can address are a0-a5, s0-s1,
  * s8-s11, t3-t6; the operands are pinned to a0-a4. The vector add and
  * subtract saturate where the C code wraps; a weight at +-32767 is the
  * only place they differ, and the CRC check would say so.
@@ -363,21 +369,40 @@ static inline int32_t ape_taps_pie(const int16_t *x, int16_t *m, const int16_t *
     "esp.ld.128.usar.ip q4, a1, 16\n"                                       \
     "1:\n"                                                                  \
     "esp.ld.128.usar.ip q1, a0, 16\n"                                       \
-    "esp.src.q q2, q0, q1\n"                                                \
     "esp.ld.128.usar.ip q5, a1, 16\n"                                       \
-    "esp.src.q q3, q4, q5\n"                                                \
     "esp.vld.128.ip q6, a2, 0\n"                                            \
+    "esp.src.q q2, q0, q1\n"                                                \
+    "esp.src.q q3, q4, q5\n"                                                \
     "esp.vmulas.s16.xacc q2, q6\n"                                          \
     UPD "q7, q6, q3\n"                                                      \
     "esp.vst.128.ip q7, a2, 16\n"                                           \
     "esp.ld.128.usar.ip q0, a0, 16\n"                                       \
-    "esp.src.q q2, q1, q0\n"                                                \
     "esp.ld.128.usar.ip q4, a1, 16\n"                                       \
-    "esp.src.q q3, q5, q4\n"                                                \
     "esp.vld.128.ip q6, a2, 0\n"                                            \
+    "esp.src.q q2, q1, q0\n"                                                \
+    "esp.src.q q3, q5, q4\n"                                                \
     "esp.vmulas.s16.xacc q2, q6\n"                                          \
     UPD "q7, q6, q3\n"                                                      \
     "esp.vst.128.ip q7, a2, 16\n"                                           \
+    "addi a3, a3, -1\n"                                                     \
+    "bnez a3, 1b\n"                                                         \
+    "esp.movx.r.xacc.l a4\n"                                                \
+    ".option pop\n"
+
+/* The same sum with no update (a zero input): no delta stream, no store. */
+#define APE_PIE_DOT                                                         \
+    ".option push\n .option arch, +xesppie\n .option norvc\n"               \
+    "esp.zero.xacc\n"                                                       \
+    "esp.ld.128.usar.ip q0, a0, 16\n"                                       \
+    "1:\n"                                                                  \
+    "esp.ld.128.usar.ip q1, a0, 16\n"                                       \
+    "esp.vld.128.ip q6, a2, 16\n"                                           \
+    "esp.src.q q2, q0, q1\n"                                                \
+    "esp.vmulas.s16.xacc q2, q6\n"                                          \
+    "esp.ld.128.usar.ip q0, a0, 16\n"                                       \
+    "esp.vld.128.ip q6, a2, 16\n"                                           \
+    "esp.src.q q2, q1, q0\n"                                                \
+    "esp.vmulas.s16.xacc q2, q6\n"                                          \
     "addi a3, a3, -1\n"                                                     \
     "bnez a3, 1b\n"                                                         \
     "esp.movx.r.xacc.l a4\n"                                                \
@@ -397,9 +422,10 @@ static inline int32_t ape_taps_pie(const int16_t *x, int16_t *m, const int16_t *
     } else if (input > 0) {
         __asm__ volatile(APE_PIE_BODY("esp.vsub.s16 ")
             : "+r"(r0), "+r"(r1), "+r"(r2), "+r"(r3), "=r"(r4) :: "memory");
+    } else {
+        __asm__ volatile(APE_PIE_DOT
+            : "+r"(r0), "+r"(r2), "+r"(r3), "=r"(r4) :: "memory");
     }
-    /* input == 0 never comes here: ape_taps() sends it to the C loop, which
-     * leaves the weights alone. */
     return r4;
 }
 #define APE_HAVE_PIE 1
@@ -410,7 +436,7 @@ static bool ape_pie_on = true;      /* false after a failed self-test */
 static inline int32_t ape_taps(const int16_t *x, int16_t *m, const int16_t *dd,
                                int order, int32_t input)
 {
-    if (ape_pie_on && input) return ape_taps_pie(x, m, dd, order, input);
+    if (ape_pie_on) return ape_taps_pie(x, m, dd, order, input);
     return ape_taps_c(x, m, dd, order, input);
 }
 #else

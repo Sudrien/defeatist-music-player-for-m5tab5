@@ -1976,31 +1976,34 @@ static int dsd_read(decoder_t *d, int16_t *out, int max_int16)
 static esp_err_t dsd_seek(decoder_t *d, uint32_t sec, uint32_t *landed_cs)
 {
     dsd_log_timing(d->dsd);             /* the stretch the seek is ending */
-    bool reopened = false;
-#if DSD_SEEK_REOPEN
-    /*
-     * An experiment, and a workaround if it works. Reading a DSD file from
-     * its start costs 1.1 ms an 8 KB block on the board; after an fseek()
-     * into it, the same reads cost 14 ms, for the rest of the file (8100's
-     * timing line, repeated by 8101's), and mp2 is as slow after a seek.
-     * A stream that has never been sought is fast, so this makes a new one.
-     * 8102 showed a new stream sought is just as slow, so it is sought
-     * no more: dsd_next() reads up to the target from byte 0.
-     */
-    if (d->dsd_path) {
-        storage_io_close(d->f);
-        d->f = storage_io_open(d->dsd_path, "rb");
-        if (!d->f) return ESP_FAIL;
-        reopened = true;
-    }
-#endif
     const uint64_t total = dsd_frames(d->dsd);
     uint64_t target = (uint64_t)sec * DSD_OUT_RATE;
     if (target >= total) target = total ? total - 1 : 0;
+    const int64_t at = d->dsd_rd.at;    /* where the stream is, -1 unknown */
     dsd_seek_plan(d->dsd, &d->dsd_rd, target);
-    /* A new stream is at byte 0; dsd_next() reads up to the target from
-     * there, with no lseek() (see it). */
-    if (reopened) d->dsd_rd.at = 0;
+    /*
+     * No lseek() is ever made on a DSD stream: after one, the reads from
+     * it cost 14 ms an 8 KB block instead of 1.1 for the rest of the file
+     * (8100-8103's logs; every alignment, offset and new FILE the same,
+     * a stream that never sought always fast). So a seek reads up to the
+     * target and discards (dsd_next()), from where the stream is if that
+     * is behind the target -- a forward seek, which costs only the
+     * distance -- and from byte 0 of a reopened file if not. -DDSD_SEEK_
+     * REOPEN=0 does the plain seek instead.
+     */
+#if DSD_SEEK_REOPEN
+    const int64_t off = dsd_rd_offset(d->dsd, &d->dsd_rd);
+    if (at >= 0 && off >= at) {
+        d->dsd_rd.at = at;
+    } else if (d->dsd_path) {
+        storage_io_close(d->f);
+        d->f = storage_io_open(d->dsd_path, "rb");
+        if (!d->f) return ESP_FAIL;
+        d->dsd_rd.at = 0;
+    }
+#else
+    (void)at;
+#endif
     d->pcm_len = d->pcm_pos = 0;
     d->done = target;
     if (landed_cs) *landed_cs = (uint32_t)(target * 100 / DSD_OUT_RATE);

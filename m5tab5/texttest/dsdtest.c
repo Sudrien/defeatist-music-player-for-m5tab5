@@ -316,6 +316,36 @@ int main(void)
                 CHECK(got2 == got && !memcmp(gather, gather2, got * d.channels * sizeof(int16_t)),
                       "%s skip %llu: not the samples of the seek", names[k],
                       (unsigned long long)targets[t]);
+
+                /* And a forward seek from where that stream now is: the
+                 * stream is kept (at), nothing is seeked, same samples. */
+                if (t + 1 < 3) {
+                    const int64_t at = r2.at;
+                    dsd_rd_t r3;
+                    dsd_seek_plan(c, &r3, targets[t + 1]);
+                    const int64_t off = dsd_rd_offset(c, &r3);
+                    CHECK(off >= at, "%s forward %llu: offset %lld behind the stream %lld",
+                          names[k], (unsigned long long)targets[t + 1],
+                          (long long)off, (long long)at);
+                    r3.at = at;
+                    seek_n = 0;
+                    static int16_t gather3[2 * 4096];
+                    size_t got3 = 0, g3;
+                    while (got3 < 400 && (g3 = dsd_next(c, &r3, f, buf, blk, STORAGE_IO_PLAYBACK)) > 0) {
+                        memcpy(gather3 + got3 * d.channels, blk, g3 * d.channels * sizeof(int16_t));
+                        got3 += g3;
+                    }
+                    CHECK(seek_n == 0, "%s forward %llu: %d seeks, wanted 0", names[k],
+                          (unsigned long long)targets[t + 1], seek_n);
+                    double m3 = 0;
+                    for (size_t i = 0; i < (got3 < 400 ? got3 : 400) * d.channels; i++) {
+                        const double e = fabs((double)gather3[i] -
+                                              (double)all[targets[t + 1] * d.channels + i]);
+                        if (e > m3) m3 = e;
+                    }
+                    CHECK(got3 >= 400 && m3 <= 8, "%s forward %llu: %zu frames, up to %.0f LSB",
+                          names[k], (unsigned long long)targets[t + 1], got3, m3);
+                }
             }
             free(buf);
             dsd_conv_free(c);

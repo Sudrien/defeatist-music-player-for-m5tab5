@@ -181,3 +181,21 @@ the far end of a 5-minute DSD64 stereo file (twice that for DSD128).
 samples as the seek, with no seek. *Not checked:* any of it on the board; if
 the next log still says ~14 ms the cause is not the seek either and this
 goes.
+
+### 8104 -- DSD: a forward seek skips from where the stream is
+
+**8103's log:** the crackle is gone, reads after a seek are 1.1-1.7 ms
+again, so an lseek on the stream is what made them slow. What it costs: the
+first read after a seek took 0.9, 1.4 and 1.9 s, because every seek reopened
+the file and read up to the target from byte 0. (`CONFIG_FATFS_USE_FASTSEEK`
+is on in `sdkconfig.defaults` and stays on; whether it is the cause was not
+tested, as other projects need it.)
+
+**The change:** `dsd_seek()` keeps the stream when its position (`rd.at`) is
+at or before the first byte the new plan reads (`dsd_rd_offset()`), and
+`dsd_next()` skips the gap by reading, so a forward seek costs the distance
+and no more. Only a backward seek, or one before the first read, reopens and
+reads from 0.
+
+*Checked:* `dsdtest` (101 checks, ASan/UBSan clean), forward skips land on
+the same samples with no seek. *Not checked:* on the board.

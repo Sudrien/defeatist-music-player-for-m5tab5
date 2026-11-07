@@ -540,6 +540,16 @@ static inline void dsd_seek_plan(dsd_conv_t *c, dsd_rd_t *r, uint64_t frame)
     dsd_conv_reset(c);
 }
 
+/* The file offset dsd_next() will read first after a seek plan, or -1 when
+ * the plan is at the end. The same arithmetic as in dsd_next(). */
+static inline int64_t dsd_rd_offset(const dsd_conv_t *c, const dsd_rd_t *r)
+{
+    const dsd_t *d = &c->d;
+    if (r->pos >= (d->bits + 7) / 8) return -1;
+    if (d->dff) return d->data_start + (int64_t)(r->pos * d->channels);
+    return d->data_start + (int64_t)((r->pos / d->block) * d->block * d->channels);
+}
+
 /*
  * The next run of frames into `out` (room for DSD_BLOCK_MAX / frame_bytes
  * + 2 frames), 0 at the end. `buf` is channels * DSD_BLOCK_MAX bytes of

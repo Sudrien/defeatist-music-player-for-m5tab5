@@ -560,7 +560,10 @@ static inline dsd_conv_t *dsd_conv_new(const dsd_t *d, uint32_t in_chunk)
                         const double w = h[row * 8 + (uint32_t)t];
                         a += ((v >> i) & 1) ? w : -w;
                     }
-                    e = (int32_t)lrint(a * (double)DSD_TBL_SCALE);
+                    /* Round half away from zero with a cast: lrint() is
+                     * not in the feckless ABI. */
+                    const double x = a * (double)DSD_TBL_SCALE;
+                    e = (int32_t)(x < 0 ? x - 0.5 : x + 0.5);
                 }
                 c->tbl[((size_t)v * c->S1 + s) * 8 + m] = e;
             }

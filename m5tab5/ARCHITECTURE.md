@@ -461,3 +461,37 @@ own modulator noise is the floor, so the offline comparison above is the
 real quality test). *Not checked:* speed on a board; the host is no guide.
 Expect about 1.6-1.8x on the filter time: DSD128 stereo near 2.2-2.5x,
 DSD64 near 3.5-4x. Send the `dsd timing` lines for 41, 42 and 45.
+
+### 8116 -- DSD256 in, and the stage-1 window's alignment
+
+8115's log: DSD64 stereo 3.46x, DSD128 stereo 2.35-3.36x, mono 6.8x. DSD256
+needs the same 176.4 kHz output from four times the bits, which at a 48-byte
+window is 48 lookups an output (DSD128 had 64 before 8115, at 1.39x), so
+`DSD_MAX_MULT` is 4 and 43 plays.
+
+**The window.** `DSD_K_BYTES(mult)`: 16 per unit up to DSD128 as in 8115,
+48 bytes (12 per unit) at DSD256. Offline against a 128-byte window on file
+43: 64 bytes -154 dB, 48 bytes -116 dB (0.05 LSB of 16 bits), 32 bytes -97
+dB (0.5 LSB). Table 48 KB.
+
+**A bug that 8115's window sizes hid.** The history after a reset was
+`K - S1` bytes, which puts a window's centre `K/16` stage-1 samples from the
+output instant, and the filters decimate by four more, so the output lands
+on the 44.1 kHz grid only when `K/16` is a multiple of four: K a multiple of
+16 * mult. 32/16/64 are; 48 at DSD256 is not, and came out time-shifted by a
+fraction of a frame (31 LSB against a reference that agreed to 0.3 with 64
+bytes; the earlier "K 24, K 20" offline diffs were the same thing). The
+history is now `K/2 + 3*S1`, which is `K - S1` for the sizes that worked, so
+those are bit for bit what they were, and `latency` takes a flat three stage-1
+samples for the window: 38 frames at every rate. `dsd_conv_new()` refuses
+a `K` under six hops or not a multiple of four.
+
+**Not covered.** A seek in DSD256 reads forward and discards (the card gives
+about 9 MB/s, and DSD256 stereo is 5.6 MB/s of file), so a seek to the far end
+of a 5-minute file is four times DSD64's wait.
+
+*Checked:* `dsdtest`, 127 checks including 43's decode (SNR 70 dB against file
+01, 1.2 LSB error, better than 42's), seeks and forward skips on it. The seek
+test's third target moved from 3 s to 2 s + 30001 frames, because 43 is 3 s
+long. *Not checked:* on a board. Expect DSD256 stereo at roughly 1.6-2.3x.
+Send the `dsd timing` line for 43.

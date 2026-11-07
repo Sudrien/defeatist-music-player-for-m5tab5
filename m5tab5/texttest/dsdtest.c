@@ -159,6 +159,9 @@ int main(void)
     printf("  decode against file 01\n");
     check_file("41 dsf-dsd64.dsf", 2822400, 2, 30.0, 50.0);
     check_file("42 dsf-dsd128.dsf", 5644800, 2, 5.0, 50.0);
+#if DSD_MAX_MULT >= 4
+    check_file("43 dsf-dsd256.dsf", 11289600, 2, 3.0, 50.0);
+#endif
     check_file("44 dsf-dsd64-mono-odd.dsf", 2822400, 1, 14112007.0 / 64 / 44100, 50.0);
     check_file("45 dff-dsd64.dff", 2822400, 2, 5.0, 50.0);
     check_file("46 dff-dsd64-mono.dff", 2822400, 1, 5.0, 50.0);
@@ -256,8 +259,9 @@ int main(void)
 
     printf("  seek lands on the same samples\n");
     {
-        const char *names[] = { "41 dsf-dsd64.dsf", "45 dff-dsd64.dff", "42 dsf-dsd128.dsf" };
-        for (int k = 0; k < 3; k++) {
+        const char *names[] = { "41 dsf-dsd64.dsf", "45 dff-dsd64.dff", "42 dsf-dsd128.dsf",
+                                "43 dsf-dsd256.dsf" };
+        for (int k = 0; k < (DSD_MAX_MULT >= 4 ? 4 : 3); k++) {
             dsd_t d;
             int16_t *all = NULL;
             uint32_t lat;
@@ -269,7 +273,7 @@ int main(void)
             dsd_conv_t *c = dsd_conv_new(&d, DSD_BLOCK_MAX);
             uint8_t *buf = malloc((size_t)d.channels * DSD_BLOCK_MAX);
             int16_t blk[2 * (DSD_BLOCK_MAX + 8)];
-            const uint64_t targets[] = { 1, 44100 * 2 + 777, 44100 * 3 };
+            const uint64_t targets[] = { 1, 44100 * 2 + 777, 44100 * 2 + 30001 };
             for (int t = 0; t < 3; t++) {
                 dsd_rd_t r;
                 dsd_seek_plan(c, &r, targets[t]);

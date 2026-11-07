@@ -1882,7 +1882,7 @@ static esp_err_t dsd_open(decoder_t *d, const char *path)
         if (st == DSD_DST) {
             ESP_LOGE(TAG, "DFF is DST-compressed; there is no DST decoder");
         } else if (st == DSD_UNSUPPORTED) {
-            ESP_LOGE(TAG, "DSD this does not play (above DSD128, more than "
+            ESP_LOGE(TAG, "DSD this does not play (above DSD256, more than "
                           "two channels, or an unusual layout)");
         } else {
             ESP_LOGE(TAG, "not a DSF or DFF");

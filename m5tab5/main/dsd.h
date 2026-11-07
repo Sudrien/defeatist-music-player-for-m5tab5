@@ -25,7 +25,7 @@
  * About 55 float multiply-adds per output frame per channel for stages
  * 2 and 3, plus 32 (DSD64) or 64 (DSD128) lookups for stage 1.
  *
- * The output is always 44.1 kHz. DSD64 divides by 64, DSD128 by 128.
+ * The output is always 44.1 kHz. DSD64 divides by 64, DSD128 by 128, DSD256 by 256.
  * Unity gain: full-scale modulation is full-scale PCM, saturated. Real
  * DSD stays under about half modulation, which is why this does not
  * attenuate.
@@ -33,7 +33,7 @@
  * WHAT IS REFUSED, AND SAYS SO
  *
  *   - DST-compressed DFF (a different codec; there is none here).
- *   - Rates that are not 44.1 kHz * 64 * 2^n, or are above DSD_MAX_MULT.
+ *   - Rates that are not 44.1 kHz * 64 * 2^n, or are above DSD_MAX_MULT (DSD256).
  *   - More than two channels.
  *   - DSF with a format id other than 0 (raw DSD).
  *
@@ -72,16 +72,16 @@ extern "C" {
 #endif
 
 /* Allocation: the decoder defines DSD_ALLOC to PSRAM. The table is read
- * at random, 16 or 32 times an output frame, which the cache handles;
+ * at random, 16 to 48 times an output frame, which the cache handles;
  * internal RAM belongs to the radio (CLAUDE.md). Everything goes through
  * it, and everything is released with free(). */
 
 /* Highest DSD multiple taken: 1 = DSD64, 2 = DSD128, 4 = DSD256.
- * DSD256 needs 128 lookups per stage-1 output and 128 KB of table;
- * it is not refused because it cannot work but because nobody has
- * measured it on the board. Raise it when somebody has. */
+ * DSD256 has the lookups per output DSD128 had before the window was
+ * halved (48 here, see DSD_K_BYTES) and a 48 KB table. 1 or 2 takes
+ * the faster rates away again. */
 #ifndef DSD_MAX_MULT
-#define DSD_MAX_MULT 2
+#define DSD_MAX_MULT 4
 #endif
 
 #define DSD_BASE_RATE   2822400u        /* 44100 * 64 */
@@ -272,6 +272,14 @@ static inline dsd_status_t dsd_probe(FILE *f, int64_t size, dsd_t *d,
 #ifndef DSD_KB
 #define DSD_KB      16
 #endif
+/* The window in bytes for a rate multiple. DSD256 gets 12 per unit, 48
+ * bytes: against a 128-byte window the chain's error on file 43 is
+ * -154 dB at 16 (64 bytes), -116 dB (0.05 LSB of 16 bits) at 12, and
+ * -97 dB (0.5 LSB) at 8. A quarter fewer lookups than 16 is worth the
+ * margin that is left. Measured offline on one file, not on a board. */
+#ifndef DSD_K_BYTES
+#define DSD_K_BYTES(mult) ((mult) >= 4u ? 12u * (mult) : (uint32_t)DSD_KB * (mult))
+#endif
 
 #define DSD_HB1_H   15      /* 31 taps: 176.4 -> 88.2 kHz */
 #define DSD_HB2_H   67      /* 135 taps: 88.2 -> 44.1 kHz */
@@ -353,8 +361,8 @@ static inline void dsd_conv_free(dsd_conv_t *c)
 static inline void dsd_conv_reset(dsd_conv_t *c)
 {
     for (int i = 0; i < c->d.channels; i++) {
-        memset(c->ch[i].bh, DSD_IDLE, c->K - c->S1);
-        c->ch[i].bn = (int)(c->K - c->S1);
+        memset(c->ch[i].bh, DSD_IDLE, c->K / 2 + 3 * c->S1);
+        c->ch[i].bn = (int)(c->K / 2 + 3 * c->S1);
         memset(c->ch[i].s1.x, 0, sizeof(float) * (2 * DSD_HB1_H));
         c->ch[i].s1.n = 2 * DSD_HB1_H;
         memset(c->ch[i].s2.x, 0, sizeof(float) * (2 * DSD_HB2_H));
@@ -372,8 +380,12 @@ static inline dsd_conv_t *dsd_conv_new(const dsd_t *d, uint32_t in_chunk)
     memset(c, 0, sizeof(*c));
     c->d = *d;
     c->S1 = 2u * mult;                          /* bytes per 176.4 kHz sample */
-    c->K = (uint32_t)DSD_KB * mult;
+    c->K = DSD_K_BYTES(mult);
     c->frame_bytes = 8u * mult;
+    if (c->K < 6u * c->S1 || (c->K & 3u)) {      /* see dsd_conv_reset() */
+        free(c);
+        return NULL;
+    }
     const uint32_t taps1 = c->K * 8u;
 
     /* Stage 1: windowed sinc at the DSD rate, cut at 88.2 kHz. */
@@ -422,9 +434,15 @@ static inline dsd_conv_t *dsd_conv_new(const dsd_t *d, uint32_t in_chunk)
             return NULL;
         }
     }
-    /* Group delay in 176.4 kHz samples: stage 1 (taps1-1)/2 bits at
-     * the DSD rate, then the centres of the two halfbands. */
-    const double d176 = (taps1 - 1) / 2.0 / (c->S1 * 8.0) + DSD_HB1_H + 2.0 * DSD_HB2_H;
+    /* Group delay in 176.4 kHz samples: stage 1, then the centres of the
+     * two halfbands. Output m's window is centred on stream byte
+     * m * S1 - 3 * S1 whatever K is (dsd_conv_reset() sets the history
+     * so), which is three samples: K / 16 samples, as it was when the
+     * history was K - S1 bytes, is a whole number of output frames only
+     * when K is a multiple of 16 * mult, and anything else was a
+     * fraction of a frame of time shift (found with K = 48 at DSD256:
+     * 31 LSB against a reference that agreed to 0.3 with K = 64). */
+    const double d176 = 3.0 + DSD_HB1_H + 2.0 * DSD_HB2_H;
     c->latency = (uint32_t)(d176 / 4.0 + 0.5);
     dsd_conv_reset(c);
     return c;

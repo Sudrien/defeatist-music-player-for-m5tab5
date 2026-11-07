@@ -11,6 +11,8 @@
 #include "esp_check.h"
 #include "esp_log.h"
 #include "esp_timer.h"
+#include "esp_heap_caps.h"
+#include <stdlib.h>
 
 #include "gfx.h"
 #include "freertos/FreeRTOS.h"
@@ -2055,6 +2057,88 @@ void ui_blit_bar(void)
 {
     if (s_landscape) gfx_blit(0, s_h);
     else             gfx_blit(s_bar_top, s_h);
+}
+
+/*
+ * 8114: the artwork at half brightness with a spinner over it, while a
+ * long seek runs.
+ *
+ * A seek can take seconds (an Insane-level APE file decodes up to a
+ * 26-second frame to land one), and the screen said nothing. The cover is
+ * dimmed in place and a copy of it kept, so ending the seek is a copy
+ * back and a blit: no decode, no black flash, nothing for the repaint
+ * machinery to get wrong. The copy is PSRAM, up to 1.4 MB in landscape,
+ * and is held only while the seek runs.
+ *
+ * Half brightness, because the art sits on a near-black ground, is every
+ * colour channel shifted right once: for RGB565, (p >> 1) & 0x7BEF.
+ *
+ * The framebuffer is indexed with gfx_w() as its stride and logical
+ * coordinates, as albumart.c does. Nothing here is called from the UI
+ * task: ui_draw() never touches the art band, and the decode loop that
+ * calls these is blocked inside the seek.
+ */
+static uint16_t *s_busy_save;
+static int       s_busy_w, s_busy_h;
+
+#define BUSY_R        (46)          /* the spinner's outer radius */
+#define C_BUSY_DISC   RGB(0x12, 0x12, 0x12)
+
+void ui_art_busy_begin(void)
+{
+    if (!s_fb || s_busy_save) return;
+    int aw, ah;
+    ui_art_band(NULL, NULL, &aw, &ah);
+    const int fbw = gfx_w();
+    if (aw <= 0 || ah <= 0 || (aw & 1)) return;
+    uint16_t *save = heap_caps_malloc((size_t)aw * (size_t)ah * 2,
+                                      MALLOC_CAP_SPIRAM | MALLOC_CAP_8BIT);
+    if (!save) return;
+    for (int y = 0; y < ah; y++) {
+        uint16_t *row = &s_fb[(size_t)y * (size_t)fbw];
+        memcpy(&save[(size_t)y * (size_t)aw], row, (size_t)aw * 2);
+        uint32_t *w = (uint32_t *)(void *)row;      /* aw is even, and so is fbw */
+        for (int x = 0; x < aw / 2; x++) w[x] = (w[x] >> 1) & 0x7BEF7BEFu;
+    }
+    s_busy_save = save;
+    s_busy_w = aw;
+    s_busy_h = ah;
+    ui_blit_art();
+}
+
+void ui_art_busy_tick(uint32_t ms)
+{
+    if (!s_busy_save) return;
+    const int cx = s_busy_w / 2;
+    const int cy = s_busy_h / 2;
+
+    /* A disc to turn on, so the last frame is painted out whatever the
+     * cover under it was: one scanline each, wide by the circle. */
+    for (int dy = -BUSY_R - 6; dy <= BUSY_R + 6; dy++) {
+        const int rr = (BUSY_R + 6) * (BUSY_R + 6) - dy * dy;
+        int half = 0;
+        while ((half + 1) * (half + 1) <= rr) half++;
+        gfx_fill_rect(cx - half, cy + dy, 2 * half + 1, 1, C_BUSY_DISC);
+    }
+    gfx_draw_spinner(cx, cy, BUSY_R, ms, C_THUMB, C_BUSY_DISC);
+
+    /* Only the rows it is on: in landscape every row is the whole screen,
+     * and this is called a dozen times a second. */
+    gfx_blit(cy - BUSY_R - 6, cy + BUSY_R + 7);
+}
+
+void ui_art_busy_end(void)
+{
+    if (!s_busy_save) return;
+    const int fbw = gfx_w();
+    for (int y = 0; y < s_busy_h; y++) {
+        memcpy(&s_fb[(size_t)y * (size_t)fbw],
+               &s_busy_save[(size_t)y * (size_t)s_busy_w],
+               (size_t)s_busy_w * 2);
+    }
+    free(s_busy_save);
+    s_busy_save = NULL;
+    ui_blit_art();
 }
 
 /* Whether a logical point is over the artwork rather than the square. */

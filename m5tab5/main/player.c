@@ -4051,6 +4051,7 @@ static void bar_log(uint32_t pos, uint32_t len, const char *shown)
 }
 
 static void request_seek_at(int pct, int32_t sec, const char *why);
+
 static void request_track_at(const char *path, int32_t start_sec);
 /* Defined with the other track state below; a tentative definition here
  * so request_seek_at() can compare the decoder's track with the heard one. */
@@ -4327,6 +4328,37 @@ static volatile bool s_art_dirty;
 static bool screen_covered(void)
 {
     return browser_is_open() || panel_is_open() || sleeppage_is_open();
+}
+
+/*
+ * 8114: a seek that takes a while dims the cover and puts a spinner on it.
+ *
+ * The decoder calls seek_busy_cb() from inside decoder_seek_sec_at_cs()
+ * -- on this task, the decode loop, which is also the framebuffer's one
+ * writer and is blocked in the seek, so it is the right place to draw.
+ * Nothing shows for the first SEEK_BUSY_AFTER_MS, so a seek that lands
+ * quickly (every one but a far one in a long-frame APE) looks as it did.
+ */
+#define SEEK_BUSY_AFTER_MS  (500)
+#define SEEK_BUSY_FRAME_MS  (80)
+static int64_t s_busy_t0_us;
+static int64_t s_busy_frame_us;
+static bool    s_busy_up;
+
+static void seek_busy_cb(void)
+{
+    const int64_t now = esp_timer_get_time();
+    if (now - s_busy_t0_us < (int64_t)SEEK_BUSY_AFTER_MS * 1000) return;
+    if (screen_covered() || recorder_active()) return;
+    if (!s_busy_up) {
+        ui_art_busy_begin();
+        s_busy_up = true;
+        s_busy_frame_us = 0;
+    }
+    if (now - s_busy_frame_us >= (int64_t)SEEK_BUSY_FRAME_MS * 1000) {
+        s_busy_frame_us = now;
+        ui_art_busy_tick((uint32_t)(now / 1000));
+    }
 }
 
 /*
@@ -11171,8 +11203,16 @@ static track_end_t play_file(const char *path)
                 ESP_LOGW(TAG, "SEEK_NOOP: not seeking to %" PRIu32 "s", target);
 #else
                 uint32_t landed_cs = target * 100;
+                s_busy_t0_us = esp_timer_get_time();            /* 8114 */
+                s_busy_up = false;
+                decoder_set_seek_progress(seek_busy_cb);
                 const esp_err_t sr = decoder_seek_sec_at_cs(dec, target,
                                                             &landed_cs);
+                decoder_set_seek_progress(NULL);
+                if (s_busy_up) {
+                    ui_art_busy_end();
+                    s_busy_up = false;
+                }
 #endif
                 if (sr == ESP_ERR_NOT_SUPPORTED) {
                     ESP_LOGI(TAG, "seek ignored: %s cannot seek", "this backend");

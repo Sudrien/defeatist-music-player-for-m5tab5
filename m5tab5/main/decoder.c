@@ -2049,6 +2049,14 @@ void *decoder_ape_alloc(size_t n)
     return heap_caps_malloc(n, MALLOC_CAP_SPIRAM | MALLOC_CAP_8BIT);
 }
 
+/* 8114: see decoder.h. One for the program: one decoder seeks at a time. */
+static void (*volatile s_seek_progress)(void);
+
+void decoder_set_seek_progress(void (*cb)(void))
+{
+    s_seek_progress = cb;
+}
+
 /* Blocks a seek decodes at a time into `pcm` to throw away. */
 #define APE_SCRATCH_BLOCKS 2048
 
@@ -2197,6 +2205,7 @@ static esp_err_t ape_seek(decoder_t *d, uint32_t sec, uint32_t *landed_cs)
         const uint32_t n = ape_decode(d->ape, d->f, d->pcm, want);
         if (!n) return ESP_FAIL;
         skip -= n;
+        if (s_seek_progress) s_seek_progress();
     }
     d->done = target;
     d->ape->blocks_done = 0;            /* the dropped part is not playback */

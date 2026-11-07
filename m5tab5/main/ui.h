@@ -606,6 +606,19 @@ void ui_blit_art(void);
  * same reason gfx_blit_err() exists. */
 esp_err_t ui_blit_art_err(void);
 
+/*
+ * 8114: the artwork dimmed to half and a spinner on it, for a seek that
+ * takes long enough to need one. All three are for the decode loop, the
+ * one writer to the framebuffer, and are called in order: begin once
+ * (keeps a copy of the band in PSRAM, dims the band in place), tick for
+ * each frame of the spinner, end once (puts the copy back and blits).
+ * begin does nothing if there is no memory for the copy, and tick and end
+ * then do nothing too, so a seek is never worse for asking.
+ */
+void ui_art_busy_begin(void);
+void ui_art_busy_tick(uint32_t ms);
+void ui_art_busy_end(void);
+
 /* The control square's own blit. In landscape it sends every row,
  * because the square is a column -- see ui.c. */
 void ui_blit_bar(void);

@@ -398,3 +398,42 @@ decode: about 16 s at 1.6x. Extra High (6.7 s a frame) costs about 1.5 s;
 the levels up to High cost under 0.5 s. Nothing here changes the format; the
 fix, if wanted, is a message on the screen while a long skip runs.
 
+
+### 8114 -- the cover dims and a spinner turns while a seek runs long
+
+**Why.** An Insane-level APE seek can decode up to a 26-second frame to land
+(see 8113), so a press near the far end sat on a still screen for as long as
+sixteen seconds with nothing to say it had been heard.
+
+**What.** Half a second into a seek, the cover goes to half brightness and a
+spinner turns on a dark disc at the centre of the art band; when the seek
+ends the cover is back. Seeks that finish inside half a second show nothing
+at all.
+
+- `ui_art_busy_begin/tick/end()` in `ui.c`. Begin copies the art band to
+  PSRAM (up to 1.4 MB in landscape, held only for the seek) and halves
+  every pixel in place, `(p >> 1) & 0x7BEF` as RGB565 pairs; tick paints the
+  disc and `gfx_draw_spinner()` and blits only the rows the spinner is on;
+  end copies the band back and blits. Putting the copy back, not
+  repainting the cover, means no decode, no black flash and no dependence
+  on the repaint flags. If the copy cannot be allocated, none of the
+  three does anything.
+- `decoder_set_seek_progress()`: a callback the decoder calls from inside a
+  long seek, on the seeking task. Only `ape_seek()` calls it, once per
+  2048-block piece it decodes and drops.
+- `seek_busy_cb()` in `player.c`, set around `decoder_seek_sec_at_cs()` in
+  the decode loop, which is also the framebuffer's one writer and is blocked
+  in the seek, so nothing else is drawing. It waits `SEEK_BUSY_AFTER_MS`
+  (500), draws a frame every `SEEK_BUSY_FRAME_MS` (80), and stays out of the
+  way when the chooser, a panel or the sleep page is up, or the microphone
+  has the band.
+
+**Not covered.** The other backends' seeks do not call the callback, so they
+show nothing: MP3, FLAC, Ogg and the rest land well inside half a second, and
+DSD's cost is paid by the reads after the seek, not in it.
+
+*Checked:* the dim and spinner code compiles on its own with stubs.
+`ui.c`, `player.c` and `decoder.c` do not build on a host. *Not checked:* any
+of it on a board. What to look for: seek to the far end of 52 (Insane): after
+half a second the cover dims with a spinner, and returns whole when playback
+starts; a seek in 48 shows nothing.

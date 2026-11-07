@@ -324,6 +324,16 @@ esp_err_t decoder_seek_sec_at_cs(decoder_t *d, uint32_t sec,
                                  uint32_t *landed_cs);
 
 /*
+ * 8114: a function called now and then from inside a seek that takes
+ * long, on the task that asked for the seek, so the caller can show that
+ * something is happening. NULL (the default) for none. Only the backends
+ * whose seeks can take seconds call it -- APE, which decodes up to a frame
+ * to land one -- and it may be called as often as every few milliseconds,
+ * so what it does must check the clock itself.
+ */
+void decoder_set_seek_progress(void (*cb)(void));
+
+/*
  * Can this backend seek at all?
  *
  * Separate from having a duration, which is the mistake the first version

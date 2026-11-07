@@ -437,3 +437,27 @@ DSD's cost is paid by the reads after the seek, not in it.
 of it on a board. What to look for: seek to the far end of 52 (Insane): after
 half a second the cover dims with a spinner, and returns whole when playback
 starts; a seek in 48 shows nothing.
+
+### 8115 -- DSD stage 1: half the lookups
+
+The 8114-era DSD log: DSD64 stereo 2.35x realtime, DSD128 stereo 1.39x, mono
+DSD128 4.6x. Stage 1 (bits to 176.4 kHz, `K` table lookups per output) is
+nearly all of the time; the two halfbands are about 55 multiply-adds a frame.
+
+**What changed.** `K` is now `DSD_KB * mult` with `DSD_KB` 16, not 32: 128
+taps at DSD64, 256 at DSD128, so 16 and 32 lookups an output, and the table
+is 16 KB and 32 KB instead of 32 and 64. Stage 1 only has to keep 0-22 kHz
+and reject what folds into it (from 154 kHz up); the halfbands do the rest.
+Measured offline against a 64-byte window (zero-phase, same decimation
+phase, 5 s of file 41 and of 42): `K` 32: -141 / -154 dB re full scale;
+16: -127 / -143 dB (0.015 and 0.002 LSB of 16 bits); 12: -88 / -104 dB,
+which is where it breaks, so 16 is the floor. `latency` goes 39 to 38
+frames (it follows the window). Two outputs, `S1` bytes apart, are summed per
+pass (eight sums in flight, same per-output order, so the result is the same
+whether paired or not).
+
+*Checked:* `dsdtest`, 101 checks, SNR unchanged to the digit (the files'
+own modulator noise is the floor, so the offline comparison above is the
+real quality test). *Not checked:* speed on a board; the host is no guide.
+Expect about 1.6-1.8x on the filter time: DSD128 stereo near 2.2-2.5x,
+DSD64 near 3.5-4x. Send the `dsd timing` lines for 41, 42 and 45.

@@ -10,12 +10,12 @@
  * filter over every one. A bit has two values, so a filter over bits is
  * a sum of +h or -h, and eight bits at a time is one table lookup:
  * tbl[k][byte] already holds the contribution of byte k of the filter's
- * window. A 256-tap filter is 32 lookups per output, and the output of
+ * window. A 128-tap filter is 16 lookups per output, and the output of
  * that stage is not 44.1 kHz but 176.4 kHz, so the lookups are spread
  * over 16 input bits per output, not 64.
  *
  *   stage 1  bits -> float at 176.4 kHz. Windowed sinc, Kaiser beta ~10,
- *            256 taps (DSD64) or 512 (DSD128), by table lookup. It only
+ *            128 taps (DSD64) or 256 (DSD128), by table lookup. It only
  *            has to keep 0-22 kHz and reject what would fold into it,
  *            which starts at 176.4 - 22 = 154 kHz, so it can be short.
  *   stage 2  halfband, 176.4 -> 88.2 kHz, 31 taps, 16 of them nonzero.
@@ -72,7 +72,7 @@ extern "C" {
 #endif
 
 /* Allocation: the decoder defines DSD_ALLOC to PSRAM. The table is read
- * at random, 32 or 64 times an output frame, which the cache handles;
+ * at random, 16 or 32 times an output frame, which the cache handles;
  * internal RAM belongs to the radio (CLAUDE.md). Everything goes through
  * it, and everything is released with free(). */
 
@@ -262,6 +262,17 @@ static inline dsd_status_t dsd_probe(FILE *f, int64_t size, dsd_t *d,
 #define DSD_ALLOC(n) malloc(n)
 #endif
 
+/* Stage-1 window, in bytes per DSD64-equivalent unit: K = DSD_KB * mult.
+ * 16 (128 taps at DSD64) is the shortest that still leaves the chain's
+ * error against a 64-byte window at -126 dB re full scale (0.015 LSB of
+ * 16 bits) on the DSD64 test file and -143 dB at DSD128; 12 is at -88 dB.
+ * It used to be 32. Stage 1 is nearly all of the conversion's time, so
+ * this halves it. The lookups' count is the cost; K must be a multiple
+ * of 4. */
+#ifndef DSD_KB
+#define DSD_KB      16
+#endif
+
 #define DSD_HB1_H   15      /* 31 taps: 176.4 -> 88.2 kHz */
 #define DSD_HB2_H   67      /* 135 taps: 88.2 -> 44.1 kHz */
 
@@ -361,7 +372,7 @@ static inline dsd_conv_t *dsd_conv_new(const dsd_t *d, uint32_t in_chunk)
     memset(c, 0, sizeof(*c));
     c->d = *d;
     c->S1 = 2u * mult;                          /* bytes per 176.4 kHz sample */
-    c->K = 32u * mult;
+    c->K = (uint32_t)DSD_KB * mult;
     c->frame_bytes = 8u * mult;
     const uint32_t taps1 = c->K * 8u;
 
@@ -470,23 +481,48 @@ static inline size_t dsd_conv_feed(dsd_conv_t *c, const uint8_t *in,
         for (size_t i = 0; i < nbytes; i++) s->bh[s->bn + (int)i] = src[i * stride];
         const int avail = s->bn + (int)nbytes;
         int pos = 0;
-        while (pos + (int)c->K <= avail) {
+        const uint32_t K = c->K;
+        const int S1 = (int)c->S1;
+        /* Two outputs per pass (S1 bytes apart): eight independent sums
+         * and eight loads in flight, where one output's four leave the
+         * in-order core waiting on each load. An output's sum is the same
+         * in either loop, so the result does not depend on the pairing.
+         * Four running sums per output, not one: a single `a += ...` is a
+         * chain of dependent float adds, each waiting for the one before.
+         * K is a multiple of four. The sum differs from the one-accumulator
+         * order in the last bit or so, far below the converter's noise. */
+        while (pos + S1 + (int)K <= avail) {
             const uint8_t *b = s->bh + pos;
-            /* Four running sums, not one: a single `a += ...` is a chain
-             * of dependent float adds, and on an in-order core each waits
-             * for the one before. K is a multiple of 32, so a multiple of
-             * four. The sum differs from the one-accumulator order in the
-             * last bit or so, which is far below the converter's noise. */
+            const uint8_t *e = b + S1;
+            float a0 = 0, a1 = 0, a2 = 0, a3 = 0;
+            float c0 = 0, c1 = 0, c2 = 0, c3 = 0;
+            const float *t = c->tbl;
+            for (uint32_t k = 0; k < K; k += 4, t += 1024) {
+                a0 += t[b[k]];
+                c0 += t[e[k]];
+                a1 += t[256 + b[k + 1]];
+                c1 += t[256 + e[k + 1]];
+                a2 += t[512 + b[k + 2]];
+                c2 += t[512 + e[k + 2]];
+                a3 += t[768 + b[k + 3]];
+                c3 += t[768 + e[k + 3]];
+            }
+            s->s1.x[s->s1.n++] = (a0 + a1) + (a2 + a3);
+            s->s1.x[s->s1.n++] = (c0 + c1) + (c2 + c3);
+            pos += 2 * S1;
+        }
+        while (pos + (int)K <= avail) {
+            const uint8_t *b = s->bh + pos;
             float a0 = 0, a1 = 0, a2 = 0, a3 = 0;
             const float *t = c->tbl;
-            for (uint32_t k = 0; k < c->K; k += 4, t += 1024) {
+            for (uint32_t k = 0; k < K; k += 4, t += 1024) {
                 a0 += t[b[k]];
                 a1 += t[256 + b[k + 1]];
                 a2 += t[512 + b[k + 2]];
                 a3 += t[768 + b[k + 3]];
             }
             s->s1.x[s->s1.n++] = (a0 + a1) + (a2 + a3);
-            pos += (int)c->S1;
+            pos += S1;
         }
         memmove(s->bh, s->bh + pos, (size_t)(avail - pos));
         s->bn = avail - pos;

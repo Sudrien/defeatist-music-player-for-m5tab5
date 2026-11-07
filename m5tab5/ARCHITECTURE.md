@@ -543,3 +543,22 @@ a frame a channel is about 1,200 cycles against some 550 instructions counted.
 `dsd stages:` now logs the byte gather, stage 1 and the halfbands separately
 (clock reads three times a channel a 4 KB chunk). *Not checked on a board.*
 Send the `dsd stages` lines for 41, 42 and 43.
+
+### 8121 -- DSD: the byte gather as a memcpy
+
+8120's `dsd stages` (build 89de591), per frame a channel: the halfbands cost
+about 425 cycles at every rate (a third of the time at DSD64, a quarter at
+DSD256), stage 1 about 620 / 750 / 910 cycles at DSD64 / 128 / 256 (3.6, 3.0,
+2.4x overall), and the byte gather about 10 cycles a byte, which is 20% of
+the time at DSD256 (247 of 1240 ms). Stage 1 at 150-230 cycles an output is
+four times what its instruction count says, so it waits on memory, not on
+the PIE unit; the halfbands likewise. The gather's loop was a byte load and
+store through a runtime stride; for DSF (stride 1) it is a `memcpy` now, and
+DFF's loop steps a pointer.
+
+*Checked:* `dsdtest`. *Not checked:* on a board; expect the gather's share to
+fall to a few percent. Not done, and why: the halfbands on PIE would need
+int32 data and coefficients split into 16-bit halves (three multiplies for
+each product) and a mirrored copy of the data, for a gain of at most a third
+of the time at DSD64; moving the buffers to internal RAM would take memory
+the radio owns.

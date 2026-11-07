@@ -670,7 +670,15 @@ static inline size_t dsd_conv_feed(dsd_conv_t *c, const uint8_t *in,
         dsd_ch_t *s = &c->ch[ch];
         const uint8_t *src = in + (size_t)ch * chan_off;
         const uint64_t tc0 = DSD_CLOCK();
-        for (size_t i = 0; i < nbytes; i++) s->bh[s->bn + (int)i] = src[i * stride];
+        /* DSF is a straight run of bytes (stride 1): memcpy moves it a word at
+         * a time. DFF's are every `channels`-th byte. 8120's log put this
+         * byte loop at about ten cycles a byte, a fifth of the time at DSD256. */
+        if (stride == 1) {
+            memcpy(s->bh + s->bn, src, nbytes);
+        } else {
+            uint8_t *dst = s->bh + s->bn;
+            for (size_t i = 0; i < nbytes; i++, src += stride) dst[i] = *src;
+        }
         const int avail = s->bn + (int)nbytes;
         int pos = 0;
         const uint64_t tc1 = DSD_CLOCK();

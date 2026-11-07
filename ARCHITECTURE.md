@@ -28595,3 +28595,67 @@ once it is tagged, a tag move, then `poddl.c` onto `feckless_fetch`.
 *Checked:* the manifest parses, with every feckless pin at v0.9.2 and the
 esp_hosted range as written. Not built (no ESP-IDF in the session, the
 registry not reachable), not on a Tab5.
+
+### 8098 -- DSF and DFF, converted to 44.1 kHz PCM in `dsd.h`
+
+The README's "DSD and APE require too much processing" was true of APE
+and of a naive DSD converter. A bit is +h or -h, so a filter over bits
+is eight bits to a table lookup, and a 256-tap filter is 32 lookups per
+output. `main/dsd.h` is the container probes and the converter;
+`decoder.c` gets `BACKEND_DSD`, `.dsf` and `.dff` in `k_formats[]`, and
+`duration.c` reads the length from the header.
+
+**The converter, in three stages.** Stage 1 takes the bits to float at
+176.4 kHz: a Kaiser windowed sinc (beta 10) of 256 taps for DSD64 or
+512 for DSD128, as `K` tables of 256 floats, 32 or 64 KB. It need only
+keep 0-22 kHz and reject what would fold into it, which starts at 154
+kHz, so it is short. Stage 2 is a 31-tap halfband to 88.2 kHz, stage 3 a
+135-tap halfband to 44.1 kHz (flat to 20 kHz, down more than 90 dB from
+24 kHz); about 55 multiply-adds per frame per channel between them. The
+output is always 44.1 kHz: DSD64 divides by 64, DSD128 by 128. Unity
+gain, saturated; the filters' delay (39 frames, 0.9 ms) is compensated
+at the start and drained at the end, so the length is exact. A seek backs
+up 128 frames to let the filters settle and discards them, landing on
+the frame asked for.
+
+**Refused, by name:** DST-compressed DFF, more than two channels, an
+unusual DSF block size, and anything above DSD128. DSD256 is not refused
+because it cannot work -- the host decodes file 43 with
+`-DDSD_MAX_MULT=4`, though that one was timed and not checked against
+file 01, and 128 lookups and 128 KB of table is the cost --
+but because nobody has timed it on a P4. It is one constant.
+
+**Not done:** DoP to a USB DAC, which needs 24-bit PCM at 176.4 kHz and
+the rings are 16-bit. DSD64 and DSD128 only play at 44.1 kHz; 88.2 kHz
+output for DSD128 is a decision about what the I2S clock and the ES8388
+take, not about the filter.
+
+**Memory:** all of it is `heap_caps_malloc(MALLOC_CAP_SPIRAM)`, as the
+radio asks (CLAUDE.md): the tables, the byte and sample histories, and
+the 6.6 KB of scratch that was a stack array until it was moved into the
+struct. Allocated at open and freed with the handle.
+
+*Checked, on a host:* `texttest/dsdtest.c`, ASan and UBSan clean, no
+leaks, against `test_audio_files/` 41-47 (the fixtures commit). Decoded against file 01 at 0.6 scale: left-channel SNR 57 dB
+(DSD64), 66 dB (DSD128), 59 dB (mono); error 2 to 5 LSB rms, which is
+the 2nd-order modulator's noise floor, not the converter's -- ffmpeg's
+own decoder of the same files is at 44 to 49 LSB rms against the same
+reference, so the figure is a ceiling on the fixtures and not a
+comparison with it. The DSF and DFF of the same audio agree to 8 LSB;
+seeks to 1 frame, 2 s + 777 frames and 3 s land within 8 LSB of the
+straight run, on both containers and both rates; the length is exact for
+file 44's 14112007 bits; 47 is named DST and 43 refused. The glue in
+`decoder.c` (`dsd_open`/`dsd_read`/`dsd_seek`) was compiled and run
+against stubs and returns the file's exact frame count and the same
+refusals. Host time, for scale only: 30 s of DSD64 stereo in 0.24 s at
+-O2 on x86 (0.8% of a core), DSD128 1.4%, DSD256 16%. The board is a
+long way from that and none of it is measured there.
+
+*Not checked:* the whole of `decoder.c` and `duration.c` (no ESP-IDF in
+the session, and `storage_io.h` is in a component the registry did not
+give it -- the test was built against a four-line stub of it, so
+`make run-dsd` has not been run as written), on a Tab5, by ear, the
+real decode load at DSD64 or DSD128, that 8 KB of read per block is
+fine on a card, or what the UI does with a codec called `dsd`. If the
+decode task underruns on DSD128 first, `DSD_MAX_MULT 1` is the knob.
+The translated READMEs still carry the old "too much processing" line.

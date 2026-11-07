@@ -50,6 +50,11 @@
 #include "mp4seek.h"
 #include "imaadpcm.h"
 #include "aiff.h"
+/* dsd.h allocates the converter -- tables, histories, scratch -- through
+ * this, and it is PSRAM: internal RAM belongs to the radio. */
+void *decoder_dsd_alloc(size_t n);
+#define DSD_ALLOC(n) decoder_dsd_alloc(n)
+#include "dsd.h"
 #include "duration.h"
 #include "cuedir.h"
 
@@ -72,8 +77,10 @@ static const char *TAG = "tab5_dec";
  * format tag, and every other WAV goes to esp_audio_codec as before. */
 /* BACKEND_AIFF is AIFF and AIFF-C, read in aiff.h and converted in
  * pcmconv.h (6154). esp_audio_codec has no AIFF parser at all. */
+/* BACKEND_DSD is DSF and DFF, found and converted to 44.1 kHz PCM in
+ * dsd.h. There is no esp_audio_codec type for it. */
 typedef enum { BACKEND_MINIMP3, BACKEND_ESP_CODEC, BACKEND_ADPCM,
-               BACKEND_AIFF } backend_t;
+               BACKEND_AIFF, BACKEND_DSD } backend_t;
 
 /*
  * A cue track: one span of a real file, presented as if it were the
@@ -210,6 +217,13 @@ struct decoder {
      * caller's buffer; `done` and `inbuf` are shared with the IMA path,
      * which never runs on the same decoder. */
     aiff_t aiff;
+
+    /* DSD: the converter and the reader's place in the file. Blocks of
+     * 1-bit audio are read into inbuf, converted into pcm, and drained
+     * from there by decoder_read() through pcm_pos/pcm_len, as the IMA
+     * path does; `done` counts output frames against dsd_frames(). */
+    dsd_conv_t *dsd;
+    dsd_rd_t    dsd_rd;
 };
 
 #define ESP_IN_BUF  (8 * 1024)
@@ -269,6 +283,10 @@ static const struct {
     { ".aif",  BACKEND_AIFF,      0,                              "aiff", DECODER_TRIM_EXACT   },
     { ".aiff", BACKEND_AIFF,      0,                              "aiff", DECODER_TRIM_EXACT   },
     { ".aifc", BACKEND_AIFF,      0,                              "aiff", DECODER_TRIM_EXACT   },
+    /* DSD, converted to PCM in dsd.h. Exact: the length is a bit count
+     * and the converter's delay is compensated. */
+    { ".dsf",  BACKEND_DSD,       0,                              "dsd",  DECODER_TRIM_EXACT   },
+    { ".dff",  BACKEND_DSD,       0,                              "dsd",  DECODER_TRIM_EXACT   },
 };
 
 const char *decoder_trim_name(decoder_trim_t t)
@@ -1800,6 +1818,122 @@ static esp_err_t aiff_seek(decoder_t *d, uint32_t sec, uint32_t *landed_cs)
     return ESP_OK;
 }
 
+
+/* ------------------------------------------------------------------ */
+/* DSD (DSF and DFF)                                                   */
+/* ------------------------------------------------------------------ */
+
+void *decoder_dsd_alloc(size_t n)
+{
+    return heap_caps_malloc(n, MALLOC_CAP_SPIRAM | MALLOC_CAP_8BIT);
+}
+
+/* Frames one dsd_next() can return: a block's worth, plus the idle tail
+ * that drains the filters at the end. */
+#define DSD_PCM_FRAMES  (DSD_BLOCK_MAX / 8 + 96)
+
+/*
+ * ESP_ERR_NOT_SUPPORTED, handle closed, for anything that is not a DSD
+ * this plays -- and the log says which of the three it was, because a
+ * DST-compressed DFF and a DSD256 are different things to be told.
+ */
+static esp_err_t dsd_open(decoder_t *d, const char *path)
+{
+    d->f = storage_io_open(path, "rb");
+    if (!d->f) return ESP_ERR_NOT_FOUND;
+    int64_t size = -1;
+    if (fseek(d->f, 0, SEEK_END) == 0) size = ftell(d->f);
+    dsd_t dd;
+    const dsd_status_t st = dsd_probe(d->f, size, &dd, STORAGE_IO_PLAYBACK);
+    if (st != DSD_OK) {
+        if (st == DSD_DST) {
+            ESP_LOGE(TAG, "DFF is DST-compressed; there is no DST decoder");
+        } else if (st == DSD_UNSUPPORTED) {
+            ESP_LOGE(TAG, "DSD this does not play (above DSD128, more than "
+                          "two channels, or an unusual layout)");
+        } else {
+            ESP_LOGE(TAG, "not a DSF or DFF");
+        }
+        storage_io_close(d->f);
+        d->f = NULL;
+        return ESP_ERR_NOT_SUPPORTED;
+    }
+    d->dsd = dsd_conv_new(&dd, DSD_BLOCK_MAX);
+    d->inbuf = heap_caps_malloc((size_t)dd.channels * DSD_BLOCK_MAX,
+                                MALLOC_CAP_SPIRAM | MALLOC_CAP_8BIT);
+    d->pcm = heap_caps_malloc(sizeof(int16_t) * 2 * DSD_PCM_FRAMES,
+                              MALLOC_CAP_SPIRAM | MALLOC_CAP_8BIT);
+    if (!d->dsd || !d->inbuf || !d->pcm) {
+        dsd_conv_free(d->dsd);
+        free(d->inbuf);
+        free(d->pcm);
+        d->dsd = NULL;
+        d->inbuf = NULL;
+        d->pcm = NULL;
+        storage_io_close(d->f);
+        d->f = NULL;
+        return ESP_ERR_NO_MEM;
+    }
+    dsd_seek_plan(d->dsd, &d->dsd_rd, 0);
+    d->pcm_len = d->pcm_pos = 0;
+    d->done = 0;
+    d->info.codec = "dsd";
+    d->info.trim = DECODER_TRIM_EXACT;
+    d->info.sample_rate = (int)DSD_OUT_RATE;
+    d->info.channels = dd.channels;
+    d->info.bitrate_kbps = (int)((uint64_t)dd.rate * dd.channels / 1000);
+    d->probed = true;
+    d->probe_sec = (uint32_t)(dsd_frames(d->dsd) / DSD_OUT_RATE);
+    ESP_LOGI(TAG, "%s: DSD%u, %u ch, %" PRIu32 " Hz 1-bit, to %u Hz PCM, %s, "
+                  "filter delay %u frames",
+             dd.kind, (unsigned)(64 * dsd_mult(dd.rate)), (unsigned)dd.channels,
+             dd.rate, (unsigned)DSD_OUT_RATE,
+             dd.dff ? "byte-interleaved MSB first"
+                    : (dd.lsb_first ? "block-interleaved LSB first"
+                                    : "block-interleaved MSB first"),
+             (unsigned)d->dsd->latency);
+    return ESP_OK;
+}
+
+static int dsd_read(decoder_t *d, int16_t *out, int max_int16)
+{
+    const uint32_t ch = d->dsd->d.channels;
+    const uint64_t total = dsd_frames(d->dsd);
+    if (d->done >= total) return 0;
+    if (d->pcm_pos >= d->pcm_len) {
+        const size_t n = dsd_next(d->dsd, &d->dsd_rd, d->f, d->inbuf, d->pcm,
+                                  STORAGE_IO_PLAYBACK);
+        if (!n) return 0;               /* the file ended early */
+        d->pcm_len = (uint32_t)(n * ch);
+        d->pcm_pos = 0;
+    }
+    uint32_t n = d->pcm_len - d->pcm_pos;
+    if (n > (uint32_t)max_int16) n = (uint32_t)max_int16 - (uint32_t)max_int16 % ch;
+    /* Never past the last whole frame of music: what follows is the
+     * final block's padding. */
+    const uint64_t left = (total - d->done) * ch;
+    if (n > left) n = (uint32_t)left;
+    if (!n) return 0;
+    memcpy(out, d->pcm + d->pcm_pos, n * sizeof(int16_t));
+    d->pcm_pos += n;
+    d->done += n / ch;
+    return (int)n;
+}
+
+/* Exact to the frame: dsd_seek_plan() backs up to settle the filters and
+ * discards what it read to get there. */
+static esp_err_t dsd_seek(decoder_t *d, uint32_t sec, uint32_t *landed_cs)
+{
+    const uint64_t total = dsd_frames(d->dsd);
+    uint64_t target = (uint64_t)sec * DSD_OUT_RATE;
+    if (target >= total) target = total ? total - 1 : 0;
+    dsd_seek_plan(d->dsd, &d->dsd_rd, target);
+    d->pcm_len = d->pcm_pos = 0;
+    d->done = target;
+    if (landed_cs) *landed_cs = (uint32_t)(target * 100 / DSD_OUT_RATE);
+    return ESP_OK;
+}
+
 decoder_t *decoder_open(const char *path)
 {
     return decoder_open_indexed(path, NULL);
@@ -1838,7 +1972,9 @@ static decoder_t *open_file(const char *path, const decoder_index_t *ix)
             else if (ret != ESP_ERR_NOT_SUPPORTED) { free(d); return NULL; }
         }
     }
-    if (d->backend == BACKEND_AIFF) {
+    if (d->backend == BACKEND_DSD) {
+        ret = dsd_open(d, path);
+    } else if (d->backend == BACKEND_AIFF) {
         if (k_formats[fmt].backend == BACKEND_AIFF) ret = aiff_open(d, path, false);
     } else if (d->backend != BACKEND_ADPCM) {
         ret = (d->backend == BACKEND_MINIMP3)
@@ -1856,6 +1992,7 @@ static int read_raw(decoder_t *d, int16_t *out, int max_int16)
 {
     if (d->backend == BACKEND_ADPCM) return adpcm_read(d, out, max_int16);
     if (d->backend == BACKEND_AIFF) return aiff_read(d, out, max_int16);
+    if (d->backend == BACKEND_DSD) return dsd_read(d, out, max_int16);
     return (d->backend == BACKEND_MINIMP3)
          ? minimp3_read(d, out, max_int16)
          : esp_codec_read(d, out, max_int16);
@@ -1953,7 +2090,10 @@ bool decoder_can_seek(decoder_t *d)
 {
     if (!d) return false;
 
-    if (d->backend == BACKEND_ADPCM || d->backend == BACKEND_AIFF) return true;
+    if (d->backend == BACKEND_ADPCM || d->backend == BACKEND_AIFF ||
+        d->backend == BACKEND_DSD) {
+        return true;
+    }
 
     /* minimp3, once its index exists. */
     if (d->backend == BACKEND_MINIMP3) {
@@ -1991,6 +2131,7 @@ static esp_err_t seek_raw(decoder_t *d, uint32_t sec, uint32_t *landed_cs)
 
     if (d->backend == BACKEND_ADPCM) return adpcm_seek(d, sec, landed_cs);
     if (d->backend == BACKEND_AIFF) return aiff_seek(d, sec, landed_cs);
+    if (d->backend == BACKEND_DSD) return dsd_seek(d, sec, landed_cs);
     if (d->backend != BACKEND_MINIMP3) return esp_codec_seek(d, sec, landed_cs);
 
     if (!d->ex.info.hz || !d->ex.info.channels) return ESP_ERR_INVALID_STATE;
@@ -2153,6 +2294,7 @@ void decoder_close(decoder_t *d)
         free(d->tbl_frm);
         free(d->inbuf);
         free(d->pcm);
+        dsd_conv_free(d->dsd);
     }
     if (d->f) storage_io_close(d->f);
     free(d->live);                      /* 8050 */

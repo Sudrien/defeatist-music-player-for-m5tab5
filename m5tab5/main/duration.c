@@ -17,6 +17,7 @@
 
 #include "duration.h"
 #include "aiff.h"
+#include "dsd.h"
 #include "mp3count.h"         /* 5263: mp3_frame_len() */
 #include "oggseek.h"
 #include "storage_io.h"
@@ -450,6 +451,13 @@ uint32_t duration_probe(FILE *f, storage_io_class_t cls)
             if (fseek(f, 0, SEEK_END) == 0 &&
                 aiff_probe(f, ftell(f), &a, cls) && a.sample_rate) {
                 sec = (uint32_t)(a.frames / a.sample_rate);
+            }
+        } else if (memcmp(magic, "DSD ", 4) == 0 || memcmp(magic, "FRM8", 4) == 0) {
+            /* DSF and DFF state their length as a bit count. */
+            dsd_t dd;
+            if (fseek(f, 0, SEEK_END) == 0 &&
+                dsd_probe(f, ftell(f), &dd, cls) == DSD_OK && dd.rate) {
+                sec = (uint32_t)(dd.bits / dd.rate);
             }
         } else if (memcmp(magic + 4, "ftyp", 4) == 0) {
             sec = probe_mp4(f, cls);

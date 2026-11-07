@@ -252,6 +252,12 @@ static inline dsd_status_t dsd_probe(FILE *f, int64_t size, dsd_t *d,
 /* Conversion                                                          */
 /* ------------------------------------------------------------------ */
 
+/* A microsecond clock, for finding out where the time goes on the board.
+ * decoder.c defines it; left alone, nothing is measured. */
+#ifndef DSD_CLOCK
+#define DSD_CLOCK() ((uint64_t)0)
+#endif
+
 #ifndef DSD_ALLOC
 #define DSD_ALLOC(n) malloc(n)
 #endif
@@ -282,6 +288,9 @@ typedef struct {
     uint32_t  latency;      /* output frames the filters delay the signal */
     /* Scratch for dsd_conv_feed(), here and not on the decode task's stack. */
     float     mid[1088], fin[576];
+    /* Where dsd_next() spent its time (DSD_CLOCK units, cumulative over
+     * seeks), and the frames the filters produced, preroll included. */
+    uint64_t  us_read, us_feed, frames_fed;
 } dsd_conv_t;
 
 static inline double dsd_i0(double x)
@@ -460,10 +469,20 @@ static inline size_t dsd_conv_feed(dsd_conv_t *c, const uint8_t *in,
         int pos = 0;
         while (pos + (int)c->K <= avail) {
             const uint8_t *b = s->bh + pos;
-            float a = 0;
+            /* Four running sums, not one: a single `a += ...` is a chain
+             * of dependent float adds, and on an in-order core each waits
+             * for the one before. K is a multiple of 32, so a multiple of
+             * four. The sum differs from the one-accumulator order in the
+             * last bit or so, which is far below the converter's noise. */
+            float a0 = 0, a1 = 0, a2 = 0, a3 = 0;
             const float *t = c->tbl;
-            for (uint32_t k = 0; k < c->K; k++, t += 256) a += t[b[k]];
-            s->s1.x[s->s1.n++] = a;
+            for (uint32_t k = 0; k < c->K; k += 4, t += 1024) {
+                a0 += t[b[k]];
+                a1 += t[256 + b[k + 1]];
+                a2 += t[512 + b[k + 2]];
+                a3 += t[768 + b[k + 3]];
+            }
+            s->s1.x[s->s1.n++] = (a0 + a1) + (a2 + a3);
             pos += (int)c->S1;
         }
         memmove(s->bh, s->bh + pos, (size_t)(avail - pos));
@@ -542,9 +561,14 @@ static inline size_t dsd_next(dsd_conv_t *c, dsd_rd_t *r, FILE *f,
                 off = d->data_start + (int64_t)(blk * d->block * d->channels);
                 want = (size_t)d->block * d->channels;      /* a whole group */
             }
+            const uint64_t t0 = DSD_CLOCK();
             if (!storage_io_read_at(f, off, buf, want, cls)) return 0;
+            const uint64_t t1 = DSD_CLOCK();
             n = d->dff ? dsd_conv_feed(c, buf, nb, 1, d->channels, out)
                        : dsd_conv_feed(c, buf, nb, d->block, 1, out);
+            c->us_read += t1 - t0;
+            c->us_feed += DSD_CLOCK() - t1;
+            c->frames_fed += n;
             r->pos += nb;
         } else if (!r->flushed) {
             const size_t nb = (size_t)(c->latency + 4) * c->frame_bytes;

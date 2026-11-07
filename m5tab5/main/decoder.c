@@ -54,6 +54,8 @@
  * this, and it is PSRAM: internal RAM belongs to the radio. */
 void *decoder_dsd_alloc(size_t n);
 #define DSD_ALLOC(n) decoder_dsd_alloc(n)
+#include "esp_timer.h"
+#define DSD_CLOCK() ((uint64_t)esp_timer_get_time())
 #include "dsd.h"
 #include "duration.h"
 #include "cuedir.h"
@@ -1895,6 +1897,26 @@ static esp_err_t dsd_open(decoder_t *d, const char *path)
     return ESP_OK;
 }
 
+/*
+ * What the time went on, once, when the track is closed: the filters
+ * against the card. `realtime` is audio seconds produced per second of
+ * that part alone, so under 1.00 it could not keep up even with nothing
+ * else running. Whole numbers: the log's printf has no float.
+ */
+static void dsd_log_timing(const dsd_conv_t *c)
+{
+    if (!c || !c->frames_fed || !c->us_feed) return;
+    const uint64_t audio_ms = c->frames_fed * 1000u / DSD_OUT_RATE;
+    /* hundredths of "audio seconds per second spent" */
+    const uint64_t f = audio_ms * 100000u / c->us_feed;
+    const uint64_t r = c->us_read ? audio_ms * 100000u / c->us_read : 0;
+    ESP_LOGI(TAG, "dsd timing: %" PRIu64 " ms of audio; filters %" PRIu64
+                  " ms (%" PRIu64 ".%02" PRIu64 "x realtime), card reads %"
+                  PRIu64 " ms (%" PRIu64 ".%02" PRIu64 "x)",
+             audio_ms, c->us_feed / 1000u, f / 100u, f % 100u,
+             c->us_read / 1000u, r / 100u, r % 100u);
+}
+
 static int dsd_read(decoder_t *d, int16_t *out, int max_int16)
 {
     const uint32_t ch = d->dsd->d.channels;
@@ -2294,6 +2316,7 @@ void decoder_close(decoder_t *d)
         free(d->tbl_frm);
         free(d->inbuf);
         free(d->pcm);
+        dsd_log_timing(d->dsd);
         dsd_conv_free(d->dsd);
     }
     if (d->f) storage_io_close(d->f);

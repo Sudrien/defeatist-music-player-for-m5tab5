@@ -28659,3 +28659,79 @@ real decode load at DSD64 or DSD128, that 8 KB of read per block is
 fine on a card, or what the UI does with a codec called `dsd`. If the
 decode task underruns on DSD128 first, `DSD_MAX_MULT 1` is the knob.
 The translated READMEs still carry the old "too much processing" line.
+
+### 8099 -- DSD: where the time goes, and four running sums
+
+**What the board said.** 8098 played every DSD fixture, and a second run
+with seeks made gravelly popping after them. The log has the reason in
+the `bar:` lines, which print frames decoded: after each seek the
+decoder produced frames at well under the 44,100 a second playback
+consumes, with `queued 0` throughout -- an underrun, which is what
+popping is.
+
+| after a seek | frames decoded | time | rate |
+| --- | --- | --- | --- |
+| 41, DSD64 stereo, 20 s | 883,673 -> 928,729 -> 971,737 | 2.19 s, 1.96 s | about 20,500 and 21,900 /s |
+| 45, DFF DSD64 stereo | 134,181 -> 177,189 | 2.03 s | about 21,200 /s |
+| 44, DSD64 mono | 136,153 -> 178,649 | 1.18 s | about 36,000 /s |
+| 42, DSD128 stereo | 133,337 -> 177,625 | 3.58 s | about 12,400 /s |
+
+The first run, before any seek, had the ring filling at several times
+real time (688,601 frames decoded 12 s into a track), so the decoder can
+go faster than this; it was not doing so after a seek, and a seek empties
+the ring, so a refill that cannot beat real time is audible and a refill
+into a full ring is not.
+
+**What is not known, and this patch is to find out.** Two things fit and
+the log cannot tell them apart. The card was also five times slower in
+this run than in the first (`track playback` 1,028-1,282 KB/s against
+6,788-7,228 KB/s, and mp2 had a 350 ms worst hold and a `decoder_read
+blocked 782 ms`), and DSD128 stereo needs 1,411 KB/s of file, which a
+card at 1,161 KB/s cannot give whatever the decoder does. Or the filter
+is the slow part: stage 1 is 128 table lookups per channel per output
+frame (32 per 176.4 kHz sample, four of them to a frame), 256 for DSD128,
+all from a 32 or 64 KB table in PSRAM, where a miss is far dearer than on
+the host that measured 126x. The same lookups scale with channels and
+with the multiple the way the observed rates do. Mono against stereo and
+DSD128 against DSD64 are both 2x either way, so they do not separate
+them.
+
+**So it measures.** `dsd_next()` now times its card read and its filter
+separately (`DSD_CLOCK()`, `esp_timer_get_time()` in `decoder.c`, zero
+anywhere else), cumulative over seeks, and the handle's close logs one
+line:
+
+    dsd timing: 30011 ms of audio; filters 1000 ms (29.98x realtime), card reads 6 ms (4842.82x)
+
+The numbers there are host numbers. On the board, "filters" under 1.00x
+is the CPU and nothing else is needed; "card reads" under 1.00x is the
+card; both well over 1.00x with the popping still there means it is
+neither and the writer or the ring is next. It is logged at close, so a
+track has to be left, skipped or finished.
+
+**One change meant to help if it is the filter.** Stage 1's inner loop
+was `a += t[b[k]]` over 32 or 64 bytes: one chain of dependent float
+adds, each waiting for the last on an in-order core. It is four running
+sums now, combined at the end. The result differs in the last bit or so
+from the single sum, which is far below the converter's noise; the host
+test is unchanged (same SNR figures, same seek agreement) and the host
+benchmark went from 126x to 172x on DSD64. On the board it is a guess
+that this matters, and the timing line is what says.
+
+**Not done, deliberately.** The table is not moved to internal RAM. It
+would be the obvious thing for a table read at random, and CLAUDE.md is
+plain that internal RAM belongs to the radio: 32 KB (DSD64) or 64 KB
+(DSD128) of the 176,711 free at boot is a lot to spend on a guess. If the
+timing line says the filter is the problem and the table's latency is
+why, that is the next patch, and it should be sized against the heap map
+with Wi-Fi up. A shorter first stage (a cheap decimate-by-8 ahead of a
+shorter one) would cut the lookups by about half but needs its aliasing
+worked out against the modulator's noise, which a single sentence does
+not do. `DSD_MAX_MULT 1` takes DSD128 away if it is the one that cannot
+be kept up with.
+
+*Checked, on a host:* `dsdtest` unchanged and passing under ASan/UBSan;
+the timing line printed by the `decoder.c` glue compiled against stubs.
+*Not checked:* anything on the board, including whether the timing line
+prints there (`esp_timer.h` is included in `decoder.c` and was not built),
+and whether the four sums make a measurable difference.

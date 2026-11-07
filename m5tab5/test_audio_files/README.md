@@ -67,6 +67,13 @@ place; one that is wrong by more is obvious from the beep count.
 | 38 wav-alaw | G.711 A-law WAV | the same, *alaw* |
 | 39 aifc-ulaw | 37's bytes in AIFF-C | sounds exactly like 37 |
 | 40 mp2 | MPEG-1 Layer II, to minimp3 (6155) | plays, seeks, like an .mp3 |
+| 41 dsf-dsd64 | DSF, DSD64 stereo, 30 s (marks at 0, 10, 20: one to three beeps) | **not supported today**; once it is: plays, seeks, tone as 01 |
+| 42 dsf-dsd128 | DSF, DSD128, 5 s | as 41 |
+| 43 dsf-dsd256 | DSF, DSD256, 3 s | as 41, or refused by name if the rate is too heavy |
+| 44 dsf-dsd64-mono-odd | DSF mono, 14112007 bits: not a whole byte or block; ffmpeg reports it a block long (5.0039 s) | ends at 5.0000025 s, not at the padding |
+| 45 dff-dsd64 | DFF (uncompressed, MSB first, byte-interleaved), 5 s | as 41 |
+| 46 dff-dsd64-mono | DFF mono | as 45 |
+| 47 dff-dst-refuse | DFF whose CMPR is `DST `, over junk frames | **refused by name**, no noise played |
 | 22 cue-flac-image | cue sheet, one image, six tracks on the marks; UTF-8 BOM, CRLF | six tracks; track N opens with N beeps; track 5 reads *Fünf Signaltöne* |
 | 23 cue-pregap-htoa | INDEX 00, a hidden track, starts off the second; Windows-1252 | four tracks starting 3, 10, 25.49 and 39.99 s; performer *Café Tones* |
 | 24 cue-filename-mismatch | sheet names `CDImage.wav`, which is not there | resolves to the FLAC beside it; tracks at 0, 20, 40 |

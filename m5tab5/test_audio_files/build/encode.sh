@@ -405,3 +405,22 @@ $F -t 5 -c:a pcm_mulaw -f aiff "$OUT/39 aifc-ulaw.aifc"
 $F -c:a mp2 -b:a 192k "$OUT/40 mp2.mp2"
 
 echo "built into $OUT"
+
+# ---------------------------------------------------------------- DSD
+# 41-47: Direct Stream Digital. ffmpeg decodes DSD but has no encoder or
+# muxer for it, so dsdgen.py does both: ffmpeg resamples landmark.wav to
+# the 1-bit rate, sdm.c (a 2nd-order sigma-delta modulator, input scaled
+# to 0.6) makes the bits, and dsdgen.py writes the DSF or DFF around
+# them. Needs gcc and numpy. Verified by decoding with ffmpeg: the tone
+# steps 220 Hz * 2^(s/24) as in 01, and the container fields parse.
+[ -x sdm ] || gcc -O2 -o sdm sdm.c
+python3 dsdgen.py dsf  2822400 30 2 "$OUT/41 dsf-dsd64.dsf"
+python3 dsdgen.py dsf  5644800  5 2 "$OUT/42 dsf-dsd128.dsf"
+python3 dsdgen.py dsf 11289600  3 2 "$OUT/43 dsf-dsd256.dsf"
+# 44 -- mono, 14112007 bits: not a whole byte, let alone a 4096-byte block.
+python3 dsdgen.py dsf  2822400  5 1 "$OUT/44 dsf-dsd64-mono-odd.dsf" --samples 14112007
+python3 dsdgen.py dff  2822400  5 2 "$OUT/45 dff-dsd64.dff"
+python3 dsdgen.py dff  2822400  5 1 "$OUT/46 dff-dsd64-mono.dff"
+# 47 -- CMPR says 'DST ' over junk. No DST encoder exists here; the file
+# only has to be refused.
+python3 dsdgen.py dff  2822400  5 2 "$OUT/47 dff-dst-refuse.dff" --dst

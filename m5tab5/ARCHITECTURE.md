@@ -259,3 +259,25 @@ samples as playing through, the refusals, and damaged data caught.
 `decoder.c` does not build on a host, so the integration was syntax-checked
 on its own with stubs. *Not checked:* any of it on the board.
 
+
+### 8109 -- APE: a smaller working set, and the filter in one pass
+
+**8108's log** (decode time alone, card reads excluded): Fast 9.3x
+realtime, Normal 5.4x, High 3.2x, Extra High 1.09x, Insane 0.24x (52) and
+0.21x (54-noisy file 53). 24-bit Normal 4.6x, mono 22 kHz 21x. No bad
+frames anywhere. Normal and High are comfortable; Extra High is too close to
+play beside the UI, and Insane is four to five times too slow. That is about
+12 cycles a filter tap against the 2-3 the loop should cost, which points at
+the memory, not the arithmetic: the roll buffers held 4096 samples, so
+Insane's two channels walked over roughly 200 KB of PSRAM-backed data a
+second sample after sample, far past the data cache.
+
+**The change:** `APE_WINDOW` 4096 -> 512 (the buffers roll sooner; the
+roll is a memmove of the history, so the cost is tiny and the output is
+the same), which puts a channel's working set at about 10 KB. And
+`ape_nn_run()` does the dot product and the weight update in one pass over
+the arrays instead of two.
+
+*Checked:* `apetest` unchanged and passing, 173 checks, bit-exact.
+*Not checked:* the speed, which is a board number. If Insane is still under
+1.0x after this, the next step is PIE SIMD for the dot product and update.

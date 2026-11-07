@@ -72,7 +72,8 @@ extern "C" {
 #endif
 
 #define APE_MIN_VERSION   3990
-#define APE_WINDOW        4096      /* samples a roll buffer holds before it rolls */
+#define APE_WINDOW        512       /* samples a roll buffer holds before it rolls: small
+                                     * so the working set stays in the data cache */
 #define APE_HIST          8         /* the predictor's history */
 #define APE_READ_CHUNK    16384     /* bytes a refill asks the card for */
 #define APE_MAX_ORDER     1280
@@ -262,21 +263,28 @@ static inline int32_t ape_nn_run(ape_nn_t *n, int32_t input)
     const int order = n->order;
     const int16_t *x = n->ip - order;
     int16_t *m = n->m;
-    uint32_t t0 = 0, t1 = 0, t2 = 0, t3 = 0;
-    for (int i = 0; i < order; i += 4) {
-        t0 += (uint32_t)((int32_t)x[i]     * m[i]);
-        t1 += (uint32_t)((int32_t)x[i + 1] * m[i + 1]);
-        t2 += (uint32_t)((int32_t)x[i + 2] * m[i + 2]);
-        t3 += (uint32_t)((int32_t)x[i + 3] * m[i + 3]);
-    }
-    const int64_t dot = (int64_t)(int32_t)t0 + (int32_t)t1 + (int32_t)t2 + (int32_t)t3;
-
     const int16_t *dd = n->dp - order;
-    if (input < 0) {
-        for (int i = 0; i < order; i++) m[i] = (int16_t)(m[i] + dd[i]);
-    } else if (input > 0) {
-        for (int i = 0; i < order; i++) m[i] = (int16_t)(m[i] - dd[i]);
+    uint32_t t0 = 0, t1 = 0, t2 = 0, t3 = 0;
+    /* The dot product and the adapt in one pass: each weight is used,
+     * then moved, so the arrays are read once, not twice. The sign of
+     * `input` picks which way, outside the loop. */
+#define APE_NN_PASS(UPDATE)                                              \
+    for (int i = 0; i < order; i += 4) {                                 \
+        const int16_t m0 = m[i], m1 = m[i + 1], m2 = m[i + 2], m3 = m[i + 3]; \
+        t0 += (uint32_t)((int32_t)x[i]     * m0);                        \
+        t1 += (uint32_t)((int32_t)x[i + 1] * m1);                        \
+        t2 += (uint32_t)((int32_t)x[i + 2] * m2);                        \
+        t3 += (uint32_t)((int32_t)x[i + 3] * m3);                        \
+        m[i]     = (int16_t)(m0 UPDATE dd[i]);                           \
+        m[i + 1] = (int16_t)(m1 UPDATE dd[i + 1]);                       \
+        m[i + 2] = (int16_t)(m2 UPDATE dd[i + 2]);                       \
+        m[i + 3] = (int16_t)(m3 UPDATE dd[i + 3]);                       \
     }
+    if (input < 0)      { APE_NN_PASS(+) }
+    else if (input > 0) { APE_NN_PASS(-) }
+    else                { APE_NN_PASS(+ 0 *) }
+#undef APE_NN_PASS
+    const int64_t dot = (int64_t)(int32_t)t0 + (int32_t)t1 + (int32_t)t2 + (int32_t)t3;
 
     const int32_t out = (int32_t)((int64_t)input + ((dot + n->round) >> n->shift));
     n->ip[0] = ape_sat16(out);

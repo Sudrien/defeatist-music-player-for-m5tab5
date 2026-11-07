@@ -22,10 +22,14 @@
 
 #include "dsd.h"
 
+static int64_t seek_offs[8];
+static int seek_n;
+
 bool storage_io_read_at(FILE *f, int64_t off, void *dst, size_t len,
                         storage_io_class_t cls)
 {
     (void)cls;
+    if (seek_n < 8) seek_offs[seek_n++] = off;
     return fseek(f, (long)off, SEEK_SET) == 0 && fread(dst, 1, len, f) == len;
 }
 
@@ -269,12 +273,20 @@ int main(void)
             for (int t = 0; t < 3; t++) {
                 dsd_rd_t r;
                 dsd_seek_plan(c, &r, targets[t]);
+                seek_n = 0;
                 static int16_t gather[2 * 4096];
                 size_t got = 0, g;
                 while (got < 400 && (g = dsd_next(c, &r, f, buf, blk, STORAGE_IO_PLAYBACK)) > 0) {
                     memcpy(gather + got * d.channels, blk, g * d.channels * sizeof(int16_t));
                     got += g;
                 }
+                /* The one fseek a seek costs lands on a 16 KB boundary, so
+                 * the card's reads after it do too. */
+                CHECK(seek_n >= 1 && seek_offs[0] % 16384 == 0,
+                      "%s seek %llu: first read at %lld, not a 16 KB boundary", names[k],
+                      (unsigned long long)targets[t], seek_n ? (long long)seek_offs[0] : -1LL);
+                CHECK(seek_n == 1, "%s seek %llu: %d seeks, wanted 1", names[k],
+                      (unsigned long long)targets[t], seek_n);
                 CHECK(got >= 400, "%s seek %llu: %zu frames", names[k],
                       (unsigned long long)targets[t], got);
                 double md = 0;

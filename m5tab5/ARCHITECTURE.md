@@ -371,3 +371,30 @@ memory and the next step is where the rings live.
 
 *Checked, on a host:* the bench under the model, ASan/UBSan clean; `apetest`
 unchanged. *Not checked:* on the board, which is the point.
+
+### 8113 -- APE: where it stands after 8112's log
+
+**The log:** the PIE loop is 26 ns an 8-tap step with the data hot in the
+cache (about 9 cycles), and play now runs at: Extra High 4.25x, Insane 1.63x
+(52) and 1.52x (53), Normal 6.7-7.7x, 24-bit 6.7x, mono 31x; every frame's
+CRC good (`-DAPECRC=1`). Insane at 1.6x works out to about 11 cycles a step,
+close to the hot figure.
+
+**An unexplained jump.** 8111 measured Insane at 0.83x and 1.04x; this log,
+with only 8112's logging added (which allocates and frees one filter at the
+first open), 1.63x and 1.52x. Nothing in 8112 touches the decoder's speed,
+so the likeliest cause is where the filters' arrays landed in the cache: a
+channel's rings and weights are some 30 KB in PSRAM, in a 64 KB cache that is
+not fully associative, and a layout that puts them on the same sets costs
+the extra 13 cycles a step that 8111's log showed. If so it is luck, and the
+next build or a different heap state could land the other way. Not proved:
+one log of each. If Insane's numbers drop below about 1.2x on a later log,
+the fix to try is placing each filter's three arrays at deliberately
+staggered offsets inside the one allocation.
+
+**Seeks.** A frame is the unit decoding can start at, and an Insane frame is
+1,179,648 blocks, 26.7 s. A seek to the far end of one costs up to that much
+decode: about 16 s at 1.6x. Extra High (6.7 s a frame) costs about 1.5 s;
+the levels up to High cost under 0.5 s. Nothing here changes the format; the
+fix, if wanted, is a message on the screen while a long skip runs.
+

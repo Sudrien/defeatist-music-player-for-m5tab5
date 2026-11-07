@@ -424,3 +424,50 @@ python3 dsdgen.py dff  2822400  5 1 "$OUT/46 dff-dsd64-mono.dff"
 # 47 -- CMPR says 'DST ' over junk. No DST encoder exists here; the file
 # only has to be refused.
 python3 dsdgen.py dff  2822400  5 2 "$OUT/47 dff-dst-refuse.dff" --dst
+
+# ---------------------------------------------------------------- APE
+# 48-56: Monkey's Audio. ffmpeg decodes it and has no encoder, so these
+# are made by `mac`, the unix port of the 3.99 encoder
+# (github.com/fernandotcl/monkeys-audio: cmake . && make; point MAC at the
+# binary). File version 3990 (header bytes `MAC 96 0f`). -c1000 to -c5000
+# are Fast, Normal, High, Extra high and Insane; the decode cost, which is
+# what these are for, goes up with the number.
+# mac reads only a plain PCM WAV, so the input is raw PCM from ffmpeg run
+# through rawwav.py. Every file was decoded back with ffmpeg and compared
+# to its input sample for sample: all nine are exact.
+MAC="${MAC:-mac}"
+ape() {     # ape <level> <wav> <out>
+    "$MAC" "$2" "$3" -c"$1" >/dev/null
+}
+raw() {     # raw <fmt> <ch> <rate> <bits> <out.wav> [ffmpeg output options]
+    ffmpeg -loglevel error -y -i landmark.wav $6 -f "$1" tmp.raw
+    python3 rawwav.py tmp.raw "$5" "$2" "$3" "$4"
+}
+raw s16le 2 44100 16 tmp16.wav
+# 48 is the file to seek in (60 s of 01). 49-52 are the same audio at the
+# other four levels, so a timing line per level is comparable.
+ape 2000 tmp16.wav "$OUT/48 ape-normal.ape"
+ape 1000 tmp16.wav "$OUT/49 ape-fast.ape"
+ape 3000 tmp16.wav "$OUT/50 ape-high.ape"
+ape 4000 tmp16.wav "$OUT/51 ape-extrahigh.ape"
+ape 5000 tmp16.wav "$OUT/52 ape-insane.ape"
+# 53 -- the heaviest case: -c5000 over 01 mixed with pink noise (seeded),
+# 30 s. 01 alone is tones and silence and compresses to a sixth; this
+# keeps the entropy coder busy as well as the filters.
+ffmpeg -loglevel error -y -t 30 -i landmark.wav -f lavfi \
+    -i "anoisesrc=d=30:c=pink:a=0.03:r=44100:s=7,aformat=channel_layouts=stereo" \
+    -filter_complex "[0][1]amix=inputs=2:normalize=0,aresample=44100" -f s16le tmp.raw
+python3 rawwav.py tmp.raw tmpn.wav 2 44100 16
+ape 5000 tmpn.wav "$OUT/53 ape-insane-noisy.ape"
+# 54 -- 24-bit, 20 s. 01's samples widened, so the low byte is zero and
+# the file is not what real 24-bit looks like; it exercises the path.
+ffmpeg -loglevel error -y -t 20 -i landmark.wav -f s24le tmp.raw
+python3 rawwav.py tmp.raw tmp24.wav 2 44100 24
+ape 2000 tmp24.wav "$OUT/54 ape-24bit.ape"
+# 55 -- mono at 22.05 kHz.
+raw s16le 1 22050 16 tmpm.wav "-ac 1 -ar 22050"
+ape 2000 tmpm.wav "$OUT/55 ape-mono-22k.ape"
+# 56 -- 48 with an APEv2 tag after the audio. mac writes none; the player
+# must stop at the end of the audio and not decode the tag.
+python3 apetag.py "$OUT/48 ape-normal.ape" "$OUT/56 ape-apev2-tag.ape"
+rm -f tmp.raw tmp16.wav tmpn.wav tmp24.wav tmpm.wav

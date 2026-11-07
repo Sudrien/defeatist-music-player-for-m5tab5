@@ -74,6 +74,15 @@ place; one that is wrong by more is obvious from the beep count.
 | 45 dff-dsd64 | DFF (uncompressed, MSB first, byte-interleaved), 5 s | as 41 |
 | 46 dff-dsd64-mono | DFF mono | as 45 |
 | 47 dff-dst-refuse | DFF whose CMPR is `DST `, over junk frames | **refused**, log says DST; no noise played |
+| 48 ape-normal | Monkey's Audio, `-c2000` (Normal), the whole minute of 01 | plays, seeks; the file to seek in |
+| 49 ape-fast | 48 at `-c1000` (Fast) | as 48 |
+| 50 ape-high | 48 at `-c3000` (High) | as 48 |
+| 51 ape-extrahigh | 48 at `-c4000` (Extra high) | as 48; the first level the Rockbox notes call heavy |
+| 52 ape-insane | 48 at `-c5000` (Insane) | as 48. Not the smallest file: 01 is tones and silence, and the bigger predictor has nothing to find in it |
+| 53 ape-insane-noisy | `-c5000` over 01 and seeded pink noise, 30 s | the worst case for the decoder: filters and entropy coder both busy |
+| 54 ape-24bit | `-c2000`, 24-bit, 20 s of 01 widened (low byte zero) | plays, folded to 16 bits like 02; not what real 24-bit looks like, it is the path |
+| 55 ape-mono-22k | `-c2000`, mono, 22.05 kHz | plays, seeks |
+| 56 ape-apev2-tag | 48 with an APEv2 tag (Title, Artist, Album) after the audio | as 48, and stops at the end of the audio; tags read *ape-apev2-tag* once tag reading exists |
 | 22 cue-flac-image | cue sheet, one image, six tracks on the marks; UTF-8 BOM, CRLF | six tracks; track N opens with N beeps; track 5 reads *Fünf Signaltöne* |
 | 23 cue-pregap-htoa | INDEX 00, a hidden track, starts off the second; Windows-1252 | four tracks starting 3, 10, 25.49 and 39.99 s; performer *Café Tones* |
 | 24 cue-filename-mismatch | sheet names `CDImage.wav`, which is not there | resolves to the FLAC beside it; tracks at 0, 20, 40 |
@@ -365,5 +374,12 @@ comes back byte-identical except 06 and 07, which carry a random Ogg
 serial number, and 12, whose cover image was not kept -- the script
 generates one with `testsrc2` instead, so the file it builds is the
 same test with a different picture in it.
+
+The APE files (48-56) are made by `mac`, the unix port of Monkey's
+Audio 3.99 (file version 3990), because ffmpeg decodes APE and cannot
+encode it; `build/encode.sh` takes its path in `MAC`. Each was decoded
+back with ffmpeg and compared to its input sample for sample. A newer
+encoder's files are not here: if one writes something this does not, it
+shows up as a file that decodes in ffmpeg and not on the board.
 
 Everything here is synthesised -- no copyright, nothing to attribute.

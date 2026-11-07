@@ -258,16 +258,6 @@ static inline dsd_status_t dsd_probe(FILE *f, int64_t size, dsd_t *d,
 #define DSD_CLOCK() ((uint64_t)0)
 #endif
 
-/* The stdio buffer's size, which is where the card reads start and end
- * when a stream is positioned on a multiple of it. */
-#ifndef DSD_READ_ALIGN
-#ifdef STORAGE_IO_CHUNK
-#define DSD_READ_ALIGN STORAGE_IO_CHUNK
-#else
-#define DSD_READ_ALIGN 16384
-#endif
-#endif
-
 #ifndef DSD_ALLOC
 #define DSD_ALLOC(n) malloc(n)
 #endif
@@ -301,6 +291,9 @@ typedef struct {
     /* Where dsd_next() spent its time (DSD_CLOCK units, cumulative over
      * seeks), and the frames the filters produced, preroll included. */
     uint64_t  us_read, us_feed, frames_fed, reads;
+    uint32_t  us_read_max, slow_reads;      /* the longest read; reads over 5 ms */
+    uint32_t  first_us[16];                 /* the first reads after a seek plan */
+    uint32_t  first_n;
 } dsd_conv_t;
 
 static inline double dsd_i0(double x)
@@ -543,6 +536,7 @@ static inline void dsd_seek_plan(dsd_conv_t *c, dsd_rd_t *r, uint64_t frame)
     r->skip = frame - start / fb + c->latency;
     r->flushed = false;
     r->at = -1;
+    c->first_n = 0;
     dsd_conv_reset(c);
 }
 
@@ -581,37 +575,7 @@ static inline size_t dsd_next(dsd_conv_t *c, dsd_rd_t *r, FILE *f,
              * KB, for no reason: the other decoders read a run with
              * storage_io_fread() after one seek, and this does too. */
             if (r->at != off) {
-                /*
-                 * A seek: position the stream on a DSD_READ_ALIGN boundary
-                 * at or before `off`, and read up to `off` and throw it
-                 * away, so that every refill after it starts on a sector
-                 * boundary as it does reading from the start of a file.
-                 * Seeking straight to `off` -- which is 92 bytes past a
-                 * sector in a DSF, and arbitrary in a DFF -- left every
-                 * refill after it unaligned, and on the board that was
-                 * 13.8 ms for an 8 KB read against 1.1 ms from the start
-                 * of the same file. `buf` is channels * DSD_BLOCK_MAX
-                 * bytes; the skip goes through it in pieces.
-                 */
-                const int64_t base = off & ~(int64_t)(DSD_READ_ALIGN - 1);
-                const size_t cap = (size_t)d->channels * DSD_BLOCK_MAX;
-                int64_t at = base;
-                bool first = true;
-                while (at < off) {
-                    size_t n = cap;
-                    if ((int64_t)n > off - at) n = (size_t)(off - at);
-                    if (first ? !storage_io_read_at(f, at, buf, n, cls)
-                              : storage_io_fread(buf, n, f, cls) != n) {
-                        return 0;
-                    }
-                    first = false;
-                    at += (int64_t)n;
-                }
-                if (first) {                    /* off is on the boundary */
-                    if (!storage_io_read_at(f, off, buf, want, cls)) return 0;
-                } else if (storage_io_fread(buf, want, f, cls) != want) {
-                    return 0;
-                }
+                if (!storage_io_read_at(f, off, buf, want, cls)) return 0;
             } else if (storage_io_fread(buf, want, f, cls) != want) {
                 return 0;
             }
@@ -620,6 +584,9 @@ static inline size_t dsd_next(dsd_conv_t *c, dsd_rd_t *r, FILE *f,
             n = d->dff ? dsd_conv_feed(c, buf, nb, 1, d->channels, out)
                        : dsd_conv_feed(c, buf, nb, d->block, 1, out);
             c->us_read += t1 - t0;
+            if (t1 - t0 > c->us_read_max) c->us_read_max = (uint32_t)(t1 - t0);
+            if (t1 - t0 > 5000) c->slow_reads++;
+            if (c->first_n < 16) c->first_us[c->first_n++] = (uint32_t)(t1 - t0);
             c->us_feed += DSD_CLOCK() - t1;
             c->frames_fed += n;
             c->reads++;

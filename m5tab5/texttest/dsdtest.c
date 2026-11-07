@@ -280,11 +280,7 @@ int main(void)
                     memcpy(gather + got * d.channels, blk, g * d.channels * sizeof(int16_t));
                     got += g;
                 }
-                /* The one fseek a seek costs lands on a 16 KB boundary, so
-                 * the card's reads after it do too. */
-                CHECK(seek_n >= 1 && seek_offs[0] % 16384 == 0,
-                      "%s seek %llu: first read at %lld, not a 16 KB boundary", names[k],
-                      (unsigned long long)targets[t], seek_n ? (long long)seek_offs[0] : -1LL);
+                /* A seek is one fseek and then plain reads. */
                 CHECK(seek_n == 1, "%s seek %llu: %d seeks, wanted 1", names[k],
                       (unsigned long long)targets[t], seek_n);
                 CHECK(got >= 400, "%s seek %llu: %zu frames", names[k],

@@ -226,6 +226,7 @@ struct decoder {
      * path does; `done` counts output frames against dsd_frames(). */
     dsd_conv_t *dsd;
     dsd_rd_t    dsd_rd;
+    char       *dsd_path;       /* to reopen the file on a seek, see dsd_seek() */
 };
 
 #define ESP_IN_BUF  (8 * 1024)
@@ -1830,6 +1831,11 @@ void *decoder_dsd_alloc(size_t n)
     return heap_caps_malloc(n, MALLOC_CAP_SPIRAM | MALLOC_CAP_8BIT);
 }
 
+/* 1: seek by reopening the file (see dsd_seek()). 0: fseek() as before. */
+#ifndef DSD_SEEK_REOPEN
+#define DSD_SEEK_REOPEN 1
+#endif
+
 /* Frames one dsd_next() can return: a block's worth, plus the idle tail
  * that drains the filters at the end. */
 #define DSD_PCM_FRAMES  (DSD_BLOCK_MAX / 8 + 96)
@@ -1869,6 +1875,8 @@ static esp_err_t dsd_open(decoder_t *d, const char *path)
         dsd_conv_free(d->dsd);
         free(d->inbuf);
         free(d->pcm);
+        free(d->dsd_path);
+        d->dsd_path = NULL;
         d->dsd = NULL;
         d->inbuf = NULL;
         d->pcm = NULL;
@@ -1876,6 +1884,9 @@ static esp_err_t dsd_open(decoder_t *d, const char *path)
         d->f = NULL;
         return ESP_ERR_NO_MEM;
     }
+    const size_t plen = strlen(path) + 1;
+    d->dsd_path = heap_caps_malloc(plen, MALLOC_CAP_SPIRAM | MALLOC_CAP_8BIT);
+    if (d->dsd_path) memcpy(d->dsd_path, path, plen);
     dsd_seek_plan(d->dsd, &d->dsd_rd, 0);
     d->pcm_len = d->pcm_pos = 0;
     d->done = 0;
@@ -1918,7 +1929,18 @@ static void dsd_log_timing(dsd_conv_t *c)
              audio_ms, c->us_feed / 1000u, f / 100u, f % 100u,
              c->us_read / 1000u, r / 100u, r % 100u, c->reads,
              each / 10u, each % 10u);
+    char first[16 * 6 + 1];             /* the first reads after a seek, 0.1 ms */
+    int n = 0;
+    for (uint32_t i = 0; i < c->first_n && i < 16; i++)
+        n += snprintf(first + n, sizeof first - (size_t)n, "%s%u", i ? " " : "",
+                      (unsigned)(c->first_us[i] / 100u));
+    first[n] = 0;
+    ESP_LOGI(TAG, "dsd reads: max %u.%u ms, %u over 5 ms; first after seek (0.1 ms): %s",
+             (unsigned)(c->us_read_max / 1000u), (unsigned)(c->us_read_max / 100u % 10u),
+             (unsigned)c->slow_reads, first);
     c->us_read = c->us_feed = c->frames_fed = c->reads = 0;   /* per stretch */
+    c->us_read_max = 0;
+    c->slow_reads = 0;
 }
 
 static int dsd_read(decoder_t *d, int16_t *out, int max_int16)
@@ -1954,6 +1976,22 @@ static int dsd_read(decoder_t *d, int16_t *out, int max_int16)
 static esp_err_t dsd_seek(decoder_t *d, uint32_t sec, uint32_t *landed_cs)
 {
     dsd_log_timing(d->dsd);             /* the stretch the seek is ending */
+#if DSD_SEEK_REOPEN
+    /*
+     * An experiment, and a workaround if it works. Reading a DSD file from
+     * its start costs 1.1 ms an 8 KB block on the board; after an fseek()
+     * into it, the same reads cost 14 ms, for the rest of the file (8100's
+     * timing line, repeated by 8101's), and mp2 is as slow after a seek.
+     * A stream that has never been sought is fast, so this makes a new one.
+     * If the line says 1 ms again after a seek, the slowness is in the
+     * stream or the file position FatFs keeps for it; if not, it is not.
+     */
+    if (d->dsd_path) {
+        storage_io_close(d->f);
+        d->f = storage_io_open(d->dsd_path, "rb");
+        if (!d->f) return ESP_FAIL;
+    }
+#endif
     const uint64_t total = dsd_frames(d->dsd);
     uint64_t target = (uint64_t)sec * DSD_OUT_RATE;
     if (target >= total) target = total ? total - 1 : 0;
@@ -2326,6 +2364,7 @@ void decoder_close(decoder_t *d)
         free(d->pcm);
         dsd_log_timing(d->dsd);
         dsd_conv_free(d->dsd);
+        free(d->dsd_path);
     }
     if (d->f) storage_io_close(d->f);
     free(d->live);                      /* 8050 */

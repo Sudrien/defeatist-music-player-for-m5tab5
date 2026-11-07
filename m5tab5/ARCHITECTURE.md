@@ -126,3 +126,26 @@ of a core to decode it, and little margin; DSD64 at 2.33x is 43%.
 including the new alignment checks, and the glue in `decoder.c` compiled
 against stubs. *Not checked:* anything on the board; that is the point of
 it. Whether newlib or FatFs behaves as described above is not known.
+
+### 8102 -- DSD: seek by reopening the file; the read times in full
+
+**8101 did not work.** With the first read after a seek on a 16 KB
+boundary, the reads after a seek cost 14.8 and 14.0 ms each, against 1.1 ms
+before it. The alignment hypothesis is refuted, and 8101's code is taken
+out again.
+
+**What this adds**, both for the next log:
+
+- `dsd reads:` line after each `dsd timing:` line: the longest read, how
+  many were over 5 ms, and the first 16 reads after a seek in 0.1 ms. That
+  says whether the slowness is a one-off at the seek, a steady cost on
+  every read, or a few very long ones.
+- `DSD_SEEK_REOPEN` (default 1): `dsd_seek()` closes the file and opens it
+  again instead of keeping the stream it already has. A stream that has
+  never been sought reads at 1.1 ms. If the line says 1 ms after a seek
+  again, the cost is in the stream or in the position FatFs keeps for it
+  after `f_lseek`, and reopening is the workaround; if it still says 14 ms,
+  it is not, and `-DDSD_SEEK_REOPEN=0` puts `fseek` back.
+
+*Checked:* `dsdtest` (65 checks, ASan/UBSan clean). *Not checked:* any of it
+on the board. The reopen is an experiment, not a fix, until a log says so.

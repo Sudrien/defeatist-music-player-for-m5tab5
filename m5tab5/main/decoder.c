@@ -1971,6 +1971,9 @@ static void dsd_log_timing(dsd_conv_t *c)
              audio_ms, c->us_feed / 1000u, f / 100u, f % 100u,
              c->us_read / 1000u, r / 100u, r % 100u, c->reads,
              each / 10u, each % 10u);
+    ESP_LOGI(TAG, "dsd stages: byte gather %" PRIu64 " ms, stage 1 %" PRIu64
+                  " ms, halfbands and output %" PRIu64 " ms",
+             c->us_copy / 1000u, c->us_s1 / 1000u, c->us_hb / 1000u);
     char first[16 * 6 + 1];             /* the first reads after a seek, 0.1 ms */
     int n = 0;
     for (uint32_t i = 0; i < c->first_n && i < 16; i++)

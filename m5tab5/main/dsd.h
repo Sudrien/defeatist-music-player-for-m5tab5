@@ -449,6 +449,7 @@ typedef struct {
     /* Where dsd_next() spent its time (DSD_CLOCK units, cumulative over
      * seeks), and the frames the filters produced, preroll included. */
     uint64_t  us_read, us_feed, frames_fed, reads;
+    uint64_t us_copy, us_s1, us_hb;     /* dsd_conv_feed(): the byte gather, stage 1, the halfbands */
     uint32_t  us_read_max, slow_reads;      /* the longest read; reads over 5 ms */
     uint32_t  first_us[16];                 /* the first reads after a seek plan */
     uint32_t  first_n;
@@ -668,9 +669,11 @@ static inline size_t dsd_conv_feed(dsd_conv_t *c, const uint8_t *in,
     for (int ch = 0; ch < nch; ch++) {
         dsd_ch_t *s = &c->ch[ch];
         const uint8_t *src = in + (size_t)ch * chan_off;
+        const uint64_t tc0 = DSD_CLOCK();
         for (size_t i = 0; i < nbytes; i++) s->bh[s->bn + (int)i] = src[i * stride];
         const int avail = s->bn + (int)nbytes;
         int pos = 0;
+        const uint64_t tc1 = DSD_CLOCK();
         /* Stage 1: one group vector per S1 bytes, one output per group
          * once Mr of them are in (see dsd_grp_c). The vectors are kept in
          * a ring of eight; the history bytes that carry over from the last
@@ -691,6 +694,7 @@ static inline size_t dsd_conv_feed(dsd_conv_t *c, const uint8_t *in,
             }
         }
         s->s1.n = (int)(x1 - s->s1.x);
+        const uint64_t tc2 = DSD_CLOCK();
         memmove(s->bh, s->bh + pos, (size_t)(avail - pos));
         s->bn = avail - pos;
 
@@ -702,6 +706,10 @@ static inline size_t dsd_conv_feed(dsd_conv_t *c, const uint8_t *in,
         const int n2 = dsd_hb_run(&s->s2, c->hb2, DSD_HB2_H, fin);
         for (int i = 0; i < n2; i++) out[(size_t)i * (size_t)nch + (size_t)ch] = dsd_sat(fin[i]);
         frames = (size_t)n2;
+        const uint64_t tc3 = DSD_CLOCK();
+        c->us_copy += tc1 - tc0;
+        c->us_s1 += tc2 - tc1;
+        c->us_hb += tc3 - tc2;
     }
     return frames;
 }

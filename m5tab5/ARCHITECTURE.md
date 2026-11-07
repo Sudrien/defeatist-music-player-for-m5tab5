@@ -532,3 +532,14 @@ the instruction spellings (`esp.vld.128.ip`, `esp.vadd.s32`, `esp.vst.128.ip`)
 come from the APE kernel and the manual, and the first build is the test.
 Not run on a board. Expect stage 1 near twice as fast: DSD256 stereo about
 2.5-3x, DSD128 about 3.5-4x, DSD64 about 4.5-5x.
+
+### 8120 -- DSD: where a frame's time goes
+
+8117's log (build e48c3b9, PIE self-test passed, no crash after 8119): DSD64
+stereo 3.46x (unchanged from 8116), DSD128 2.91x (was 2.36x), DSD256 2.34x
+(was 1.67x), DSD64 mono 6.76x (unchanged). The gain follows the hop (2, 4, 8
+bytes a group), so at DSD64 stage 1 is not what the time is spent on: 3.3 us
+a frame a channel is about 1,200 cycles against some 550 instructions counted.
+`dsd stages:` now logs the byte gather, stage 1 and the halfbands separately
+(clock reads three times a channel a 4 KB chunk). *Not checked on a board.*
+Send the `dsd stages` lines for 41, 42 and 43.

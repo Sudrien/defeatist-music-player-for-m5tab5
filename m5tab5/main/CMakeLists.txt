@@ -197,6 +197,14 @@ if(FXO3)
     message(STATUS "FXO3: fx.c and varispeed.c at -O3")
 endif()
 
+# 8110: check every APE frame against its own CRC while playing, so
+# `ape timing`'s "bad frames" counts something. Off by default: it costs a
+# few percent of the decode. Build with  idf.py -DAPECRC=1 build
+if(APECRC)
+    target_compile_definitions(${COMPONENT_LIB} PRIVATE APE_CHECK_CRC=1)
+    message(STATUS "APECRC: every APE frame checked against its CRC")
+endif()
+
 if(HEAPCHECK)
     target_compile_definitions(${COMPONENT_LIB} PRIVATE HEAPCHECK=1)
     message(STATUS "heap integrity checkpoints ENABLED (slow)")

@@ -240,6 +240,7 @@ typedef struct {
     int32_t   round;
     int32_t   avg;
     int16_t  *in, *dl, *m;          /* in, delta: window + order; m: order */
+    void     *raw;                  /* what APE_ALLOC returned: in, dl, m are carved from it */
     int16_t  *ip, *dp;              /* where the next sample goes */
 } ape_nn_t;
 
@@ -258,16 +259,19 @@ static inline int16_t ape_sat16(int32_t v)
     return (int16_t)(v > 32767 ? 32767 : v < -32768 ? -32768 : v);
 }
 
-static inline int32_t ape_nn_run(ape_nn_t *n, int32_t input)
+/* ---- the filter's inner loop: a dot product and the weight update ----
+ *
+ * dot = sum x[i] * m[i], over the old weights; then m[i] += dd[i] if
+ * input < 0, m[i] -= dd[i] if input > 0 (16-bit wrapping), nothing if 0.
+ * `order` is a multiple of 16. The result wraps at 32 bits as the
+ * reference's int does. Three versions: plain C, the ESP32-P4's PIE
+ * vector unit, and a C model of the PIE one that lets the host test
+ * check its pointer and chunk arithmetic (not the instructions).
+ */
+static inline int32_t ape_taps_c(const int16_t *x, int16_t *m, const int16_t *dd,
+                                 int order, int32_t input)
 {
-    const int order = n->order;
-    const int16_t *x = n->ip - order;
-    int16_t *m = n->m;
-    const int16_t *dd = n->dp - order;
     uint32_t t0 = 0, t1 = 0, t2 = 0, t3 = 0;
-    /* The dot product and the adapt in one pass: each weight is used,
-     * then moved, so the arrays are read once, not twice. The sign of
-     * `input` picks which way, outside the loop. */
 #define APE_NN_PASS(UPDATE)                                              \
     for (int i = 0; i < order; i += 4) {                                 \
         const int16_t m0 = m[i], m1 = m[i + 1], m2 = m[i + 2], m3 = m[i + 3]; \
@@ -284,9 +288,147 @@ static inline int32_t ape_nn_run(ape_nn_t *n, int32_t input)
     else if (input > 0) { APE_NN_PASS(-) }
     else                { APE_NN_PASS(+ 0 *) }
 #undef APE_NN_PASS
-    const int64_t dot = (int64_t)(int32_t)t0 + (int32_t)t1 + (int32_t)t2 + (int32_t)t3;
+    return (int32_t)(t0 + t1 + t2 + t3);
+}
 
-    const int32_t out = (int32_t)((int64_t)input + ((dot + n->round) >> n->shift));
+#if defined(APE_PIE_MODEL)
+/* A C model of the instructions the PIE version uses, as documented:
+ * esp.ld.128.usar.ip loads the aligned 16 bytes holding the address and
+ * keeps the address's low four bits in SAR_BYTE; esp.src.q takes 16 bytes
+ * from the pair, starting SAR_BYTE bytes in. */
+typedef struct { uint8_t b[16]; } ape_q_t;
+static unsigned ape_sar;
+static inline void ape_m_ld_usar(ape_q_t *q, const int16_t **p, int imm)
+{
+    const uintptr_t a = (uintptr_t)*p;
+    memcpy(q->b, (const void *)(a & ~(uintptr_t)15), 16);
+    ape_sar = (unsigned)(a & 15);
+    *p = (const int16_t *)(a + (uintptr_t)imm);
+}
+static inline void ape_m_src(ape_q_t *d, const ape_q_t *lo, const ape_q_t *hi)
+{
+    uint8_t t[32];
+    memcpy(t, lo->b, 16);
+    memcpy(t + 16, hi->b, 16);
+    memcpy(d->b, t + ape_sar, 16);
+}
+static inline int32_t ape_taps_pie(const int16_t *x, int16_t *m, const int16_t *dd,
+                                   int order, int32_t input)
+{
+    ape_q_t x0, x1, d0, d1, xs, ds, mv;
+    int64_t acc = 0;
+    ape_m_ld_usar(&x0, &x, 16);
+    ape_m_ld_usar(&d0, &dd, 16);
+    for (int n = order / 16; n; n--) {
+        for (int half = 0; half < 2; half++) {
+            ape_q_t *xa = half ? &x1 : &x0, *xb = half ? &x0 : &x1;
+            ape_q_t *da = half ? &d1 : &d0, *db = half ? &d0 : &d1;
+            ape_m_ld_usar(xb, &x, 16);
+            ape_m_src(&xs, xa, xb);
+            ape_m_ld_usar(db, &dd, 16);
+            ape_m_src(&ds, da, db);
+            memcpy(mv.b, m, 16);
+            int16_t xv[8], dv[8], mw[8];
+            memcpy(xv, xs.b, 16); memcpy(dv, ds.b, 16); memcpy(mw, mv.b, 16);
+            for (int i = 0; i < 8; i++) {
+                acc += (int64_t)xv[i] * mw[i];
+                if (input) {
+                    int32_t v = input < 0 ? mw[i] + dv[i] : mw[i] - dv[i];
+                    mw[i] = (int16_t)(v > 32767 ? 32767 : v < -32768 ? -32768 : v);
+                }
+            }
+            memcpy(m, mw, 16);
+            m += 8;
+        }
+    }
+    return (int32_t)(uint32_t)acc;
+}
+#define APE_HAVE_PIE 1
+#elif defined(APE_PIE) && defined(__riscv)
+/*
+ * The real thing. Eight taps a step, two steps an iteration so the
+ * unaligned-load pairs alternate registers:
+ *   q0/q1 x, q4/q5 dd (the two aligned chunks a step straddles)
+ *   q2 aligned x, q3 aligned dd, q6 weights, q7 updated weights.
+ * Each esp.src.q follows the esp.ld.128.usar.ip of its own stream, because
+ * SAR_BYTE is one register. The registers PIE can address are a0-a5, s0-s1,
+ * s8-s11, t3-t6; the operands are pinned to a0-a4. The vector add and
+ * subtract saturate where the C code wraps; a weight at +-32767 is the
+ * only place they differ, and the CRC check would say so.
+ */
+#define APE_PIE_BODY(UPD)                                                   \
+    ".option push\n .option arch, +xesppie\n .option norvc\n"               \
+    "esp.zero.xacc\n"                                                       \
+    "esp.ld.128.usar.ip q0, a0, 16\n"                                       \
+    "esp.ld.128.usar.ip q4, a1, 16\n"                                       \
+    "1:\n"                                                                  \
+    "esp.ld.128.usar.ip q1, a0, 16\n"                                       \
+    "esp.src.q q2, q0, q1\n"                                                \
+    "esp.ld.128.usar.ip q5, a1, 16\n"                                       \
+    "esp.src.q q3, q4, q5\n"                                                \
+    "esp.vld.128.ip q6, a2, 0\n"                                            \
+    "esp.vmulas.s16.xacc q2, q6\n"                                          \
+    UPD "q7, q6, q3\n"                                                      \
+    "esp.vst.128.ip q7, a2, 16\n"                                           \
+    "esp.ld.128.usar.ip q0, a0, 16\n"                                       \
+    "esp.src.q q2, q1, q0\n"                                                \
+    "esp.ld.128.usar.ip q4, a1, 16\n"                                       \
+    "esp.src.q q3, q5, q4\n"                                                \
+    "esp.vld.128.ip q6, a2, 0\n"                                            \
+    "esp.vmulas.s16.xacc q2, q6\n"                                          \
+    UPD "q7, q6, q3\n"                                                      \
+    "esp.vst.128.ip q7, a2, 16\n"                                           \
+    "addi a3, a3, -1\n"                                                     \
+    "bnez a3, 1b\n"                                                         \
+    "esp.movx.r.xacc.l a4\n"                                                \
+    ".option pop\n"
+
+static inline int32_t ape_taps_pie(const int16_t *x, int16_t *m, const int16_t *dd,
+                                   int order, int32_t input)
+{
+    register const int16_t *r0 __asm__("a0") = x;
+    register const int16_t *r1 __asm__("a1") = dd;
+    register int16_t *r2 __asm__("a2") = m;
+    register int r3 __asm__("a3") = order / 16;
+    register int32_t r4 __asm__("a4");
+    if (input < 0) {
+        __asm__ volatile(APE_PIE_BODY("esp.vadd.s16 ")
+            : "+r"(r0), "+r"(r1), "+r"(r2), "+r"(r3), "=r"(r4) :: "memory");
+    } else if (input > 0) {
+        __asm__ volatile(APE_PIE_BODY("esp.vsub.s16 ")
+            : "+r"(r0), "+r"(r1), "+r"(r2), "+r"(r3), "=r"(r4) :: "memory");
+    }
+    /* input == 0 never comes here: ape_taps() sends it to the C loop, which
+     * leaves the weights alone. */
+    return r4;
+}
+#define APE_HAVE_PIE 1
+#endif
+
+#ifdef APE_HAVE_PIE
+static bool ape_pie_on = true;      /* false after a failed self-test */
+static inline int32_t ape_taps(const int16_t *x, int16_t *m, const int16_t *dd,
+                               int order, int32_t input)
+{
+    if (ape_pie_on && input) return ape_taps_pie(x, m, dd, order, input);
+    return ape_taps_c(x, m, dd, order, input);
+}
+#else
+static inline int32_t ape_taps(const int16_t *x, int16_t *m, const int16_t *dd,
+                               int order, int32_t input)
+{
+    return ape_taps_c(x, m, dd, order, input);
+}
+#endif
+
+static inline int32_t ape_nn_run(ape_nn_t *n, int32_t input)
+{
+    const int order = n->order;
+    const int16_t *x = n->ip - order;
+    int16_t *m = n->m;
+    const int32_t dot = ape_taps(x, m, n->dp - order, order, input);
+    const int32_t out = (int32_t)((uint32_t)input +
+        (uint32_t)((int32_t)((uint32_t)dot + (uint32_t)n->round) >> n->shift));
     n->ip[0] = ape_sat16(out);
 
     const int32_t a = out < 0 ? -out : out;
@@ -444,7 +586,7 @@ static inline void ape_dec_free(ape_dec_t *d)
     for (int c = 0; c < 2; c++) {
         free(d->pred[c].base);
         for (int i = 0; i < d->pred[c].nnn; i++) {
-            free(d->pred[c].nn[i].in);      /* one block: in, dl, m */
+            free(d->pred[c].nn[i].raw);     /* one block: in, dl, m */
         }
     }
     free(d->buf);
@@ -457,15 +599,52 @@ static inline bool ape_nn_init(ape_nn_t *n, int order, int shift)
     n->shift = shift;
     n->total = APE_WINDOW + order;
     n->round = 1 << (shift - 1);
-    const size_t each = (size_t)n->total;
-    int16_t *blk = (int16_t *)APE_ALLOC((each * 2 + (size_t)order) * 2);
-    if (!blk) return false;
+    /* Each array is a whole number of 16-byte vectors plus a vector of
+     * slack, which the unaligned loads read past the end into, and the
+     * block starts on a vector. */
+    const size_t each = ((size_t)n->total + 8 + 7) & ~(size_t)7;
+    uint8_t *raw = (uint8_t *)APE_ALLOC((each * 2 + (((size_t)order + 7) & ~(size_t)7)) * 2 + 16);
+    if (!raw) return false;
+    n->raw = raw;
+    int16_t *blk = (int16_t *)(((uintptr_t)raw + 15) & ~(uintptr_t)15);
     n->in = blk;
     n->dl = blk + each;
     n->m = blk + 2 * each;
     ape_nn_flush(n);
     return true;
 }
+
+#ifdef APE_HAVE_PIE
+/* Run the vector filter against the plain one on the same noise, long
+ * enough to roll the ring and pass through every alignment, and switch
+ * it off if they differ. Returns whether it is on. Call once, before
+ * playing; the player logs the answer. */
+static inline bool ape_pie_selftest(void)
+{
+    static const struct { int order, shift; } cfg[] = { {16, 11}, {64, 11}, {256, 13}, {1280, 15} };
+    bool ok = true;
+    for (unsigned c = 0; c < sizeof cfg / sizeof cfg[0] && ok; c++) {
+        ape_nn_t a, b;
+        if (!ape_nn_init(&a, cfg[c].order, cfg[c].shift)) { ok = false; break; }
+        if (!ape_nn_init(&b, cfg[c].order, cfg[c].shift)) { free(a.raw); ok = false; break; }
+        uint32_t r = 12345u + c;
+        for (int i = 0; i < 3 * APE_WINDOW + 37 && ok; i++) {
+            r = r * 1664525u + 1013904223u;
+            const int32_t in = (int32_t)((r >> 16) % 4001u) - 2000;
+            ape_pie_on = false;
+            const int32_t oa = ape_nn_run(&a, i % 11 == 0 ? 0 : in);
+            ape_pie_on = true;
+            const int32_t ob = ape_nn_run(&b, i % 11 == 0 ? 0 : in);
+            if (oa != ob) ok = false;
+        }
+        if (ok && memcmp(a.m, b.m, (size_t)cfg[c].order * 2) != 0) ok = false;
+        free(a.raw);
+        free(b.raw);
+    }
+    ape_pie_on = ok;
+    return ok;
+}
+#endif
 
 static inline ape_dec_t *ape_dec_new(const ape_t *a, storage_io_class_t cls)
 {

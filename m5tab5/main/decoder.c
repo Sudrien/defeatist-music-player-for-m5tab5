@@ -63,6 +63,12 @@ void *decoder_dsd_alloc(size_t n);
 void *decoder_ape_alloc(size_t n);
 #define APE_ALLOC(n) decoder_ape_alloc(n)
 #define APE_CLOCK() ((uint64_t)esp_timer_get_time())
+/* The ESP32-P4's PIE vector unit does the filters' inner loop; ape.h
+ * checks it against the plain C one at start-up and drops it if they
+ * differ. -DAPE_NO_PIE builds without it. */
+#if defined(CONFIG_IDF_TARGET_ESP32P4) && !defined(APE_NO_PIE)
+#define APE_PIE 1
+#endif
 #include "ape.h"
 #include "duration.h"
 #include "cuedir.h"
@@ -2071,6 +2077,17 @@ static esp_err_t ape_open(decoder_t *d, const char *path)
         return ESP_ERR_NOT_SUPPORTED;
     }
     const ape_t *a = &d->ape_hdr;
+#ifdef APE_HAVE_PIE
+    static bool pie_checked;
+    if (!pie_checked) {
+        pie_checked = true;
+        const uint64_t t0 = APE_CLOCK();
+        const bool on = ape_pie_selftest();
+        ESP_LOGI(TAG, "APE: the PIE filter %s its self-test (%" PRIu64 " us); %s",
+                 on ? "passed" : "FAILED", APE_CLOCK() - t0,
+                 on ? "using it" : "using the C one");
+    }
+#endif
     d->ape = ape_dec_new(a, STORAGE_IO_PLAYBACK);
     d->pcm = heap_caps_malloc(sizeof(int16_t) * 2 * APE_SCRATCH_BLOCKS,
                               MALLOC_CAP_SPIRAM | MALLOC_CAP_8BIT);

@@ -246,6 +246,11 @@ int main(void)
         free(b);
     }
 
+#ifdef APE_HAVE_PIE
+    /* The vector path's pointer arithmetic, against the C model of it. */
+    CHECK(ape_pie_selftest(), "the vector filter differs from the C one");
+#endif
+
     free(ref);
     printf("%d checks, %d failures\n", checks, failures);
     printf(failures ? "FAILURES\n" : "all passed\n");

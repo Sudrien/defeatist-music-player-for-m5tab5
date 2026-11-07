@@ -281,3 +281,40 @@ the arrays instead of two.
 *Checked:* `apetest` unchanged and passing, 173 checks, bit-exact.
 *Not checked:* the speed, which is a board number. If Insane is still under
 1.0x after this, the next step is PIE SIMD for the dot product and update.
+
+### 8110 -- APE: the filter's inner loop in PIE (ESP32-P4 vector instructions)
+
+**Why.** 8109's log: no change from 8108 (Extra High 1.09x, Insane 0.24x), so
+the cost is instructions, not cache. A scalar tap is a dozen cycles; Insane
+needs 1,552 of them a sample a channel. PIE does eight 16-bit multiply-
+accumulates in one instruction.
+
+**What.** `ape_taps()` in `ape.h` is the dot product plus the weight update
+that `ape_nn_run()` used to do in two loops. `ape_taps_pie()` is inline
+assembly, eight taps a step: `esp.ld.128.usar.ip` + `esp.src.q` read the
+sample ring and the delta ring (both move one sample a step, so they are
+never 16-byte aligned; the weights are, and are allocated so), `esp.vmulas.s16.xacc`
+accumulates the products, `esp.vadd.s16` or `esp.vsub.s16` moves the
+weights by the delta (sign of the input picks which) and `esp.vst.128.ip`
+puts them back; `esp.movx.r.xacc.l` reads the sum. Operands are pinned to
+a0-a4 because PIE can only address a0-a5, s0-s1, s8-s11, t3-t6. A zero input
+(rare) takes the C loop, which changes nothing. Orders are all multiples of 16.
+
+**Not verified, and why that is handled.** The P4's PIE is thinly documented
+and there is no toolchain or board here. I used the forms Espressif's esp-dl
+reference shows, and `esp.movx.r.xacc.l` by analogy to the `.w.` forms. So:
+(1) `ape_pie_selftest()` runs the vector filter against the C one on noise
+at orders 16, 64, 256 and 1280, through ring rolls and every alignment, the
+first time an APE opens, and switches the vector path off, with a log line
+`APE: the PIE filter passed/FAILED its self-test`, if a single output or
+weight differs. (2) `-DAPE_NO_PIE` builds without it. (3) The vector add and
+subtract saturate where the C wraps: they differ only for a weight at
++-32767; the CRC check would show it. (4) `idf.py -DAPECRC=1 build` checks
+every frame's CRC while playing, so `bad frames` means something.
+
+*Checked, on a host:* `apetest` runs twice, with the C loop and with a C
+model of the PIE one (`-DAPE_PIE_MODEL`, which models `usar`/`src.q` as
+documented): both bit-exact on all nine files, 174 checks, ASan/UBSan
+clean. That tests the pointer, chunk and ring arithmetic, **not the
+instruction semantics.** *Not checked:* that it assembles, and everything
+about its behaviour on the board.

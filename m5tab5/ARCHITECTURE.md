@@ -149,3 +149,35 @@ out again.
 
 *Checked:* `dsdtest` (65 checks, ASan/UBSan clean). *Not checked:* any of it
 on the board. The reopen is an experiment, not a fix, until a log says so.
+
+### 8103 -- DSD: no seek on the stream; read up to the target from byte 0
+
+**8102's log** (reopen on seek, build -47). Reads after a seek were as slow
+as before: 14.7 and 14.0 ms each on 41, 7.6 ms on the mono 46, and the first
+reads after a seek were ~40 ms every 16 KB fill, with the second 8 KB slice
+of each fill at 0.1 ms. What it rules out:
+
+- *the stream's state*: the file was reopened and it did not matter;
+- *alignment*: 8101 did not matter either;
+- *position*: 46 played from the start reads the same bytes at 0.6 ms, then
+  opened again and sought to 1 s reads them at ~7 ms;
+- *time or a card gone slow*: the DSD128 track opened right after the slow
+  stretch, with no seek, read at 1.7 ms;
+- *CPU*: the short tracks decode in a burst at full CPU at 0.6-1.1 ms.
+
+What is left is that any lseek on the stream makes the reads after it slow.
+Every stream that read fast never made one: opening at byte 92 is inside the
+first 16 KB buffer, so stdio moves a pointer. mp2 being slow after a seek
+fits (for a format that needs no bandwidth it only shows as a stall).
+
+**The change:** `dsd_seek()` reopens the file as in 8102 and leaves the
+stream at byte 0 (`rd.at = 0`); `dsd_next()` reads up to the target with
+`storage_io_fread()` and discards, so no lseek is ever made on it. Cost: a
+seek reads the file up to the target, about 9 MB/s on the board, so ~1 s for
+the far end of a 5-minute DSD64 stereo file (twice that for DSD128).
+`-DDSD_SEEK_REOPEN=0` restores the plain seek.
+
+*Checked:* `dsdtest` (83 checks, ASan/UBSan clean): a skip lands on the same
+samples as the seek, with no seek. *Not checked:* any of it on the board; if
+the next log still says ~14 ms the cause is not the seek either and this
+goes.

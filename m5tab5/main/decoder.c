@@ -1976,6 +1976,7 @@ static int dsd_read(decoder_t *d, int16_t *out, int max_int16)
 static esp_err_t dsd_seek(decoder_t *d, uint32_t sec, uint32_t *landed_cs)
 {
     dsd_log_timing(d->dsd);             /* the stretch the seek is ending */
+    bool reopened = false;
 #if DSD_SEEK_REOPEN
     /*
      * An experiment, and a workaround if it works. Reading a DSD file from
@@ -1983,19 +1984,23 @@ static esp_err_t dsd_seek(decoder_t *d, uint32_t sec, uint32_t *landed_cs)
      * into it, the same reads cost 14 ms, for the rest of the file (8100's
      * timing line, repeated by 8101's), and mp2 is as slow after a seek.
      * A stream that has never been sought is fast, so this makes a new one.
-     * If the line says 1 ms again after a seek, the slowness is in the
-     * stream or the file position FatFs keeps for it; if not, it is not.
+     * 8102 showed a new stream sought is just as slow, so it is sought
+     * no more: dsd_next() reads up to the target from byte 0.
      */
     if (d->dsd_path) {
         storage_io_close(d->f);
         d->f = storage_io_open(d->dsd_path, "rb");
         if (!d->f) return ESP_FAIL;
+        reopened = true;
     }
 #endif
     const uint64_t total = dsd_frames(d->dsd);
     uint64_t target = (uint64_t)sec * DSD_OUT_RATE;
     if (target >= total) target = total ? total - 1 : 0;
     dsd_seek_plan(d->dsd, &d->dsd_rd, target);
+    /* A new stream is at byte 0; dsd_next() reads up to the target from
+     * there, with no lseek() (see it). */
+    if (reopened) d->dsd_rd.at = 0;
     d->pcm_len = d->pcm_pos = 0;
     d->done = target;
     if (landed_cs) *landed_cs = (uint32_t)(target * 100 / DSD_OUT_RATE);

@@ -296,6 +296,26 @@ int main(void)
                  * the difference in settling, far below the signal. */
                 CHECK(md <= 8, "%s: seek to %llu differs by up to %.0f LSB", names[k],
                       (unsigned long long)targets[t], md);
+
+                /* The same seek on a stream at byte 0 (what dsd_seek() leaves
+                 * after reopening): no seek at all, the same samples. */
+                dsd_rd_t r2;
+                dsd_conv_reset(c);
+                dsd_seek_plan(c, &r2, targets[t]);
+                r2.at = 0;
+                rewind(f);
+                seek_n = 0;
+                static int16_t gather2[2 * 4096];
+                size_t got2 = 0, g2;
+                while (got2 < 400 && (g2 = dsd_next(c, &r2, f, buf, blk, STORAGE_IO_PLAYBACK)) > 0) {
+                    memcpy(gather2 + got2 * d.channels, blk, g2 * d.channels * sizeof(int16_t));
+                    got2 += g2;
+                }
+                CHECK(seek_n == 0, "%s skip %llu: %d seeks, wanted 0", names[k],
+                      (unsigned long long)targets[t], seek_n);
+                CHECK(got2 == got && !memcmp(gather, gather2, got * d.channels * sizeof(int16_t)),
+                      "%s skip %llu: not the samples of the seek", names[k],
+                      (unsigned long long)targets[t]);
             }
             free(buf);
             dsd_conv_free(c);

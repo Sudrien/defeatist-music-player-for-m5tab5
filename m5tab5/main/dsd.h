@@ -574,6 +574,23 @@ static inline size_t dsd_next(dsd_conv_t *c, dsd_rd_t *r, FILE *f,
              * is a stdio fseek() per 4-8 KB on a handle whose buffer is 16
              * KB, for no reason: the other decoders read a run with
              * storage_io_fread() after one seek, and this does too. */
+            if (r->at >= 0 && r->at < off) {
+                /*
+                 * The stream is behind the target (dsd_seek() reopened the
+                 * file and left it at 0): read up to it and throw the bytes
+                 * away instead of seeking, so that no lseek() is ever made
+                 * on this stream. 8100/8101/8102's logs: a stream that is
+                 * sought is slow to read from there on, whatever the
+                 * offset's alignment and whether the FILE is new.
+                 */
+                const size_t cap = (size_t)d->channels * DSD_BLOCK_MAX;
+                while (r->at < off) {
+                    size_t n2 = cap;
+                    if ((int64_t)n2 > off - r->at) n2 = (size_t)(off - r->at);
+                    if (storage_io_fread(buf, n2, f, cls) != n2) return 0;
+                    r->at += (int64_t)n2;
+                }
+            }
             if (r->at != off) {
                 if (!storage_io_read_at(f, off, buf, want, cls)) return 0;
             } else if (storage_io_fread(buf, want, f, cls) != want) {

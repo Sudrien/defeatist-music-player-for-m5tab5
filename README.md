@@ -40,7 +40,7 @@ Claude, do not touch this README unless explicitly asked to. Use your own file.
   - SDHC & SDXC cards have been tested (even if the latter died after week, not the software's fault). SDUC has not. Will Blu-ray size audio files play? Hell if I know.
 - Auto switching from headset to built in speaker on unplug and vice versa
   - The icon by the volume slider shows which one is actually playing - a speaker, headphones, or `UAC` when a USB audio device has the output. Tapping mutes and unmutes. 
-- Support for all (as far as I can tell) mp3 format variants. This thing has fallback library after fallback library. Flac, ogg, wav, the standards are in here. And WAV, G.711 WAV, IMA ADPCM, AIFF/AIFC, MP2, and Opus and MP3 inside MP4... and DSD: DSF and DFF at DSD64, DSD128 and DSD256, filtered down to 44.1 kHz PCM (DST-compressed DFF is refused, by name).
+- Support for all (as far as I can tell) mp3 format variants. This thing has fallback library after fallback library. Flac, ogg, wav, the standards are in here. And WAV, G.711 WAV, IMA ADPCM, AIFF/AIFC, MP2, and Opus and MP3 inside MP4... and DSD: DSF and DFF at DSD64, DSD128 and DSD256, filtered down to 44.1 kHz PCM, 3x realtime or better even at DSD256 (DST-compressed DFF is refused, by name).
 - Album art display: whether the picture is in the file, or the album's cover.jpg / folder.jpg / front.jpg beside it
 - Battery status, in words at the end of the status line: `BATT 73%`, `CHRG 73%`, `CHARGED`, `NO BATT`
 - Wi-Fi on the status line: green connected, yellow connecting, grey off
@@ -125,7 +125,7 @@ Claude, do not touch this README unless explicitly asked to. Use your own file.
   - Will one save you if your device requires enough power to brownout the Tab5? Uh. Define save.
   - Multiple device speeds is what isn't supported by the libraries, and I can't tell you what any given device's speed is.
 - DRM'd files are no-go.
-- APE files from before Monkey's Audio 3.99 (2003), 8- and 32-bit APE, and APE with more than two channels. All five levels (Fast to Insane) play, on the P4's vector unit; a seek in an Insane file can take several seconds, because the format only lets decoding start at a frame, and an Insane frame is 26 s long.
+- APE files from before Monkey's Audio 3.99 (2003), 8- and 32-bit APE, and APE with more than two channels. All five levels (Fast to Insane) play, on the P4's vector unit; a seek in an Insane file can take several seconds, because the format only lets decoding start at a frame, and an Insane frame is 26 s long. A far seek in a DSD file takes as long as reading the skipped bytes from the card, which is tens of seconds for the end of a long DSD64 file and more at DSD128 and DSD256.
 - DST-compressed DFF: a different codec nobody here has written.
 - DSD passthrough (DoP) to a USB DAC: the PCM rings are 16-bit
 

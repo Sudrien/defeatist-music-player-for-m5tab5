@@ -562,3 +562,33 @@ int32 data and coefficients split into 16-bit halves (three multiplies for
 each product) and a mirrored copy of the data, for a gain of at most a third
 of the time at DSD64; moving the buffers to internal RAM would take memory
 the radio owns.
+
+### 8122 -- DSD: where it stands after 8121
+
+The log (build c06ccad, everything above applied): stereo realtime factors
+DSD64 3.90x, DSD128 3.38x, DSD256 2.98x; mono DSD64 7.35x. From 8114's
+2.35x, 1.39x and "refused". What got it there, in order: the stage-1 window
+halved (8115, `DSD_KB` 16, -127 dB error against a long window); DSD256 taken
+(8116, 48 bytes, and the window's alignment on the output grid for any `K`);
+stage 1 in int32 summed on PIE (8117, 8119: no libgcc call may sit between the
+register variables and the asm; 8118: no `lrint`, which the ABI lacks);
+per-stage timing (8120); the byte gather as a `memcpy` (8121).
+
+**Where the time is.** Per 30 s of DSD64 stereo: stage 1 4.5 s, the halfbands
+and output 3.1 s, the byte gather 0.1 s. The halfbands cost about 425 cycles a
+frame a channel at every rate, scalar float; stage 1 150-230 cycles an output,
+waiting on memory more than on the vector unit.
+
+**Switches.** `DSD_MAX_MULT` (4: DSD256; 2: DSD128; 1: DSD64 only),
+`DSD_KB`/`DSD_K_BYTES` (the window), `-DDSD_NO_PIE` (the C group sum; same
+arithmetic), `DSD_PIE_MODEL` (host: the vector kernel's model).
+
+**Not done.** The halfbands on PIE (int32 data and coefficients as 16-bit
+halves, three multiplies a product, a mirrored copy of the data; at most a
+third of the time at DSD64). Buffers in internal RAM (the radio's). DSD seeks
+are still a forward read at the card's speed, 20+ s to the far end of a long
+DSD64 file and more at higher rates, `memcpy` or not.
+
+APE on the same log: all five levels faster than realtime, Insane 1.6x and
+Insane-noisy 1.5x; the neural-network filters are about 70% of an Insane
+frame and the range decoder a few percent.

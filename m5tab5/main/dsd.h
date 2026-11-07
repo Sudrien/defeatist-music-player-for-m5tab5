@@ -8,22 +8,27 @@
  * that is true. For DSD it is true only of a naive converter, which
  * treats the stream as 2.8 million samples a second and runs a long
  * filter over every one. A bit has two values, so a filter over bits is
- * a sum of +h or -h, and eight bits at a time is one table lookup:
- * tbl[k][byte] already holds the contribution of byte k of the filter's
- * window. A 128-tap filter is 16 lookups per output, and the output of
- * that stage is not 44.1 kHz but 176.4 kHz, so the lookups are spread
- * over 16 input bits per output, not 64.
+ * a sum of +h or -h, and eight bits at a time is one table entry: the
+ * table holds the contribution of every byte value at every position of
+ * the filter's window. The output of the first stage is not 44.1 kHz but
+ * 176.4 kHz, so a byte takes part in only a few outputs (6 to 8) and the
+ * work is spread over 16 input bits per output, not 64.
  *
- *   stage 1  bits -> float at 176.4 kHz. Windowed sinc, Kaiser beta ~10,
- *            128 taps (DSD64) or 256 (DSD128), by table lookup. It only
- *            has to keep 0-22 kHz and reject what would fold into it,
- *            which starts at 176.4 - 22 = 154 kHz, so it can be short.
+ *   stage 1  bits -> 176.4 kHz. Windowed sinc, Kaiser beta ~10, 128 taps
+ *            (DSD64), 256 (DSD128) or 384 (DSD256), as int32 table sums:
+ *            one vector (eight lanes, one per output the byte feeds) per
+ *            byte, summed over a group of bytes on the ESP32-P4's PIE
+ *            unit, or in C. It only has to keep 0-22 kHz and reject what
+ *            would fold into it, which starts at 176.4 - 22 = 154 kHz,
+ *            so it can be short.
  *   stage 2  halfband, 176.4 -> 88.2 kHz, 31 taps, 16 of them nonzero.
  *   stage 3  halfband, 88.2 -> 44.1 kHz, 135 taps, 68 of them nonzero.
  *            Flat to 20 kHz, down >90 dB from 24 kHz.
  *
- * About 55 float multiply-adds per output frame per channel for stages
- * 2 and 3, plus 32 (DSD64) or 64 (DSD128) lookups for stage 1.
+ * Stages 2 and 3 are about 55 float multiply-adds per output frame per
+ * channel. On the board (8121) DSD64 stereo runs at 3.9x realtime, DSD128
+ * at 3.4x and DSD256 at 3.0x; stage 1 is a little over half the time, the
+ * halfbands most of the rest. See ARCHITECTURE.md, 8115 to 8121.
  *
  * The output is always 44.1 kHz. DSD64 divides by 64, DSD128 by 128, DSD256 by 256.
  * Unity gain: full-scale modulation is full-scale PCM, saturated. Real

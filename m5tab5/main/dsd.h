@@ -346,12 +346,17 @@ static inline void dsd_grp_pie(const uint8_t *b, const int32_t *T, uint32_t S1,
 static inline void dsd_grp_pie(const uint8_t *b, const int32_t *T, uint32_t S1,
                                int32_t *V)
 {
+    /* 5 + log2(S1), without __builtin_ctz(): on this core that is a call
+     * into libgcc, and a call between the register variables' setup and the
+     * asm clobbers a0-a5 (8117 crashed on it, a load from address 1). Worked
+     * out first, so nothing is left to call once the registers are set. */
+    const uint32_t sh = S1 == 2 ? 6u : (S1 == 4 ? 7u : 8u);
     register const uint8_t *r0 __asm__("a0") = b;
     register const int32_t *r1 __asm__("a1") = T;
     register uint32_t r2 __asm__("a2") = S1 - 1;
     register uint32_t r3 __asm__("a3");
     register int32_t *r4 __asm__("a4") = V;
-    register uint32_t r5 __asm__("a5") = 5u + (uint32_t)__builtin_ctz(S1);
+    register uint32_t r5 __asm__("a5") = sh;
     __asm__ volatile(
         ".option push\n .option arch, +xesppie\n .option norvc\n"
         "lbu a3, 0(a0)\n"

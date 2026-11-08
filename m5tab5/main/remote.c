@@ -885,7 +885,9 @@ static esp_err_t h_pod_add(httpd_req_t *req)
     podfeed_t feed;
     const podindex_look_t r = podindex_lookup_take(&feed);
     if (r == PODINDEX_LOOK_FOUND) return pw_add_folder(req, vol, feed.id, feed.title, NULL);
-    if (r != PODINDEX_LOOK_NOTFOUND) return pw_said(req, "failed");
+    /* Not found, and a lookup that failed (a status that is not 200, say),
+     * are both a reason to read the feed itself: if it cannot be reached
+     * either, that says "nofeed", which is the truer answer. */
     snprintf(s_add_rss, sizeof(s_add_rss), "%s", u);
     return pw_said(req, podindex_eps_fetch(podindex_url_feed(u)) ? "looking" : "wait");
 }

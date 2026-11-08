@@ -912,3 +912,18 @@ stubs; the handler in the syntax harness. *Not checked:* a board, and the shape
 of the `search/byterm` reply, which is taken to be the `feeds` array that
 `podcasts/trending` has. Search a name, open a result, download from it, press
 Back twice, and confirm the results come back.
+
+### 8132 -- a failed lookup also falls back to the feed itself
+
+8130 read the feed only when the index said "not found". A lookup that
+*failed* -- any status other than 200, which `podindex.c` logs as
+`byfeedurl: HTTP n` -- answered `failed` ("The player could not add that
+podcast"), so a reply the index gives for an address it does not know, if it is
+not a 200, stopped the page short of the one thing that could have worked.
+`/pod/add` now reads the feed after either; if that fails too the answer is
+`nofeed`, which is the truer one. A failure after a hit (the folder or link
+could not be written) is still `failed`.
+
+*Checked:* the handler in the syntax harness. *Not checked:* a board. The log
+line that says which it was is `byfeedurl: HTTP n` or `byfeedurl: no
+connection` just before.

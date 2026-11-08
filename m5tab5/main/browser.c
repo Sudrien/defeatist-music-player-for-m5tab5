@@ -486,16 +486,21 @@ bool browser_is_m3u(const char *name)
 static void pod_link_row(const char *dir)
 {
     s_dir_link = false;
-    char p[400], text[200];
+    char p[400];
+    static char text[PODPATH_LINK_URL_MAX + PODFEEDS_TITLE_MAX + 16];    /* 8130: a url link; ui_task only */
     if (snprintf(p, sizeof(p), "%s/" PODPATH_LINK, dir) >= (int)sizeof(p)) return;
     FILE *f = fopen(p, "r");
     if (!f) return;
     const size_t n = fread(text, 1, sizeof(text) - 1, f);
     fclose(f);
     text[n] = '\0';
-    /* 8129: a "url" link (a podcast the index does not list) has no episode
-     * list to go back to yet, so it gets no row until one can be shown. */
-    if (!podpath_link_parse(text, n, &s_dir_link_feed, s_dir_link_show, sizeof(s_dir_link_show))) return;
+    /* 8130: a "url" link (a podcast the index does not list) is a feed id
+     * too, made from its address, which podindex now remembers for the
+     * episode list the row opens. */
+    char addr[PODPATH_LINK_URL_MAX];
+    if (!podpath_link_parse_any(text, n, &s_dir_link_feed, addr, sizeof(addr),
+                                s_dir_link_show, sizeof(s_dir_link_show))) return;
+    if (addr[0] && (s_dir_link_feed = podindex_url_feed(addr)) <= 0) return;
     /* 8126: a folder with nothing in it but the link is shown the row too:
      * a download that has started has written the link and has no file yet.
      * (8029 hid it, for the folders a cancelled first download left; the
@@ -503,8 +508,11 @@ static void pod_link_row(const char *dir)
     if (s_count >= MAX_ENTRIES) return;
     memmove(&s_entries[1], &s_entries[0], (size_t)s_count * sizeof(entry_t));
     char label[PODFEEDS_TITLE_MAX + 48];
-    snprintf(label, sizeof(label), _("%s on Podcast Index"),
-             s_dir_link_show[0] ? s_dir_link_show : same("Podcast"));
+    if (addr[0])                        /* 8130: not on the index: the title alone */
+        snprintf(label, sizeof(label), "%s", s_dir_link_show[0] ? s_dir_link_show : same("Podcast"));
+    else
+        snprintf(label, sizeof(label), _("%s on Podcast Index"),
+                 s_dir_link_show[0] ? s_dir_link_show : same("Podcast"));
     s_entries[0] = (entry_t){ 0 };
     s_entries[0].name = strdup(PODPATH_LINK);
     s_entries[0].label = strdup(label);

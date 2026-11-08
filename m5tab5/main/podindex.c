@@ -24,6 +24,7 @@
 #include "podcats.h"          /* 8014 */
 #include "podfeeds.h"         /* 8018 */
 #include "podeps.h"           /* 8019 */
+#include "podrss.h"            /* 8130 */
 #include "radiobrowser.h"       /* RADIOBROWSER_UA_FMT: the same name */
 #include "settings.h"           /* settings_now(), settings_time_verified() */
 
@@ -90,6 +91,19 @@ static int64_t            s_eps_feed;
 static podindex_cats_t    s_eps_state;
 static uint32_t           s_eps_gen;
 
+/* 8130: feeds the index does not list, by address. Their ids are
+ * podrss_feed_for()'s, so everything that keys a podcast by an id (the
+ * episode list, a download's link) works unchanged, and this says which
+ * address an id stands for. The last few; the title is the feed's own,
+ * once its episodes have been read. */
+#define PI_URLS 4
+static struct {
+    int64_t feed;
+    char    url[PODFEEDS_URL_MAX];
+    char    title[PODFEEDS_TITLE_MAX];
+} s_urls[PI_URLS];
+static int s_urls_next;
+
 /* 8128: the one lookup by feed address, and its answer. */
 static podindex_look_t    s_look_state;
 static char               s_look_url[PODFEEDS_URL_MAX];
@@ -135,8 +149,9 @@ podindex_state_t podindex_state(char *key, size_t key_size, int *http)
 static int ask(const char *url, const char *key, const char *secret,
                char *body, size_t body_max, size_t *got)
 {
-    char date[PODAUTH_DATE], hex[PODAUTH_HEX];
-    if (!podauth_sign(key, secret, settings_now(), date, hex)) return 0;
+    char date[PODAUTH_DATE] = "", hex[PODAUTH_HEX] = "";
+    /* 8130: no key is a plain GET, for a podcast's own feed. */
+    if (key && !podauth_sign(key, secret, settings_now(), date, hex)) return 0;
 
     const esp_app_desc_t *desc = esp_app_get_description();
     char ua[64];
@@ -152,9 +167,11 @@ static int ask(const char *url, const char *key, const char *secret,
     };
     esp_http_client_handle_t c = esp_http_client_init(&cfg);
     if (!c) return 0;
-    esp_http_client_set_header(c, "X-Auth-Key", key);
-    esp_http_client_set_header(c, "X-Auth-Date", date);
-    esp_http_client_set_header(c, "Authorization", hex);
+    if (key) {
+        esp_http_client_set_header(c, "X-Auth-Key", key);
+        esp_http_client_set_header(c, "X-Auth-Date", date);
+        esp_http_client_set_header(c, "Authorization", hex);
+    }
 
     int status = 0;
     *got = 0;
@@ -434,6 +451,58 @@ uint32_t podindex_feeds_gen(void)
     return g;
 }
 
+/* 8130: a podcast's own feed, for eps_task(): the same hand-over of the
+ * list and the state, from podrss_parse() instead of the index's JSON. A
+ * feed with a title and no episodes is an empty list; one with neither
+ * is not a feed. No key is used or needed. Ends the task. */
+#define PI_RSS_BODY_MAX (4 * 1024 * 1024)
+
+static void eps_rss_task(int64_t feed, const char *url)
+{
+    char *body = url[0] ? heap_caps_malloc(PI_RSS_BODY_MAX, MALLOC_CAP_SPIRAM | MALLOC_CAP_8BIT) : NULL;
+    podep_t *tmp = body ? heap_caps_malloc(PODEPS_MAX * sizeof(podep_t), MALLOC_CAP_SPIRAM | MALLOC_CAP_8BIT) : NULL;
+    podep_t *scratch = tmp ? heap_caps_malloc(sizeof(podep_t), MALLOC_CAP_SPIRAM | MALLOC_CAP_8BIT) : NULL;
+    podrss_info_t *info = scratch ? heap_caps_malloc(sizeof(*info), MALLOC_CAP_SPIRAM | MALLOC_CAP_8BIT) : NULL;
+    int n = -1;
+    if (info) {
+        size_t got = 0;
+        const int status = ask(url, NULL, NULL, body, PI_RSS_BODY_MAX, &got);
+        if (status == 200) {
+            n = podrss_parse(body, got, info, tmp, PODEPS_MAX, scratch);
+            if (n == 0 && !info->title[0]) n = -1;
+            ESP_LOGI(TAG, "feed %lld: %d episodes (%u bytes%s)", (long long)feed, n, (unsigned)got,
+                     got + 1 >= PI_RSS_BODY_MAX ? ", cut at the buffer" : "");
+        } else if (status) {
+            ESP_LOGW(TAG, "feed %lld: HTTP %d", (long long)feed, status);
+        } else {
+            ESP_LOGW(TAG, "feed %lld: no connection", (long long)feed);
+        }
+    } else {
+        ESP_LOGE(TAG, "no PSRAM for the feed or no address for it");
+    }
+    free(scratch);
+    free(body);
+    ESP_LOGI(TAG, "stack: %u bytes never used of %u",
+             (unsigned)uxTaskGetStackHighWaterMark(NULL), (unsigned)PI_STACK);
+    xSemaphoreTake(s_mu, portMAX_DELAY);
+    if (n >= 0) {
+        for (int i = 0; i < PI_URLS; i++) if (s_urls[i].feed == feed) snprintf(s_urls[i].title, sizeof(s_urls[i].title), "%s", info->title);
+        podep_t *old = s_eps;
+        s_eps = tmp;
+        s_eps_n = n;
+        tmp = old;
+        s_eps_state = PODINDEX_CATS_READY;
+    } else {
+        s_eps_state = PODINDEX_CATS_FAILED;
+    }
+    s_eps_gen++;
+    s_cats_busy = false;
+    xSemaphoreGive(s_mu);
+    free(info);
+    free(tmp);
+    vTaskDelete(NULL);
+}
+
 /* 8019: episodes/byfeedid for one podcast, as feeds_task() does for a
  * category. The feed id rides in s_eps_feed, set before the task. */
 static void eps_task(void *arg)
@@ -444,6 +513,17 @@ static void eps_task(void *arg)
     xSemaphoreTake(s_mu, portMAX_DELAY);
     const int64_t feed = s_eps_feed;
     xSemaphoreGive(s_mu);
+    static char rss[PODFEEDS_URL_MAX];              /* 8130: not the index's: its own feed */
+    rss[0] = '\0';
+    if (podrss_feed_id(feed)) {
+        xSemaphoreTake(s_mu, portMAX_DELAY);
+        for (int i = 0; i < PI_URLS; i++) if (s_urls[i].feed == feed) snprintf(rss, sizeof(rss), "%s", s_urls[i].url);
+        xSemaphoreGive(s_mu);
+    }
+    if (rss[0] || podrss_feed_id(feed)) {
+        eps_rss_task(feed, rss);
+        return;
+    }
     bool ok = false;
     {
         size_t kn = sizeof(key), sn = sizeof(secret);
@@ -673,4 +753,37 @@ podindex_look_t podindex_lookup_take(podfeed_t *out)
     }
     xSemaphoreGive(s_mu);
     return st;
+}
+
+/* 8130 */
+int64_t podindex_url_feed(const char *url)
+{
+    if (!podfeeds_url_ok(url)) return 0;
+    const int64_t id = podrss_feed_for(url);
+    xSemaphoreTake(s_mu, portMAX_DELAY);
+    int slot = -1;
+    for (int i = 0; i < PI_URLS; i++) if (s_urls[i].feed == id) slot = i;
+    if (slot >= 0 && strcmp(s_urls[slot].url, url) != 0) slot = -1;       /* a different address, same hash */
+    if (slot < 0) {
+        slot = s_urls_next++ % PI_URLS;
+        s_urls[slot].feed = id;
+        snprintf(s_urls[slot].url, sizeof(s_urls[slot].url), "%s", url);
+        s_urls[slot].title[0] = '\0';
+    }
+    xSemaphoreGive(s_mu);
+    return id;
+}
+
+bool podindex_feed_url(int64_t feed, char *url, size_t url_size, char *title, size_t title_size)
+{
+    bool found = false;
+    xSemaphoreTake(s_mu, portMAX_DELAY);
+    for (int i = 0; i < PI_URLS && !found; i++) {
+        if (s_urls[i].feed != feed || !s_urls[i].url[0]) continue;
+        if (url && url_size) snprintf(url, url_size, "%s", s_urls[i].url);
+        if (title && title_size) snprintf(title, title_size, "%s", s_urls[i].title);
+        found = true;
+    }
+    xSemaphoreGive(s_mu);
+    return found;
 }

@@ -123,6 +123,22 @@ podindex_look_t podindex_lookup_state(char *url, size_t url_size);
  * NONE. LOADING and NONE are returned as they are and left alone. */
 podindex_look_t podindex_lookup_take(podfeed_t *out);
 
+/*
+ * 8130: a podcast the index does not list, by its feed's address. The
+ * address gets an id (podrss.h's range, far above the index's) that
+ * podindex_eps_fetch() takes like any other: it reads the feed itself and
+ * the list is the same. The id is the address's own, so it is the same
+ * after a reboot; what the id stands for is kept for the last few only,
+ * so ask for the address again (here) before a fetch by its id.
+ *
+ * podindex_url_feed(): the id, and remembers the address; 0 for an
+ * address podfeeds_url_ok() refuses. podindex_feed_url(): the address and
+ * the feed's own title (empty until its episodes have been read) for an
+ * id this still knows; false for one it does not. Any task.
+ */
+int64_t podindex_url_feed(const char *url);
+bool podindex_feed_url(int64_t feed, char *url, size_t url_size, char *title, size_t title_size);
+
 #ifdef __cplusplus
 }
 #endif

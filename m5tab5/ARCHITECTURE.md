@@ -837,3 +837,51 @@ the link.
 *Checked:* `podpathtest` (55 checks, ASan/UBSan, 18 new). *Not checked:* a
 board; there is nothing to see on one yet, and `browser.c` changed only by a
 comment.
+
+### 8130 -- a feed the index does not list is read by the player
+
+Patch 3 of 3. An address Podcast Index answers "not found" for is now fetched
+and read as RSS by the player, so the page's field takes any feed, and the
+`url` link of 8129 has something to lead back to.
+
+- `podrss.h` (new, no FreeRTOS, no allocation): one pass over the tags, the
+  channel's title and picture from the channel's own children, items only
+  directly under `<channel>`; CDATA verbatim, entities decoded in text and
+  attribute values (`&amp;` in an enclosure address); descriptions through
+  `podhtml_text()`; `pubDate` as RFC 822, `itunes:duration` as seconds or
+  `[HH:]MM:SS`; an item needs a title and a whole http(s) enclosure address;
+  the newest `max` kept, newest first, so a serial's oldest-first feed is not
+  cut to its oldest. Atom is not read. Episode ids are a hash of the guid (else
+  the address), so an episode keeps its id.
+- Ids: a feed's address gets `podrss_feed_for()`, `PODRSS_FEED_BASE` (2^41) plus
+  32 bits of its hash, far above the index's. Everything keyed by a feed id --
+  the episode list, the page's download, the screen's -- is unchanged.
+  `podindex_url_feed()` registers an address (the last four are kept) and
+  `podindex_feed_url()` says which address an id is, and the feed's own title
+  once its episodes were read.
+- `podindex.c`: `eps_task()` hands a `podrss_feed_id()` id to `eps_rss_task()`,
+  which is a plain GET (`ask()` with no key; esp_http_client follows redirects)
+  into a 4 MB PSRAM buffer, parsed into the same list and state. A feed with a
+  title and no items is an empty list; one with neither is a failure. Under the
+  same one-fetch rule, and still behind a working key, because the page and the
+  screen's podcast tab are.
+- `remote.c`: `/pod/add` reads the feed when the lookup said not found, and a
+  feed that reads gets `Podcasts/<its title>/` and a `url` link. The answer for
+  a feed that does not read is `nofeed` (was `unknown`).
+- `poddl.c`: `write_link()` writes the `url` form for these ids, from the
+  address podindex remembers, and writes nothing if it no longer knows one --
+  the link on disk is not replaced with one that leads nowhere.
+- `browser.c`: a `url` link gets its row, labelled with the title alone (it is
+  not "on Podcast Index"); loading the folder registers the address, and the
+  row opens the episode list through the same path as a `feed` link.
+
+*Checked:* `podrsstest` (33 checks, ASan/UBSan); `podindex.c` and `poddl.c`
+at `-O2 -Wall -Wextra -Werror=all -Werror=extra` against stub IDF headers;
+`/pod/add` in a syntax-check harness (`remote.c` and `browser.c` as wholes have
+not been compiled here). *Not checked:* a board, or any real feed. Things most
+likely to differ: feeds that gzip regardless of the request, one over 4 MB
+(it is cut there, so a newest-last feed loses its newest), and one with
+dates in a form `podrss_date()` does not know (its items get no date, and a
+name from the title alone). Paste a feed the index lacks; confirm the folder, the
+episode list, a download, and that the folder's row on the screen opens the
+list after a reboot.

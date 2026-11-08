@@ -317,7 +317,7 @@ LEVELHIST_BIN := levelhisttest
 # ../test_audio_files so the bytes under test are the bytes on the card.
 CUE_BIN := cuesheettest
 
-all: run-remote run-ctrl run-clock run-rotate run-cardtime run-mediaindex run-medialist run-mediasearch run-mpdqueue run-mpdproto run-mpduri run-mpdfilter run-mpdmode run-mpdidle run-uireq run-m3uline run-urlclean run-playlist run-screendimplace run-mediawalk run-mediasync run-menuscroll run-fade run-tail run-portal run-old check-ui check-netbudget run-sleep run-launcherpres run-sniff run-icy run-netplan run-stations run-pcmfold run-imaadpcm run-mp4opus run-mp4mp3 run-aiff run-dsd run-ape run-flacseek run-bufplan run-oggseek run-addrpin run-codec run-hlsplay run-hlsseg run-tsdemux run-folderart run-mp3 run-framewin run-streamplan run-stationnav run-radiobrowser run-levelhist run-favmatch run-podauth run-podcats run-podfeeds run-podeps run-podweb run-podpath run-podhtml run-lanpeer run-approve run-cue run-tagextra run-flacenc run-beam run-i18n run-varispeed run-speedring run-fx
+all: run-remote run-ctrl run-clock run-rotate run-cardtime run-mediaindex run-medialist run-mediasearch run-mpdqueue run-mpdproto run-mpduri run-mpdfilter run-mpdmode run-mpdidle run-uireq run-m3uline run-urlclean run-playlist run-screendimplace run-mediawalk run-mediasync run-menuscroll run-fade run-tail run-portal run-old check-ui check-netbudget run-sleep run-launcherpres run-sniff run-icy run-netplan run-stations run-pcmfold run-imaadpcm run-mp4opus run-mp4mp3 run-aiff run-dsd run-ape run-flacseek run-bufplan run-oggseek run-addrpin run-codec run-hlsplay run-hlsseg run-tsdemux run-folderart run-mp3 run-framewin run-streamplan run-stationnav run-radiobrowser run-levelhist run-favmatch run-podauth run-podcats run-podfeeds run-podeps run-podrss run-podweb run-podpath run-podhtml run-lanpeer run-approve run-cue run-tagextra run-flacenc run-beam run-i18n run-varispeed run-speedring run-fx
 
 $(CTRL_BIN): ctrltest.c
 	$(CC) $(CFLAGS) -D_GNU_SOURCE -pthread -o $@ ctrltest.c $(LDFLAGS) -pthread
@@ -589,6 +589,16 @@ $(PODEPS_BIN): podepstest.c ../main/podeps.h ../main/podfeeds.h ../main/podhtml.
 
 run-podeps: $(PODEPS_BIN)
 	ASAN_OPTIONS=detect_leaks=1:abort_on_error=0 ./$(PODEPS_BIN)
+
+# 8130: a podcast's own RSS as rows. Header-only.
+PODRSS_BIN := podrsstest
+
+$(PODRSS_BIN): podrsstest.c ../main/podrss.h ../main/podeps.h ../main/podfeeds.h ../main/podhtml.h
+	$(CC) $(WARNCFLAGS) -c podrsstest.c -o /dev/null
+	$(CC) $(CFLAGS) -o $@ podrsstest.c $(LDFLAGS)
+
+run-podrss: $(PODRSS_BIN)
+	ASAN_OPTIONS=detect_leaks=1:abort_on_error=0 ./$(PODRSS_BIN)
 
 # 8033: the remote's podcast lists -- when a request fetches, and the
 # rows. Links remoteproto.c for remoteproto_json_str().

@@ -434,7 +434,7 @@ pt:
     "Podcast Index answered with something the player did not expect.": ~
     # remote.html
     "Podcast Index did not answer.": ~
-    # remote.html
+    # not in the source any more
     "Podcast Index does not know that feed address.": ~
     # remote.html
     "Podcast Index refused that key and secret.": ~
@@ -626,6 +626,8 @@ pt:
     "The player could not add that podcast. Try again.": ~
     # remote.html
     "The player could not reach Podcast Index.": ~
+    # remote.html
+    "The player could not read a podcast feed at that address.": ~
     # remote.html
     "The player could not save that. Try again.": ~
     # remote.c, remote.html

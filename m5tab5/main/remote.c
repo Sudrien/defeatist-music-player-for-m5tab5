@@ -790,23 +790,65 @@ static esp_err_t h_pod_dl(httpd_req_t *req)
 }
 
 /*
+ * 8128: the folder and its .podcast link for a podcast added from the
+ * page, and the answer "added" with the id and title the page opens the
+ * episode list of. `url` is NULL for one the index listed (the link names
+ * its id), else the feed's address (8130: the link names that). Under the
+ * storage lease, on this task; nothing is made before this is called, so
+ * a lookup that came to nothing leaves nothing.
+ */
+static esp_err_t pw_add_folder(httpd_req_t *req, int vol, int64_t id, const char *title, const char *url)
+{
+    static char dir[sizeof(s_pw_last.dir)], parent[sizeof(dir)], link[sizeof(dir) + 16];
+    static char text[PODPATH_LINK_URL_MAX + PODFEEDS_TITLE_MAX + 16];
+    static char esc[PODWEB_ESC_MAX], extra[PODWEB_ESC_MAX + 64];
+    if (!podpath_dir(storage_mount_path((storage_id_t)vol), title, dir, sizeof(dir)))
+        return pw_said(req, "long");
+    snprintf(parent, sizeof(parent), "%s", dir);
+    *strrchr(parent, '/') = '\0';                   /* <mount>/Podcasts */
+    const int n = url ? podpath_link_format_url(url, title, text, sizeof(text))
+                      : podpath_link_format(id, title, text, sizeof(text));
+    bool made = false;
+    storage_io_acquire(STORAGE_IO_BACKGROUND);
+    if (n > 0 && (mkdir(parent, 0777) == 0 || errno == EEXIST) && (mkdir(dir, 0777) == 0 || errno == EEXIST)) {
+        snprintf(link, sizeof(link), "%s/" PODPATH_LINK, dir);
+        FILE *lf = fopen(link, "w");
+        made = lf && fwrite(text, 1, (size_t)n, lf) == (size_t)n;
+        if (lf) fclose(lf);
+    }
+    storage_io_release();
+    if (!made) return pw_said(req, "failed");
+    ESP_LOGI(TAG, "podcast %" PRId64 " added from a feed address: %s", id, dir);
+    if (!remoteproto_json_str(title, esc, sizeof(esc))) return pw_said(req, "failed");
+    snprintf(extra, sizeof(extra), "\"id\":%" PRId64 ",\"title\":%s,", id, esc);
+    return pw_said_x(req, "added", extra);
+}
+
+/* 8130: the address whose own feed is being read, once the index has said
+ * it does not know it. */
+static char s_add_rss[PODFEEDS_URL_MAX];
+
+/*
  * 8128: POST /pod/add, url=<feed address>&vol=N -- a podcast the lists
  * do not show, by its feed's address. The index is asked
  * (podcasts/byfeedurl); a hit makes <drive>/Podcasts/<title>/ with its
- * .podcast link, the same folder and file a first download makes, and
- * answers "added" with the podcast's id and title, which the page opens
- * the episode list of. The lookup takes a moment, so the page asks again
- * with the same body while the answer is "looking" (or "wait", when
- * another fetch is running): the first ask starts it, a later one
- * collects it, and collecting empties it.
- *   said: looking | wait | added | unknown (the index has no such
- *   address) | failed | invalid | novol | long | nokey
+ * .podcast link, the same folder and file a first download makes. 8130:
+ * an address the index does not know is read as an RSS feed by the player
+ * (podindex_eps_fetch() on the address's own id), and a feed that reads
+ * gets the folder under its own title and a link that names the address.
+ * Either way the answer is "added" with the podcast's id and title, which
+ * the page opens the episode list of.
+ *
+ * Both take a moment, so the page repeats the same body every 1.5 s
+ * while the answer is "looking" (or "wait", when another fetch is
+ * running): the first call starts the work, a later one collects it.
+ *   said: looking | wait | added | nofeed (not a feed the player can
+ *   read) | failed | invalid | novol | long | nokey
  */
 static esp_err_t h_pod_add(httpd_req_t *req)
 {
     static char body[PODFEEDS_URL_MAX + 64], v[PODFEEDS_URL_MAX + 8], asked[PODFEEDS_URL_MAX];
-    static char dir[sizeof(s_pw_last.dir)], parent[sizeof(dir)], text[PODFEEDS_TITLE_MAX + 40];
-    static char esc[PODWEB_ESC_MAX], extra[PODWEB_ESC_MAX + 64];
+    static char title[PODFEEDS_TITLE_MAX];
     const int got = pw_body(req, body, sizeof(body));
     if (got < 0 || !portalweb_field(body, (size_t)got, "url", v, sizeof(v))) return pw_said(req, "invalid");
     /* What a person pastes has spaces or a newline round it. */
@@ -820,37 +862,32 @@ static esp_err_t h_pod_add(httpd_req_t *req)
     if (vol < 0 || vol >= STORAGE_COUNT || !storage_present((storage_id_t)vol)) return pw_said(req, "novol");
     if (podindex_state(NULL, 0, NULL) != PODINDEX_WORKING) return pw_said(req, "nokey");
 
+    if (s_add_rss[0] && !strcmp(s_add_rss, u)) {            /* 8130: reading the feed itself */
+        const int64_t id = podindex_url_feed(u);
+        int64_t cur = 0;
+        const podindex_cats_t es = podindex_eps(NULL, 0, NULL, &cur, NULL);
+        if (cur == id && es == PODINDEX_CATS_FAILED) { s_add_rss[0] = '\0'; return pw_said(req, "nofeed"); }
+        if (cur == id && es == PODINDEX_CATS_LOADING) return pw_said(req, "looking");
+        if (cur == id && es == PODINDEX_CATS_READY && podindex_feed_url(id, NULL, 0, title, sizeof(title)) && title[0]) {
+            s_add_rss[0] = '\0';
+            return pw_add_folder(req, vol, id, title, u);
+        }
+        return pw_said(req, podindex_eps_fetch(id) ? "looking" : "wait");
+    }
+
     const podindex_look_t st = podindex_lookup_state(asked, sizeof(asked));
     if (st == PODINDEX_LOOK_LOADING) return pw_said(req, strcmp(asked, u) ? "wait" : "looking");
     if (st == PODINDEX_LOOK_NONE || strcmp(asked, u)) {
         if (st != PODINDEX_LOOK_NONE) (void)podindex_lookup_take(NULL);    /* another address's answer */
+        s_add_rss[0] = '\0';
         return pw_said(req, podindex_lookup(u) ? "looking" : "wait");
     }
     podfeed_t feed;
     const podindex_look_t r = podindex_lookup_take(&feed);
-    if (r == PODINDEX_LOOK_NOTFOUND) return pw_said(req, "unknown");
-    if (r != PODINDEX_LOOK_FOUND) return pw_said(req, "failed");
-
-    if (!podpath_dir(storage_mount_path((storage_id_t)vol), feed.title, dir, sizeof(dir)))
-        return pw_said(req, "long");
-    snprintf(parent, sizeof(parent), "%s", dir);
-    *strrchr(parent, '/') = '\0';                  /* <mount>/Podcasts */
-    const int n = podpath_link_format(feed.id, feed.title, text, sizeof(text));
-    bool made = false;
-    storage_io_acquire(STORAGE_IO_BACKGROUND);
-    if ((mkdir(parent, 0777) == 0 || errno == EEXIST) && (mkdir(dir, 0777) == 0 || errno == EEXIST)) {
-        static char link[sizeof(dir) + 16];
-        snprintf(link, sizeof(link), "%s/" PODPATH_LINK, dir);
-        FILE *lf = fopen(link, "w");
-        made = lf && n > 0 && fwrite(text, 1, (size_t)n, lf) == (size_t)n;
-        if (lf) fclose(lf);
-    }
-    storage_io_release();
-    if (!made) return pw_said(req, "failed");
-    ESP_LOGI(TAG, "podcast %" PRId64 " added from a feed address: %s", feed.id, dir);
-    if (!remoteproto_json_str(feed.title, esc, sizeof(esc))) return pw_said(req, "failed");
-    snprintf(extra, sizeof(extra), "\"id\":%" PRId64 ",\"title\":%s,", feed.id, esc);
-    return pw_said_x(req, "added", extra);
+    if (r == PODINDEX_LOOK_FOUND) return pw_add_folder(req, vol, feed.id, feed.title, NULL);
+    if (r != PODINDEX_LOOK_NOTFOUND) return pw_said(req, "failed");
+    snprintf(s_add_rss, sizeof(s_add_rss), "%s", u);
+    return pw_said(req, podindex_eps_fetch(podindex_url_feed(u)) ? "looking" : "wait");
 }
 
 /*

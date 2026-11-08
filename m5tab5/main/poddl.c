@@ -33,7 +33,9 @@
 #include "covertag.h"           /* 8027: COVERTAG_MAX_IMAGE */
 #include "feckless_fetch.h"     /* 8124 */
 #include "folderart.h"          /* 8027: folderart_own_path() */
+#include "podindex.h"           /* 8130: podindex_feed_url() */
 #include "podpath.h"
+#include "podrss.h"             /* 8130: podrss_feed_id() */
 #include "radiobrowser.h"       /* RADIOBROWSER_UA_FMT */
 #include "storage_io.h"
 #include "replaygain.h"         /* 8056: the episode's picture, by name */
@@ -146,9 +148,19 @@ static void drop_part_dir(const char *dir)
  * costs only the link. */
 static void write_link(void)
 {
-    static char link[DL_LINK_MAX], text[160];
+    static char link[DL_LINK_MAX], text[PODPATH_LINK_URL_MAX + PODFEEDS_TITLE_MAX + 16];
     snprintf(link, sizeof(link), "%s/" PODPATH_LINK, s_dir);
-    const int n = podpath_link_format(s_feed, s_show, text, sizeof(text));
+    int n;
+    if (podrss_feed_id(s_feed)) {
+        /* 8130: a feed the index does not list is kept by its address. If
+         * this no longer knows which, the link on disk is left as it is
+         * rather than replaced with one that leads nowhere. */
+        static char addr[PODPATH_LINK_URL_MAX];
+        if (!podindex_feed_url(s_feed, addr, sizeof(addr), NULL, 0)) return;
+        n = podpath_link_format_url(addr, s_show, text, sizeof(text));
+    } else {
+        n = podpath_link_format(s_feed, s_show, text, sizeof(text));
+    }
     FILE *lf = fopen(link, "w");
     const bool wrote = lf && n > 0 && fwrite(text, 1, (size_t)n, lf) == (size_t)n;
     if (lf) fclose(lf);

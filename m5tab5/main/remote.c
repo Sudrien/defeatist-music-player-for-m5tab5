@@ -891,6 +891,27 @@ static esp_err_t h_pod_add(httpd_req_t *req)
 }
 
 /*
+ * 8131: POST /pod/search, q=<words> -- start a search by name
+ * (search/byterm). The answer is only whether it started: "looking", or
+ * "wait" when another fetch is running (the page asks again), or invalid /
+ * nokey. The results are the feeds list, as the page reads it with
+ * GET /pod?l=f&id=-1 -- PODINDEX_CAT_SEARCH -- and a podcast in it opens
+ * and downloads like one from a category.
+ */
+static esp_err_t h_pod_search(httpd_req_t *req)
+{
+    static char body[PODFEEDS_TERM_MAX * 3 + 16], v[PODFEEDS_TERM_MAX + 8];
+    const int got = pw_body(req, body, sizeof(body));
+    if (got < 0 || !portalweb_field(body, (size_t)got, "q", v, sizeof(v))) return pw_said(req, "invalid");
+    char *t = v;
+    while (*t == ' ' || *t == '\t') t++;
+    for (size_t l = strlen(t); l && (t[l - 1] == ' ' || t[l - 1] == '\t'); l--) t[l - 1] = '\0';
+    if (!podfeeds_term_ok(t)) return pw_said(req, "invalid");
+    if (podindex_state(NULL, 0, NULL) != PODINDEX_WORKING) return pw_said(req, "nokey");
+    return pw_said(req, podindex_search(t) ? "looking" : "wait");
+}
+
+/*
  * POST /pod/ctl, do=pause|cancel|again: the screen's two actions, and
  * going on with the page's own paused or failed download. Pause and
  * cancel act on whichever download there is, the screen's too, as the
@@ -1717,7 +1738,7 @@ static void start(void)
     cfg.ctrl_port = REMOTE_CTRL_PORT;
     cfg.max_open_sockets = REMOTE_SOCKETS;
     cfg.lru_purge_enable = true;
-    cfg.max_uri_handlers = 20;    /* 8002: the two /pair; 8006: the two /podindex; 8033: /pod*; 8128: /pod/add */
+    cfg.max_uri_handlers = 20;    /* 8002: the two /pair; 8006: the two /podindex; 8033: /pod*; 8128: /pod/add; 8131: /pod/search */
     /*
      * 6005: the server task's 10 KB stack in PSRAM, not internal RAM --
      * the remote coming up took internal free from 27343 to 15915 on the
@@ -1756,6 +1777,7 @@ static void start(void)
         { .uri = "/pod",      .method = HTTP_GET,  .handler = h_pod     },   /* 8033 */
         { .uri = "/pod/dl",   .method = HTTP_POST, .handler = h_pod_dl  },
         { .uri = "/pod/add",  .method = HTTP_POST, .handler = h_pod_add },   /* 8128 */
+        { .uri = "/pod/search", .method = HTTP_POST, .handler = h_pod_search },   /* 8131 */
         { .uri = "/pod/ctl",  .method = HTTP_POST, .handler = h_pod_ctl },
     };
     /* 8001: each behind h_gate(). Static: httpd keeps the pointer. */

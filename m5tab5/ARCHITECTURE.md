@@ -885,3 +885,30 @@ dates in a form `podrss_date()` does not know (its items get no date, and a
 name from the title alone). Paste a feed the index lacks; confirm the folder, the
 episode list, a download, and that the folder's row on the screen opens the
 list after a reboot.
+
+### 8131 -- search Podcast Index by name, from the remote's page
+
+A search box beside the feed-address field. The player asks `search/byterm`
+(`max=40`, the term percent-encoded) and the results are shown as the page's
+podcast list; a podcast in it opens its episodes and downloads like one from a
+category, so the folder and `.podcast` link are the usual ones.
+
+- `podindex`: the results are the feeds list, under the pseudo-category
+  `PODINDEX_CAT_SEARCH` (-1), so the one-fetch rule, the state, the PSRAM list
+  and the generation are all the existing ones. `podindex_search()` sets the
+  term and starts the fetch under one lock, so a refused fetch never replaces
+  the term; `podindex_feeds_fetch(PODINDEX_CAT_SEARCH)` asks again with the last
+  term, which is what the page's Back from an episode list does. The screen
+  sees a search as "another list" -- it compares the category id -- and does
+  not show it.
+- `remote.c`: `POST /pod/search`, `q=`, answers `looking`, `wait` (another fetch
+  is running; the page asks again), `invalid` or `nokey`. The page then reads
+  `GET /pod?l=f&id=-1` without `go`, which says `loading` until the results are
+  in. `max_uri_handlers` stays 20 (18 used).
+- `podfeeds.h`: `podfeeds_term_ok()` (1..95 bytes, no control characters).
+
+*Checked:* `podfeedstest` (42 checks); `podindex.c` at `-Werror=all` against
+stubs; the handler in the syntax harness. *Not checked:* a board, and the shape
+of the `search/byterm` reply, which is taken to be the `feeds` array that
+`podcasts/trending` has. Search a name, open a result, download from it, press
+Back twice, and confirm the results come back.

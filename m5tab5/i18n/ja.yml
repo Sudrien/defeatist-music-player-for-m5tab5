@@ -506,6 +506,8 @@ ja:
     "Remove": "削除"
     # ui.c
     "ReplayGain is listening…": "ReplayGain 測定中…"
+    # remote.html
+    "Results for %s": ~
     # sleeppage.c
     "Rotation": "回転"
     # ui.c
@@ -532,6 +534,10 @@ ja:
     "Screen": "画面"
     # sleeppage.c
     "Screen off": "画面オフ"
+    # remote.html
+    "Search": ~
+    # remote.html
+    "Search Podcast Index": ~
     # panel.c
     "Sets the clock, in UTC. Streams need it: a certificate is invalid at an unset clock.": "時計をUTCで合わせる。配信に必要：時計が未設定だと証明書が無効になる。"
     # remote.html
@@ -590,6 +596,8 @@ ja:
     "That is not a feed address the player can look up.": ~
     # portal.c, remote.c
     "That is not a usable stream address. It has to start with http:// or https:// and be one unbroken address.": "使えるストリームのアドレスではありません。http:// か https:// で始まる、途切れのない1つのアドレスにしてください。"
+    # remote.html
+    "That is not something the player can search for.": ~
     # portal.c, remote.c
     "That name cannot be used. Names are up to 63 characters and cannot start with a #.": "その名前は使えません。名前は63文字までで、# で始めることはできません。"
     # portal.c, remote.c

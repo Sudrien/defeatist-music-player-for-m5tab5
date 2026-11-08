@@ -359,6 +359,11 @@ svg { display: block; width: 100%; height: 100%; }
       <button type="button" class="ghost" id="pback" hidden data-t>Back</button>
       <strong id="pwhere"></strong>
     </div>
+    <form class="row" id="psearchform" autocomplete="off">
+      <input type="search" id="psearch" maxlength="80" placeholder="Search Podcast Index" data-ta="placeholder"
+             style="flex:1 1 12em">
+      <button type="submit" class="ghost" data-t>Search</button>
+    </form>
     <form class="row" id="paddform" autocomplete="off">
       <input type="url" id="paddurl" maxlength="399" placeholder="https://example.com/feed.xml"
              style="flex:1 1 16em">
@@ -1063,6 +1068,37 @@ async function pAdd() {
   }[j.said] || "";
 }
 $("paddform").onsubmit = e => { e.preventDefault(); pAdd(); };
+
+/* 8131: a search by name. The player starts it and the results are the
+   podcast list for "id -1", read as any list is: it says "loading" until
+   they are in, and a podcast in it opens and downloads as one from a
+   category does. */
+let pSearchRetry = 0;
+async function pSearch(first) {
+  const q = $("psearch").value.trim(), m = $("pmsg");
+  if (!q) return;
+  clearTimeout(pSearchRetry);
+  let j;
+  try {
+    j = await (await fetch("/pod/search", { method: "POST", body: new URLSearchParams({ q }).toString(),
+      headers: { "Content-Type": "application/x-www-form-urlencoded" } })).json();
+  } catch { m.className = "msg bad"; m.textContent = T("The player did not answer."); return; }
+  pDl(j);
+  if (j.said === "wait") { m.className = "msg"; m.textContent = T("Asking Podcast Index…"); pSearchRetry = setTimeout(() => pSearch(false), 1500); return; }
+  if (j.said !== "looking") {
+    m.className = "msg bad";
+    m.textContent = { invalid: T("That is not something the player can search for."),
+                      nokey: T("Podcast lists need a working Podcast Index key, above.") }[j.said] || "";
+    return;
+  }
+  if (first || pv.id !== -1) {
+    if (pv.id !== -1) pv.up.push({ l: pv.l, id: pv.id, title: pv.title });
+    Object.assign(pv, { l: "f", id: -1, title: F(T("Results for %s"), q) });
+  } else pv.title = F(T("Results for %s"), q);
+  $("plist").textContent = "";
+  pGet(false);
+}
+$("psearchform").onsubmit = e => { e.preventDefault(); pSearch(true); };
 pGet(true);
 
 /* ---- 6026: the language override ----

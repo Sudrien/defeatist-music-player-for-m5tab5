@@ -39,6 +39,8 @@ static const char *TAG = "tab5_podindex";
  * feed carries its whole description, so the reply is tens of KB. */
 #define PI_TRENDING_FMT "https://api.podcastindex.org/api/1.0/podcasts/trending?max=40&cat=%d"
 #define PI_FEEDS_BODY_MAX (256 * 1024)
+/* 8131: search by name; the same feeds array, the same body bound. */
+#define PI_SEARCH_FMT   "https://api.podcastindex.org/api/1.0/search/byterm?max=40&q=%s"
 /* 8019: a podcast's episodes, newest first; each carries its show notes.
  * 8025: 512 KB -- an audiobook podcast's 40 filled 256 KB at the 35th
  * ("262143 bytes, cut at the buffer"), so five were lost. PSRAM, and only
@@ -83,6 +85,7 @@ static int                s_feeds_n;
 static int                s_feeds_cat;            /* the category they are from */
 static podindex_cats_t    s_feeds_state;
 static uint32_t           s_feeds_gen;
+static char               s_feeds_term[PODFEEDS_TERM_MAX];   /* 8131: for PODINDEX_CAT_SEARCH */
 
 /* 8019: one podcast's episodes, the last asked for. As the feeds. */
 static podep_t           *s_eps;
@@ -353,14 +356,25 @@ static void feeds_task(void *arg)
 {
     const int cat = (int)(intptr_t)arg;
     static char key[PODAUTH_KEY_MAX], secret[PODAUTH_SECRET_MAX];
-    static char url[128];
+    static char url[PODFEEDS_TERM_MAX * 3 + 96];
     bool ok = false;
     {
         size_t kn = sizeof(key), sn = sizeof(secret);
         ok = nvsh_get_str(DEFEATIST_NVS_NS, NVS_KEY_KEY, key, &kn) == ESP_OK &&
              nvsh_get_str(DEFEATIST_NVS_NS, NVS_KEY_SECRET, secret, &sn) == ESP_OK;
     }
-    snprintf(url, sizeof(url), PI_TRENDING_FMT, cat);
+    if (cat == PODINDEX_CAT_SEARCH) {                /* 8131 */
+        static char term[PODFEEDS_TERM_MAX], enc[PODFEEDS_TERM_MAX * 3];
+        xSemaphoreTake(s_mu, portMAX_DELAY);
+        snprintf(term, sizeof(term), "%s", s_feeds_term);
+        xSemaphoreGive(s_mu);
+        char qe[sizeof(enc)];
+        if (!podfeeds_urlenc(term, qe, sizeof(qe))) ok = false;
+        snprintf(enc, sizeof(enc), "%s", qe);
+        snprintf(url, sizeof(url), PI_SEARCH_FMT, enc);
+    } else {
+        snprintf(url, sizeof(url), PI_TRENDING_FMT, cat);
+    }
     char *body = ok ? heap_caps_malloc(PI_FEEDS_BODY_MAX, MALLOC_CAP_SPIRAM | MALLOC_CAP_8BIT) : NULL;
     podfeed_t *tmp = body ? heap_caps_malloc(PODFEEDS_MAX * sizeof(podfeed_t),
                                              MALLOC_CAP_SPIRAM | MALLOC_CAP_8BIT) : NULL;
@@ -402,15 +416,20 @@ static void feeds_task(void *arg)
     vTaskDelete(NULL);
 }
 
-bool podindex_feeds_fetch(int cat)
+/* 8131: both asks, under one lock so a term is never set for a fetch that
+ * was refused. `term` is NULL for a category, or for asking the last
+ * search again. */
+static bool feeds_start(int cat, const char *term)
 {
-    if (cat <= 0) return false;
+    if (cat <= 0 && cat != PODINDEX_CAT_SEARCH) return false;
     xSemaphoreTake(s_mu, portMAX_DELAY);
-    if (s_state != PODINDEX_WORKING || s_cats_busy) {
+    if (s_state != PODINDEX_WORKING || s_cats_busy ||
+        (cat == PODINDEX_CAT_SEARCH && !term && !s_feeds_term[0])) {
         xSemaphoreGive(s_mu);
         return false;
     }
     s_cats_busy = true;
+    if (term) snprintf(s_feeds_term, sizeof(s_feeds_term), "%s", term);
     s_feeds_cat = cat;
     s_feeds_n = 0;                              /* another category's are not these */
     s_feeds_state = PODINDEX_CATS_LOADING;
@@ -425,6 +444,16 @@ bool podindex_feeds_fetch(int cat)
         return false;
     }
     return true;
+}
+
+bool podindex_feeds_fetch(int cat)
+{
+    return feeds_start(cat, NULL);
+}
+
+bool podindex_search(const char *term)
+{
+    return podfeeds_term_ok(term) && feeds_start(PODINDEX_CAT_SEARCH, term);
 }
 
 podindex_cats_t podindex_feeds(podfeed_t *out, int max, int *n, int *cat, uint32_t *gen)

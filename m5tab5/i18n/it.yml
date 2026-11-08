@@ -506,6 +506,8 @@ it:
     "Remove": "Rimuovi"
     # ui.c
     "ReplayGain is listening…": "ReplayGain in ascolto…"
+    # remote.html
+    "Results for %s": ~
     # sleeppage.c
     "Rotation": "Rotazione"
     # ui.c
@@ -532,6 +534,10 @@ it:
     "Screen": "Schermo"
     # sleeppage.c
     "Screen off": "Spegni schermo"
+    # remote.html
+    "Search": ~
+    # remote.html
+    "Search Podcast Index": ~
     # panel.c
     "Sets the clock, in UTC. Streams need it: a certificate is invalid at an unset clock.": "Regola l'orologio, in UTC. Gli stream ne hanno bisogno: un certificato non vale con l'orologio non regolato."
     # remote.html
@@ -590,6 +596,8 @@ it:
     "That is not a feed address the player can look up.": ~
     # portal.c, remote.c
     "That is not a usable stream address. It has to start with http:// or https:// and be one unbroken address.": "Questo indirizzo di stream non è utilizzabile. Deve iniziare con http:// o https:// ed essere un unico indirizzo senza interruzioni."
+    # remote.html
+    "That is not something the player can search for.": ~
     # portal.c, remote.c
     "That name cannot be used. Names are up to 63 characters and cannot start with a #.": "Questo nome non si può usare. I nomi hanno al massimo 63 caratteri e non possono iniziare con #."
     # portal.c, remote.c

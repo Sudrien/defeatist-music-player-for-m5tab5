@@ -131,6 +131,20 @@ int main(void)
         CHECK(!podfeeds_urlenc("a:", e, 4) && podfeeds_urlenc("a:", e, 5), "an escape fits whole or not at all");
     }
 
+    printf("  a search term (8131)\n");
+    {
+        char big[PODFEEDS_TERM_MAX + 8];
+        CHECK(podfeeds_term_ok("sound of brass") && podfeeds_term_ok("caf\xc3\xa9") && podfeeds_term_ok("a"), "terms");
+        CHECK(!podfeeds_term_ok("") && !podfeeds_term_ok(NULL) && !podfeeds_term_ok("a\nb") && !podfeeds_term_ok("a\x7f"), "not terms");
+        memset(big, 'a', sizeof(big));
+        big[PODFEEDS_TERM_MAX - 1] = '\0';
+        CHECK(podfeeds_term_ok(big), "the longest");
+        big[PODFEEDS_TERM_MAX - 1] = 'a'; big[PODFEEDS_TERM_MAX] = '\0';
+        CHECK(!podfeeds_term_ok(big), "one too long");
+        char e[PODFEEDS_TERM_MAX * 3];
+        CHECK(podfeeds_urlenc("sound of brass & more", e, sizeof(e)) && !strcmp(e, "sound%20of%20brass%20%26%20more"), "%s", e);
+    }
+
     printf("%d checks, %d failures\n", checks, failures);
     return failures ? 1 : 0;
 }

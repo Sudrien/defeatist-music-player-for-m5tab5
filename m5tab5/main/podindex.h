@@ -85,6 +85,14 @@ uint32_t podindex_cats_gen(void);
  * at a time: false while one runs, or with no working key.
  */
 bool podindex_feeds_fetch(int cat);
+
+/* 8131: the same list, from a search by name (search/byterm) instead of a
+ * category: the "category" is PODINDEX_CAT_SEARCH, and the list is the term's
+ * until something else is asked for. podindex_feeds_fetch(PODINDEX_CAT_SEARCH)
+ * asks again with the last term. False for a term podfeeds_term_ok()
+ * refuses, as the others for no key or a fetch already running. */
+#define PODINDEX_CAT_SEARCH (-1)
+bool podindex_search(const char *term);
 podindex_cats_t podindex_feeds(podfeed_t *out, int max, int *n, int *cat, uint32_t *gen);
 uint32_t podindex_feeds_gen(void);
 

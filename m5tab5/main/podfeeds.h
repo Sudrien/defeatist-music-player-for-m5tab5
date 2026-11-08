@@ -290,3 +290,16 @@ static inline bool podfeeds_urlenc(const char *u, char *out, size_t cap)
     out[n] = '\0';
     return true;
 }
+
+/* 8131: a search term a person typed, fit to ask with: 1 to
+ * PODFEEDS_TERM_MAX - 1 bytes, no control characters (UTF-8 is fine). */
+#define PODFEEDS_TERM_MAX 96
+
+static inline bool podfeeds_term_ok(const char *t)
+{
+    if (!t) return false;
+    const size_t n = strlen(t);
+    if (n == 0 || n >= PODFEEDS_TERM_MAX) return false;
+    for (size_t i = 0; i < n; i++) if ((unsigned char)t[i] < 0x20 || t[i] == 0x7f) return false;
+    return true;
+}

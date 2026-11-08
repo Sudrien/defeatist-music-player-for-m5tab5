@@ -982,3 +982,13 @@ too, so the 5.x paths that nothing built any more are gone:
 `IDF_VERSION_MAJOR` or `MBEDTLS_VERSION_MAJOR` left in the player.
 Separate: the ELF abicheck's `_ctype_` failure is the feckless ABI
 exporting newlib 5's `_ctype_b`; that is fixed in feckless-libs.
+
+### 8136 -- feckless-libs v0.10.0
+
+Every feckless component is at `v0.10.0`: the release that exports
+`_ctype_` (IDF 6.1's newlib name, which the ELF abicheck was refusing),
+drops Mbed TLS 3.6 and IDF 5.x, and removes `diskio_usb.c` and the 5.5
+shims. `dependencies.lock.idf6` still pins feckless-libs at v0.9.10's
+commit; the next build re-resolves it and uploads the new one.
+
+*Not checked:* a build against v0.10.0.

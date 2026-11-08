@@ -992,3 +992,29 @@ shims. `dependencies.lock.idf6` still pins feckless-libs at v0.9.10's
 commit; the next build re-resolves it and uploads the new one.
 
 *Not checked:* a build against v0.10.0.
+
+### 8137 -- the player builds with picolibc again
+
+8134 put `CONFIG_LIBC_NEWLIB=y` in `sdkconfig.defaults.idf6`, because the
+ELF's link refused picolibc's thread-local `errno`. That is solved where
+the ELF is made: feckless-libs' 9017 makes `errno` a call to `__errno()`
+(`-D__PICOLIBC_ERRNO_FUNCTION=__errno`, which IDF's v6.1 tag does not add
+but `release/v6.1` does), exports picolibc's `_ctype_b`, `fputc` and
+`stdout`, and fails the configure on newlib. So this file says
+`CONFIG_LIBC_PICOLIBC=y` instead, the player and the launcher are the same
+library, and `mpd.c`'s comment about `strcasestr` no longer names newlib
+(picolibc declares it under `_GNU_SOURCE` too).
+
+**Needs** a feckless-libs tag that has 9017, in every pin (`main/idf_component.yml`,
+`elf/`'s, `dependencies.lock.idf6`): the pins here are still v0.10.1, which
+has neither the definition nor the names, so an ELF link on v0.10.1 fails
+as 8134 described. The pin move is the patch after the tag exists. `rm
+sdkconfig` before the next build; the line that proves it took is
+`CONFIG_LIBC_PICOLIBC=y` in `sdkconfig`, and no `SDKCONFIG_DRIFT` at boot.
+
+*Not checked:* an IDF build; the audio codec archives (`esp_audio_codec`
+2.5, precompiled) and `esp_ipa`'s blob under picolibc -- the launcher's
+configuration selects no libc, so it is built with both on picolibc, but not
+yet seen run there. `CONFIG_LIBC_PICOLIBC_NEWLIB_COMPATIBILITY` is left at
+its default, on.
+

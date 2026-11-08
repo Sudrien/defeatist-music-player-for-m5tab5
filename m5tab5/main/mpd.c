@@ -1934,7 +1934,7 @@ static bool q_exact(const qpair_t *p, const mediacat_rec_t *r, const char *uri, 
  * compares the whole URI.
  */
 /* 5254: whether `v` is part of the volume name `name`, ignoring ASCII
- * case (strcasestr is not in newlib without _GNU_SOURCE). */
+ * case (strcasestr is not declared without _GNU_SOURCE). */
 static bool in_name(const char *v, const char *name)
 {
     const size_t n = strlen(v), m = strlen(name);

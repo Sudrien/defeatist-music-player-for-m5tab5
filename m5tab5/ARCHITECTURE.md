@@ -592,3 +592,28 @@ DSD64 file and more at higher rates, `memcpy` or not.
 APE on the same log: all five levels faster than realtime, Insane 1.6x and
 Insane-noisy 1.5x; the neural-network filters are about 70% of an Insane
 frame and the range decoder a few percent.
+
+### 8123 -- feckless-libs v0.9.10
+
+A manifest-only patch, as 8097 was. `main/idf_component.yml` moves its
+sixteen feckless pins v0.9.2 -> v0.9.10. Two things in it are why: 9004,
+`feckless_fetch`'s 16 KB of statics in PSRAM, which 8097 said `poddl.c`'s
+move waited for (this project already sets
+`CONFIG_SPIRAM_ALLOW_BSS_SEG_EXTERNAL_MEMORY=y`, so they land there); and 9011,
+`storage_list.h`, which is in the storage section of the ABI from this tag.
+8124 and 8125 use them. The rest comes with the tag and changes nothing
+here: the RX8130 alarm calls, `nCHG_QC_EN` driven low before `CHG_EN`,
+`wifi_stop()` without a false SDMMC error, gfx's bold, the nvs handler's
+per-key calls, `feckless_fetch`'s redirect fix.
+
+**THIS IS A MANIFEST CHANGE.** `dependencies.lock.idf6` re-resolves on the
+next build and Claude cannot do it from here. `esp_hosted` should stay at
+3.0.10 (the range holds it below 3.1.0) and `esp_audio_codec` at 2.5.0;
+read the lock's diff before committing it.
+
+**Under Avoidant**, run it with an Avoidant built at v0.9.10: the ABI's
+storage section gained `storage_list_*` after v0.9.2, and 8125 takes them
+from the launcher's copy.
+
+*Checked:* the manifest parses, with every pin at v0.9.10 and the ranges as
+written. *Not checked:* the resolve, the build, a Tab5.

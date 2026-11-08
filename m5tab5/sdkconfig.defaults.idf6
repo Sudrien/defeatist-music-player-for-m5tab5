@@ -1,8 +1,6 @@
-# sdkconfig.defaults.idf6 -- read after sdkconfig.defaults, on ESP-IDF 6
-# only (6031; the top-level CMakeLists.txt adds it). For options IDF 5.x
-# does not have, which in sdkconfig.defaults would warn on every 5.x
-# configure that they do nothing. Everything else stays in
-# sdkconfig.defaults, which IDF 6 reads first.
+# sdkconfig.defaults.idf6 -- read after sdkconfig.defaults (the top-level
+# CMakeLists.txt adds it). The options that are IDF 6's own; the name is
+# from when there was an IDF 5 build as well.
 #
 # Like sdkconfig.defaults, this only seeds a NEW sdkconfig: rm sdkconfig
 # after changing it. cmake/defaults_check.cmake reads this file too.
@@ -11,7 +9,7 @@
 # X.509 CERTIFICATE WRITING, FOR THE REMOTE'S OWN CERTIFICATE.
 #
 # certgen.c writes the self-signed certificate the remote serves HTTPS
-# with. IDF 5.x always built mbedTLS's X.509 writer; IDF 6 puts it behind
+# with. IDF 6 puts mbedTLS's X.509 writer behind
 # this, default off, and certgen.c does not compile without it.
 CONFIG_MBEDTLS_X509_CREATE_C=y
 
@@ -23,8 +21,6 @@ CONFIG_MBEDTLS_X509_CREATE_C=y
 # which is newlib's -- `__errno`, `_ctype_b` are in feckless_abi's
 # exports.txt. Under picolibc `errno` is a thread-local variable, which
 # the ELF's link refuses ("R_RISCV_TPREL_HI20 against `errno' can not be
-# used when making a shared object") in every file that uses it, so the
-# link failed on a configuration that was made from these defaults and
-# not on one carried over from IDF 5, which has newlib. Like the rest of
+# used when making a shared object") in every file that uses it. Like the rest of
 # this file it seeds a NEW sdkconfig: rm sdkconfig after changing it.
 CONFIG_LIBC_NEWLIB=y

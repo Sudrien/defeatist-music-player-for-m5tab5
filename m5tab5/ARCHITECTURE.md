@@ -958,3 +958,27 @@ tab, and the configure's warning) names a default the configuration lacks, so
 look there if the link fails the same way. The `gettimeofday`, `settimeofday`
 and `rtc8130_*` lines before the crash name no object; they are expected to be
 the same failure and to go with it.
+
+### 8135 -- IDF 5.x support removed
+
+The project builds on ESP-IDF 6.1 only, and the launcher is built on it
+too, so the 5.x paths that nothing built any more are gone:
+
+- `.github/workflows/main.yml`: no `idf_version` input; the build is `v6.1`
+  and the lock is always archived.
+- `CMakeLists.txt`, `elf/CMakeLists.txt`: the lock is
+  `dependencies.lock.idf6` and the IDF 6 defaults are applied without an
+  `IDF_VERSION_MAJOR` test. The file names keep their `.idf6` so nothing
+  that reads them (CI, `CLAUDE.md`, a local workflow) changes.
+- `main/CMakeLists.txt`: cJSON is `cjson`; `main/idf_component.yml`
+  asks for `idf >=6.1` and takes `espressif/cjson` unconditionally.
+- `main/approve.c` hashes through PSA only; `main/netdec.c` calls
+  `xTaskGetStackStart`.
+- `cmake/defaults_check.cmake` always reads `sdkconfig.defaults.idf6`.
+- Comments that described 5.x are reworded. Older log entries are left as
+  they were written.
+
+*Not checked:* a build under IDF 6.1 (none here); `git grep` finds no
+`IDF_VERSION_MAJOR` or `MBEDTLS_VERSION_MAJOR` left in the player.
+Separate: the ELF abicheck's `_ctype_` failure is the feckless ABI
+exporting newlib 5's `_ctype_b`; that is fixed in feckless-libs.

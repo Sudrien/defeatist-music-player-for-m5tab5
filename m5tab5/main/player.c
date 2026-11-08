@@ -2,7 +2,7 @@
  * M5Stack Tab5 (ESP32-P4) -- play a chosen track, or a chosen folder,
  * from the microSD card or a USB drive.
  *
- * Plain ESP-IDF 5.5.x. No M5Unified, no BSP, no ESP-ADF pipeline. Decode
+ * Plain ESP-IDF 6.1. No M5Unified, no BSP, no ESP-ADF pipeline. Decode
  * goes through decoder.c (minimp3 for MP3, esp_audio_codec for FLAC,
  * WAV, M4A, AAC and friends); output is I2S -> ES8388 -> 3.5mm jack /
  * NS4150B speaker.

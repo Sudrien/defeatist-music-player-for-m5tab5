@@ -38,9 +38,7 @@ if(DEFEATIST_HOST_SDKCONFIG AND SDKCONFIG)
 endif()
 file(WRITE "${CMAKE_BINARY_DIR}/sdkconfig.elf.defaults" "${_partitions_line}\n")
 set(SDKCONFIG_DEFAULTS "${_m5}/sdkconfig.defaults")
-if(IDF_VERSION_MAJOR GREATER_EQUAL 6)
-    list(APPEND SDKCONFIG_DEFAULTS "${_m5}/sdkconfig.defaults.idf6")
-endif()
+list(APPEND SDKCONFIG_DEFAULTS "${_m5}/sdkconfig.defaults.idf6")
 list(APPEND SDKCONFIG_DEFAULTS "${CMAKE_BINARY_DIR}/sdkconfig.elf.defaults")
 
 # minimp3 is two headers fetched into ../components/minimp3 by the top
@@ -63,20 +61,16 @@ include($ENV{IDF_PATH}/tools/cmake/project.cmake)
 
 # Tells main/CMakeLists.txt which of its two builds this is.
 idf_build_set_property(DEFEATIST_ELF 1)
-# One manifest, so one lock: the top level's, per IDF major (6031).
-if(IDF_VERSION_MAJOR GREATER_EQUAL 6)
-    idf_build_set_property(DEPENDENCIES_LOCK "${_m5}/dependencies.lock.idf6")
-else()
-    idf_build_set_property(DEPENDENCIES_LOCK "${_m5}/dependencies.lock")
-endif()
+# One manifest, so one lock: the top level's.
+idf_build_set_property(DEPENDENCIES_LOCK "${_m5}/dependencies.lock.idf6")
 
 project(defeatist_player)
 
 # Into the ELF, not the ABI: the libraries the ABI does not export, because
 # nothing on the launcher's side is built from them. Components that come
 # from the registry have the manager's name (espressif__esp_jpeg,
-# espressif__cjson); IDF 5's cJSON is its own `json`. Whichever it is, it is
-# the component whose name ends so, as Errant finds it. feckless_image_handler
+# espressif__cjson). It is the component whose name ends so, as Errant
+# finds it. feckless_image_handler
 # is a git dependency, so its bare name.
 #
 # 8093: not esp_audio_codec. Its decoders are precompiled archives built

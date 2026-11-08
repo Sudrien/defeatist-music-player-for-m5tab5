@@ -22,20 +22,14 @@ include(${CMAKE_CURRENT_LIST_DIR}/cmake/dpi_instrument.cmake)
 
 include($ENV{IDF_PATH}/tools/cmake/project.cmake)
 
-# 6031: one lock file per IDF major. dependencies.lock is the reviewed
-# resolution every board run so far has used, on IDF 5.5.5. An IDF 6
-# build resolves differently -- the idf entry itself, plus espressif/usb
-# and espressif/cjson, which IDF 6 no longer carries -- and the component
-# manager would write that over the 5.x lock. IDF 6 keeps its own in
-# dependencies.lock.idf6, created by its first build, and reviewed like
-# any other lock change before it is committed.
-if(IDF_VERSION_MAJOR GREATER_EQUAL 6)
-    idf_build_set_property(DEPENDENCIES_LOCK "${CMAKE_CURRENT_LIST_DIR}/dependencies.lock.idf6")
+# The project builds on ESP-IDF 6.1 only. Its lock is
+# dependencies.lock.idf6, reviewed like any other change before it is
+# committed (the name is from when there were two).
+idf_build_set_property(DEPENDENCIES_LOCK "${CMAKE_CURRENT_LIST_DIR}/dependencies.lock.idf6")
 
-    # And the options only IDF 6 has, after the shared defaults. See the
-    # top of sdkconfig.defaults.idf6.
-    set(SDKCONFIG_DEFAULTS "sdkconfig.defaults;sdkconfig.defaults.idf6")
-endif()
+# The options only IDF 6 has, after the shared defaults. See the top of
+# sdkconfig.defaults.idf6.
+set(SDKCONFIG_DEFAULTS "sdkconfig.defaults;sdkconfig.defaults.idf6")
 
 # 6134: build only main and what it REQUIRES, directly or through
 # another component -- not every component IDF and the component

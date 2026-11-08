@@ -12,17 +12,6 @@ on:
         required: true
         default: 'main'
         type: string
-      # 6031: which ESP-IDF. A tag push always builds with the default;
-      # 6.1 is for trying the IDF 6 path, and its run uploads the
-      # dependencies.lock.idf6 it resolved, to be read and committed.
-      idf_version:
-        description: 'ESP-IDF to build with'
-        required: false
-        default: 'v6.1'
-        type: choice
-        options:
-          - v5.5.5
-          - v6.1
       release:
         description: 'Also publish a GitHub release with these binaries'
         required: false
@@ -66,7 +55,7 @@ jobs:
       - name: Install ESP-IDF
         uses: espressif/install-esp-idf-action@v1
         with:
-          version: ${{ github.event.inputs.idf_version || 'v6.1' }}
+          version: v6.1
           target: 'esp32p4'
 
       # 8061: exFAT is feckless-libs' fatfs, made at configure time.
@@ -126,11 +115,10 @@ jobs:
             m5tab5/build/defeatist_${{ steps.ver.outputs.name }}_music_player_for_m5tab5_standalone.bin
             m5tab5/build/defeatist_${{ steps.ver.outputs.name }}_music_player_for_m5tab5.bin
 
-      # 6031: an IDF 6 build writes its own lock (see CMakeLists.txt) and
-      # this is the only place one gets made from the registry. Upload it
-      # so it can be read and committed; absent on a 5.x build.
-      - name: Archive the IDF 6 dependency lock
-        if: startsWith(github.event.inputs.idf_version, 'v6')
+      # The build writes its own lock (see CMakeLists.txt) and this is the
+      # only place one gets made from the registry. Upload it so it can be
+      # read and committed.
+      - name: Archive the dependency lock
         uses: actions/upload-artifact@v4
         with:
           name: dependencies.lock.idf6-${{ steps.ver.outputs.name }}

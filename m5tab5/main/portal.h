@@ -174,7 +174,7 @@
  * refused and the passphrase is what gets stored. That is the case
  * portal.h's PSK-first decision was meant to avoid, and it is the common
  * home router now. Whether withholding SAE for the PSK attempt would get
- * the AP's WPA2 side to accept it is NOT tried: IDF 5.x keeps PMF capable
+ * the AP's WPA2 side to accept it is NOT tried: IDF keeps PMF capable
  * regardless of pmf_cfg, so the knob to withhold SAE is not obvious, and
  * a WPA2-only join to a transition AP is also a downgrade.
  *

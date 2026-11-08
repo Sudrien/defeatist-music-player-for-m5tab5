@@ -17,16 +17,8 @@
 #include "lwip/sockets.h"        /* inet_ntop */
 #include "nvs_handler.h"
 
-#include "mbedtls/build_info.h"
-/* certgen.c's split, for certgen.c's reason (6031): Mbed TLS 4 (IDF 6)
- * hashes through PSA and has no public sha256.h. */
-#if MBEDTLS_VERSION_MAJOR >= 4
-#define APPROVE_PSA 1
+/* Mbed TLS 4 (IDF 6) hashes through PSA and has no public sha256.h. */
 #include "psa/crypto.h"
-#else
-#define APPROVE_PSA 0
-#include "mbedtls/sha256.h"
-#endif
 
 #include "nvsns.h"
 
@@ -51,12 +43,8 @@ static uint8_t            s_shown[APPROVE_TICKET];   /* ui_task's: last prompt w
 
 static bool hash(const uint8_t *in, size_t n, uint8_t out[APPROVE_KEY])
 {
-#if APPROVE_PSA
     size_t olen = 0;
     return psa_hash_compute(PSA_ALG_SHA_256, in, n, out, APPROVE_KEY, &olen) == PSA_SUCCESS;
-#else
-    return mbedtls_sha256(in, n, out, 0) == 0;
-#endif
 }
 
 static bool unhex(const char *s, uint8_t *out, size_t n)

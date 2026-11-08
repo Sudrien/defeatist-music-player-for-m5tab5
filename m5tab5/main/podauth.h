@@ -18,9 +18,8 @@
  * project is open source -- a key built into it would be everyone's,
  * share one rate limit, and be revoked for everyone at once.
  *
- * SHA-1 is here, sixty lines of it, rather than from Mbed TLS: IDF 5's
- * mbedtls_sha1() and IDF 6's PSA differ (approve.c carries that split
- * for SHA-256), PSA_WANT_ALG_SHA_1 is a config choice this repository
+ * SHA-1 is here, sixty lines of it, rather than from Mbed TLS: it is PSA
+ * (as approve.c's SHA-256 is), PSA_WANT_ALG_SHA_1 is a config choice this repository
  * does not make, and a header this small is tested on the host whole.
  * It authenticates a request and protects nothing at rest, which is the
  * one use SHA-1's weaknesses do not reach.

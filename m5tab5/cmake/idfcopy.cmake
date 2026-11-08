@@ -2,9 +2,8 @@
 #
 # dpi_instrument.cmake copies IDF's esp_lcd (exfat.cmake did fatfs, until 8061) into
 # components/ at the first configure, and after that leave them alone.
-# That was safe while there was one IDF. There are two now (5.5.5 and
-# 6.1), and a copy made from one shadows the other's component: an
-# esp_lcd from 5.5.5 under a 6.1 build compiles main against the old
+# A copy made from one IDF shadows another's component: an esp_lcd from
+# an older IDF under a 6.1 build compiles main against the old
 # esp_lcd_dpi_panel_config_t and fails far from here, or worse, does not.
 #
 # So each copy carries `.idf_version`, the version it was made from, and
@@ -35,9 +34,9 @@ function(idfcopy_check tag dir rel how)
     if(NOT EXISTS "${_stamp}")
         # Made before 6032, so nothing says which IDF. 6033: neither
         # script edits the component's CMakeLists.txt, and it differs
-        # between 5.5.5 and 6.1 for both, so a copy whose CMakeLists.txt
+        # between IDF versions for both, so a copy whose CMakeLists.txt
         # is not this IDF's came from another one. That was the first
-        # 6.1 build after 6032: 5.5.5's esp_lcd, taken as 6.1's, failing
+        # 6.1 build after 6032: an older esp_lcd, taken as 6.1's, failing
         # on hal/lcd_types.h.
         get_filename_component(_name "${dir}" NAME)
         file(SHA256 "${dir}/CMakeLists.txt" _have)

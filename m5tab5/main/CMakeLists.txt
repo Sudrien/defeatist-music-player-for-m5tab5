@@ -1,15 +1,9 @@
-# 6031: IDF 6.0 moved cJSON out of the tree. On 6.x it is the registry's
-# espressif/cjson (idf_component.yml, behind an idf_version rule), whose
-# component is `cjson`; on 5.x it is IDF's own `json`. `usb` keeps one
-# name on both: IDF's component on 5.x, espressif/usb on 6.x, pulled in
-# by usb_host_msc and usb_host_uac's manifests. esp_driver_ledc and
-# esp_driver_usb_serial_jtag are named because IDF 6's `driver` no longer
-# brings them along; 5.x has both too.
-if(IDF_VERSION_MAJOR GREATER_EQUAL 6)
-    set(DMP_JSON cjson)
-else()
-    set(DMP_JSON json)
-endif()
+# IDF 6 moved cJSON out of the tree: it is the registry's espressif/cjson
+# (idf_component.yml), whose component is `cjson`. `usb` is espressif/usb,
+# pulled in by usb_host_msc and usb_host_uac's manifests.
+# esp_driver_ledc and esp_driver_usb_serial_jtag are named because IDF 6's
+# `driver` no longer brings them along.
+set(DMP_JSON cjson)
 
 # 8087: one directory, two builds. ../elf/ sets DEFEATIST_ELF and builds the
 # player into an ELF for esp_elf, checked against the feckless ABI -- every

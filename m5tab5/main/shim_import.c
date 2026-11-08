@@ -28,8 +28,8 @@
  *
  * Mbed TLS 4.0 (IDF v6.1+) moved the low-level ciphers into TF-PSA-Crypto
  * and dropped the legacy mbedtls/aes.h and mbedtls/base64.h; reaching AES
- * now means the PSA API, which differs again from the 3.x path on IDF
- * 5.x. One small, self-contained implementation -- in the spirit of this
+ * now means the PSA API, which differs again from the 3.x path.
+ * One small, self-contained implementation -- in the spirit of this
  * tree's vendored minimp3 and its own jsonpick -- builds on every IDF and
  * cannot break on an mbedTLS version bump. It is decrypt-only (all this
  * file ever does) and table-driven; ~5 KB of flash, reached once per tap.

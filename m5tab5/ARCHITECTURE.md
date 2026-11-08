@@ -927,3 +927,10 @@ could not be written) is still `failed`.
 *Checked:* the handler in the syntax harness. *Not checked:* a board. The log
 line that says which it was is `byfeedurl: HTTP n` or `byfeedurl: no
 connection` just before.
+
+### 8133 -- no truncation warning in `h_pod_add()`
+
+The build warned that `snprintf(s_add_rss, ..., "%s", u)` could cut up to 407
+bytes into 400: `u` points into a 408-byte buffer and `podfeeds_url_ok()` has
+already refused anything of 400 or more, which the compiler cannot see.
+`s_add_rss` is now the same size as that buffer. No behaviour changes.

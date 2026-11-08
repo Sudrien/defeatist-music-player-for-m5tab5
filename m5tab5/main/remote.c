@@ -826,7 +826,7 @@ static esp_err_t pw_add_folder(httpd_req_t *req, int vol, int64_t id, const char
 
 /* 8130: the address whose own feed is being read, once the index has said
  * it does not know it. */
-static char s_add_rss[PODFEEDS_URL_MAX];
+static char s_add_rss[PODFEEDS_URL_MAX + 8];       /* as h_pod_add()'s v: the compiler cannot see podfeeds_url_ok() bound it */
 
 /*
  * 8128: POST /pod/add, url=<feed address>&vol=N -- a podcast the lists

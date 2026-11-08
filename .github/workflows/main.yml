@@ -121,8 +121,8 @@ jobs:
       - name: Archive the dependency lock
         uses: actions/upload-artifact@v4
         with:
-          name: dependencies.lock.idf6-${{ steps.ver.outputs.name }}
-          path: m5tab5/dependencies.lock.idf6
+          name: dependencies.lock-${{ steps.ver.outputs.name }}
+          path: m5tab5/dependencies.lock
 
       # Two ways in, one step. Pushing a tag releases; a manual run
       # releases only when the box is ticked, so the dispatch stays

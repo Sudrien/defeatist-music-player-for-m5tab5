@@ -1018,3 +1018,36 @@ configuration selects no libc, so it is built with both on picolibc, but not
 yet seen run there. `CONFIG_LIBC_PICOLIBC_NEWLIB_COMPATIBILITY` is left at
 its default, on.
 
+### 8138 -- the `.idf6` names are gone
+
+8135 left `sdkconfig.defaults.idf6` and `dependencies.lock.idf6` named as
+they were "so nothing that reads them changes". With one IDF there is
+nothing for the suffix to tell apart from, so the files take the names IDF
+looks for:
+
+- `sdkconfig.defaults.idf6` is folded into `sdkconfig.defaults`, at the
+  end, with its comments (`CONFIG_MBEDTLS_X509_CREATE_C=y`,
+  `CONFIG_LIBC_PICOLIBC=y`). Same keys, same values. The file is deleted
+  and `CMakeLists.txt` no longer sets `SDKCONFIG_DEFAULTS`, so IDF's own
+  default (`sdkconfig.defaults`) applies. `elf/CMakeLists.txt` drops its
+  second `list(APPEND ...)`, and `cmake/defaults_check.cmake` reads the
+  one file.
+- `dependencies.lock.idf6` is renamed `dependencies.lock` (a rename, the
+  content is untouched). `CMakeLists.txt` no longer sets
+  `DEPENDENCIES_LOCK`, which defaults to that name beside the project's
+  `CMakeLists.txt`; `elf/` has its own project directory and still sets it,
+  to `../dependencies.lock`. CI archives `dependencies.lock-<name>`.
+- `CLAUDE.md` and the comment in `cmake/libversions.cmake` use the new
+  names. Entries above keep the old ones, as they were written.
+
+**`sdkconfig.defaults` changed, so `rm sdkconfig`** before the next
+build, though no value moved: the keys were already read, from the other
+file. Not a manifest change; the lock is the same bytes under a new name.
+
+*Not checked:* a build under IDF 6.1 (none here). What proves it took: the
+configure reads `sdkconfig.defaults` only (no `sdkconfig.defaults.idf6` in
+the `-DSDKCONFIG_DEFAULTS` of the cmake line in the log), `sdkconfig` still
+has `CONFIG_LIBC_PICOLIBC=y` and `CONFIG_MBEDTLS_X509_CREATE_C=y`, no
+`SDKCONFIG_DRIFT`, and the component manager says it is using
+`dependencies.lock`, not creating one. A local checkout with its own
+`dependencies.lock.idf6` untracked should delete it.

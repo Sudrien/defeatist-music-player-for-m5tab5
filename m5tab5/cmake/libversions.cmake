@@ -24,7 +24,7 @@
 
 set(_root "${CMAKE_CURRENT_LIST_DIR}/..")
 get_filename_component(_root "${_root}" ABSOLUTE)
-# The lock this build used, dependencies.lock.idf6 (see the top-level
+# The lock this build used, dependencies.lock (see the top-level
 # CMakeLists.txt). IDF sets the property's default.
 idf_build_get_property(_lock DEPENDENCIES_LOCK)
 if(NOT _lock)

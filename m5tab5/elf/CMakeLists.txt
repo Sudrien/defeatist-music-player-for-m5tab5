@@ -38,7 +38,6 @@ if(DEFEATIST_HOST_SDKCONFIG AND SDKCONFIG)
 endif()
 file(WRITE "${CMAKE_BINARY_DIR}/sdkconfig.elf.defaults" "${_partitions_line}\n")
 set(SDKCONFIG_DEFAULTS "${_m5}/sdkconfig.defaults")
-list(APPEND SDKCONFIG_DEFAULTS "${_m5}/sdkconfig.defaults.idf6")
 list(APPEND SDKCONFIG_DEFAULTS "${CMAKE_BINARY_DIR}/sdkconfig.elf.defaults")
 
 # minimp3 is two headers fetched into ../components/minimp3 by the top
@@ -62,7 +61,7 @@ include($ENV{IDF_PATH}/tools/cmake/project.cmake)
 # Tells main/CMakeLists.txt which of its two builds this is.
 idf_build_set_property(DEFEATIST_ELF 1)
 # One manifest, so one lock: the top level's.
-idf_build_set_property(DEPENDENCIES_LOCK "${_m5}/dependencies.lock.idf6")
+idf_build_set_property(DEPENDENCIES_LOCK "${_m5}/dependencies.lock")
 
 project(defeatist_player)
 

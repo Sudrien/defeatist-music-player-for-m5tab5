@@ -22,14 +22,8 @@ include(${CMAKE_CURRENT_LIST_DIR}/cmake/dpi_instrument.cmake)
 
 include($ENV{IDF_PATH}/tools/cmake/project.cmake)
 
-# The project builds on ESP-IDF 6.1 only. Its lock is
-# dependencies.lock.idf6, reviewed like any other change before it is
-# committed (the name is from when there were two).
-idf_build_set_property(DEPENDENCIES_LOCK "${CMAKE_CURRENT_LIST_DIR}/dependencies.lock.idf6")
-
-# The options only IDF 6 has, after the shared defaults. See the top of
-# sdkconfig.defaults.idf6.
-set(SDKCONFIG_DEFAULTS "sdkconfig.defaults;sdkconfig.defaults.idf6")
+# The project builds on ESP-IDF 6.1 only. IDF's defaults apply, so the
+# lock is dependencies.lock and the options are sdkconfig.defaults.
 
 # 6134: build only main and what it REQUIRES, directly or through
 # another component -- not every component IDF and the component

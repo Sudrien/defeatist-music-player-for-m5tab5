@@ -13,8 +13,8 @@ split.
 
 **The firmware is in `m5tab5/`** (8059): CMakeLists.txt, main/,
 components/, cmake/, tools/, texttest/, i18n/, test_audio_files/,
-test_art_files/, partitions.csv, the sdkconfig.defaults files and
-dependencies.lock.idf6. Paths below that name those -- `main/...`,
+test_art_files/, partitions.csv, sdkconfig.defaults and
+dependencies.lock. Paths below that name those -- `main/...`,
 `make -C texttest`, `./tools/fetch_vendored.sh` -- are relative to it, and
 `idf.py` runs there. The READMEs, the other documents, screenshots/ and
 stations.m3u.example stay at the top. ARCHITECTURE.md's history keeps

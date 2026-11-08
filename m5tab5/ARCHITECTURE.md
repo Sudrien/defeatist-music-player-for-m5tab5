@@ -752,3 +752,25 @@ stub IDF headers. *Not checked:* `browser.c` compiled, a board: start a first
 episode of a new podcast and look in the folder and at its link row before it
 finishes; pause it; cancel it and confirm the folder goes; fail it (Wi-Fi off)
 and confirm the folder and link stay.
+
+### 8127 -- the folder and link wait for the server's yes
+
+8126 made the podcast's folder and `.podcast` at the `START` event, before the
+first request. The log that followed (a 403 from CloudFront twice, a 401 from a
+members-only URL) shows what that costs: each failed start left an empty folder
+and a link row for a podcast with nothing in it.
+
+They are made at `HEADERS` now -- the reply has come, with a 200 or the 206 of a
+resume, and the library has already stopped for any other status. A 401, a 403,
+a dead host or a redirect that goes nowhere leaves nothing behind. `START` is
+back to the part folders and the move of an old part file.
+
+It is not a promise that the download finishes: a reply that starts and then
+breaks leaves the part file in `.partial/` and the folder and link where they
+are, which is the case the folder is for (the next start resumes it). A cancel
+still removes a folder holding only the link.
+
+*Checked:* `poddl.c` at `-O2 -Wall -Wextra -Werror=all -Werror=extra` against
+stub IDF headers. *Not checked:* a board. Start an episode whose host answers
+403 or 401 and confirm no folder appears; start one that works and confirm the
+folder and its link row are there before it finishes.

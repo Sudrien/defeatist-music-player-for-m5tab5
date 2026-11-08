@@ -140,9 +140,10 @@ static void drop_part_dir(const char *dir)
     if (podpath_part(dir, NULL, p, sizeof(p))) rmdir(p);
 }
 
-/* 8021: the podcast's way back, in its folder. 8126: written when a
- * download starts, and again when it is whole. Rewritten each time, so a
- * renamed podcast's folder follows; a failure costs only the link. */
+/* 8021: the podcast's way back, in its folder. 8127: written when the
+ * server has agreed to send the episode, and again when it is whole.
+ * Rewritten each time, so a renamed podcast's folder follows; a failure
+ * costs only the link. */
 static void write_link(void)
 {
     static char link[DL_LINK_MAX], text[160];
@@ -428,12 +429,6 @@ static bool on_event(feckless_fetch_ev_t *ev)
         if (dirs && stat(ev->part, &ost) != 0 && stat(old, &ost) == 0 && S_ISREG(ost.st_mode)) {
             if (rename(old, ev->part) == 0) ESP_LOGI(TAG, "moved an earlier part file to %s", ev->part);
         }
-        /* 8126: the podcast's folder and its way back are there from the
-         * first byte, not from the last: the chooser shows the link, and
-         * the PODCAST tab can be reached from the folder, while the
-         * episode is still coming. A download that is cancelled takes the
-         * folder with it if nothing else is in it (CANCELLED). */
-        if (dirs && mk(s_dir)) write_link();
         storage_io_release();
         return true;
     }
@@ -441,6 +436,15 @@ static bool on_event(feckless_fetch_ev_t *ev)
         char ext[8];
         choose_ext(ev->url, ev->ctype, ext, sizeof(ext));
         snprintf(ev->path, ev->path_size, "%s/%s.%s", s_dir, s_base, ext);
+        /* 8127: the server has said yes (a 200, or the 206 of a resume), so
+         * the podcast's folder and its way back are made now: the chooser
+         * shows the link while the episode comes. Not at START (8126),
+         * which a 401, a 403 or a dead host would have left a folder
+         * behind for. A download that is cancelled takes the folder with
+         * it if nothing else is in it (CANCELLED). */
+        storage_io_acquire(STORAGE_IO_BACKGROUND);
+        if (mk(s_dir)) write_link();
+        storage_io_release();
         return true;
     }
     case FECKLESS_FETCH_EV_VERIFY:

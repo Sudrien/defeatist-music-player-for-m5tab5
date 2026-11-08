@@ -493,6 +493,8 @@ static void pod_link_row(const char *dir)
     const size_t n = fread(text, 1, sizeof(text) - 1, f);
     fclose(f);
     text[n] = '\0';
+    /* 8129: a "url" link (a podcast the index does not list) has no episode
+     * list to go back to yet, so it gets no row until one can be shown. */
     if (!podpath_link_parse(text, n, &s_dir_link_feed, s_dir_link_show, sizeof(s_dir_link_show))) return;
     /* 8126: a folder with nothing in it but the link is shown the row too:
      * a download that has started has written the link and has no file yet.

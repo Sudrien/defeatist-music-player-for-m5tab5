@@ -113,6 +113,39 @@ int main(void)
         CHECK(!podpath_link_parse(NULL, 0, &feed, t, sizeof(t)), "NULL");
     }
 
+    printf("  the link by feed address (8129)\n");
+    {
+        char t[64], u[PODPATH_LINK_URL_MAX];
+        int64_t feed = -1;
+        const int n = podpath_link_format_url("https://example.com/feed.xml?a=b", "Caf\xc3\xa9 Show", s, sizeof(s));
+        CHECK(n > 0 && !strcmp(s, "url https://example.com/feed.xml?a=b\nCaf\xc3\xa9 Show\n"), "%s", s);
+        CHECK(podpath_link_parse_any(s, (size_t)n, &feed, u, sizeof(u), t, sizeof(t)) && feed == 0 &&
+              !strcmp(u, "https://example.com/feed.xml?a=b") && !strcmp(t, "Caf\xc3\xa9 Show"), "round trip: %s | %s", u, t);
+        CHECK(!podpath_link_parse(s, (size_t)n, &feed, t, sizeof(t)), "the feed-only parser refuses it");
+        const int f = podpath_link_format(77, "X", s, sizeof(s));
+        feed = -1;
+        CHECK(podpath_link_parse_any(s, (size_t)f, &feed, u, sizeof(u), t, sizeof(t)) && feed == 77 &&
+              !u[0] && !strcmp(t, "X"), "a feed link still parses: %lld", (long long)feed);
+        CHECK(podpath_link_parse_any("url http://a.b/c\r\nT", 20, &feed, u, sizeof(u), t, sizeof(t)) &&
+              !strcmp(u, "http://a.b/c") && !strcmp(t, "T"), "CRLF");
+        CHECK(podpath_link_parse_any("url http://a.b/c", 16, &feed, NULL, 0, t, sizeof(t)) && !t[0], "no title, no url out");
+        CHECK(!podpath_link_parse_any("url http://a.b/c", 16, &feed, u, 5, t, sizeof(t)), "a url that does not fit is refused");
+        CHECK(!podpath_link_parse_any("url ftp://a.b/cd\nT", 18, &feed, u, sizeof(u), t, sizeof(t)), "not http");
+        CHECK(!podpath_link_parse_any("url https://\nT", 14, &feed, u, sizeof(u), t, sizeof(t)), "no host");
+        CHECK(!podpath_link_parse_any("url https://a b.com/x\nT", 23, &feed, u, sizeof(u), t, sizeof(t)), "a space");
+        CHECK(!podpath_link_parse_any("URL https://a.b/c\nT", 19, &feed, u, sizeof(u), t, sizeof(t)), "not the keyword");
+        CHECK(!podpath_link_parse_any(NULL, 0, &feed, u, sizeof(u), t, sizeof(t)), "NULL");
+        CHECK(podpath_link_format_url("https://a b/c", "T", s, sizeof(s)) < 0 &&
+              podpath_link_format_url("ftp://a.b/c", "T", s, sizeof(s)) < 0 &&
+              podpath_link_format_url("https://a.b/c\nfeed 9", "T", s, sizeof(s)) < 0 &&
+              podpath_link_format_url(NULL, "T", s, sizeof(s)) < 0, "refused to write");
+        char longu[PODPATH_LINK_URL_MAX + 4];
+        memset(longu, 'a', sizeof(longu));
+        memcpy(longu, "https://", 8);
+        longu[PODPATH_LINK_URL_MAX] = '\0';
+        CHECK(podpath_link_format_url(longu, "T", s, sizeof(s)) < 0, "too long");
+    }
+
     printf("  where it is while it downloads\n");
     {
         char o[128];

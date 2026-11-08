@@ -159,6 +159,26 @@ static inline int podpath_link_format(int64_t feed, const char *title, char *out
     return snprintf(out, cap, "feed %lld\n%s\n", (long long)feed, title ? title : "");
 }
 
+/* The second line of a link, from `i`, into `title`: cut to fit, never on
+ * half a letter, and empty if there is none. */
+static inline void podpath_link_title(const char *text, size_t n, size_t i, char *title, size_t cap)
+{
+    if (!title || !cap) return;
+    while (i < n && (text[i] == '\n' || text[i] == '\r')) i++;
+    size_t t = 0;
+    while (i < n && text[i] != '\n' && text[i] != '\r' && t + 1 < cap) title[t++] = text[i++];
+    /* Never end on half a letter: if the last letter's lead byte
+     * promises more bytes than are there, drop it. */
+    size_t lead = t;
+    while (lead > 0 && ((unsigned char)title[lead - 1] & 0xC0) == 0x80) lead--;
+    if (lead > 0) {
+        const unsigned char c = (unsigned char)title[lead - 1];
+        const size_t k = c < 0x80 ? 1 : (c >> 5) == 6 ? 2 : (c >> 4) == 14 ? 3 : (c >> 3) == 30 ? 4 : 1;
+        if (t - (lead - 1) < k) t = lead - 1;
+    }
+    title[t] = '\0';
+}
+
 /* False unless `text` is that shape with a positive id; the title is
  * the second line, cut to fit, and may be empty. */
 static inline bool podpath_link_parse(const char *text, size_t n, int64_t *feed,
@@ -169,22 +189,60 @@ static inline bool podpath_link_parse(const char *text, size_t n, int64_t *feed,
     int64_t id = 0;
     while (i < n && text[i] >= '0' && text[i] <= '9' && id < 100000000000LL) id = id * 10 + (text[i++] - '0');
     if (id <= 0 || (i < n && text[i] != '\n' && text[i] != '\r')) return false;
-    while (i < n && (text[i] == '\n' || text[i] == '\r')) i++;
-    size_t t = 0;
-    if (title && cap) {
-        while (i < n && text[i] != '\n' && text[i] != '\r' && t + 1 < cap) title[t++] = text[i++];
-        /* Never end on half a letter: if the last letter's lead byte
-         * promises more bytes than are there, drop it. */
-        size_t lead = t;
-        while (lead > 0 && ((unsigned char)title[lead - 1] & 0xC0) == 0x80) lead--;
-        if (lead > 0) {
-            const unsigned char c = (unsigned char)title[lead - 1];
-            const size_t k = c < 0x80 ? 1 : (c >> 5) == 6 ? 2 : (c >> 4) == 14 ? 3 : (c >> 3) == 30 ? 4 : 1;
-            if (t - (lead - 1) < k) t = lead - 1;
-        }
-        title[t] = '\0';
-    }
+    podpath_link_title(text, n, i, title, cap);
     if (feed) *feed = id;
+    return true;
+}
+
+/*
+ * 8129: a podcast the index does not list is kept by its feed's address,
+ * in the same file and the same two lines:
+ *
+ *   url <the feed's address>
+ *   <the podcast's title>
+ *
+ * The address is one unbroken http or https line (no space or control
+ * character), which is also what the remote's field accepts. A negative
+ * return is a refusal to write one that is not.
+ */
+#define PODPATH_LINK_URL_MAX 400
+
+static inline int podpath_link_format_url(const char *url, const char *title, char *out, size_t cap)
+{
+    if (!url) return -1;
+    const size_t n = strlen(url);
+    const size_t h = !strncmp(url, "https://", 8) ? 8 : !strncmp(url, "http://", 7) ? 7 : 0;
+    if (!h || n <= h || n >= PODPATH_LINK_URL_MAX) return -1;
+    for (size_t i = 0; i < n; i++) if ((unsigned char)url[i] <= ' ' || url[i] == 0x7f) return -1;
+    return snprintf(out, cap, "url %s\n%s\n", url, title ? title : "");
+}
+
+/* Either kind. True with *feed > 0 and url[0] == '\0' for "feed N", or
+ * *feed == 0 and the address in `url` for "url ..."; False for neither.
+ * `url` may be NULL when only the feed form matters (the address is then
+ * not copied, but still checked). */
+static inline bool podpath_link_parse_any(const char *text, size_t n, int64_t *feed,
+                                          char *url, size_t url_cap, char *title, size_t cap)
+{
+    if (url && url_cap) url[0] = '\0';
+    if (podpath_link_parse(text, n, feed, title, cap)) return true;
+    if (!text || n < 12 || memcmp(text, "url ", 4) != 0) return false;
+    size_t i = 4, e = 4;
+    while (e < n && text[e] != '\n' && text[e] != '\r') e++;
+    const size_t len = e - i;
+    if (len < 8 || len >= PODPATH_LINK_URL_MAX) return false;
+    char a[PODPATH_LINK_URL_MAX];
+    memcpy(a, text + i, len);
+    a[len] = '\0';
+    const size_t h = !strncmp(a, "https://", 8) ? 8 : !strncmp(a, "http://", 7) ? 7 : 0;
+    if (!h || len <= h) return false;
+    for (size_t k = 0; k < len; k++) if ((unsigned char)a[k] <= ' ' || a[k] == 0x7f) return false;
+    if (url && url_cap) {
+        if (len >= url_cap) return false;
+        memcpy(url, a, len + 1);
+    }
+    podpath_link_title(text, n, e, title, cap);
+    if (feed) *feed = 0;
     return true;
 }
 

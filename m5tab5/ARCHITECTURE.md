@@ -811,3 +811,29 @@ whole has not been compiled here). *Not checked:* a board, and what
 `"feed":[]`. Paste the address of a podcast the index lists and confirm the
 folder, the link row on the PODCAST tab and the episode list; paste one it
 does not and confirm "does not know".
+
+### 8129 -- the `.podcast` link can name a feed by its address
+
+Patch 2 of 3. A podcast the index does not list has no feed id, so its folder's
+`.podcast` can now hold
+
+    url <the feed's address>
+    <the podcast's title>
+
+in place of `feed <id>`. `podpath.h` gets `podpath_link_format_url()` (refuses
+anything that is not one unbroken http/https line under
+`PODPATH_LINK_URL_MAX`), `podpath_link_parse_any()` (either kind: `*feed > 0`
+for `feed`, `*feed == 0` and the address for `url`) and the title copy is now
+`podpath_link_title()`, shared. `podpath_link_parse()` is unchanged in what it
+accepts, so every existing reader still reads only `feed` links.
+
+Nothing writes a `url` link yet, and the browser still shows a link row only
+for `feed` links: a `url` folder has no episode list to go back to until patch
+3 (the RSS fallback). One thing for patch 3 to keep in mind: `poddl.c`'s
+`write_link()` writes the `feed` form from the feed id it was started with, so
+a download from a `url` podcast must pass the address down or it would replace
+the link.
+
+*Checked:* `podpathtest` (55 checks, ASan/UBSan, 18 new). *Not checked:* a
+board; there is nothing to see on one yet, and `browser.c` changed only by a
+comment.

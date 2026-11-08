@@ -86,6 +86,8 @@ zh-CN:
     "Add a radio station to the card.": "向卡中添加电台。"
     # radiobrowser.h
     "Add a station by phone…": "用手机添加电台…"
+    # remote.html
+    "Add by feed address": ~
     # portal.c, remote.html
     "Add station": "添加电台"
     # remote.html
@@ -433,6 +435,8 @@ zh-CN:
     # remote.html
     "Podcast Index did not answer.": ~
     # remote.html
+    "Podcast Index does not know that feed address.": ~
+    # remote.html
     "Podcast Index refused that key and secret.": ~
     # remote.html
     "Podcast Index refused that key and secret. The player's clock has not been set from the network yet, and a wrong clock is refused the same way.": ~
@@ -582,6 +586,8 @@ zh-CN:
     "That form was too large to be a name and a stream address.": "表单内容过大，不像是名称和流地址。"
     # portal.c, remote.c
     "That form was too large to be a network name and a password.": "表单内容过大，不像是网络名称和密码。"
+    # remote.html
+    "That is not a feed address the player can look up.": ~
     # portal.c, remote.c
     "That is not a usable stream address. It has to start with http:// or https:// and be one unbroken address.": "这不是可用的流地址。它必须以 http:// 或 https:// 开头，并且是一个连续的地址。"
     # portal.c, remote.c
@@ -616,6 +622,8 @@ zh-CN:
     "The password did not work. Try again.": "密码无效。请重试。"
     # remote.c
     "The password has a character a Wi-Fi password cannot have -- often a phone's smart punctuation. Retype it with that turned off.": "密码中有 Wi-Fi 密码不能使用的字符——通常是手机的智能标点。请关闭后重新输入。"
+    # remote.html
+    "The player could not add that podcast. Try again.": ~
     # remote.html
     "The player could not reach Podcast Index.": ~
     # remote.html
@@ -660,6 +668,8 @@ zh-CN:
     "Then it shows the address to open.": "之后会显示要打开的地址。"
     # panel.c
     "Then it shows the address to use.": "之后会显示要使用的地址。"
+    # remote.html
+    "There is no card or drive in the player to add it to.": ~
     # remote.html
     "There is no card or drive in the player to download to.": ~
     # remote.html

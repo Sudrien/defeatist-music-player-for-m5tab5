@@ -98,6 +98,39 @@ int main(void)
               f[0].id == 12345678901LL, "an id past 32 bits");
     }
 
+    printf("  one feed, by its address (8128)\n");
+    {
+        podfeed_t one;
+#define ONE(s) podfeeds_parse_one((s), strlen(s), &one)
+        CHECK(ONE("{\"status\":\"true\",\"query\":{\"url\":\"https://x/a.xml\"},\"feed\":{\"id\":920666,"
+                  "\"title\":\"99% Invisible\",\"categories\":{\"104\":\"Tv\"}},\"description\":\"Found matching feeds.\"}")
+              && one.id == 920666 && !strcmp(one.title, "99% Invisible"), "the reply as sent");
+        CHECK(!ONE("{\"status\":\"false\",\"query\":{},\"feed\":[],\"description\":\"No feeds match\"}"), "feed:[] is not found");
+        CHECK(!ONE("{\"status\":\"true\",\"feed\":{\"id\":0,\"title\":\"x\"}}"), "no id");
+        CHECK(!ONE("{\"feed\":{\"id\":5,\"title\":\"\"}}"), "no title");
+        CHECK(!ONE("{\"query\":{\"feed\":{\"id\":5,\"title\":\"nested\"}}}"), "only the top level's feed");
+        CHECK(!ONE("{\"feed\":{\"id\":5,\"title\":\"cut sh"), "cut short");
+        CHECK(!ONE("<html>") && !ONE(""), "not JSON");
+        CHECK(podfeeds_url_ok("https://example.com/feed.xml") && podfeeds_url_ok("http://a.b/c?d=e&f=g"), "urls");
+        CHECK(!podfeeds_url_ok("ftp://example.com/feed") && !podfeeds_url_ok("example.com/feed.xml") &&
+              !podfeeds_url_ok("https://") && !podfeeds_url_ok("https://a b.com/x") &&
+              !podfeeds_url_ok("https://a.com/x\n") && !podfeeds_url_ok("") && !podfeeds_url_ok(NULL), "not urls");
+        char longu[PODFEEDS_URL_MAX + 20];
+        memset(longu, 'a', sizeof(longu));
+        memcpy(longu, "https://", 8);
+        longu[PODFEEDS_URL_MAX - 1] = '\0';
+        CHECK(podfeeds_url_ok(longu), "the longest");
+        longu[PODFEEDS_URL_MAX - 1] = 'a'; longu[PODFEEDS_URL_MAX] = '\0';
+        CHECK(!podfeeds_url_ok(longu), "one too long");
+        char e[64];
+        CHECK(podfeeds_urlenc("https://a.b/c?d=e&f=g h", e, sizeof(e)) &&
+              !strcmp(e, "https%3A%2F%2Fa.b%2Fc%3Fd%3De%26f%3Dg%20h"), "encoded: %s", e);
+        CHECK(podfeeds_urlenc("a-b_c.d~E9", e, sizeof(e)) && !strcmp(e, "a-b_c.d~E9"), "unreserved stay");
+        CHECK(podfeeds_urlenc("\xe6\x97\xa5", e, sizeof(e)) && !strcmp(e, "%E6%97%A5"), "UTF-8 bytes");
+        CHECK(!podfeeds_urlenc("abcd", e, 4) && podfeeds_urlenc("abc", e, 4), "the terminator fits");
+        CHECK(!podfeeds_urlenc("a:", e, 4) && podfeeds_urlenc("a:", e, 5), "an escape fits whole or not at all");
+    }
+
     printf("%d checks, %d failures\n", checks, failures);
     return failures ? 1 : 0;
 }

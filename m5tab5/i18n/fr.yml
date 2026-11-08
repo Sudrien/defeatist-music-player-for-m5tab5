@@ -86,6 +86,8 @@ fr:
     "Add a radio station to the card.": "Ajouter une radio à la carte."
     # radiobrowser.h
     "Add a station by phone…": "Ajouter une radio par téléphone…"
+    # remote.html
+    "Add by feed address": ~
     # portal.c, remote.html
     "Add station": "Ajouter la radio"
     # remote.html
@@ -433,6 +435,8 @@ fr:
     # remote.html
     "Podcast Index did not answer.": ~
     # remote.html
+    "Podcast Index does not know that feed address.": ~
+    # remote.html
     "Podcast Index refused that key and secret.": ~
     # remote.html
     "Podcast Index refused that key and secret. The player's clock has not been set from the network yet, and a wrong clock is refused the same way.": ~
@@ -582,6 +586,8 @@ fr:
     "That form was too large to be a name and a stream address.": "Ce formulaire est trop gros pour un nom et une adresse de flux."
     # portal.c, remote.c
     "That form was too large to be a network name and a password.": "Ce formulaire est trop gros pour un nom de réseau et un mot de passe."
+    # remote.html
+    "That is not a feed address the player can look up.": ~
     # portal.c, remote.c
     "That is not a usable stream address. It has to start with http:// or https:// and be one unbroken address.": "Cette adresse de flux n'est pas utilisable. Elle doit commencer par http:// ou https:// et être d'un seul tenant."
     # portal.c, remote.c
@@ -616,6 +622,8 @@ fr:
     "The password did not work. Try again.": "Le mot de passe n'a pas fonctionné. Réessayez."
     # remote.c
     "The password has a character a Wi-Fi password cannot have -- often a phone's smart punctuation. Retype it with that turned off.": "Le mot de passe contient un caractère interdit en Wi-Fi, souvent la ponctuation intelligente du téléphone. Ressaisissez-le après l'avoir désactivée."
+    # remote.html
+    "The player could not add that podcast. Try again.": ~
     # remote.html
     "The player could not reach Podcast Index.": ~
     # remote.html
@@ -660,6 +668,8 @@ fr:
     "Then it shows the address to open.": "Puis il affiche l'adresse à ouvrir."
     # panel.c
     "Then it shows the address to use.": "Puis il affiche l'adresse à utiliser."
+    # remote.html
+    "There is no card or drive in the player to add it to.": ~
     # remote.html
     "There is no card or drive in the player to download to.": ~
     # remote.html

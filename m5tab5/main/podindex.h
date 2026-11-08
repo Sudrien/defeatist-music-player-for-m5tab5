@@ -95,6 +95,34 @@ bool podindex_eps_fetch(int64_t feed);
 podindex_cats_t podindex_eps(podep_t *out, int max, int *n, int64_t *feed, uint32_t *gen);
 uint32_t podindex_eps_gen(void);
 
+/*
+ * 8128: one podcast by its feed's address (podcasts/byfeedurl), for a
+ * feed a listener typed. One lookup at a time, under the same
+ * one-fetch rule. FOUND carries the index's id and title; NOTFOUND is
+ * an answer ("the index does not know that address"), FAILED is not.
+ * podindex_lookup_take() hands the result over once and goes back to
+ * NONE, so asking again starts afresh.
+ */
+typedef enum {
+    PODINDEX_LOOK_NONE,
+    PODINDEX_LOOK_LOADING,
+    PODINDEX_LOOK_FOUND,
+    PODINDEX_LOOK_NOTFOUND,
+    PODINDEX_LOOK_FAILED,
+} podindex_look_t;
+
+/* False with no working key, another fetch running, or an address
+ * podfeeds_url_ok() refuses. Any task. */
+bool podindex_lookup(const char *feed_url);
+
+/* The state, and for FOUND/NOTFOUND/FAILED the address asked about
+ * (into url, if given). Does not clear it. Any task. */
+podindex_look_t podindex_lookup_state(char *url, size_t url_size);
+
+/* A finished result: the feed (FOUND) and the state, which goes back to
+ * NONE. LOADING and NONE are returned as they are and left alone. */
+podindex_look_t podindex_lookup_take(podfeed_t *out);
+
 #ifdef __cplusplus
 }
 #endif

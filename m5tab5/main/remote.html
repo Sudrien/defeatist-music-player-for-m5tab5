@@ -359,6 +359,11 @@ svg { display: block; width: 100%; height: 100%; }
       <button type="button" class="ghost" id="pback" hidden data-t>Back</button>
       <strong id="pwhere"></strong>
     </div>
+    <form class="row" id="paddform" autocomplete="off">
+      <input type="url" id="paddurl" maxlength="399" placeholder="https://example.com/feed.xml"
+             style="flex:1 1 16em">
+      <button type="submit" class="ghost" id="paddgo" data-t>Add by feed address</button>
+    </form>
     <label id="pvoll" hidden><span data-t>Download to</span><select id="pvol"></select></label>
     <div class="row">
       <span class="msg" id="pmsg"></span>
@@ -1020,6 +1025,44 @@ $("pretry").onclick = () => pGet(true);
 $("ppause").onclick = () => pPost("/pod/ctl", { do: "pause" });
 $("pagain").onclick = () => pPost("/pod/ctl", { do: "again" });
 $("pcancel").onclick = () => pPost("/pod/ctl", { do: "cancel" });
+/* 8128: a podcast by its feed's address. The player asks Podcast Index,
+   and a hit makes the folder and its link; asked again with the same
+   address, it says whether the answer is in yet. */
+let pAddPoll = 0;
+async function pAdd() {
+  const url = $("paddurl").value.trim(), m = $("pmsg");
+  if (!url) return;
+  clearTimeout(pAddPoll);
+  let j;
+  try {
+    j = await (await fetch("/pod/add", { method: "POST", body: new URLSearchParams({ url, vol: $("pvol").value || "0" }).toString(),
+      headers: { "Content-Type": "application/x-www-form-urlencoded" } })).json();
+  } catch { m.className = "msg bad"; m.textContent = T("The player did not answer."); return; }
+  pDl(j);
+  if (j.said === "looking" || j.said === "wait") {
+    m.className = "msg"; m.textContent = T("Asking Podcast Index…");
+    pAddPoll = setTimeout(pAdd, 1500);
+    return;
+  }
+  if (j.said === "added") {
+    $("paddurl").value = "";
+    pv.up = [{ l: "c", id: 0, title: "" }];
+    Object.assign(pv, { l: "e", id: j.id, title: j.title });
+    $("plist").textContent = "";
+    pGet(true);
+    return;
+  }
+  m.className = "msg bad";
+  m.textContent = {
+    unknown: T("Podcast Index does not know that feed address."),
+    failed:  T("The player could not add that podcast. Try again."),
+    invalid: T("That is not a feed address the player can look up."),
+    novol:   T("There is no card or drive in the player to add it to."),
+    long:    T("That podcast's folder name is too long for the drive."),
+    nokey:   T("Podcast lists need a working Podcast Index key, above."),
+  }[j.said] || "";
+}
+$("paddform").onsubmit = e => { e.preventDefault(); pAdd(); };
 pGet(true);
 
 /* ---- 6026: the language override ----

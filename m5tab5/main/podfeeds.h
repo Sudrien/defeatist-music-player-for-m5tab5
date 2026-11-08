@@ -228,3 +228,65 @@ static inline int podfeeds_parse(const char *body, size_t n, podfeed_t *out, int
     }
     return count;
 }
+
+/*
+ * 8128: one feed, from podcasts/byfeedurl: {"status":"true","query":{...},
+ * "feed":{"id":N,"title":"...",...},"description":"Found matching feeds."}.
+ * A URL the index does not know comes back with "feed":[] (or none), and
+ * that is false here. The same id and title rules as podfeeds_parse().
+ */
+static inline bool podfeeds_parse_one(const char *body, size_t n, podfeed_t *out)
+{
+    if (!body || !out) return false;
+    const char *end = body + n;
+    const char *p = body;
+    while (p < end && podfeeds_ws(*p)) p++;
+    if (p >= end || *p != '{') return false;
+    const char *f = podfeeds_find(p, end, "feed");
+    if (!f || *f != '{') return false;
+    const char *close = podfeeds_skip(f, end);
+    if (!close) return false;
+    const char *idv = podfeeds_find(f, close, "id");
+    int64_t id = 0;
+    if (idv) {
+        while (idv < close && *idv >= '0' && *idv <= '9' && id < 100000000000LL) id = id * 10 + (*idv++ - '0');
+    }
+    const char *tv = podfeeds_find(f, close, "title");
+    if (id <= 0 || !tv || !podfeeds_str(tv, close, out->title, sizeof(out->title)) || !out->title[0]) return false;
+    out->id = id;
+    return true;
+}
+
+/* 8128: a feed address a person typed, fit to ask about: http or https,
+ * no spaces or control characters, and no longer than PODFEEDS_URL_MAX - 1. */
+#define PODFEEDS_URL_MAX 400
+
+static inline bool podfeeds_url_ok(const char *u)
+{
+    if (!u) return false;
+    const size_t n = strlen(u);
+    if (n < 11 || n >= PODFEEDS_URL_MAX) return false;
+    const size_t h = !strncmp(u, "https://", 8) ? 8 : !strncmp(u, "http://", 7) ? 7 : 0;
+    if (!h || n <= h) return false;
+    for (size_t i = 0; i < n; i++) if ((unsigned char)u[i] <= ' ' || u[i] == 0x7f) return false;
+    return true;
+}
+
+/* 8128: `u` percent-encoded for a query value into `out`; false if it
+ * does not fit. Only unreserved characters pass through. */
+static inline bool podfeeds_urlenc(const char *u, char *out, size_t cap)
+{
+    static const char hex[] = "0123456789ABCDEF";
+    size_t n = 0;
+    for (; *u; u++) {
+        const unsigned char c = (unsigned char)*u;
+        const bool plain = (c >= 'a' && c <= 'z') || (c >= 'A' && c <= 'Z') || (c >= '0' && c <= '9') ||
+                           c == '-' || c == '.' || c == '_' || c == '~';
+        if (n + (plain ? 1 : 3) + 1 > cap) return false;
+        if (plain) out[n++] = (char)c;
+        else { out[n++] = '%'; out[n++] = hex[c >> 4]; out[n++] = hex[c & 15]; }
+    }
+    if (n >= cap) return false;
+    out[n] = '\0';
+    return true;
+}

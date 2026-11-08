@@ -774,3 +774,40 @@ still removes a folder holding only the link.
 stub IDF headers. *Not checked:* a board. Start an episode whose host answers
 403 or 401 and confirm no folder appears; start one that works and confirm the
 folder and its link row are there before it finishes.
+
+### 8128 -- add a podcast by its feed address, from the remote's page
+
+The Podcasts section of the https page has a field for a feed address. The
+player asks Podcast Index about it (`podcasts/byfeedurl`, signed as every
+other call is); a hit makes `<drive>/Podcasts/<title>/` with its `.podcast`
+link -- the same folder and the same two-line file a first download makes --
+and the page opens that podcast's episode list, so the first download from it
+is an ordinary one. This is patch 1 of 3: an address the index does not know
+answers `unknown` and does nothing. The URL-form link and the player parsing
+the RSS itself come later.
+
+- `podfeeds.h`: `podfeeds_parse_one()` (the reply's single `feed` object, with
+  the id and title rules of the list parser; `"feed":[]` is not found),
+  `podfeeds_url_ok()` (http/https, no spaces or controls, under
+  `PODFEEDS_URL_MAX`) and `podfeeds_urlenc()`. Host-tested in `podfeedstest`.
+- `podindex.c`: `podindex_lookup()` / `_state()` / `_take()`, one task like the
+  list fetches and under the same `s_cats_busy` rule. `NOTFOUND` (a 200 with no
+  feed) is kept apart from `FAILED` (no connection, other status).
+- `remote.c`: `POST /pod/add`, `url=&vol=`. The lookup takes a moment, so the
+  page repeats the same body every 1.5 s while the answer is `looking` or
+  `wait`: the first call starts it, a later one collects it, and collecting
+  empties it. An answer for another address is dropped. The folder and link
+  are made under the storage lease, on the server task, and only after a
+  hit. `max_uri_handlers` 16 -> 20.
+- `remote.html`: the field and button; five new strings. They are English in
+  the other languages until a native speaker reads them, like the other
+  podcast strings.
+
+*Checked:* `podfeedstest` (37 checks, ASan/UBSan); `podindex.c` at
+`-O2 -Wall -Wextra -Werror=all -Werror=extra` against stub IDF headers;
+`h_pod_add` and `pw_said_x` syntax-checked in a small harness (`remote.c` as a
+whole has not been compiled here). *Not checked:* a board, and what
+`byfeedurl` sends for a feed the index lacks beyond the documented
+`"feed":[]`. Paste the address of a podcast the index lists and confirm the
+folder, the link row on the PODCAST tab and the episode list; paste one it
+does not and confirm "does not know".

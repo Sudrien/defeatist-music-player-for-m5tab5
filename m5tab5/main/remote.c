@@ -8,7 +8,9 @@
 #include "feckless_image.h"   /* 8069: was artformat.h */
 
 #include <dirent.h>
+#include <errno.h>
 #include <inttypes.h>
+#include <sys/stat.h>
 #include <strings.h>
 #include <stdio.h>
 #include <stdlib.h>
@@ -697,17 +699,24 @@ static esp_err_t h_pod(httpd_req_t *req)
     return httpd_resp_send_chunk(req, NULL, 0);
 }
 
-/* {"said":"...", "dl":{...}, "vols":[...]} -- a POST's answer. */
-static esp_err_t pw_said(httpd_req_t *req, const char *said)
+/* {"said":"...", <extra>"dl":{...}, "vols":[...]} -- a POST's answer.
+ * 8128: `extra` is more members, each ending in a comma, or "". */
+static esp_err_t pw_said_x(httpd_req_t *req, const char *said, const char *extra)
 {
     char head[48];
     snprintf(head, sizeof(head), "{\"said\":\"%s\",", said);
     httpd_resp_set_type(req, "application/json");
     httpd_resp_set_hdr(req, "Cache-Control", "no-store");
     httpd_resp_send_chunk(req, head, HTTPD_RESP_USE_STRLEN);
+    if (extra[0]) httpd_resp_send_chunk(req, extra, HTTPD_RESP_USE_STRLEN);
     pw_send_dl(req);
     httpd_resp_send_chunk(req, "}", 1);
     return httpd_resp_send_chunk(req, NULL, 0);
+}
+
+static esp_err_t pw_said(httpd_req_t *req, const char *said)
+{
+    return pw_said_x(req, said, "");
 }
 
 /* A form body into `body`, NUL-terminated; its length, or -1. */
@@ -778,6 +787,70 @@ static esp_err_t h_pod_dl(httpd_req_t *req)
         return pw_said(req, "busy");
     ESP_LOGI(TAG, "podcast episode %" PRId64 ": downloading to %s, from the page", e->id, dir);
     return pw_said(req, "");
+}
+
+/*
+ * 8128: POST /pod/add, url=<feed address>&vol=N -- a podcast the lists
+ * do not show, by its feed's address. The index is asked
+ * (podcasts/byfeedurl); a hit makes <drive>/Podcasts/<title>/ with its
+ * .podcast link, the same folder and file a first download makes, and
+ * answers "added" with the podcast's id and title, which the page opens
+ * the episode list of. The lookup takes a moment, so the page asks again
+ * with the same body while the answer is "looking" (or "wait", when
+ * another fetch is running): the first ask starts it, a later one
+ * collects it, and collecting empties it.
+ *   said: looking | wait | added | unknown (the index has no such
+ *   address) | failed | invalid | novol | long | nokey
+ */
+static esp_err_t h_pod_add(httpd_req_t *req)
+{
+    static char body[PODFEEDS_URL_MAX + 64], v[PODFEEDS_URL_MAX + 8], asked[PODFEEDS_URL_MAX];
+    static char dir[sizeof(s_pw_last.dir)], parent[sizeof(dir)], text[PODFEEDS_TITLE_MAX + 40];
+    static char esc[PODWEB_ESC_MAX], extra[PODWEB_ESC_MAX + 64];
+    const int got = pw_body(req, body, sizeof(body));
+    if (got < 0 || !portalweb_field(body, (size_t)got, "url", v, sizeof(v))) return pw_said(req, "invalid");
+    /* What a person pastes has spaces or a newline round it. */
+    char *u = v;
+    while (*u == ' ' || *u == '\t' || *u == '\r' || *u == '\n') u++;
+    for (size_t l = strlen(u); l && (u[l - 1] == ' ' || u[l - 1] == '\t' || u[l - 1] == '\r' || u[l - 1] == '\n'); l--) u[l - 1] = '\0';
+    if (!podfeeds_url_ok(u)) return pw_said(req, "invalid");
+    int vol = -1;
+    char vs[16];
+    if (portalweb_field(body, (size_t)got, "vol", vs, sizeof(vs))) vol = atoi(vs);
+    if (vol < 0 || vol >= STORAGE_COUNT || !storage_present((storage_id_t)vol)) return pw_said(req, "novol");
+    if (podindex_state(NULL, 0, NULL) != PODINDEX_WORKING) return pw_said(req, "nokey");
+
+    const podindex_look_t st = podindex_lookup_state(asked, sizeof(asked));
+    if (st == PODINDEX_LOOK_LOADING) return pw_said(req, strcmp(asked, u) ? "wait" : "looking");
+    if (st == PODINDEX_LOOK_NONE || strcmp(asked, u)) {
+        if (st != PODINDEX_LOOK_NONE) (void)podindex_lookup_take(NULL);    /* another address's answer */
+        return pw_said(req, podindex_lookup(u) ? "looking" : "wait");
+    }
+    podfeed_t feed;
+    const podindex_look_t r = podindex_lookup_take(&feed);
+    if (r == PODINDEX_LOOK_NOTFOUND) return pw_said(req, "unknown");
+    if (r != PODINDEX_LOOK_FOUND) return pw_said(req, "failed");
+
+    if (!podpath_dir(storage_mount_path((storage_id_t)vol), feed.title, dir, sizeof(dir)))
+        return pw_said(req, "long");
+    snprintf(parent, sizeof(parent), "%s", dir);
+    *strrchr(parent, '/') = '\0';                  /* <mount>/Podcasts */
+    const int n = podpath_link_format(feed.id, feed.title, text, sizeof(text));
+    bool made = false;
+    storage_io_acquire(STORAGE_IO_BACKGROUND);
+    if ((mkdir(parent, 0777) == 0 || errno == EEXIST) && (mkdir(dir, 0777) == 0 || errno == EEXIST)) {
+        static char link[sizeof(dir) + 16];
+        snprintf(link, sizeof(link), "%s/" PODPATH_LINK, dir);
+        FILE *lf = fopen(link, "w");
+        made = lf && n > 0 && fwrite(text, 1, (size_t)n, lf) == (size_t)n;
+        if (lf) fclose(lf);
+    }
+    storage_io_release();
+    if (!made) return pw_said(req, "failed");
+    ESP_LOGI(TAG, "podcast %" PRId64 " added from a feed address: %s", feed.id, dir);
+    if (!remoteproto_json_str(feed.title, esc, sizeof(esc))) return pw_said(req, "failed");
+    snprintf(extra, sizeof(extra), "\"id\":%" PRId64 ",\"title\":%s,", feed.id, esc);
+    return pw_said_x(req, "added", extra);
 }
 
 /*
@@ -1607,7 +1680,7 @@ static void start(void)
     cfg.ctrl_port = REMOTE_CTRL_PORT;
     cfg.max_open_sockets = REMOTE_SOCKETS;
     cfg.lru_purge_enable = true;
-    cfg.max_uri_handlers = 16;    /* 8002: the two /pair; 8006: the two /podindex; 8033: /pod* */
+    cfg.max_uri_handlers = 20;    /* 8002: the two /pair; 8006: the two /podindex; 8033: /pod*; 8128: /pod/add */
     /*
      * 6005: the server task's 10 KB stack in PSRAM, not internal RAM --
      * the remote coming up took internal free from 27343 to 15915 on the
@@ -1645,6 +1718,7 @@ static void start(void)
         { .uri = "/podindex", .method = HTTP_POST, .handler = h_podindex_try },
         { .uri = "/pod",      .method = HTTP_GET,  .handler = h_pod     },   /* 8033 */
         { .uri = "/pod/dl",   .method = HTTP_POST, .handler = h_pod_dl  },
+        { .uri = "/pod/add",  .method = HTTP_POST, .handler = h_pod_add },   /* 8128 */
         { .uri = "/pod/ctl",  .method = HTTP_POST, .handler = h_pod_ctl },
     };
     /* 8001: each behind h_gate(). Static: httpd keeps the pointer. */

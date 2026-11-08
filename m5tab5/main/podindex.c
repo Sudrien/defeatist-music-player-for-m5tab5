@@ -90,6 +90,11 @@ static int64_t            s_eps_feed;
 static podindex_cats_t    s_eps_state;
 static uint32_t           s_eps_gen;
 
+/* 8128: the one lookup by feed address, and its answer. */
+static podindex_look_t    s_look_state;
+static char               s_look_url[PODFEEDS_URL_MAX];
+static podfeed_t          s_look_feed;
+
 static void set(podindex_state_t st, int http)
 {
     xSemaphoreTake(s_mu, portMAX_DELAY);
@@ -569,4 +574,103 @@ podindex_try_t podindex_try(const char *key, const char *secret)
         return PODINDEX_TRY_FAILED;
     }
     return PODINDEX_TRY_STARTED;
+}
+
+/* 8128: podcasts/byfeedurl for the address in s_look_url. The reply is a
+ * few KB (one feed, its description and all), so 64 KB is generous. */
+#define PI_BYURL_FMT    "https://api.podcastindex.org/api/1.0/podcasts/byfeedurl?url=%s"
+#define PI_BYURL_MAX    (64 * 1024)
+
+static void lookup_task(void *arg)
+{
+    (void)arg;
+    static char key[PODAUTH_KEY_MAX], secret[PODAUTH_SECRET_MAX];
+    static char enc[PODFEEDS_URL_MAX * 3], url[sizeof(enc) + 96];
+    xSemaphoreTake(s_mu, portMAX_DELAY);
+    snprintf(url, sizeof(url), "%s", s_look_url);
+    xSemaphoreGive(s_mu);
+    bool ok = false;
+    {
+        size_t kn = sizeof(key), sn = sizeof(secret);
+        ok = nvsh_get_str(DEFEATIST_NVS_NS, NVS_KEY_KEY, key, &kn) == ESP_OK &&
+             nvsh_get_str(DEFEATIST_NVS_NS, NVS_KEY_SECRET, secret, &sn) == ESP_OK;
+    }
+    char *body = ok ? heap_caps_malloc(PI_BYURL_MAX, MALLOC_CAP_SPIRAM | MALLOC_CAP_8BIT) : NULL;
+    podindex_look_t res = PODINDEX_LOOK_FAILED;
+    podfeed_t feed = { 0 };
+    if (body && podfeeds_urlenc(url, enc, sizeof(enc))) {
+        static char full[sizeof(enc) + 96];
+        snprintf(full, sizeof(full), PI_BYURL_FMT, enc);
+        size_t got = 0;
+        const int status = ask(full, key, secret, body, PI_BYURL_MAX, &got);
+        if (status == 200) {
+            if (podfeeds_parse_one(body, got, &feed)) {
+                res = PODINDEX_LOOK_FOUND;
+                ESP_LOGI(TAG, "feed address is podcast %lld", (long long)feed.id);
+            } else {
+                res = PODINDEX_LOOK_NOTFOUND;
+                ESP_LOGI(TAG, "the index does not know that feed address");
+            }
+        } else if (status) {
+            ESP_LOGW(TAG, "byfeedurl: HTTP %d", status);
+        } else {
+            ESP_LOGW(TAG, "byfeedurl: no connection");
+        }
+    } else {
+        if (ok) ESP_LOGE(TAG, "no PSRAM for the lookup");
+        else    ESP_LOGE(TAG, "lookup: no saved key");
+    }
+    free(body);
+    memset(secret, 0, sizeof(secret));
+    ESP_LOGI(TAG, "stack: %u bytes never used of %u",
+             (unsigned)uxTaskGetStackHighWaterMark(NULL), (unsigned)PI_STACK);
+    xSemaphoreTake(s_mu, portMAX_DELAY);
+    s_look_feed = feed;
+    s_look_state = res;
+    s_cats_busy = false;
+    xSemaphoreGive(s_mu);
+    vTaskDelete(NULL);
+}
+
+bool podindex_lookup(const char *feed_url)
+{
+    if (!podfeeds_url_ok(feed_url)) return false;
+    xSemaphoreTake(s_mu, portMAX_DELAY);
+    if (s_state != PODINDEX_WORKING || s_cats_busy) {
+        xSemaphoreGive(s_mu);
+        return false;
+    }
+    s_cats_busy = true;
+    snprintf(s_look_url, sizeof(s_look_url), "%s", feed_url);
+    s_look_state = PODINDEX_LOOK_LOADING;
+    xSemaphoreGive(s_mu);
+    if (xTaskCreate(lookup_task, "podindex", PI_STACK, NULL, 3, NULL) != pdPASS) {
+        xSemaphoreTake(s_mu, portMAX_DELAY);
+        s_cats_busy = false;
+        s_look_state = PODINDEX_LOOK_NONE;
+        xSemaphoreGive(s_mu);
+        return false;
+    }
+    return true;
+}
+
+podindex_look_t podindex_lookup_state(char *url, size_t url_size)
+{
+    xSemaphoreTake(s_mu, portMAX_DELAY);
+    const podindex_look_t st = s_look_state;
+    if (url && url_size) snprintf(url, url_size, "%s", st == PODINDEX_LOOK_NONE ? "" : s_look_url);
+    xSemaphoreGive(s_mu);
+    return st;
+}
+
+podindex_look_t podindex_lookup_take(podfeed_t *out)
+{
+    xSemaphoreTake(s_mu, portMAX_DELAY);
+    const podindex_look_t st = s_look_state;
+    if (st != PODINDEX_LOOK_NONE && st != PODINDEX_LOOK_LOADING) {
+        if (out) *out = s_look_feed;
+        s_look_state = PODINDEX_LOOK_NONE;
+    }
+    xSemaphoreGive(s_mu);
+    return st;
 }

@@ -86,6 +86,8 @@ en:
     "Add a radio station to the card.": ~
     # radiobrowser.h
     "Add a station by phone…": ~
+    # remote.html
+    "Add by feed address": ~
     # portal.c, remote.html
     "Add station": ~
     # remote.html
@@ -433,6 +435,8 @@ en:
     # remote.html
     "Podcast Index did not answer.": ~
     # remote.html
+    "Podcast Index does not know that feed address.": ~
+    # remote.html
     "Podcast Index refused that key and secret.": ~
     # remote.html
     "Podcast Index refused that key and secret. The player's clock has not been set from the network yet, and a wrong clock is refused the same way.": ~
@@ -582,6 +586,8 @@ en:
     "That form was too large to be a name and a stream address.": ~
     # portal.c, remote.c
     "That form was too large to be a network name and a password.": ~
+    # remote.html
+    "That is not a feed address the player can look up.": ~
     # portal.c, remote.c
     "That is not a usable stream address. It has to start with http:// or https:// and be one unbroken address.": ~
     # portal.c, remote.c
@@ -616,6 +622,8 @@ en:
     "The password did not work. Try again.": ~
     # remote.c
     "The password has a character a Wi-Fi password cannot have -- often a phone's smart punctuation. Retype it with that turned off.": ~
+    # remote.html
+    "The player could not add that podcast. Try again.": ~
     # remote.html
     "The player could not reach Podcast Index.": ~
     # remote.html
@@ -660,6 +668,8 @@ en:
     "Then it shows the address to open.": ~
     # panel.c
     "Then it shows the address to use.": ~
+    # remote.html
+    "There is no card or drive in the player to add it to.": ~
     # remote.html
     "There is no card or drive in the player to download to.": ~
     # remote.html

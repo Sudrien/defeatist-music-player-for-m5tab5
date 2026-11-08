@@ -934,3 +934,27 @@ The build warned that `snprintf(s_add_rss, ..., "%s", u)` could cut up to 407
 bytes into 400: `u` points into a 408-byte buffer and `podfeeds_url_ok()` has
 already refused anything of 400 or more, which the compiler cannot see.
 `s_add_rss` is now the same size as that buffer. No behaviour changes.
+
+### 8134 -- the IDF 6 defaults select newlib
+
+CI's ELF link failed on IDF 6.1 (`R_RISCV_TPREL_HI20 against errno can not be
+used when making a shared object`, then `ld` crashing). The failing objects are
+exactly the files that use `errno` (`favorites`, `mediacat`, `mpd`, `poddl`,
+`recorder`, `settings`, `starred`, `stations`, and `remote` since 8128, plus
+`image_jxl.c` in the image handler), and the build log compiles
+`esp_libc/src/picolibc/`: CI's configuration is picolibc, IDF 6's default,
+where `errno` is thread-local. The feckless ABI is newlib's -- `__errno` and
+`_ctype_b` are in its exports -- and a thread-local cannot be in the ELF.
+
+`sdkconfig.defaults` only seeds a new sdkconfig, and CI's `set-target` makes
+one. A local configuration carried over from IDF 5 has newlib, which is why the
+board builds linked and CI's did not. `sdkconfig.defaults.idf6` now says
+`CONFIG_LIBC_NEWLIB=y`.
+
+*Checked:* the reading above against the log and exports. *Not checked:* an IDF
+6.1 build; the option's name in 6.1's Kconfig is taken from IDF's, and a name it
+does not have would be ignored without a word -- `SDKCONFIG_DRIFT` (the BUILD
+tab, and the configure's warning) names a default the configuration lacks, so
+look there if the link fails the same way. The `gettimeofday`, `settimeofday`
+and `rtc8130_*` lines before the crash name no object; they are expected to be
+the same failure and to go with it.

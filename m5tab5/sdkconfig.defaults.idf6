@@ -14,3 +14,17 @@
 # with. IDF 5.x always built mbedTLS's X.509 writer; IDF 6 puts it behind
 # this, default off, and certgen.c does not compile without it.
 CONFIG_MBEDTLS_X509_CREATE_C=y
+
+# ---------------------------------------------------------------------------
+# THE C LIBRARY IS NEWLIB, AS THE FECKLESS ABI IS.
+#
+# IDF 6 defaults to picolibc, and the player is an ELF that the launcher
+# loads (elf/): everything it calls that it does not define is the ABI's,
+# which is newlib's -- `__errno`, `_ctype_b` are in feckless_abi's
+# exports.txt. Under picolibc `errno` is a thread-local variable, which
+# the ELF's link refuses ("R_RISCV_TPREL_HI20 against `errno' can not be
+# used when making a shared object") in every file that uses it, so the
+# link failed on a configuration that was made from these defaults and
+# not on one carried over from IDF 5, which has newlib. Like the rest of
+# this file it seeds a NEW sdkconfig: rm sdkconfig after changing it.
+CONFIG_LIBC_NEWLIB=y

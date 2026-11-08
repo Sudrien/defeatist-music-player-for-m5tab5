@@ -39,6 +39,7 @@
 #include "stations.h"
 #include "storage.h"
 #include "storage_io.h"
+#include "storage_list.h"       /* 8125 */
 #include "remoteproto.h"
 #include "uireq.h"            /* MPD.md step 5 */
 #include "mpdqueue.h"         /* 5174 */
@@ -923,29 +924,19 @@ static esp_err_t h_station_add(httpd_req_t *req)
 #define LS_MAX_ROWS     (512)       /* the chooser's MAX_ENTRIES */
 #define LS_FRAME        (24 * 1024)
 
-typedef struct {
-    char *name;
-    char *label;        /* a cue track's title, or NULL */
-    bool  dir;
-} ls_row_t;
-
 /* MPD.md step 5: a chosen path goes through uireq_open(), whose slot must
  * hold any path this parser accepts. */
 _Static_assert(REMOTEPROTO_PATH_MAX <= UIREQ_PATH_MAX, "uireq's slot is shorter than a remote path");
 
-static int ls_cmp(const void *a, const void *b)
+/* 8125: what the listing keeps of a folder's entries -- storage_list.h reads
+ * and sorts them; the same filters as the chooser's. */
+static int ls_filter(const char *dir, const storage_ent_t *e, void *ctx)
 {
-    const ls_row_t *x = a, *y = b;
-    if (x->dir != y->dir) return x->dir ? -1 : 1;
-    return strcasecmp(x->name, y->name);
-}
-
-static char *ps_strdup(const char *s)
-{
-    const size_t n = strlen(s) + 1;
-    char *p = heap_caps_malloc(n, MALLOC_CAP_SPIRAM | MALLOC_CAP_8BIT);
-    if (p) memcpy(p, s, n);
-    return p;
+    (void)dir;
+    if (e->is_dir) return 0;
+    if (!decoder_supports(e->name)) return STORAGE_LIST_SKIP;
+    if (cuedir_hides((const cuedir_t *)ctx, e->name)) return STORAGE_LIST_SKIP;
+    return 0;
 }
 
 static void ws_send_text(httpd_req_t *req, const char *s, size_t len)
@@ -966,42 +957,28 @@ static void send_listing(httpd_req_t *req, const char *p, size_t plen)
     path[plen] = '\0';
     remoteproto_json_str(path, esc, sizeof(esc));
 
-    ls_row_t *rows = heap_caps_calloc(LS_MAX_ROWS, sizeof(*rows), MALLOC_CAP_SPIRAM | MALLOC_CAP_8BIT);
+    storage_list_t list = { .max = LS_MAX_ROWS };
     char *out = heap_caps_malloc(LS_FRAME + 2048, MALLOC_CAP_SPIRAM | MALLOC_CAP_8BIT);
-    int n = 0;
     const char *error = NULL;
 
-    if (!rows || !out) {
+    if (!out) {
         error = N_("The player is out of memory for that.");
     } else if (strcmp(path, "/") == 0) {
         /* The volumes, as folders. */
-        if (storage_present(STORAGE_SD))  { rows[n].name = ps_strdup("sd");  rows[n++].dir = true; }
-        if (storage_present(STORAGE_USB)) { rows[n].name = ps_strdup("usb"); rows[n++].dir = true; }
+        if (storage_present(STORAGE_SD))  storage_list_add(&list, "sd", NULL, true, -1, 0, false, 0);
+        if (storage_present(STORAGE_USB)) storage_list_add(&list, "usb", NULL, true, -1, 0, false, 0);
     } else {
-        DIR *d = opendir(path);
-        if (!d) {
+        cuedir_t *cues = cuedir_load(path, STORAGE_IO_BACKGROUND);
+        if (storage_list_read(&list, path, STORAGE_SORT_NAME, ls_filter, cues) == STORAGE_LIST_NO_DIR) {
             error = N_("That folder could not be opened.");
         } else {
-            cuedir_t *cues = cuedir_load(path, STORAGE_IO_BACKGROUND);
-            struct dirent *e;
-            while ((e = readdir(d)) != NULL && n < LS_MAX_ROWS) {
-                const bool dir = (e->d_type == DT_DIR);
-                if (storage_is_hidden(e->d_name)) continue;
-                if (!dir && !decoder_supports(e->d_name)) continue;
-                if (!dir && cuedir_hides(cues, e->d_name)) continue;
-                if (!(rows[n].name = ps_strdup(e->d_name))) break;
-                rows[n++].dir = dir;
-            }
-            closedir(d);
-            for (int i = 0; i < cuedir_count(cues) && n < LS_MAX_ROWS; i++) {
-                if (!(rows[n].name = ps_strdup(cuedir_name(cues, i)))) break;
-                rows[n].label = ps_strdup(cuedir_label(cues, i));
-                rows[n++].dir = false;
-            }
-            cuedir_free(cues);
-            qsort(rows, (size_t)n, sizeof(*rows), ls_cmp);
+            for (int i = 0; i < cuedir_count(cues); i++)
+                if (!storage_list_add(&list, cuedir_name(cues, i), cuedir_label(cues, i), false, -1, 0, false, 0)) break;
+            storage_list_sort(&list, STORAGE_SORT_NAME);
         }
+        cuedir_free(cues);
     }
+    const int n = list.n;
 
     if (error || !out) {
         char msg[REMOTEPROTO_PATH_MAX * 6 + 160];
@@ -1015,10 +992,10 @@ static void send_listing(httpd_req_t *req, const char *p, size_t plen)
             size_t len = (size_t)snprintf(out, LS_FRAME, "{\"t\":\"ls\",\"path\":%s,\"from\":%d,"
                                           "\"total\":%d,\"rows\":[", esc, from, n);
             for (; i < n && len < LS_FRAME; i++) {
-                if (!remoteproto_json_str(rows[i].name, esc2, sizeof(esc2))) continue;
+                if (!remoteproto_json_str(list.ents[i].name, esc2, sizeof(esc2))) continue;
                 len += (size_t)snprintf(out + len, LS_FRAME + 2048 - len, "%s{\"n\":%s,\"d\":%d",
-                                        i > from ? "," : "", esc2, rows[i].dir ? 1 : 0);
-                if (rows[i].label && remoteproto_json_str(rows[i].label, esc2, sizeof(esc2))) {
+                                        i > from ? "," : "", esc2, list.ents[i].is_dir ? 1 : 0);
+                if (list.ents[i].label && remoteproto_json_str(list.ents[i].label, esc2, sizeof(esc2))) {
                     len += (size_t)snprintf(out + len, LS_FRAME + 2048 - len, ",\"l\":%s", esc2);
                 }
                 out[len++] = '}';
@@ -1029,8 +1006,7 @@ static void send_listing(httpd_req_t *req, const char *p, size_t plen)
         } while (i < n);
     }
 
-    for (int k = 0; rows && k < n; k++) { free(rows[k].name); free(rows[k].label); }
-    free(rows);
+    storage_list_free(&list);
     free(out);
 }
 

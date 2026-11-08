@@ -28,6 +28,7 @@
 #include "decoder.h"
 #include "gfx.h"
 #include "storage.h"
+#include "storage_list.h"       /* 8125: one folder, read and sorted by the library */
 #include "recorder.h"         /* 5215 */
 #include "mpd.h"              /* 5260 */
 #include "podindex.h"         /* 8008 */
@@ -375,15 +376,10 @@ static void entries_free(void)
     s_prefix_len = 0;
 }
 
-/* Folders first, then files, each run sorted case-insensitively. Mixing
- * them alphabetically buries a disc subfolder in the middle of the track
- * list, and the two are different kinds of thing to tap. */
-static int cmp_entry(const void *a, const void *b)
-{
-    const entry_t *x = a, *y = b;
-    if (x->is_dir != y->is_dir) return x->is_dir ? -1 : 1;
-    return strcasecmp(x->name, y->name);
-}
+/* Folders first, then files, each run sorted case-insensitively, is
+ * storage_list.h's STORAGE_SORT_NAME (8125). Mixing them alphabetically
+ * buries a disc subfolder in the middle of the track list, and the two are
+ * different kinds of thing to tap. */
 
 /* Defined below, next to the rules it enforces; called from the bottom
  * of load_dir() because it can only run once the listing is complete
@@ -520,6 +516,22 @@ static void pod_link_row(const char *dir)
     s_dir_link = true;
 }
 
+/* 8125: what the browser keeps of a folder's entries (see load_dir_locked). */
+typedef struct {
+    const cuedir_t *cues;
+    bool            lists;      /* 5186: a Playlists folder, whose .m3u files are rows */
+} list_filter_t;
+
+static int list_filter(const char *dir, const storage_ent_t *e, void *ctx)
+{
+    (void)dir;
+    const list_filter_t *f = ctx;
+    if (e->is_dir) return 0;
+    if (!decoder_supports(e->name) && !(f->lists && browser_is_m3u(e->name))) return STORAGE_LIST_SKIP;
+    if (cuedir_hides(f->cues, e->name)) return STORAGE_LIST_SKIP;
+    return 0;
+}
+
 static void load_dir_locked(const char *dir)
 {
     if (!s_entries) {
@@ -536,45 +548,47 @@ static void load_dir_locked(const char *dir)
     snprintf(s_dir, sizeof(s_dir), "%s", dir);
     s_dirty = true;
 
-    DIR *d = opendir(dir);
-    if (!d) {
-        ESP_LOGW(TAG, "cannot open %s", dir);
-        return;
-    }
-
     /* The same cue view the playlist builds, so a row here is a track
      * there. See cuedir.h. */
     cuedir_t *cues = cuedir_load(dir, STORAGE_IO_BACKGROUND);
 
-    const bool lists = is_playlists_dir(dir);   /* 5186 */
-    struct dirent *e;
-    while ((e = readdir(d)) != NULL && s_count < MAX_ENTRIES) {
-        const bool is_dir = (e->d_type == DT_DIR);
-        /* Everything the decoder cannot open is hidden rather than
-         * greyed. A card root is mostly System Volume Information and
-         * stray .txt files, and a list where two thirds of the rows are
-         * untappable is a worse list. */
-        if (storage_is_hidden(e->d_name)) continue;   /* . .. and dotfiles */
-        if (!is_dir && !decoder_supports(e->d_name) && !(lists && browser_is_m3u(e->d_name))) continue;
-        if (!is_dir && cuedir_hides(cues, e->d_name)) continue;
-
-        s_entries[s_count].name = strdup(e->d_name);
-        if (!s_entries[s_count].name) break;
-        s_entries[s_count].is_dir = is_dir;
-        s_count++;
+    /*
+     * 8125: the folder is read by storage_list_read() -- one pass that
+     * takes each entry's size and date from FatFs itself, leaves out
+     * storage_is_hidden()'s names and the FAT hidden and system entries,
+     * and sorts folders first, then by name with the case folded. What is
+     * ours is the filter: everything the decoder cannot open is hidden
+     * rather than greyed. A card root is mostly System Volume Information
+     * and stray .txt files, and a list where two thirds of the rows are
+     * untappable is a worse list.
+     */
+    static storage_list_t list;
+    list.max = MAX_ENTRIES;
+    const list_filter_t lf = { cues, is_playlists_dir(dir) };   /* 5186 */
+    const storage_list_err_t err = storage_list_read(&list, dir, STORAGE_SORT_NAME, list_filter, (void *)&lf);
+    if (err == STORAGE_LIST_NO_DIR) {
+        ESP_LOGW(TAG, "cannot open %s", dir);
+        cuedir_free(cues);
+        storage_list_free(&list);
+        return;
     }
-    closedir(d);
+    if (err != STORAGE_LIST_OK) ESP_LOGW(TAG, "%s: listed %d, error %d", dir, list.n, (int)err);
 
-    for (int i = 0; i < cuedir_count(cues) && s_count < MAX_ENTRIES; i++) {
-        s_entries[s_count].name = strdup(cuedir_name(cues, i));
-        s_entries[s_count].label = strdup(cuedir_label(cues, i));
-        if (!s_entries[s_count].name) break;
-        s_entries[s_count].is_dir = false;
-        s_count++;
-    }
+    /* The cue sheets' tracks stand among the files, so they are added and
+     * the lot sorted again. */
+    for (int i = 0; i < cuedir_count(cues); i++)
+        if (!storage_list_add(&list, cuedir_name(cues, i), cuedir_label(cues, i), false, -1, 0, false, 0)) break;
     cuedir_free(cues);
+    storage_list_sort(&list, STORAGE_SORT_NAME);
 
-    qsort(s_entries, (size_t)s_count, sizeof(entry_t), cmp_entry);
+    for (int i = 0; i < list.n && s_count < MAX_ENTRIES; i++) {
+        s_entries[s_count].name = strdup(list.ents[i].name);
+        s_entries[s_count].label = list.ents[i].label ? strdup(list.ents[i].label) : NULL;
+        if (!s_entries[s_count].name) { free(s_entries[s_count].label); s_entries[s_count].label = NULL; break; }
+        s_entries[s_count].is_dir = list.ents[i].is_dir;
+        s_count++;
+    }
+    storage_list_free(&list);
     pod_link_row(dir);                  /* 8021: before the prefix, which skips labels */
     find_common_prefix();
     stars_resolve();

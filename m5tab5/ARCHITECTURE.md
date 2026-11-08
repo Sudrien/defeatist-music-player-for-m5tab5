@@ -678,3 +678,50 @@ same lines. *Not checked:* a build, and everything about running it -- a
 download, a pause and resume, a cancel (and that the folder goes), a
 redirect, a part file from 8123's build, the pictures, three connections.
 Run each on a board before the next patch relies on this.
+
+### 8125 -- the browser's and the remote's folder listing on storage_list
+
+`browser.c`'s `load_dir_locked()` and `remote.c`'s `send_listing()` each
+opened the folder, skipped what is hidden, kept what the decoder plays,
+added the cue sheets' tracks, and sorted folders first. That is
+feckless-libs' `storage_list.h` (its 9011, in the ABI's storage section from
+v0.9.10, 8123), whose header names these two as the copies it replaces. Each
+is now a filter and the cue rows:
+
+- `browser.c`: `list_filter()` keeps folders, what `decoder_supports()` plays
+  and, in a `Playlists` folder, `.m3u`/`.m3u8` (5186), and leaves out what a
+  cue sheet hides. The cue tracks are `storage_list_add()`ed and the list
+  sorted again, so they stand among the files as they did. The rows are then
+  copied into `s_entries`, as before, so nothing else in `browser.c` moves;
+  `cmp_entry()` and its `qsort()` are gone.
+- `remote.c`: the same filter without `.m3u`; the volumes at `/` are two
+  `storage_list_add()`s (not `storage_list_volumes()`, whose labels would
+  put an `l` into the JSON the page has never had for them); the frames are
+  written from the list's entries. `ls_row_t`, `ls_cmp()` and `ps_strdup()`
+  are gone.
+
+`MAX_ENTRIES` and `LS_MAX_ROWS` (512) are the list's `max`, as the loops'
+bounds were.
+
+**What differs.** Entries with the FAT hidden or system attribute are left
+out before the filter sees them (the player's own sidecars carry hidden
+already, `mediadir.c` sets it). The size and date `storage_list` reads are
+not used yet, since neither screen shows them. A folder FatFs cannot open
+is `STORAGE_LIST_NO_DIR`, as `opendir()` failing was; a read that fails part
+way (`STORAGE_LIST_IO`) now shows what came before and logs it, where
+`readdir()` returning NULL early looked like the end.
+
+**Not moved.** The podcast episode scan in `browser.c` (it matches names
+against `<base>.<ext>`, not a listing for rows), `mpd.c`'s `lsinfo`,
+`playlist.c`, `cuedir.c`, `cardtime.c`, and `mediadir.c`/`mediawalk.c` (the
+index's own FatFs walk, which also hides what it made). Each reads a folder
+for its own reason; whether any should use `storage_list` is a later patch.
+
+*Checked, on a host:* the new path (the library's `storage_list.c` in its
+host mode, the same filter, the cue row added, the same sort) against the
+old (`opendir()`/`readdir()`, `qsort()` by folder then `strcasecmp`) on a
+folder with mixed case, dotfiles, `System Volume Information`, non-audio
+files and a hidden cue source: the same seven rows in the same order. That
+is a lifted copy of the logic, not the files. *Not checked:* `browser.c` and
+`remote.c` compile (IDF's headers for them are not here), the FatFs half of
+`storage_list.c`, a board, the remote page.

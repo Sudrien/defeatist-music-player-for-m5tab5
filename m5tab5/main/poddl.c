@@ -140,10 +140,9 @@ static void drop_part_dir(const char *dir)
     if (podpath_part(dir, NULL, p, sizeof(p))) rmdir(p);
 }
 
-/* 8021, moved by 8029: the podcast's way back, now that an episode is
- * whole and in its folder (feckless_fetch made the folder to rename it
- * in). Rewritten each time, so a renamed podcast's folder follows; a
- * failure costs only the link. */
+/* 8021: the podcast's way back, in its folder. 8126: written when a
+ * download starts, and again when it is whole. Rewritten each time, so a
+ * renamed podcast's folder follows; a failure costs only the link. */
 static void write_link(void)
 {
     static char link[DL_LINK_MAX], text[160];
@@ -425,10 +424,16 @@ static bool on_event(feckless_fetch_ev_t *ev)
         struct stat ost;
         snprintf(old, sizeof(old), "%s/%s.part", s_dir, s_base);
         storage_io_acquire(STORAGE_IO_BACKGROUND);
-        if (stat(ev->part, &ost) != 0 && stat(old, &ost) == 0 && S_ISREG(ost.st_mode) &&
-            make_part_dirs(s_dir)) {
+        const bool dirs = make_part_dirs(s_dir);
+        if (dirs && stat(ev->part, &ost) != 0 && stat(old, &ost) == 0 && S_ISREG(ost.st_mode)) {
             if (rename(old, ev->part) == 0) ESP_LOGI(TAG, "moved an earlier part file to %s", ev->part);
         }
+        /* 8126: the podcast's folder and its way back are there from the
+         * first byte, not from the last: the chooser shows the link, and
+         * the PODCAST tab can be reached from the folder, while the
+         * episode is still coming. A download that is cancelled takes the
+         * folder with it if nothing else is in it (CANCELLED). */
+        if (dirs && mk(s_dir)) write_link();
         storage_io_release();
         return true;
     }
@@ -442,7 +447,7 @@ static bool on_event(feckless_fetch_ev_t *ev)
         return true;
     case FECKLESS_FETCH_EV_DONE:
         storage_io_acquire(STORAGE_IO_BACKGROUND);
-        write_link();                               /* 8029: the folder, now */
+        write_link();                               /* 8021: again, for a renamed podcast */
         drop_part_dir(s_dir);                       /* 8029 */
         storage_io_release();
         fetch_pictures(ev->path);

@@ -494,9 +494,10 @@ static void pod_link_row(const char *dir)
     fclose(f);
     text[n] = '\0';
     if (!podpath_link_parse(text, n, &s_dir_link_feed, s_dir_link_show, sizeof(s_dir_link_show))) return;
-    /* 8029: a folder with nothing in it but the link is not shown one --
-     * a cancelled or failed first download from before 8029 left those. */
-    if (s_count == 0) return;
+    /* 8126: a folder with nothing in it but the link is shown the row too:
+     * a download that has started has written the link and has no file yet.
+     * (8029 hid it, for the folders a cancelled first download left; the
+     * cancel removes those itself now.) */
     if (s_count >= MAX_ENTRIES) return;
     memmove(&s_entries[1], &s_entries[0], (size_t)s_count * sizeof(entry_t));
     char label[PODFEEDS_TITLE_MAX + 48];

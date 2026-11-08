@@ -725,3 +725,30 @@ files and a hidden cue source: the same seven rows in the same order. That
 is a lifted copy of the logic, not the files. *Not checked:* `browser.c` and
 `remote.c` compile (IDF's headers for them are not here), the FatFs half of
 `storage_list.c`, a board, the remote page.
+
+### 8126 -- the podcast's folder and link are written when the download starts
+
+8124 left `.podcast` to the `DONE` event, so while an episode downloaded the
+podcast's folder had no link in it and the chooser showed no way back to the
+PODCAST tab; both came with the last byte. Play-while-downloading (8050) made
+that visible: the folder is there to look at, with nothing to say whose it is.
+
+`poddl.c`'s `START` event now makes the part folders, moves an old part file
+into them (as before), makes the podcast's folder and writes `.podcast`. `DONE`
+writes it again, so a renamed podcast's folder follows. `CANCELLED` already
+removes a folder that holds nothing but the link (`drop_empty_podcast_dir()`),
+so a cancel leaves nothing behind; a pause, a failure or a reboot keeps the
+folder and the link, with the part file in `.partial/`, because the next start
+resumes it.
+
+`browser.c`'s `pod_link_row()` no longer declines a folder with no files. 8029
+added that check for the link-only folders a cancelled first download used to
+leave; a started download has no file and needs the row. The cost: a folder left
+by a failed first download shows its one row, "<podcast> on Podcast Index", and
+nothing else.
+
+*Checked:* `poddl.c` at `-O2 -Wall -Wextra -Werror=all -Werror=extra` against
+stub IDF headers. *Not checked:* `browser.c` compiled, a board: start a first
+episode of a new podcast and look in the folder and at its link row before it
+finishes; pause it; cancel it and confirm the folder goes; fail it (Wi-Fi off)
+and confirm the folder and link stay.

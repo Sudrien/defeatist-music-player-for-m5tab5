@@ -617,3 +617,64 @@ from the launcher's copy.
 
 *Checked:* the manifest parses, with every pin at v0.9.10 and the ranges as
 written. *Not checked:* the resolve, the build, a Tab5.
+
+### 8124 -- poddl.c on feckless_fetch
+
+`poddl.c` was the downloader (8020-8057: redirects by hand, the part file
+and its `.id` map, `Range`/`If-Range` resume, stripes over three
+connections, the card writer, the retries). feckless-libs lifted all of it
+as `feckless_fetch` (its 9003) and v0.9.10 (8123) has its statics in PSRAM
+(9004). It is 1,608 lines before and about 570 after; the public interface
+in `poddl.h` is unchanged, so `browser.c`, `remote.c`, `player.c` and
+`decoder.c` are not touched.
+
+**What stayed here, as `feckless_fetch`'s callback.** The part file's place
+(`podpath_part()`, passed as the option `part`, so `.partial/<podcast>/`
+as before); the extension (`HEADERS` rewrites the path from the URL that
+answered, else the Content-Type, else mp3 -- what `dl_task()` did);
+`START` moves a part file 8024-8028 left in the podcast's folder (the one
+thing it asks for before the library makes the folders); `DONE` writes
+`.podcast`, drops the empty `.partial` folder and fetches the pictures;
+`CANCELLED` drops the empty folders, for a cancel while running and for one
+of a paused or failed download alike.
+
+**Not moved: the pictures.** `fetch_picture()` and a cut-down
+`open_followed()` (no `Range`, no validators) are still here. They run
+inside `DONE`, while the library's one download is still `RUNNING`, so
+`feckless_fetch` cannot fetch them, and it is a file downloader besides.
+
+**Part files from before this resume.** The `.id` format is the one this
+file wrote -- `feckless_fetch` was lifted from it -- and the part file's
+place is the same.
+
+**Differences, all small.**
+- `.podcast` is written after the episode is renamed into its folder, not
+  before: the library makes the folder for the rename, and the callback has
+  no step between the two. A failure still costs only the link.
+- The path `poddl_state()` gives while a download runs is the URL's
+  extension's guess from the start, not empty until the reply, and the
+  reply's can change it. Nothing reads it before the first megabyte
+  (`pod_playable_now()` needs `ready`); `browser.c`'s volume test now
+  works from the first frame.
+- Log lines come from the tag `feckless_fetch` (`timing 5s`, `timing
+  total`, retries); `tab5_poddl` has the pictures, the move and the folders.
+  The stack lines are debug level now. Nothing greps for either.
+- A failed start logs the library's reason (`feckless_fetch_why()`).
+- `DL_CONNS` is `FECKLESS_FETCH_CONNS_MAX` (3) and still asserted against
+  `NETBUDGET_PODDL`; the `CONFIG_FREERTOS_TASK_CREATE_ALLOW_EXT_MEM` check
+  stays, since without it the library quietly downloads on one connection.
+
+**Why the statics matter.** `sdkconfig.defaults` already sets
+`CONFIG_SPIRAM_ALLOW_BSS_SEG_EXTERNAL_MEMORY=y`, which is what puts
+`feckless_fetch`'s 16 KB in PSRAM, so no `sdkconfig` change and no `rm
+sdkconfig`. If the board's log shows `internal free ... min` lower with Wi-Fi
+up after a download than before 8124, that is the first thing to check.
+
+*Checked:* `poddl.c` compiled at `-O2 -Wall -Wextra -Werror=all
+-Werror=extra` against stub IDF headers and feckless-libs v0.9.10's real
+`feckless_fetch.h` and `storage_io.h`; at `-Os` it has the two
+`-Wformat-truncation=2` notes in `podpath.h` that the old file had, at the
+same lines. *Not checked:* a build, and everything about running it -- a
+download, a pause and resume, a cancel (and that the folder goes), a
+redirect, a part file from 8123's build, the pictures, three connections.
+Run each on a board before the next patch relies on this.

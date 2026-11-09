@@ -205,6 +205,23 @@ free. The 1000 series was restarted from 1000 once by a session that
 did not look, and there are two of each of 1000-1012 in the history
 because of it -- see "Two series called 1000" in `ARCHITECTURE.md`.
 
+**The `umode` branch has a numbering of its own: `u-defeatist-NNNN`.**
+Its patches are named `u-defeatist-0001-<subject>.patch`, `u-defeatist-0002-...`,
+and apply to the `umode` branch, not to main. They are numbered from
+`--start-number 1` and renamed with the prefix; the subject has neither.
+Their `ARCHITECTURE.md` entries are under "The `umode` branch" at the end
+of the file, headed `u-defeatist-NNNN`, so they cannot clash with an 8000
+patch that lands on main meanwhile. Look at the last `u-defeatist` entry
+for the next number. feckless-libs and Avoidant have the same arrangement
+(`u-feckless-NNNN`, `u-avoidant-NNNN`). When the branch merges, its entries
+move into the series of the release it goes into.
+
+**On that branch the player's own manifest and lock stay on a tag.** What
+follows feckless-libs' `umode` branch is a project of its own under
+`m5tab5/` (boxwin is the first), with its own `idf_component.yml` and
+`dependencies.lock`, so a measurement there cannot move a pin that a
+release is built from.
+
 **`ABBREVIATIONS.md` lists every short label and setting the screen
 shows.** A patch that adds, renames or removes one changes that file in
 the same patch.

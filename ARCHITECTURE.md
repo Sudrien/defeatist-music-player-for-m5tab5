@@ -28735,3 +28735,72 @@ the timing line printed by the `decoder.c` glue compiled against stubs.
 *Not checked:* anything on the board, including whether the timing line
 prints there (`esp_timer.h` is included in `decoder.c` and was not built),
 and whether the four sums make a measurable difference.
+
+## The `umode` branch
+
+Work toward running the player in a feckless box: RISC-V user mode, in one
+block of PSRAM that the PMP grants it, every call out of it an `ecall` the
+launcher checks (feckless-libs' `umode` branch, `u-feckless-0001` to `0033`;
+Avoidant's, `u-avoidant-0001` and `0002`). Numbered `u-defeatist-NNNN`
+(CLAUDE.md), applied to the `umode` branch. Nothing here changes the player
+that main builds: it stays an ABI v1 app on the trusted path, which the
+launcher's `umode` branch still runs as before.
+
+### u-defeatist-0001 -- opens the branch: what is known, what is not
+
+Documentation only; no code, nothing built.
+
+**Where the box is** (feckless-libs at 422cef0, Avoidant at de52693, read,
+not run). Spurious and Lothesome run boxed, from Avoidant and from their own
+standalone .bins, which link the same kernel. A box is one PSRAM block of at
+most 16 MB with a 64 KB stack and up to eight threads, each a window on a
+host task. `feckless_box_calls` answers about a hundred names, written by
+hand for what those two apps call; `feckless_box_libc` links the pure part
+of libc into the app. An ELF is boxed if it imports `feckless_abi_box_v1`.
+
+**What stands between the player and a box**, in the order it would bite:
+
+- *Windows hold interrupts off.* While boxed code computes, no interrupt is
+  taken on its core (u-feckless-0017; interruptible windows, 0016, are
+  behind a Kconfig option that defaults off after watchdog panics). The
+  panel is kept clear by running the app on core 1 (0031). That leaves one
+  core for all of the player's own computing, and it leaves the drivers the
+  app brings up itself -- `audio_out_init()` is the player's call, so the
+  I2S interrupt lands on its core -- waiting out every window, behind DMA
+  buffers of about 20 ms. A thread that never makes a host call cannot be
+  stopped short of a reset (0023).
+- *No locks.* The box answers no mutex, semaphore, queue, stream buffer or
+  task notification. `main/` takes and gives a semaphore at about 300 sites
+  and creates 20 mutexes.
+- *The calls.* By matching the names in `exports.txt` and the sections
+  against the words in `main/` (not a link, so approximate): about 360 ABI
+  names used, about 237 with no answer in a box -- 87 network (sockets,
+  `esp_http_client`, `httpd`, Wi-Fi), 45 storage (every write, `stat`,
+  `rename`, `storage_io_*`), 30 drivers (`audio_out_write`, the battery,
+  HID, `polyrsp`), 16 gfx, 8 NVS, 6 esp_audio_codec, the stream buffers and
+  the heap queries.
+- *Callbacks.* A task entry has a form (a window on a host task); an HTTP
+  handler, a network hook and a USB class callback have none yet.
+- *The PIE unit.* `ape.h` and `dsd.h` use it. ESP-IDF turns a coprocessor on
+  for a task at its first use, from the illegal-instruction trap; 0028 does
+  that for the FPU before each window, and nothing in `feckless_umode` names
+  PIE. Not known whether a PIE instruction runs in a box.
+- *Doubles.* libgcc's double arithmetic and 64-bit division are host calls
+  in a box, one each (0025, 0029: Lothesome's meter cost it a third of its
+  frame rate). ReplayGain's BS.1770 sums and `dsd.h`'s filter design are
+  double.
+- *32 critical sections* in six files, and `esp_cpu_get_cycle_count()` and
+  `esp_cpu_get_core_id()` read as CSRs: neither is possible in user mode.
+
+**Intended order**, to be revised by what the board says. First a
+measurement that needs nothing from the list above: the player's own
+decoders in a box, for the length of their windows (`0002`). If they fit
+under the audio buffer, core 1 and masked windows are enough to go on with,
+and the requests to feckless-libs are locks, the audio output, storage
+writes, NVS, the codec, callbacks and the network, in that order, with the
+player brought up in a box a stage at a time behind a second build target.
+If they do not fit, the player waits on interruptible windows and nothing
+else is worth asking for first. Releases stay on the trusted path until a
+boxed run matches a trusted one for frame rate and underruns.
+
+*Not checked:* anything above on a board. The counts are from source text.

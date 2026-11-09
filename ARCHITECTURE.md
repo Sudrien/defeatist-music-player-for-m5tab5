@@ -28804,3 +28804,66 @@ else is worth asking for first. Releases stay on the trusted path until a
 boxed run matches a trusted one for frame rate and underruns.
 
 *Not checked:* anything above on a board. The counts are from source text.
+
+### u-defeatist-0002 -- boxwin: the decoders' windows, measured in a box
+
+`m5tab5/boxwin/`, a project of its own: an ELF for a box
+(`feckless_abi_box_elf()`) that decodes every `.mp3 .mp2 .ape .dsf .dff` in
+a folder called `boxwin` on the card with the player's own decoders and
+logs, for each, how long the box computed between host calls. Its README
+says how to build, run and read it. The firmware does not build it.
+
+- **The decoders are the player's files**, by include path: `main/ape.h`,
+  `main/dsd.h`, and minimp3 at the commit `cmake/vendored.cmake` pins.
+  `boxwin_run.c` is compiled as `decoder.c` is (-O3), under the player's
+  `sdkconfig.defaults`. FLAC, AAC, Vorbis, Opus and ALAC are not measured:
+  they are esp_audio_codec's, in the launcher (8092), and in a box would be
+  host calls, not windows.
+- **A window is closed before every host call the file makes and opened
+  after it** (`boxwin.h`). `ape.h` and `dsd.h` read through
+  `storage_io_read_at()` and `storage_io_fread()`, which a box does not
+  answer; `boxwin_run.c` defines both over the box's `fseek`/`fread`, under
+  a `storage_io_acquire()` lease as Spurious's reads are, and they are where
+  the reads' windows end. Where the player would hand PCM to
+  `audio_out_write()`, one `esp_timer_get_time()` ends the window: a frame
+  for MP3, 1024 blocks for APE (a `PCM_CHUNK_BYTES` chunk), a block for DSD.
+  The decode loops make no 64-bit division of their own, which would be a
+  host call nobody counted. A window recorded is an upper bound: `dsd_next()`
+  divides a 64-bit position once a block, a host call this cannot see.
+- **Two passes.** The C kernels first, and their table logged. Then the PIE
+  self-tests, after a line saying what it means if the app ends there, and
+  the same files with the PIE kernels, which is what the player ships. If a
+  box cannot run a PIE instruction, the first table is still on the log.
+- **Its own manifest**, on feckless-libs' `umode` branch, and its own
+  `dependencies.lock`, written by its first configure and not in this
+  patch. `main/idf_component.yml` and the player's lock are not touched, so
+  no `rm sdkconfig` and no lock to read for the player.
+
+*Checked, on a host:* `make -C m5tab5/boxwin/test`, which builds
+`boxwin_run.c` as it goes into the box at -O2 -Wall -Wextra -Werror and
+runs it under ASan and UBSan over `test_audio_files/`: 128 checks -- the
+nineteen MP3, MP2, APE, DSF and DFF files decode to their length (30 s
+where the file is longer), the DST file is refused, every window is in a
+bucket, no lease is taken inside another. Four deliberate breaks of
+`boxwin.h` (either bucket edge, a window closed twice, a clock that goes
+back) each fail it. Both files compiled for rv32imafc/ilp32f with
+riscv64-unknown-elf-gcc 13.2.0 and -fPIC, `boxwin_main.c` against stubs of
+ESP-IDF's headers and the real feckless headers, at -Wall -Werror=all
+(-Wextra too for `boxwin_main.c`): every undefined name in the two objects
+is in one of `feckless_box_libc`'s four lists (`boxcalls_names.txt`,
+`inapp.txt`, `libgcc_names.txt`, `picolibc_names.txt`) at 422cef0. That
+compiler has no xesppie, so this was with the C kernels only.
+
+*Not checked:* an ESP-IDF build, `boxcheck` on the linked ELF, the PIE
+kernels compiled at all in this file, the CMake files, `idf.py elf` as the
+way to make the `elf` target, a board. minimp3's frame on that compiler is
+17.5 KB of stack, not the 11.6 KB CLAUDE.md gives for the player's; the
+box's main stack is 64 KB.
+
+*What to look for on a Tab5:* `=== boxwin: the player's decoders in a box,
+for their windows ===`, a line a file ending in `longest N.N ms`, then `the
+PIE self-tests next` and either `PIE works in a box` and a second table or
+Avoidant's `The app stopped: illegal instruction`. Send both tables and
+Avoidant's `ended (reason N), C calls, I interrupts` line. The figure that
+decides the next step is the longest window of `52 ape-insane.ape`,
+`53 ape-insane-noisy.ape` and `43 dsf-dsd256.dsf` against 20 ms.

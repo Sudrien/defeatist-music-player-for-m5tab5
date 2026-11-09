@@ -75,3 +75,12 @@ m5tab5/texttest/*.dSYM/
 __pycache__/
 *.pyc
 m5tab5/texttest/levelhisttest
+
+# u-defeatist-0002: boxwin, a project of its own (m5tab5/boxwin/README.md).
+# Its dependencies.lock is not listed: it records the commit of
+# feckless-libs' umode branch a measurement was taken with.
+/m5tab5/boxwin/build/
+/m5tab5/boxwin/sdkconfig
+/m5tab5/boxwin/sdkconfig.old
+/m5tab5/boxwin/managed_components/
+/m5tab5/boxwin/test/boxwinhost

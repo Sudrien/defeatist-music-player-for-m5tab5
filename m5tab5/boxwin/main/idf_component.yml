@@ -1,0 +1,51 @@
+dependencies:
+  idf:
+    version: ">=6.1"
+
+  # u-defeatist-0002: feckless-libs' umode branch, not a tag, as Avoidant's
+  # and Spurious's umode branches name it while the box is tested; this
+  # project's own dependencies.lock records the commit. Nothing here is the
+  # player's manifest (../../main/idf_component.yml), whose pins and lock
+  # this does not touch.
+  #
+  # feckless_abi and feckless_box_libc build the ELF. The handlers and
+  # drivers are named for their headers -- gfx.h, lcd.h, touch.h, tab5io.h,
+  # storage.h, storage_io.h -- and fatfs and the two USB class drivers
+  # because those components require them by name. feckless_umode and
+  # feckless_box_calls are the launcher's side and are not here.
+  feckless_abi:
+    git: https://github.com/Sudrien/feckless-libs-for-m5tab5.git
+    path: components/feckless_abi
+    version: "umode"
+  feckless_abi_storage:
+    git: https://github.com/Sudrien/feckless-libs-for-m5tab5.git
+    path: components/feckless_abi_storage
+    version: "umode"
+  feckless_box_libc:
+    git: https://github.com/Sudrien/feckless-libs-for-m5tab5.git
+    path: components/feckless_box_libc
+    version: "umode"
+  feckless_graphics_handler:
+    git: https://github.com/Sudrien/feckless-libs-for-m5tab5.git
+    path: components/feckless_graphics_handler
+    version: "umode"
+  feckless_storage_handler:
+    git: https://github.com/Sudrien/feckless-libs-for-m5tab5.git
+    path: components/feckless_storage_handler
+    version: "umode"
+  feckless_drivers:
+    git: https://github.com/Sudrien/feckless-libs-for-m5tab5.git
+    path: components/feckless_drivers
+    version: "umode"
+  fatfs:
+    git: https://github.com/Sudrien/feckless-libs-for-m5tab5.git
+    path: components/fatfs
+    version: "umode"
+  usb_host_msc:
+    git: https://github.com/Sudrien/feckless-libs-for-m5tab5.git
+    path: components/usb_host_msc
+    version: "umode"
+  usb_host_uac:
+    git: https://github.com/Sudrien/feckless-libs-for-m5tab5.git
+    path: components/usb_host_uac
+    version: "umode"

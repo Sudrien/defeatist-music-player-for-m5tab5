@@ -28867,3 +28867,33 @@ Avoidant's `The app stopped: illegal instruction`. Send both tables and
 Avoidant's `ended (reason N), C calls, I interrupts` line. The figure that
 decides the next step is the longest window of `52 ape-insane.ape`,
 `53 ape-insane-noisy.ape` and `43 dsf-dsd256.dsf` against 20 ms.
+
+### u-defeatist-0003 -- boxwin: lwip in the build, for elf_loader's sake
+
+The first ESP-IDF build of boxwin (0002) configured, took `idf.py elf` as
+its target and compiled to step 759 of 800, then stopped in a file that is
+not the project's:
+
+    managed_components/espressif__elf_loader/src/esp_elf_symbol.c:17:10:
+    fatal error: sys/socket.h: No such file or directory
+
+`feckless_abi` requires `elf_loader`. Its `esp_elf_symbol.c` includes
+`<sys/socket.h>` and `<arpa/inet.h>`, and its `CMakeLists.txt` requires
+only `spi_flash` and `esp_mm` (read at 2.1.0), not `lwip`, which has both
+headers. The player's build has lwip regardless -- `main/CMakeLists.txt`
+names it -- and so, by some requirement of theirs, do Spurious's and
+Lothesome's. boxwin sets `COMPONENTS main`, requires nothing that uses a
+socket, and so was the first build without it.
+
+`lwip` is now in boxwin's `REQUIRES`, with a comment saying whose need it
+is. Nothing of it goes into the ELF.
+
+*Checked:* the host test still passes (the change is one CMake line).
+
+*Not checked:* that this is enough. It rests on lwip's include directory
+reaching `elf_loader` once lwip is in the build, as it must in the player's
+build, where `elf_loader` requires it no more than here; the mechanism was
+not read. If the same error comes back with lwip built, the other way is
+`CONFIG_ELF_LOADER=n` for this project, which leaves `elf_loader` with no
+sources. Past this file there were 41 steps the first build never reached,
+the link and `boxcheck` among them.

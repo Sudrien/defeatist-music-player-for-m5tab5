@@ -6,7 +6,8 @@
  * An ELF for a feckless box (feckless_abi_box_elf(), feckless-libs' umode
  * branch), run by a launcher that boxes apps: Avoidant's umode branch. It
  * decodes every .mp3 .mp2 .ape .dsf .dff in a folder called boxwin at the
- * top of the card or the drive, with the player's own decoders, and logs
+ * top of the card or the drive and in the folders inside it, one level
+ * down, with the player's own decoders, and logs
  * for each how long the box computed between host calls. test_audio_files/
  * copied there is the set the numbers are meant to be compared on.
  *
@@ -54,7 +55,8 @@ static const char *TAG = "boxwin";
 
 #define FOLDER      "boxwin"
 #define MAX_FILES   64
-#define NAME_LEN    96
+#define MAX_SUBS    8               /* folders inside FOLDER that are looked in */
+#define NAME_LEN    160             /* "folder/file", from FOLDER down */
 #define PATH_LEN    (16 + sizeof(FOLDER) + NAME_LEN)
 
 /* PSRAM in a box, like everything in it; not on the 64 KB stack. */
@@ -104,27 +106,79 @@ static bool wanted(const char *name)
     return false;
 }
 
-/* The folder's files, by name, so two runs' logs line up. */
-static int list(const char *dir)
+/* One folder's files into s_name[n..], kept in order by name so two runs'
+ * logs line up; `sub` is its name under `dir`, or "" for `dir` itself. The
+ * folders in it go into subs[] when that is given. Logs what it found: the
+ * first run on a board said only "no files" (u-defeatist-0004), which could
+ * have been a folder that would not open as well as one with nothing in it.
+ *
+ * The folder is closed before another is opened: a box has four DIRs. */
+static int list_one(const char *dir, const char *sub, int n,
+                    char subs[][NAME_LEN], int *nsubs)
 {
+    /* storage_join_path() and not snprintf("%s/%s"): it refuses a path
+     * that does not fit where snprintf would open a shorter one. */
+    char path[PATH_LEN];
+    if (!sub[0]) {
+        snprintf(path, sizeof path, "%s", dir);
+    } else if (!storage_join_path(path, sizeof path, dir, sub)) {
+        return n;
+    }
     bw_lease();
-    DIR *d = opendir(dir);
-    int n = 0;
+    DIR *d = opendir(path);
+    int seen = 0, took = 0, folders = 0;
     if (d) {
         struct dirent *e;
-        while (n < MAX_FILES && (e = readdir(d)) != NULL) {
-            if (!wanted(e->d_name) || strlen(e->d_name) >= NAME_LEN) continue;
+        while ((e = readdir(d)) != NULL) {
+            if (e->d_name[0] == '.') continue;
+            seen++;
+            if (e->d_type == DT_DIR) {
+                folders++;
+                const size_t len = strlen(e->d_name);
+                if (subs && *nsubs < MAX_SUBS && len < NAME_LEN) {
+                    memcpy(subs[(*nsubs)++], e->d_name, len + 1);
+                }
+                continue;
+            }
+            char rel[NAME_LEN];
+            if (!wanted(e->d_name) || n >= MAX_FILES) continue;
+            if (sub[0]) {
+                if (!storage_join_path(rel, sizeof rel, sub, e->d_name)) continue;
+            } else {
+                const size_t len = strlen(e->d_name);
+                if (len >= sizeof rel) continue;
+                memcpy(rel, e->d_name, len + 1);
+            }
             int at = n;
-            while (at > 0 && strcmp(s_name[at - 1], e->d_name) > 0) {
+            while (at > 0 && strcmp(s_name[at - 1], rel) > 0) {
                 memcpy(s_name[at], s_name[at - 1], NAME_LEN);
                 at--;
             }
-            snprintf(s_name[at], NAME_LEN, "%s", e->d_name);
+            memcpy(s_name[at], rel, NAME_LEN);
             n++;
+            took++;
         }
         closedir(d);
     }
     bw_unlease();
+    if (!d) {
+        ESP_LOGW(TAG, "%s: would not open", path);
+    } else {
+        ESP_LOGW(TAG, "%s: %d entries, %d folders, %d files to decode", path, seen, folders, took);
+    }
+    return n;
+}
+
+/* FOLDER's files and those of the folders in it, one level down: a copy of
+ * test_audio_files/ dropped into it whole is found. */
+static int list(const char *dir)
+{
+    static char subs[MAX_SUBS][NAME_LEN];
+    int nsubs = 0;
+    int n = list_one(dir, "", 0, subs, &nsubs);
+    for (int i = 0; i < nsubs; i++) {
+        n = list_one(dir, subs[i], n, NULL, NULL);
+    }
     return n;
 }
 
@@ -166,13 +220,17 @@ void app_main(void)
     char dir[PATH_LEN];
     int n = 0;
     for (int v = 0; v < STORAGE_COUNT && !n; v++) {
-        if (!storage_present((storage_id_t)v)) continue;
-        if (!storage_join_path(dir, sizeof dir, storage_mount_path((storage_id_t)v), FOLDER)) continue;
+        const char *mount = storage_mount_path((storage_id_t)v);
+        if (!storage_present((storage_id_t)v)) {
+            ESP_LOGW(TAG, "%s: not mounted", mount ? mount : "?");
+            continue;
+        }
+        if (!storage_join_path(dir, sizeof dir, mount, FOLDER)) continue;
         n = list(dir);
     }
     if (!n) {
         ESP_LOGE(TAG, "no .mp3 .mp2 .ape .dsf .dff in a folder called " FOLDER
-                      " on the card or the drive");
+                      " on the card or the drive, or in a folder inside it");
         say("Nothing to decode: put files in /" FOLDER, C_BAD);
     } else {
         ESP_LOGW(TAG, "%d files in %s; the C kernels", n, dir);

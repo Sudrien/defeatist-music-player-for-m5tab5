@@ -37,8 +37,10 @@ list is the result.
 
 ## Run
 
-1. Copy `m5tab5/test_audio_files/` -- or its `.mp3 .mp2 .ape .dsf .dff` -- to
-   a folder called `boxwin` at the top of the card. Add any file of your own
+1. Make a folder called `boxwin` at the top of the card and copy
+   `m5tab5/test_audio_files/` into it, whole or just its
+   `.mp3 .mp2 .ape .dsf .dff`. Files in `boxwin` itself and in the folders
+   directly inside it are decoded; nothing deeper. Add any file of your own
    that is the worst you play; 30 s of each is decoded.
 2. Put `defeatist_boxwin.app.elf` where Avoidant's `umode` branch lists apps,
    and run it. It must be a launcher that boxes: a trusted one refuses the

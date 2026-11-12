@@ -28897,3 +28897,52 @@ not read. If the same error comes back with lwip built, the other way is
 `CONFIG_ELF_LOADER=n` for this project, which leaves `elf_loader` with no
 sources. Past this file there were 41 steps the first build never reached,
 the link and `boxcheck` among them.
+
+### u-defeatist-0004 -- boxwin: look in the folders inside /boxwin, and say what was found
+
+**The first run on a board.** boxwin built (with 0003), Avoidant at
+de52693 loaded it into a box, and it ran to its end:
+
+    W (3681278) phase: scan /sd/boxwin ...
+    W (3681289) phase: scan done, 2 entries
+    W (3688650) boxwin: === boxwin: the player's decoders in a box, for their windows ===
+    E (3690220) boxwin: no .mp3 .mp2 .ape .dsf .dff in a folder called boxwin on the card or the drive
+    W (3690223) boxwin: === boxwin: done ===
+
+So the ELF links, `boxcheck` passed, and the board bring-up, the log and a
+return from `app_main` work in a box. It decoded nothing.
+
+**Why, as far as the log goes.** Avoidant's menu lists folders and `.bin`
+and `.elf` files, and found two in `/sd/boxwin`: the ELF and, most likely,
+a folder -- `test_audio_files/` copied in whole, which is one reading of
+what 0002's README asked for. boxwin looked only at the files directly in
+`/boxwin`. That is an inference: boxwin's one line could not tell an empty
+folder from one that would not open or a card it thought was not there.
+
+**Both are changed.** `list()` now takes the files in `/boxwin` and in each
+folder directly inside it (eight at most, one level, each closed before the
+next is opened: a box has four DIRs), named by their path from `/boxwin`
+and sorted by it. And each step logs: a volume that is not mounted, a
+folder that would not open, and for every folder opened its entries,
+folders and files to decode. Paths are joined with `storage_join_path()`,
+which refuses one that does not fit. The README's step says what is looked
+in.
+
+*Checked, on a host:* `boxwin_main.c` compiled natively against stubs with
+its `list()` run over a made-up card -- an ELF and an MP3 in `boxwin`, a
+`test_audio_files` with two audio files and a text file, a `deep` with one
+file and a folder below it -- under ASan and UBSan: four files, in order,
+the one two levels down left out, and a folder that does not exist logged
+as `would not open`. That harness is not in the patch. Compiled for
+rv32imafc at -Wall -Wextra -Werror; every undefined name is still in the
+box's lists. `make -C m5tab5/boxwin/test` still passes; it does not build
+this file.
+
+*Not checked:* an ESP-IDF build, a board. That `d_type` reaches a box as
+`DT_DIR` for a folder on FAT is taken from Avoidant reading it the same
+way on the host side and `c_readdir` copying the host's dirent whole.
+
+*What to look for:* `/sd/boxwin: N entries, F folders, 0 files to decode`
+then `/sd/boxwin/<folder>: ... files to decode`, then the table. If a line
+says `would not open` or `not mounted` with the card in, send it: that is a
+fault in the box's storage calls or in this file, not in the card.

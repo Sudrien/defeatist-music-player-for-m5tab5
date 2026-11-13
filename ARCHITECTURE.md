@@ -29014,3 +29014,87 @@ self-tests next` and Avoidant's `ended (reason 1)`. Copy the panel's
 `The app stopped: ...` line. The figures that decide the next step are the
 longest windows of `52 ape-insane.ape`, `53 ape-insane-noisy.ape` and
 `43 dsf-dsd256.dsf`.
+
+### u-defeatist-0006 -- boxwin: the first full table, and a window it had been inventing
+
+**The third run on a board** (0005 applied; Avoidant de52693; C kernels,
+`BW_APE_BLOCKS` 1024). All twenty files, then `the PIE self-tests next`,
+then `ended (reason 1), 823801 calls, 0 interrupts, 0 core changes`.
+
+| file | speed | longest window | of 5 ms or more |
+|---|---|---|---|
+| 03, 04, 12 MP3; 40 MP2 | 25.5 to 27.2x | 1.1 to 1.4 ms | 0 |
+| 49 APE fast | 12.63x | 2.0 ms | 0 |
+| 48, 56 APE normal | 7.39x | 3.3, 3.4 ms | 0 |
+| 54 APE normal 24-bit | 6.61x | 3.7 ms | 0 |
+| 55 APE normal mono 22 kHz | 29.76x | 1.6 ms | 0 |
+| 50 APE high | 4.61x | 5.5 ms | 618 of 1340 |
+| 51 APE extra high | 1.62x | 16.3 ms | 1316 of 1339 |
+| 52 APE insane | 0.36x | 75.1 ms | 1331 of 1341, 1314 of 20 ms or more |
+| 53 APE insane, noisy | 0.32x | 75.2 ms | 1394 of 1406, 1352 of 20 ms or more |
+| 41 DSD64 stereo | 3.40x | see below | 1 |
+| 42 DSD128 stereo | 2.29x | see below | 1 |
+| 43 DSD256 stereo | 1.46x | see below | 1 |
+| 44, 46 DSD64 mono | 5.35x | see below | 1 |
+| 45 DSD64 stereo DFF | 3.05x | see below | 1 |
+
+**The DSD "longest" was not a window.** Each DSD file logged one window of
+214 ms (DSD64), 401 ms (DSD128) or 589 ms (DSD256), the same mono and
+stereo, and nothing else of 5 ms or more. `boxwin_run.c` began recording
+with `cut()`, which closes the window open since the last host call it had
+seen -- the last read of the probe. Everything between was recorded as one
+window: for DSD, the whole of `dsd_conv_new()`, whose filter design is
+double arithmetic and so thousands of host calls, not one window. For MP3
+and APE the same extra window was there and short. So what the run says of
+DSD on the C kernel is that every real window was under 5 ms, and that
+set-up costs 0.2 to 0.6 s in a box.
+
+**What the table settles**, for a box with windows masked and the app on
+core 1:
+
+- MP3, MP2, APE fast and normal, and DSD at every rate: no window near the
+  audio buffer's 20 ms. These can be boxed as things are.
+- APE high and extra high: 5.5 and 16.3 ms. Under 20 ms, over what the
+  panel's core could stand, and extra high is close. A smaller chunk than
+  1024 blocks shortens them in proportion.
+- APE insane on the C kernel decodes at a third of real time. It cannot be
+  played in a box at all without the PIE kernel, whatever its windows.
+- The app ended at the PIE self-test, as 0005 expected. *Still not
+  confirmed* to be an illegal instruction: the panel's line was not sent.
+- Not one interrupt was taken in 823801 host calls' worth of windows.
+
+So the first request to feckless-libs is the PIE unit turned on for a
+window, as u-feckless-0028 does the FPU, ahead of the locks: it decides
+whether APE insane exists in a boxed player and gives DSD256 more than
+1.46x.
+
+**The reads were slow, and this does not say why.** Wall time less decode
+time, against file size: 0.60 MB/s for every DSD file (4 and 8 KB reads),
+about 1.3 MB/s for MP3 and most APE (up to 16 KB). DSD128 stereo needs 1.4
+MB/s and DSD256 2.8. That figure is rough: it includes the lease and a
+clock read each side of every read. And `main/dsd.h` itself says a stream
+that has been sought reads slowly from then on (8100 to 8102); `dsd_next()`
+seeks once for its first read, here as in the player. So it may be the
+box's 8 KB staging (`READ_SLICE`), the lease, or the seek. The reads are
+now timed by themselves.
+
+**Changed.**
+
+- `begin()` starts recording with a window that begins there; `end()`
+  stops it. A window is recorded for each `cut()` and each read while
+  decoding and for nothing else, and the result carries both counts.
+- Reads are timed and summed, and set-up is the time from opening the
+  file to `begin()`. Both are in the line: `set-up N ms, K KB read in M ms`.
+- `test/host.c` checks `windows == cuts + reads` for every file. Put back,
+  the old `cut()` fails it with the board's own counts: `5170 windows for
+  2585 cuts and 2584 reads` for file 41, 1341 for file 49, 1208 for file 40.
+
+*Checked, on a host:* `make -C m5tab5/boxwin/test`, 147 checks; the break
+above; both files for rv32imafc at -Werror with the imports unchanged.
+
+*Not checked:* an ESP-IDF build, a board.
+
+*What to look for:* DSD lines with a longest window of a few ms and
+`0 of 5 ms or more`, window counts one lower than this run's, and the
+`set-up` and `KB read in` figures -- the second against the first tells
+the read rate. And the panel's `The app stopped: ...` line.

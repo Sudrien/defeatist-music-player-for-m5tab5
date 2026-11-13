@@ -96,9 +96,13 @@ int main(int argc, char **argv)
         CHECK(r.audio_ms >= 1000, "%s: only %u ms of audio", name, (unsigned)r.audio_ms);
         CHECK(r.rate >= 8000 && (r.channels == 1 || r.channels == 2), "%s: %u Hz x%u", name,
               (unsigned)r.rate, (unsigned)r.channels);
-        /* A window a decode call and one a read, at least. */
-        CHECK(r.win.windows >= r.calls, "%s: %u windows for %u calls", name,
-              (unsigned)r.win.windows, (unsigned)r.calls);
+        /* u-defeatist-0006: a window for each place PCM is handed on and
+         * one for each read, and no other -- not one for the set-up, which
+         * is what the first cut used to record. */
+        CHECK(r.win.windows == r.cuts + r.reads, "%s: %u windows for %u cuts and %u reads", name,
+              (unsigned)r.win.windows, (unsigned)r.cuts, (unsigned)r.reads);
+        CHECK(r.cuts >= r.calls && r.reads > 0 && r.read_kb > 0, "%s: %u cuts for %u calls, %u reads, %u KB",
+              name, (unsigned)r.cuts, (unsigned)r.calls, (unsigned)r.reads, (unsigned)r.read_kb);
         uint32_t h = 0;
         for (int b = 0; b < BW_BUCKETS; b++) h += r.win.hist[b];
         CHECK(h == r.win.windows, "%s: the buckets hold %u of %u windows", name, (unsigned)h,

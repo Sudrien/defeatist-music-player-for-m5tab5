@@ -18,7 +18,10 @@
  *
  * Set-up (the probe, dsd_conv_new()'s filter design in double) is timed but
  * not recorded as windows: its double arithmetic is thousands of host calls
- * this file cannot see, so what it would record is not a window.
+ * this file cannot see, so what it would record is not a window. begin()
+ * is where recording starts, and it starts a window there, not from the
+ * last host call before it: the first run that reached DSD recorded the
+ * whole of dsd_conv_new() as one window of 214 to 589 ms (u-defeatist-0006).
  *
  * No ESP-IDF in this file: test/host.c builds it on a host.
  */
@@ -45,9 +48,33 @@
 
 static bw_track_t s_track = { .open_us = -1, .into = NULL };
 
-/* Around every host call this file makes. */
-#define HOST_BEGIN()  bw_close(&s_track, bw_now())
-#define HOST_END()    bw_open(&s_track, bw_now())
+/* The file being decoded: when it was opened, and what its reads and cuts
+ * have come to since begin(). */
+static int64_t  s_t0;
+static uint64_t s_read_us, s_read_bytes;
+static uint32_t s_reads, s_cuts;
+
+/* Set-up is over: recording starts, with a window that begins now. */
+static void begin(bw_result_t *r)
+{
+    const int64_t now = bw_now();
+    r->setup_ms = (uint32_t)((now - s_t0) / 1000);
+    s_read_us = s_read_bytes = 0;
+    s_reads = s_cuts = 0;
+    s_track.into = &r->win;
+    bw_open(&s_track, now);
+}
+
+/* Decoding is over: the counts into the result, and no more recorded. */
+static void end(bw_result_t *r)
+{
+    s_track.into = NULL;
+    s_track.open_us = -1;
+    r->cuts = s_cuts;
+    r->reads = s_reads;
+    r->read_kb = (uint32_t)(s_read_bytes / 1024u);
+    r->read_ms = (uint32_t)(s_read_us / 1000u);
+}
 
 /* Where the player would hand the PCM on (audio_out_write(), a host call):
  * the window ends and the next begins. One clock read, which is itself the
@@ -57,30 +84,44 @@ static void cut(void)
     const int64_t now = bw_now();
     bw_close(&s_track, now);
     bw_open(&s_track, now);
+    s_cuts++;
 }
 
 /* ---- storage_io's two reads, over a box's stdio ------------------------ */
+
+/* A read is a host call: the window ends before it and the next begins
+ * after. What lies between the two clock reads is the read's own time. */
+static void read_done(int64_t t0, size_t got)
+{
+    const int64_t t1 = bw_now();
+    bw_open(&s_track, t1);
+    s_read_us += (uint64_t)(t1 - t0);
+    s_read_bytes += got;
+    s_reads++;
+}
 
 bool storage_io_read_at(FILE *f, int64_t off, void *dst, size_t len,
                         storage_io_class_t cls)
 {
     (void)cls;
-    HOST_BEGIN();
+    const int64_t t0 = bw_now();
+    bw_close(&s_track, t0);
     bw_lease();
     const bool ok = fseek(f, (long)off, SEEK_SET) == 0 && fread(dst, 1, len, f) == len;
     bw_unlease();
-    HOST_END();
+    read_done(t0, ok ? len : 0);
     return ok;
 }
 
 size_t storage_io_fread(void *dst, size_t len, FILE *f, storage_io_class_t cls)
 {
     (void)cls;
-    HOST_BEGIN();
+    const int64_t t0 = bw_now();
+    bw_close(&s_track, t0);
     bw_lease();
     const size_t n = fread(dst, 1, len, f);
     bw_unlease();
-    HOST_END();
+    read_done(t0, n);
     return n;
 }
 
@@ -139,8 +180,7 @@ static void run_mp3(FILE *f, int64_t size, bw_result_t *r)
     uint64_t frames = 0, cap = UINT64_MAX;
     bool eof = false;
     int layer = 0;
-    s_track.into = &r->win;
-    cut();
+    begin(r);
     for (;;) {
         if (!eof && have - pos < MP3_REFILL) {
             memmove(buf, buf + pos, have - pos);
@@ -172,7 +212,7 @@ static void run_mp3(FILE *f, int64_t size, bw_result_t *r)
             if (frames >= cap) break;
         }
     }
-    s_track.into = NULL;
+    end(r);
     if (!frames) {
         r->why = "no MPEG audio frame found";
         return;
@@ -214,8 +254,7 @@ static void run_ape(FILE *f, int64_t size, bool pie, bw_result_t *r)
 
     uint64_t blocks = 0;
     const uint64_t cap = cap_frames(r->rate);
-    s_track.into = &r->win;
-    cut();
+    begin(r);
     for (;;) {
         const uint32_t n = ape_next(d, f, pcm, BW_APE_BLOCKS);
         cut();
@@ -224,7 +263,7 @@ static void run_ape(FILE *f, int64_t size, bool pie, bw_result_t *r)
         r->calls++;
         if (blocks >= cap) break;
     }
-    s_track.into = NULL;
+    end(r);
     r->audio_ms = ms_of(blocks, r->rate);
     r->ok = blocks > 0 && !d->err;
     if (!r->ok) r->why = "unreadable data";
@@ -270,8 +309,7 @@ static void run_dsd(FILE *f, int64_t size, bool pie, bw_result_t *r)
     dsd_seek_plan(c, &rd, 0);
     uint64_t frames = 0;
     const uint64_t cap = cap_frames(r->rate);
-    s_track.into = &r->win;
-    cut();
+    begin(r);
     for (;;) {
         const size_t n = dsd_next(c, &rd, f, in, pcm, STORAGE_IO_PLAYBACK);
         cut();
@@ -280,7 +318,7 @@ static void run_dsd(FILE *f, int64_t size, bool pie, bw_result_t *r)
         r->calls++;
         if (frames >= cap) break;
     }
-    s_track.into = NULL;
+    end(r);
     r->audio_ms = ms_of(frames, r->rate);
     r->ok = frames > 0;
     if (!r->ok) r->why = "no audio came out";
@@ -316,15 +354,13 @@ void bw_run_file(const char *path, bool pie, bw_result_t *out)
         return;
     }
     out->pie = pie && !mp3 && bw_pie_built();
-    const int64_t t0 = bw_now();
+    s_t0 = bw_now();
     const int64_t size = file_size(f);
     if (mp3) run_mp3(f, size, out);
     else if (ape) run_ape(f, size, out->pie, out);
     else run_dsd(f, size, out->pie, out);
-    /* What was not a recorded window: set-up, and the reads. */
-    const int64_t all = bw_now() - t0;
-    const int64_t rest = all - (int64_t)out->win.sum_us;
-    out->setup_ms = rest > 0 ? (uint32_t)(rest / 1000) : 0;
+    s_track.into = NULL;                /* a path that left before end() */
+    s_track.open_us = -1;
     bw_lease();
     fclose(f);
     bw_unlease();
@@ -360,13 +396,15 @@ char *bw_format(const char *name, const bw_result_t *r, char *out, size_t len)
     const uint32_t x100 = cpu_ms ? (uint32_t)((uint64_t)r->audio_ms * 100u / cpu_ms) : 0;
     snprintf(out, len,
              "%.56s: %s%s %u Hz x%u, %u ms of audio in %u ms (%u.%02ux); "
-             "%u windows, longest %u.%u ms, %u of 5 ms or more, %u of 20 ms or more%s",
+             "%u windows, longest %u.%u ms, %u of 5 ms or more, %u of 20 ms or more; "
+             "set-up %u ms, %u KB read in %u ms%s",
              name, r->kind, r->pie ? " PIE" : "", (unsigned)r->rate, (unsigned)r->channels,
              (unsigned)r->audio_ms, (unsigned)cpu_ms, (unsigned)(x100 / 100u), (unsigned)(x100 % 100u),
              (unsigned)r->win.windows, (unsigned)(r->win.max_us / 1000u),
              (unsigned)(r->win.max_us % 1000u / 100u),
              (unsigned)bw_stat_over(&r->win, BW_PANEL_US),
              (unsigned)bw_stat_over(&r->win, BW_AUDIO_US),
+             (unsigned)r->setup_ms, (unsigned)r->read_kb, (unsigned)r->read_ms,
              r->win.max_us >= BW_AUDIO_US ? "  ** over the audio budget"
              : r->win.max_us >= BW_PANEL_US ? "  * over the panel's" : "");
     return out;

@@ -50,11 +50,14 @@ list is the result.
 
 ## The log
 
-    boxwin: 52 ape-insane.ape: ape 5000 44100 Hz x2, 30000 ms of audio in
-            24100 ms (1.24x); 1341 windows, longest 21.3 ms, 1299 of 5 ms or
-            more, 8 of 20 ms or more  ** over the audio budget
+    boxwin: next: test_audio_files/51 ape-extrahigh.ape
+    boxwin: test_audio_files/51 ape-extrahigh.ape: ape 4000 44100 Hz x2,
+            30000 ms of audio in 18439 ms (1.62x); 1339 windows, longest
+            16.3 ms, 1316 of 5 ms or more, 0 of 20 ms or more; set-up 12 ms,
+            1612 KB read in 1270 ms  * over the panel's
 
-(that line is made up, to show the shape.) One line a file from the C
+(the window figures are a board's, u-defeatist-0006; the set-up and read
+figures are made up, to show the shape.) Two lines a file from the C
 kernels, then `the PIE self-tests next`, then the same files with the P4's
 PIE kernels, which is what the player ships with.
 
@@ -63,7 +66,12 @@ PIE kernels, which is what the player ships with.
   more: an audio underrun is possible with windows masked.
 - **(N.NNx)** is decode speed against real time, with the reads left out. An
   APE window is 1024 samples, 23 ms of audio, so its length is 23 ms / speed;
-  a smaller chunk in the player would shorten it in proportion.
+  a smaller chunk in the player would shorten it in proportion. Under 1.00x
+  the format cannot be played at all, whatever its windows.
+- **set-up** is the probe and the tables, before the first window: for DSD,
+  the filter design, which is double arithmetic and so thousands of host
+  calls in a box. **KB read in ms** is the reads while decoding, lease and
+  seek included.
 - **`next: <file>`** comes before each file. A fault ends the app with no
   line of its own, so the last `next:` is the file it happened in.
 - **If the app ends at the PIE self-test**, a box does not turn the PIE unit

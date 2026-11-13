@@ -107,9 +107,13 @@ typedef struct {
     bool        pie;            /* decoded with the P4's PIE kernels */
     uint32_t    rate, channels; /* of the PCM that came out */
     uint32_t    audio_ms;       /* decoded */
-    uint32_t    setup_ms;       /* probe and tables: not windows (see boxwin_run.c) */
+    uint32_t    setup_ms;       /* probe and tables, before the first window */
     uint32_t    calls;          /* decode calls: frames, chunks or blocks */
-    bw_stat_t   win;
+    uint32_t    cuts;           /* windows ended where PCM would be handed on */
+    uint32_t    reads;          /* windows ended by a read, while decoding */
+    uint32_t    read_kb;        /* what those reads brought in */
+    uint32_t    read_ms;        /* and took, lease and seek included */
+    bw_stat_t   win;            /* windows == cuts + reads (u-defeatist-0006) */
 } bw_result_t;
 
 /* What the platform supplies: main/boxwin_main.c in the box, test/host.c on

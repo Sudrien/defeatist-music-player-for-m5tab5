@@ -29098,3 +29098,84 @@ above; both files for rv32imafc at -Werror with the imports unchanged.
 `0 of 5 ms or more`, window counts one lower than this run's, and the
 `set-up` and `KB read in` figures -- the second against the first tells
 the read rate. And the panel's `The app stopped: ...` line.
+
+### u-defeatist-0007 -- boxwin's table with the bookkeeping right; what the measurement comes to
+
+Documentation only. **The fourth run on a board** (0006 applied; Avoidant
+de52693; C kernels; 1024-block APE chunks). Twenty files, `the PIE
+self-tests next`, `ended (reason 1), 824057 calls, 0 interrupts`.
+
+| file | speed | longest window | 5 ms or more | set-up | read rate |
+|---|---|---|---|---|---|
+| 03, 12 MP3; 40 MP2 | 25.5 to 25.7x | 1.3, 1.4 ms | 0 | 1-2 ms | 0.58 MB/s |
+| 04 MP3 VBR | 27.13x | 1.3 ms | 0 | 1 ms | 0.61 |
+| 41 DSD64 stereo | 3.48x | 3.7 ms | 0 | 215 ms | 0.58 |
+| 45 DSD64 stereo DFF | 3.51x | 3.4 ms | 0 | 216 ms | 0.58 |
+| 44, 46 DSD64 mono | 6.94x | 1.7, 2.0 ms | 0 | 216 ms | 0.57 |
+| 42 DSD128 stereo | 2.80x | 2.1 ms | 0 | 402 ms | 0.58 |
+| 43 DSD256 stereo | 2.06x | 1.5 ms | 0 | 590 ms | 0.58 |
+| 49 APE fast | 12.63x | 2.2 ms | 0 | 27 ms | 0.58 |
+| 48 APE normal | 7.38x | 3.5 ms | 0 | 28 ms | 0.58 |
+| 56 APE normal, APEv2 tag | 7.37x | 3.5 ms | 0 | 17 ms | 0.92 |
+| 54 APE normal 24-bit | 6.62x | 3.9 ms | 0 | 28 ms | 0.58 |
+| 55 APE normal mono 22 kHz | 29.55x | 1.9 ms | 0 | 5 ms | 5.21 |
+| 50 APE high | 4.61x | 5.5 ms | 651 of 1339 | 28 ms | 0.58 |
+| 51 APE extra high | 1.62x | 16.3 ms | 1316 of 1338 | 28 ms | 0.58 |
+| 52 APE insane | 0.36x | 75.1 ms | 1331; 1314 of 20 ms | 28 ms | 0.58 |
+| 53 APE insane, noisy | 0.32x | 75.5 ms | 1394; 1352 of 20 ms | 8 ms | 3.64 |
+
+The window counts are one lower than the third run's for every file, and
+the DSD speeds higher (0006's table had the set-up in them): the invented
+window is gone. Two runs agree to a tenth of a millisecond on the rest.
+
+**Windows: the question 0002 was written to answer.** With windows masked
+and the app on core 1, every format the player decodes in its own code has
+its longest window under the audio buffer's 20 ms on the C kernels, except
+APE insane, which is not playable on them at all (a third of real time).
+APE extra high is the only other one over 5 ms by much: 16.3 ms at 1024
+blocks, 8 ms at 512. Interruptible windows (u-feckless-0016) are therefore
+not what the player waits on.
+
+**PIE: asked twice, answered the same.** Both runs ended with a fault at
+the first PIE instruction boxwin executes on purpose. The panel's line has
+not been read, so "illegal instruction" is still what is expected and not
+what is known. Without PIE a boxed player has DSD256 at 2.06x and no APE
+insane. That is the first thing to ask feckless-libs for.
+
+**Reads: two rates, and the slow one is boxwin's doing.** Seventeen files
+read at 0.57 to 0.61 MB/s whatever the read size (4, 8 or 16 KB). Files 53
+and 55 read at 3.6 and 5.2 MB/s, and 56 between; the same three had the
+short set-up, both runs. boxwin's `storage_io_read_at()` is `fseek()` then
+`fread()` on a `FILE` the box opened with its default buffer. The likeliest
+reading is the one `main/dsd.h` already records from the player (8100 to
+8102): a stream that has been sought reads slowly from then on. In 53 and
+55 the first frame probably follows the seek table directly, so the stream
+is never moved from where the probe left it. Not shown: no run has
+separated the seek from the buffer or from the box's 8 KB staging. What it
+does show is that a box can deliver 3.6 to 5.2 MB/s, above DSD256's 2.8, and
+that a boxed player must not get its positioned reads the way boxwin does;
+the box answers FatFs's `f_read` and `f_lseek` with a cluster table
+(u-feckless-0007), which is how Spurious reads.
+
+**Set-up.** `dsd_conv_new()` takes 215, 402 and 590 ms for DSD64, 128 and
+256 in a box: its filter design is double arithmetic, a host call an
+operation. That is a pause at the start of every DSD track and at every
+seek that rebuilds it, and it is the player's to fix (float, or a table
+kept between tracks), not feckless-libs'.
+
+**After the app ended**, on this boot only, Avoidant aborted and
+rebooted: `sdmmc_io_rw_extended ... 0x107`, `eh_sdio: Unrecoverable host
+sdio state`, `TRANSPORT_FAILURE: forcing host reset`, `abort()`. The same
+boot had failed to bring the card up at power-on (0x107, mounted 27 s
+later) and never brought the radio up (`esp_wifi_start: ESP_FAIL`); the
+third run, whose boot had neither fault, ended cleanly. Not boxwin's, as
+far as the log shows; recorded because it followed a boxed app.
+
+**Where that leaves the order in 0001.** Go, on masked windows and core 1.
+The requests to feckless-libs, first to last: the PIE unit on for a
+window; locks and task notifications; `audio_out_write()` and its format
+calls; storage writes; NVS; the codec; callbacks; the network. In the
+player, ahead of any of it: DSD set-up out of double, and positioned reads
+through one function that can be FatFs in a box.
+
+*Not checked:* everything here is one board, one card, two runs.

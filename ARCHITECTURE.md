@@ -28946,3 +28946,71 @@ way on the host side and `c_readdir` copying the host's dirent whole.
 then `/sd/boxwin/<folder>: ... files to decode`, then the table. If a line
 says `would not open` or `not mounted` with the card in, send it: that is a
 fault in the box's storage calls or in this file, not in the card.
+
+### u-defeatist-0005 -- dsd.h: no PIE self-test while the vector sum is off; boxwin names the file before it decodes it
+
+**The second run on a board** (0003 and 0004 applied; Avoidant de52693,
+twice, the same both times):
+
+    boxwin: /sd/boxwin: 2 entries, 1 folders, 0 files to decode
+    boxwin: /sd/boxwin/test_audio_files: 65 entries, 1 folders, 20 files to decode
+    boxwin: .../03 mp3-cbr-noxing.mp3: mp3 44100 Hz x2, 30014 ms of audio in 1167 ms (25.71x); 1208 windows, longest 1.4 ms
+    boxwin: .../04 mp3-vbr-xing.mp3:   ... 1105 ms (27.16x); 1163 windows, longest 1.3 ms
+    boxwin: .../12 mp3-bigart-noxing.mp: ... 1167 ms (25.71x); 1208 windows, longest 1.3 ms
+    boxwin: .../40 mp2.mp2:            mp2 ... 1175 ms (25.54x); 1208 windows, longest 1.1 ms
+    avoidant: defeatist_boxwin.app.elf: ended (reason 1), 94588 calls, 0 interrupts, 0 core changes
+
+**What it settles.** MP3 and MP2 in a box: about 26 times real time, no
+window over 1.4 ms, none of 5 ms or more. minimp3 is no obstacle to a boxed
+player with windows masked. Storage reads, the listing and the log all
+work in a box, and no interrupt was taken in a window.
+
+**What ended it.** Reason 1 is `FECKLESS_UMODE_END_FAULT`: a trap that is
+neither a host call nor an interrupt. The next file by name is
+`41 dsf-dsd64.dsf` -- DSD, not APE. `dsd_conv_new()` builds its table in
+double (the tens of thousands of host calls in that count), and then, at
+its line 585, calls `dsd_pie_selftest()` whatever `dsd_pie_on` says. The
+self-test executes the PIE kernel. boxwin's C pass had set `dsd_pie_on`
+false first, which did not stop it -- and the self-test sets `dsd_pie_on`
+itself, so had it passed the "C" pass would have run the PIE kernel. The
+fault is therefore almost certainly the first PIE instruction in a box,
+and the answer to 0001's open question is that a box does not run them.
+*Not confirmed:* the cause and address are on Avoidant's panel and not in
+its log, and were not sent.
+
+**Changed.**
+
+- `main/dsd.h`: `dsd_conv_new()` runs the self-test only while
+  `dsd_pie_on` is true. It starts true, and nothing in the player turns it
+  off, so the player's call is as it was. Off now means what the comment on
+  it says: the C kernel, and no PIE instruction executed.
+- `texttest/dsdtest.c`, in its `DSD_PIE_MODEL` build: with the sum off,
+  `dsd_conv_new()` leaves it off. First in `main()`, because the self-test
+  runs once in a process.
+- `boxwin_main.c` logs `next: <file>` before each file, so a fault has a
+  name; file names in the lines are cut at 56 characters, not 40, which
+  had taken the end off `12 mp3-bigart-noxing.mp3`.
+- boxwin's README says what `ended (reason 1)` is and where its detail is.
+
+With this the C pass should run all twenty files, and the app should then
+end at `the PIE self-tests next` -- in `ape_pie_selftest()`, the first of
+the two -- with the C table complete above it.
+
+*Checked, on a host:* `make -C texttest dsdtest`: 127 checks in the C
+build, 129 in the model build, and with the gate taken out again the new
+check fails (`dsd_conv_new() ran the PIE self-test with the vector sum
+turned off`). `make -C boxwin/test`: 128 checks. `boxwin_run.c` and
+`host.c` also built with `-m32 -O3` under ASan and UBSan and run over the
+APE, DSF and DFF files, for a 32-bit `long` and `size_t` as on the board:
+clean. Both boxwin files compiled for rv32imafc at -Werror; imports
+unchanged.
+
+*Not checked:* an ESP-IDF build, a board. That the fault was an illegal
+instruction. The PIE branch of `dsd.h` itself is compiled only by ESP-IDF's
+toolchain; the model build compiles the same lines around it.
+
+*What to look for:* `next:` lines, twenty results, then `the PIE
+self-tests next` and Avoidant's `ended (reason 1)`. Copy the panel's
+`The app stopped: ...` line. The figures that decide the next step are the
+longest windows of `52 ape-insane.ape`, `53 ape-insane-noisy.ape` and
+`43 dsf-dsd256.dsf`.

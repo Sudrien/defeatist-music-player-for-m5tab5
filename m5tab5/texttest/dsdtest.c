@@ -156,6 +156,24 @@ int main(void)
     load_ref();
     CHECK(ref_n > 44100 * 2 * 5, "file 01 did not load");
 
+#ifdef DSD_HAVE_PIE
+    /* u-defeatist-0005, and first, before any other dsd_conv_new(): the
+     * self-test runs once in a process. With the vector sum turned off,
+     * dsd_conv_new() must not run it -- it executes the kernel, and it sets
+     * dsd_pie_on itself, which before 0005 turned the sum back on. */
+    {
+        dsd_t d;
+        int16_t *pcm = NULL;
+        uint32_t lat = 0;
+        dsd_pie_on = false;
+        const uint64_t n = decode_all("46 dff-dsd64-mono.dff", &d, &pcm, &lat);
+        CHECK(n > 0, "46 dff-dsd64-mono.dff: nothing decoded with the vector sum off");
+        CHECK(!dsd_pie_on, "dsd_conv_new() ran the PIE self-test with the vector sum turned off");
+        free(pcm);
+        dsd_pie_on = true;
+    }
+#endif
+
     printf("  decode against file 01\n");
     check_file("41 dsf-dsd64.dsf", 2822400, 2, 30.0, 50.0);
     check_file("42 dsf-dsd128.dsf", 5644800, 2, 5.0, 50.0);

@@ -582,7 +582,14 @@ static inline dsd_conv_t *dsd_conv_new(const dsd_t *d, uint32_t in_chunk)
     }
     free(h);
 
-    (void)dsd_pie_selftest();
+    /* u-defeatist-0005: only while the PIE sum is on. A caller that has
+     * turned it off has said this build is not to execute a PIE
+     * instruction, and the self-test is one: in a feckless box, where the
+     * PIE unit is not on for user mode, it ended the app here. On is how
+     * dsd_pie_on starts, so the player's own call is as it was. */
+#ifdef DSD_HAVE_PIE
+    if (dsd_pie_on) (void)dsd_pie_selftest();
+#endif
     dsd_halfband(c->hb1, DSD_HB1_H, 9.65);
     dsd_halfband(c->hb2, DSD_HB2_H, 9.65);
 

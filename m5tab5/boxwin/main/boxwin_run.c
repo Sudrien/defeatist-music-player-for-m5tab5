@@ -244,6 +244,8 @@ static void run_dsd(FILE *f, int64_t size, bool pie, bw_result_t *r)
                : st == DSD_UNSUPPORTED ? "a DSD this does not play" : "not a DSF or DFF";
         return;
     }
+    /* Before dsd_conv_new(), which runs the PIE self-test itself while
+     * this is on (u-defeatist-0005): off, it executes no PIE instruction. */
 #ifdef DSD_HAVE_PIE
     dsd_pie_on = pie;
 #else
@@ -351,13 +353,13 @@ bool bw_pie_selftest(void)
 char *bw_format(const char *name, const bw_result_t *r, char *out, size_t len)
 {
     if (!r->ok) {
-        snprintf(out, len, "%.40s: %s", name, r->why ? r->why : "failed");
+        snprintf(out, len, "%.56s: %s", name, r->why ? r->why : "failed");
         return out;
     }
     const uint32_t cpu_ms = (uint32_t)(r->win.sum_us / 1000u);
     const uint32_t x100 = cpu_ms ? (uint32_t)((uint64_t)r->audio_ms * 100u / cpu_ms) : 0;
     snprintf(out, len,
-             "%.40s: %s%s %u Hz x%u, %u ms of audio in %u ms (%u.%02ux); "
+             "%.56s: %s%s %u Hz x%u, %u ms of audio in %u ms (%u.%02ux); "
              "%u windows, longest %u.%u ms, %u of 5 ms or more, %u of 20 ms or more%s",
              name, r->kind, r->pie ? " PIE" : "", (unsigned)r->rate, (unsigned)r->channels,
              (unsigned)r->audio_ms, (unsigned)cpu_ms, (unsigned)(x100 / 100u), (unsigned)(x100 % 100u),

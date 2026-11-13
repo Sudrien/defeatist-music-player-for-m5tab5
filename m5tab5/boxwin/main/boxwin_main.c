@@ -86,11 +86,11 @@ static void say_result(const char *name, const bw_result_t *r)
 {
     char t[120];
     if (!r->ok) {
-        snprintf(t, sizeof t, "%.40s: %.60s", name, r->why ? r->why : "failed");
+        snprintf(t, sizeof t, "%.56s: %.60s", name, r->why ? r->why : "failed");
         say(t, C_BAD);
         return;
     }
-    snprintf(t, sizeof t, "%.40s%s: %u.%u ms", name, r->pie ? " PIE" : "",
+    snprintf(t, sizeof t, "%.56s%s: %u.%u ms", name, r->pie ? " PIE" : "",
              (unsigned)(r->win.max_us / 1000u), (unsigned)(r->win.max_us % 1000u / 100u));
     say(t, r->win.max_us >= BW_AUDIO_US ? C_BAD : r->win.max_us >= BW_PANEL_US ? C_WARN : C_TEXT);
 }
@@ -189,6 +189,10 @@ static void pass(const char *dir, int n, bool pie)
         if (!storage_join_path(path, sizeof path, dir, s_name[i])) continue;
         if (pie && !s_res[i].ok) continue;              /* refused in the C pass */
         if (pie && !strncmp(s_res[i].kind, "mp", 2)) continue;  /* minimp3 has no PIE kernel */
+        /* Before, not only after: a fault ends the app with no line of its
+         * own, and the first one was laid at the wrong file's door for it
+         * (u-defeatist-0005). */
+        ESP_LOGW(TAG, "next: %s%s", s_name[i], pie ? " (PIE)" : "");
         bw_result_t r;
         bw_run_file(path, pie, &r);
         if (!pie) s_res[i] = r;

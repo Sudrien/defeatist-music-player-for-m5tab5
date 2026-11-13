@@ -64,10 +64,16 @@ PIE kernels, which is what the player ships with.
 - **(N.NNx)** is decode speed against real time, with the reads left out. An
   APE window is 1024 samples, 23 ms of audio, so its length is 23 ms / speed;
   a smaller chunk in the player would shorten it in proportion.
-- **If the app ends at the PIE self-test** with an illegal instruction, a box
-  does not turn the PIE unit on for user mode (the FPU needed u-feckless-0028
-  for the same reason). The C table above it is then what a boxed player
-  would have, and PIE in a box is a request to feckless-libs.
+- **`next: <file>`** comes before each file. A fault ends the app with no
+  line of its own, so the last `next:` is the file it happened in.
+- **If the app ends at the PIE self-test**, a box does not turn the PIE unit
+  on for user mode (the FPU needed u-feckless-0028 for the same reason). The
+  first run that got that far ended exactly so, inside `dsd_conv_new()`
+  (u-defeatist-0005). The C table above it is then what a boxed player would
+  have, and PIE in a box is a request to feckless-libs.
+- **`ended (reason 1)`** from Avoidant is a fault. Its cause, address and
+  value are on the panel -- `The app stopped: <cause> at 0x... (0x...)` --
+  and not in the log; copy the line down.
 - Avoidant's own line at the end, `ended (reason N), C calls, I interrupts`,
   belongs with the table: with windows masked, I should be near 0.
 

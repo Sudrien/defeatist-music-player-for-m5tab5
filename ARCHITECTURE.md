@@ -29179,3 +29179,62 @@ player, ahead of any of it: DSD set-up out of double, and positioned reads
 through one function that can be FatFs in a box.
 
 *Not checked:* everything here is one board, one card, two runs.
+
+### u-defeatist-0008 -- boxwin with the PIE kernels: every decoder fits
+
+Documentation only. **The fifth run on a board**: Avoidant rebuilt
+against feckless-libs 30a47bf (u-feckless-0034, the PIE unit for a program
+that uses it), `defeatist_boxwin.app.elf` as 0006 left it. The C table
+came out as in 0007, to a tenth of a millisecond. Then:
+
+    boxwin: the PIE self-tests next. ...
+    boxwin: PIE works in a box; the PIE kernels
+
+and a second table, to `=== boxwin: done ===`. So a PIE instruction does
+execute in user mode once the unit is on, `ape_pie_selftest()` and
+`dsd_pie_selftest()` both agree with their C kernels there, and the three
+earlier faults were the unit being off, as 0005 took them to be.
+
+| file | C | PIE | longest window, PIE | 5 ms or more |
+|---|---|---|---|---|
+| 41 DSD64 stereo | 3.48x | 4.04x | 3.0 ms | 0 |
+| 45 DSD64 stereo DFF | 3.51x | 4.06x | 2.9 ms | 0 |
+| 44, 46 DSD64 mono | 6.95x | 8.04x | 1.4 ms | 0 |
+| 42 DSD128 stereo | 2.80x | 3.47x | 1.7 ms | 0 |
+| 43 DSD256 stereo | 2.06x | 2.90x | 1.0 ms | 0 |
+| 49 APE fast | 12.63x | 12.63x | 2.0 ms | 0 |
+| 48, 56 APE normal | 7.38x | 9.06x | 2.7 ms | 0 |
+| 54 APE normal 24-bit | 6.62x | 8.23x | 3.0 ms | 0 |
+| 55 APE normal mono 22 kHz | 29.55x | 36.27x | 1.4 ms | 0 |
+| 50 APE high | 4.61x | 8.12x | 3.1 ms | 0 |
+| 51 APE extra high | 1.62x | 4.87x | 5.2 ms | 47 of 1338 |
+| 52 APE insane | 0.36x | 1.83x | 14.7 ms | 1302 of 1340 |
+| 53 APE insane, noisy | 0.32x | 1.65x | 14.9 ms | 1333 of 1405 |
+
+APE fast has no filter to vectorise and is the same. MP3 and MP2 have no
+PIE kernel and were not run again.
+
+**What it comes to.** With windows masked, the app on core 1 and the PIE
+unit, every format the player decodes in its own code has its longest
+window under the audio buffer's 20 ms, and every one decodes faster than
+real time. The closest are the two APE insane files: 14.7 and 14.9 ms at
+1024 blocks a call, and 1.65x on the noisier one. Both margins are the
+player's to widen: a 512-block chunk halves the window, and 1.65x is of
+one core that the resampler, the effects and the drawing will share, so
+insane at 96 kHz or with the equaliser on is not shown to fit. Nothing
+here waits on interruptible windows (u-feckless-0016).
+
+**Unchanged by PIE:** DSD set-up (221, 411 and 604 ms; it is double
+arithmetic) and boxwin's read rate (0.58 MB/s on the streams it seeks).
+0007 says what each is and whose.
+
+**The order from here.** 0001's list with its first item done: locks and
+task notifications; `audio_out_write()` and its format calls; storage
+writes; NVS; the codec; callbacks; the network. In the player first, since
+neither needs anything from feckless-libs: DSD set-up out of double, and
+positioned reads through one function that can be FatFs in a box. boxwin
+has answered what it was written for; it stays as the thing to run again
+when the box's kernel changes.
+
+*Not checked:* one board, one card, one run with PIE. Nothing was played:
+these are decode times with no audio output, no resampler and no screen.

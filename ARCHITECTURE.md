@@ -29450,3 +29450,34 @@ board files compiled with the board build's toolchain, PIE kernels in,
 this run's: 1718a8f5, 708227ed, 1718a8f5, 238d1ca5 for files 03, 04, 12,
 40, and 0ec2ff06, 15e3f9b8, 64817e64, fbffc7fc, aaf5cf90, b7fdc169 for
 41 to 46.
+
+### u-defeatist-0012 -- boxwin on division by a reciprocal; every hash as it should be
+
+Documentation only. **The ninth run on a board**: boxwin as 0011 left it,
+built against feckless-libs with u-feckless-0039.
+
+    boxwin: double arithmetic: hash 1beec1c3, the host's; an add 356 ns, a multiply 279 ns, a divide 886 ns, from a 64-bit integer 219 ns
+    boxwin: 64-bit division: hash 2bebcd67, the host's; a divide 309 ns, by 1000 151 ns
+
+**A double divide is 886 ns**, from 3,211 (0011): 3.6 times faster, about
+three multiplies, and still the host's bits. Nothing else in those two
+lines moved.
+
+**DSD set-up**, the reason for it: 42, 78 and 114 ms for DSD64, 128 and
+256, from 58, 106 and 153; from 220, 410 and 600 before any of this
+(0007). What is left is mostly the double libm calls the filter design
+makes, which are still host calls.
+
+**Every hash as it should be.** All nine APE files `= host` on the C
+kernel and on the PIE kernel, `55 ape-mono-22k.ape` among them at
+bf295d37 as 0011 put right. The six DSD files and four MPEG files hash as
+in 0011, to the digit, and each DSD file the same on both kernels. Every
+result line whole, on its own line.
+
+**One thing to note, small.** APE decode is 1.4 to 2.7 per cent slower
+than in 0011 on both kernels (normal 4121 ms against 4065, fast 2439
+against 2375), and DSD and MPEG are not. 0011 began hashing the PCM
+between windows; the hash reads the 4 KB that was just decoded and so
+moves it through the cache. The likeliest reading is that APE, whose
+state is larger, pays for that in the next window. Not shown. It is
+boxwin's and not the player's, which does not hash.

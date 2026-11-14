@@ -114,6 +114,9 @@ typedef struct {
     uint32_t    read_kb;        /* what those reads brought in */
     uint32_t    read_ms;        /* and took, lease and seek included */
     bw_stat_t   win;            /* windows == cuts + reads (u-defeatist-0006) */
+    uint32_t    pcm_hash;       /* FNV-1a of every PCM sample that came out (0010) */
+    uint32_t    pcm_want;       /* what a host gets for this file, 0: not a file it knows */
+    bool        pcm_exact;      /* integer decoder: any machine must get pcm_want */
 } bw_result_t;
 
 /* What the platform supplies: main/boxwin_main.c in the box, test/host.c on
@@ -138,6 +141,14 @@ bool bw_pie_built(void);
  * here on an illegal instruction, which is the answer. Returns whether both
  * passed. */
 bool bw_pie_selftest(void);
+
+/* The PCM hash a host gets for the first BW_MAX_AUDIO_MS of a file of
+ * test_audio_files/, by the file's name without its folder; false for any
+ * other. `exact` for the APE files, whose decoder is integer arithmetic
+ * and must give the same samples anywhere, C kernel or PIE. MP3 and DSD go
+ * through float, where a compiler may fuse a multiply and an add on one
+ * machine and not another, so theirs need not agree with the board's. */
+bool bw_pcm_expect(const char *name, uint32_t *want, bool *exact);
 
 /* One line for the log and the screen. Returns out. */
 char *bw_format(const char *name, const bw_result_t *r, char *out, size_t len);

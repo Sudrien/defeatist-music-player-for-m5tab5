@@ -29280,3 +29280,95 @@ mark in it, so hands it to the trusted loader, which refuses it. Copied
 again, it ran.
 
 *Not checked:* one run. Nothing played.
+
+### u-defeatist-0010 -- boxwin checks the box's arithmetic, and hashes what the decoders put out
+
+0009 ended on what its run could not show: that the filter tables built on
+feckless-libs' in-app double arithmetic (u-feckless-0036) were the same
+tables. boxwin timed decoders and never looked at a result. Two additions
+close that, and a third thing is put right.
+
+**The arithmetic, directly** (`boxwin_arith.c`). Before any file, a fixed,
+seeded run of every operation the compiler emits a call for in a box: on
+8192 pairs of doubles -- any bit patterns, close exponents, few
+significant bits, both ends of the range -- add, subtract, multiply,
+divide, the six compares, to float and back, and to integers where C
+defines it; from integers of each width and sign; and on 8192 pairs of
+64-bit integers of every length, `/` and `%`, unsigned and signed, and by
+a 1000 the compiler cannot see. Every result goes into a hash by its bits
+(a NaN as one pattern: which NaN is the machine's to choose). The same
+code on a host does the same in its FPU and its divider, and the two
+hashes it gets are constants in `boxwin_arith.h`. The board logs
+
+    boxwin: double arithmetic: hash 1beec1c3, the host's; an add N ns, a multiply N ns, a divide N ns, from a 64-bit integer N ns
+    boxwin: 64-bit division: hash 2bebcd67, the host's; a divide N ns, by 1000 N ns
+
+and `NOT THE HOST'S` otherwise. It imports `__adddf3`, `__subdf3`,
+`__muldf3`, `__divdf3`, the four `__float*df`, `__eqdf2`, `__ltdf2`,
+`__ledf2`, `__gtdf2`, `__truncdfsf2`, `__extendsfdf2`, the four
+`__fix*df*` and the four 64-bit divisions, so it judges whichever of
+those the box links or answers. The times are the first measurement of
+one such operation: against feckless-libs before 0036 and 0038 they are
+the trap's, after them the routines'.
+
+**The PCM, by a hash.** Each line now ends `pcm xxxxxxxx`: FNV-1a over
+every sample the decoder put out. It is taken between windows, not in
+one -- the window is closed, the samples hashed, the next opened with a
+second clock read -- so no window and no decode time has the hashing in
+it. `boxwin_expect.h` holds what a host gets for each file of
+`test_audio_files/`, written by `make -C boxwin/test expect`, and the
+line says `(the host's)` or not. APE is an integer decoder and marked
+exact: the C kernel and the PIE kernel must both give the host's hash on
+the board, and `NOT THE HOST'S` there is wrong audio (the panel says
+`WRONG PCM`). MP3 and DSD are not: built with `-O3 -ffp-contract=fast
+-march=native` on an x86 with FMA, the host's own MP3 hashes change, and
+the board's compiler is free to fuse the same way, so for those the hash is a
+fingerprint to compare between runs and builds, and the line says `float
+code need not be`.
+
+**A figure in 0009 put right.** "138,241 host calls for both passes"
+included boxwin waiting to be touched: it polls the touch panel every 50
+ms, two calls a poll. The next run, identical in every decode figure,
+waited 696 s instead of 449 s and made 146,562. The comparison with
+824,057 stands and is understated; the count is not a decode figure and
+should not be read as one.
+
+**Found on the way.** `fill()` at first drew two random numbers in one
+expression (`rnd() >> (rnd() % 64)`). The order of the two calls is the
+compiler's choice, and the build under the sanitizers chose the other:
+other operands, another hash, no error. One call a statement now. It
+would have shown on the board as a hash that was not the host's with
+nothing wrong.
+
+*Checked, on a host:* `make -C m5tab5/boxwin/test`, 226 checks: the two
+arithmetic hashes are the header's, and the same on a second run; every
+file's PCM hash is `boxwin_expect.h`'s and the same decoded twice; APE
+and only APE is marked exact. The arithmetic hashes are also what gcc
+gives at -O0, -O2 and -O3 with FMA contraction on, as 32-bit code with
+SSE, under ASan and UBSan, and what clang gives. gcc and clang give the
+same PCM hashes for all nineteen files with contraction off.
+
+*Checked, on emulated RISC-V:* `boxwin_arith.c` compiled with the board
+build's compiler (riscv32-esp-elf esp-15.2.0, `rv32imafc`, -O2) and run
+under qemu-riscv32 8.2.2, twice. Linked against libgcc's double and
+64-bit routines: both hashes the host's, so the constants are right for
+RV32's soft arithmetic and not only for an FPU. Linked instead against
+feckless-libs' `box_softdouble.c`, `box_div64.c` and `box_fpconv.c`, with
+libgcc's members for those names not in the link: both hashes the host's
+again. That harness is not in the patch. The emulator is not the P4, and
+its build had neither `xesploop` nor `xespv`.
+
+*Checked, with the board build's toolchain:* the three files compiled for
+`rv32imafc..._xesploop_xespv2p1`, PIE kernels in, `boxwin_main.c` against
+stubs of ESP-IDF's headers, -Wall -Wextra -Werror (`boxwin_run.c` as
+`decoder.c` is built). Every one of their 76 undefined names is in
+feckless_box_libc's lists at 0038.
+
+*Not checked:* an ESP-IDF build; a board.
+
+*What to look for on a Tab5:* the two arithmetic lines with `the host's`;
+`pcm ... (the host's)` on all nine APE lines in both tables; the same pcm
+for a DSD or MP3 file in this run and the next. Send the six times. Built
+against feckless-libs 0037 the two division times are a host call's;
+built against 0038 they are what replaced it, and the difference is what
+0038 bought.

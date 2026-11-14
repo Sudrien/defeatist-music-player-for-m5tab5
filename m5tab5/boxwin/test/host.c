@@ -16,6 +16,7 @@
 #include <time.h>
 
 #include "boxwin.h"
+#include "boxwin_arith.h"
 
 static int checks, failures;
 
@@ -73,9 +74,49 @@ static void bookkeeping(void)
     CHECK(s.windows == 3, "a window that ends before it began is dropped");
 }
 
+/* --expect: main/boxwin_expect.h on stdout, from what this host decodes
+ * (`make -C test expect`). */
+static int expect(int argc, char **argv)
+{
+    printf("/* SPDX-License-Identifier: MIT\n *\n"
+           " * The PCM hash of the first BW_MAX_AUDIO_MS of each file of\n"
+           " * test_audio_files/ that boxwin decodes, as a host gets it\n"
+           " * (u-defeatist-0010). Written by `make -C boxwin/test expect`; test/host.c\n"
+           " * fails if a file decodes to anything else. `exact`: an integer decoder,\n"
+           " * which must give this on any machine.\n */\n"
+           "static const struct { const char *name; uint32_t pcm; bool exact; } bw_expect[] = {\n");
+    for (int i = 2; i < argc; i++) {
+        const char *name = strrchr(argv[i], '/');
+        name = name ? name + 1 : argv[i];
+        bw_result_t r;
+        bw_run_file(argv[i], false, &r);
+        if (!r.ok) continue;
+        printf("    { \"%s\", 0x%08xu, %s },\n", name, (unsigned)r.pcm_hash,
+               !strncmp(r.kind, "ape", 3) ? "true" : "false");
+    }
+    printf("};\n");
+    return 0;
+}
+
+static void arith(void)
+{
+    bw_arith_t a;
+    bw_arith(&a);
+    CHECK(a.dbl_hash == BW_ARITH_DBL_EXPECT, "the double hash is %08x here, boxwin_arith.h says %08x",
+          (unsigned)a.dbl_hash, (unsigned)BW_ARITH_DBL_EXPECT);
+    CHECK(a.div_hash == BW_ARITH_DIV_EXPECT, "the division hash is %08x here, boxwin_arith.h says %08x",
+          (unsigned)a.div_hash, (unsigned)BW_ARITH_DIV_EXPECT);
+    /* The same again: nothing in it carries over from one run to the next. */
+    bw_arith_t b;
+    bw_arith(&b);
+    CHECK(a.dbl_hash == b.dbl_hash && a.div_hash == b.div_hash, "a second run gave other hashes");
+}
+
 int main(int argc, char **argv)
 {
+    if (argc > 1 && !strcmp(argv[1], "--expect")) return expect(argc, argv);
     bookkeeping();
+    arith();
     CHECK(!bw_pie_built() && !bw_pie_selftest(), "no PIE kernels in a host build");
 
     for (int i = 1; i < argc; i++) {
@@ -108,6 +149,15 @@ int main(int argc, char **argv)
         CHECK(h == r.win.windows, "%s: the buckets hold %u of %u windows", name, (unsigned)h,
               (unsigned)r.win.windows);
         CHECK(r.pie == false, "%s: PIE on a host", name);
+        /* u-defeatist-0010: the table the board judges itself by is what
+         * this host decodes, and decoding twice gives the same. */
+        CHECK(r.pcm_want != 0, "%s is not in main/boxwin_expect.h (make expect)", name);
+        CHECK(r.pcm_hash == r.pcm_want, "%s: pcm %08x, main/boxwin_expect.h says %08x", name,
+              (unsigned)r.pcm_hash, (unsigned)r.pcm_want);
+        CHECK(r.pcm_exact == !strncmp(r.kind, "ape", 3), "%s: exact is for the integer decoder", name);
+        bw_result_t again;
+        bw_run_file(argv[i], false, &again);
+        CHECK(again.pcm_hash == r.pcm_hash, "%s: a second decode gave pcm %08x", name, (unsigned)again.pcm_hash);
     }
     CHECK(s_leases == 0, "%d leases still held", s_leases);
     CHECK(s_lease_max == 1, "a lease taken while one was held (%d deep)", s_lease_max);

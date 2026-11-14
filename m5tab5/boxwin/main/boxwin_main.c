@@ -40,6 +40,7 @@
 #include "touch.h"
 
 #include "boxwin.h"
+#include "boxwin_arith.h"
 
 static const char *TAG = "boxwin";
 
@@ -90,9 +91,11 @@ static void say_result(const char *name, const bw_result_t *r)
         say(t, C_BAD);
         return;
     }
-    snprintf(t, sizeof t, "%.56s%s: %u.%u ms", name, r->pie ? " PIE" : "",
-             (unsigned)(r->win.max_us / 1000u), (unsigned)(r->win.max_us % 1000u / 100u));
-    say(t, r->win.max_us >= BW_AUDIO_US ? C_BAD : r->win.max_us >= BW_PANEL_US ? C_WARN : C_TEXT);
+    const bool wrong = r->pcm_want && r->pcm_exact && r->pcm_hash != r->pcm_want;
+    snprintf(t, sizeof t, "%.56s%s: %u.%u ms%s", name, r->pie ? " PIE" : "",
+             (unsigned)(r->win.max_us / 1000u), (unsigned)(r->win.max_us % 1000u / 100u),
+             wrong ? "  WRONG PCM" : "");
+    say(t, wrong || r->win.max_us >= BW_AUDIO_US ? C_BAD : r->win.max_us >= BW_PANEL_US ? C_WARN : C_TEXT);
 }
 
 static bool wanted(const char *name)
@@ -218,6 +221,25 @@ void app_main(void)
     gfx_blit(0, LCD_V_RES);
     lcd_backlight_set(BRIGHTNESS);
     say("boxwin: longest window a file. The log has the rest.", C_DIM);
+
+    /* u-defeatist-0010: the arithmetic every decoder's set-up stands on,
+     * before any of them. It needs no card. */
+    bw_arith_t ar;
+    bw_arith(&ar);
+    const bool dbl_ok = ar.dbl_hash == BW_ARITH_DBL_EXPECT, div_ok = ar.div_hash == BW_ARITH_DIV_EXPECT;
+    ESP_LOGW(TAG, "double arithmetic: hash %08x, %s; an add %u ns, a multiply %u ns, "
+                  "a divide %u ns, from a 64-bit integer %u ns",
+             (unsigned)ar.dbl_hash, dbl_ok ? "the host's" : "NOT THE HOST'S",
+             (unsigned)ar.add_ns, (unsigned)ar.mul_ns, (unsigned)ar.div_ns, (unsigned)ar.conv_ns);
+    ESP_LOGW(TAG, "64-bit division: hash %08x, %s; a divide %u ns, by 1000 %u ns",
+             (unsigned)ar.div_hash, div_ok ? "the host's" : "NOT THE HOST'S",
+             (unsigned)ar.udiv_ns, (unsigned)ar.udiv1000_ns);
+    if (!dbl_ok || !div_ok) {
+        ESP_LOGE(TAG, "the box's arithmetic gave a result a host does not (wanted %08x and %08x): "
+                      "what follows was computed on it",
+                 (unsigned)BW_ARITH_DBL_EXPECT, (unsigned)BW_ARITH_DIV_EXPECT);
+    }
+    say(dbl_ok && div_ok ? "Arithmetic: as a host's." : "ARITHMETIC: NOT AS A HOST'S", dbl_ok && div_ok ? C_DIM : C_BAD);
 
     vTaskDelay(pdMS_TO_TICKS(1500));    /* the card mounts on storage's poll task */
 

@@ -61,6 +61,19 @@ figures are made up, to show the shape.) Two lines a file from the C
 kernels, then `the PIE self-tests next`, then the same files with the P4's
 PIE kernels, which is what the player ships with.
 
+- **The first two lines** are the box's arithmetic (u-defeatist-0010): a
+  fixed run of every double operation and 64-bit division the compiler
+  emits a call for, hashed, and the hash compared with a host's. `the
+  host's` on both means every result was the right bits. The times are of
+  one operation: a trap into the launcher with feckless-libs before
+  u-feckless-0036 and 0038, the routine's own after.
+- **pcm** at the end of a line is a hash of the samples that came out.
+  For APE, an integer decoder, it must be `(the host's)`, C kernel or PIE;
+  `NOT THE HOST'S` there is wrong audio. MP3 and DSD go through float, and
+  the board's compiler fuses a multiply and an add where the host test is
+  told not to, so theirs usually differ from the host's and say so. They
+  are still the same from run to run and build to build, which is what to
+  compare when the box's kernel or its arithmetic changes.
 - **longest** is the figure. Under 5 ms: no concern. 5 to 20 ms: the panel
   would flash if the app ran on the panel's core; fine on core 1. 20 ms or
   more: an audio underrun is possible with windows masked.
@@ -93,5 +106,7 @@ A window recorded here is an upper bound: see `main/boxwin.h`.
 
 `main/boxwin_run.c` as it goes into the box, over `../test_audio_files`,
 under ASan and UBSan: every format decodes to its length, the one DST file
-is refused, the window bookkeeping adds up. The times it prints are the
+is refused, the window bookkeeping adds up, the arithmetic hashes are what
+`boxwin_arith.h` says and each file's PCM hash what `boxwin_expect.h` says
+(`make -C test expect` writes that file again). The times it prints are the
 host's and mean nothing for the board.

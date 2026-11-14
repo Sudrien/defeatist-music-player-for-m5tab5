@@ -5,7 +5,7 @@
 # imports that the launcher's feckless_box_calls answers. The decoders are
 # the player's own files in ../../main, by include path.
 idf_component_register(
-    SRCS "boxwin_main.c" "boxwin_run.c"
+    SRCS "boxwin_main.c" "boxwin_run.c" "boxwin_arith.c"
     INCLUDE_DIRS "." "../../main"
     REQUIRES esp_timer esp_lcd
              lwip                        # u-defeatist-0003: for elf_loader, see below

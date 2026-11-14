@@ -29,19 +29,36 @@ CFLAGS     := -std=gnu11 -g -O1 -Wall -Wextra -Wno-unused-parameter -Wno-unused-
               -fno-omit-frame-pointer -D_GNU_SOURCE $(INC)
 LDFLAGS    := -fsanitize=address,undefined -lm
 
-SRCS := host.c ../main/boxwin_run.c
-DEPS := $(SRCS) ../main/boxwin.h ../../main/ape.h ../../main/dsd.h $(MINIMP3_DIR)/minimp3.h
+SRCS := host.c ../main/boxwin_run.c ../main/boxwin_arith.c
+DEPS := $(SRCS) ../main/boxwin.h ../main/boxwin_arith.h ../main/boxwin_expect.h \
+        ../../main/ape.h ../../main/dsd.h $(MINIMP3_DIR)/minimp3.h
+
+# -ffp-contract=off: the hashes in ../main/boxwin_expect.h and
+# boxwin_arith.h are of results rounded once an operation, which is what
+# they are compared with on the board; a host compiler that fused a
+# multiply and an add would have its own.
+FP := -ffp-contract=off
 
 .PHONY: all run clean
 all: run
 
 boxwinhost: $(DEPS)
-	$(CC) $(WARNCFLAGS) -c ../main/boxwin_run.c -o /dev/null
-	$(CC) $(WARNCFLAGS) -c host.c -o /dev/null
-	$(CC) $(CFLAGS) -o $@ $(SRCS) $(LDFLAGS)
+	$(CC) $(WARNCFLAGS) $(FP) -c ../main/boxwin_run.c -o /dev/null
+	$(CC) $(WARNCFLAGS) $(FP) -c ../main/boxwin_arith.c -o /dev/null
+	$(CC) $(WARNCFLAGS) $(FP) -c host.c -o /dev/null
+	$(CC) $(CFLAGS) $(FP) -o $@ $(SRCS) $(LDFLAGS)
+
+FILES = $(AUDIO)/*.mp3 $(AUDIO)/*.mp2 $(AUDIO)/*.ape $(AUDIO)/*.dsf $(AUDIO)/*.dff
 
 run: boxwinhost
-	./boxwinhost $(AUDIO)/*.mp3 $(AUDIO)/*.mp2 $(AUDIO)/*.ape $(AUDIO)/*.dsf $(AUDIO)/*.dff
+	./boxwinhost $(FILES)
+
+# ../main/boxwin_expect.h again, after a decoder or a test file changed on
+# purpose. Read the diff: a hash that moved is audio that moved.
+.PHONY: expect
+expect: boxwinhost
+	./boxwinhost --expect $(FILES) > ../main/boxwin_expect.h.new
+	mv ../main/boxwin_expect.h.new ../main/boxwin_expect.h
 
 clean:
 	rm -f boxwinhost

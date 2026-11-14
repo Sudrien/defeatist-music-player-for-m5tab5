@@ -53,6 +53,7 @@ static bw_track_t s_track = { .open_us = -1, .into = NULL };
 static int64_t  s_t0;
 static uint64_t s_read_us, s_read_bytes;
 static uint32_t s_reads, s_cuts;
+static uint32_t s_pcm_hash;
 
 /* Set-up is over: recording starts, with a window that begins now. */
 static void begin(bw_result_t *r)
@@ -61,6 +62,7 @@ static void begin(bw_result_t *r)
     r->setup_ms = (uint32_t)((now - s_t0) / 1000);
     s_read_us = s_read_bytes = 0;
     s_reads = s_cuts = 0;
+    s_pcm_hash = 2166136261u;
     s_track.into = &r->win;
     bw_open(&s_track, now);
 }
@@ -74,17 +76,24 @@ static void end(bw_result_t *r)
     r->reads = s_reads;
     r->read_kb = (uint32_t)(s_read_bytes / 1024u);
     r->read_ms = (uint32_t)(s_read_us / 1000u);
+    r->pcm_hash = s_pcm_hash;
 }
 
 /* Where the player would hand the PCM on (audio_out_write(), a host call):
- * the window ends and the next begins. One clock read, which is itself the
- * host call that ends it. */
-static void cut(void)
+ * the window ends and the next begins. Between the two the PCM that just
+ * came out goes into the file's hash (u-defeatist-0010) -- between, not in
+ * either: the window is closed with one clock read, the samples hashed,
+ * and the next opened with a second. Hashing is not the decoder's work and
+ * the player does not do it. */
+static void cut_pcm(const int16_t *pcm, size_t samples)
 {
-    const int64_t now = bw_now();
-    bw_close(&s_track, now);
-    bw_open(&s_track, now);
+    bw_close(&s_track, bw_now());
     s_cuts++;
+    const uint8_t *p = (const uint8_t *)pcm;
+    uint32_t h = s_pcm_hash;
+    for (size_t i = 0; i < samples * sizeof(int16_t); i++) h = (h ^ p[i]) * 16777619u;
+    s_pcm_hash = h;
+    bw_open(&s_track, bw_now());
 }
 
 /* ---- storage_io's two reads, over a box's stdio ------------------------ */
@@ -193,7 +202,7 @@ static void run_mp3(FILE *f, int64_t size, bw_result_t *r)
         if (have == pos) break;
         mp3dec_frame_info_t info;
         const int s = mp3dec_decode_frame(&dec, buf + pos, (int)(have - pos), pcm, &info);
-        cut();
+        cut_pcm(pcm, s > 0 ? (size_t)s * (size_t)info.channels : 0);
         if (!info.frame_bytes) {
             if (eof) break;
             if (have - pos >= MP3_REFILL) pos = have;   /* nothing in 4 KB: let it go */
@@ -257,7 +266,7 @@ static void run_ape(FILE *f, int64_t size, bool pie, bw_result_t *r)
     begin(r);
     for (;;) {
         const uint32_t n = ape_next(d, f, pcm, BW_APE_BLOCKS);
-        cut();
+        cut_pcm(pcm, (size_t)n * 2);            /* always two a block */
         if (!n) break;
         blocks += n;
         r->calls++;
@@ -312,7 +321,7 @@ static void run_dsd(FILE *f, int64_t size, bool pie, bw_result_t *r)
     begin(r);
     for (;;) {
         const size_t n = dsd_next(c, &rd, f, in, pcm, STORAGE_IO_PLAYBACK);
-        cut();
+        cut_pcm(pcm, n * dd.channels);
         if (!n) break;
         frames += n;
         r->calls++;
@@ -361,9 +370,26 @@ void bw_run_file(const char *path, bool pie, bw_result_t *out)
     else run_dsd(f, size, out->pie, out);
     s_track.into = NULL;                /* a path that left before end() */
     s_track.open_us = -1;
+    if (out->ok && !bw_pcm_expect(path, &out->pcm_want, &out->pcm_exact)) out->pcm_want = 0;
     bw_lease();
     fclose(f);
     bw_unlease();
+}
+
+#include "boxwin_expect.h"
+
+bool bw_pcm_expect(const char *name, uint32_t *want, bool *exact)
+{
+    const char *base = strrchr(name, '/');
+    base = base ? base + 1 : name;
+    for (size_t i = 0; i < sizeof bw_expect / sizeof bw_expect[0]; i++) {
+        if (!strcmp(base, bw_expect[i].name)) {
+            *want = bw_expect[i].pcm;
+            *exact = bw_expect[i].exact;
+            return true;
+        }
+    }
+    return false;
 }
 
 bool bw_pie_built(void)
@@ -397,7 +423,7 @@ char *bw_format(const char *name, const bw_result_t *r, char *out, size_t len)
     snprintf(out, len,
              "%.56s: %s%s %u Hz x%u, %u ms of audio in %u ms (%u.%02ux); "
              "%u windows, longest %u.%u ms, %u of 5 ms or more, %u of 20 ms or more; "
-             "set-up %u ms, %u KB read in %u ms%s",
+             "set-up %u ms, %u KB read in %u ms; pcm %08x%s%s",
              name, r->kind, r->pie ? " PIE" : "", (unsigned)r->rate, (unsigned)r->channels,
              (unsigned)r->audio_ms, (unsigned)cpu_ms, (unsigned)(x100 / 100u), (unsigned)(x100 % 100u),
              (unsigned)r->win.windows, (unsigned)(r->win.max_us / 1000u),
@@ -405,6 +431,11 @@ char *bw_format(const char *name, const bw_result_t *r, char *out, size_t len)
              (unsigned)bw_stat_over(&r->win, BW_PANEL_US),
              (unsigned)bw_stat_over(&r->win, BW_AUDIO_US),
              (unsigned)r->setup_ms, (unsigned)r->read_kb, (unsigned)r->read_ms,
+             (unsigned)r->pcm_hash,
+             !r->pcm_want ? ""
+             : r->pcm_hash == r->pcm_want ? " (the host's)"
+             : r->pcm_exact ? " (NOT THE HOST'S, and this decoder is integer)"
+             : " (not the host's; float code need not be)",
              r->win.max_us >= BW_AUDIO_US ? "  ** over the audio budget"
              : r->win.max_us >= BW_PANEL_US ? "  * over the panel's" : "");
     return out;

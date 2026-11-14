@@ -29238,3 +29238,45 @@ when the box's kernel changes.
 
 *Not checked:* one board, one card, one run with PIE. Nothing was played:
 these are decode times with no audio output, no resampler and no screen.
+
+### u-defeatist-0009 -- boxwin rebuilt on in-app doubles: DSD set-up a quarter of what it was
+
+Documentation only. **The sixth run on a board**: `defeatist_boxwin.app.elf`
+rebuilt against feckless-libs fbca1cf (u-feckless-0036, double arithmetic
+in the app, not a host call), the launcher as it was. Both tables, to
+`=== boxwin: done ===` and `ended (reason 0), 138241 calls, 0 interrupts`.
+
+| | 0008 | this run |
+|---|---|---|
+| set-up, DSD64 (41, 44, 45, 46) | 219 to 221 ms | 57, 58 ms |
+| set-up, DSD128 (42) | 408, 411 ms | 104 ms |
+| set-up, DSD256 (43) | 598, 604 ms | 152 ms |
+| host calls, the C pass alone | 824,057 | |
+| host calls, both passes | | 138,241 |
+
+Everything else is as it was to the last digit or the one before it:
+every decode speed, every longest window, every window count, C and PIE,
+and the read rates. Both PIE self-tests pass.
+
+**What it shows.** `dsd_conv_new()`'s filter design is 3.8 times faster
+in a box with its arithmetic in the app, and the whole run makes a sixth
+of the host calls for twice the decoding. What is left of the set-up is
+the double libm calls the design makes (`sin`, `sqrt`), which are still
+host calls, and the arithmetic itself, now 54-step divisions and all.
+
+**What it does not show** is that the tables are the same tables. boxwin
+times decoding and does not look at the PCM, and the PIE self-tests
+compare a vector kernel with a C one on the same table, so a table that
+was wrong would pass both. The evidence that the arithmetic is right is
+u-feckless-0036's host test, bit for bit against a real FPU; on the board
+there is only that nothing changed that would have: speeds, counts, the
+self-tests. A checksum of the PCM in boxwin's line, compared with the
+host test's for the same file, would settle it on the board.
+
+The first copy of this build to the card would not load (`ELF: Invalid ELF
+image, ret=-22`, then `feckless_abi: esp_elf_relocate: -22 (ABI v1)`). A
+cut-short file gives exactly those two lines: the launcher finds no box
+mark in it, so hands it to the trusted loader, which refuses it. Copied
+again, it ran.
+
+*Not checked:* one run. Nothing played.

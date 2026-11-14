@@ -421,9 +421,11 @@ python3 dsdgen.py dsf 11289600  3 2 "$OUT/43 dsf-dsd256.dsf"
 python3 dsdgen.py dsf  2822400  5 1 "$OUT/44 dsf-dsd64-mono-odd.dsf" --samples 14112007
 python3 dsdgen.py dff  2822400  5 2 "$OUT/45 dff-dsd64.dff"
 python3 dsdgen.py dff  2822400  5 1 "$OUT/46 dff-dsd64-mono.dff"
-# 47 -- CMPR says 'DST ' over junk. No DST encoder exists here; the file
-# only has to be refused.
-python3 dsdgen.py dff  2822400  5 2 "$OUT/47 dff-dst-refuse.dff" --dst
+# 47 -- real DST (u-defeatist-0016). No DST encoder exists here, so this
+# is FFmpeg's FATE sample, ten frames of DSD64 stereo, copied as it is:
+#   https://fate-suite.ffmpeg.org/dst/dst-64fs44-2ch.dff
+# dsdtest holds dst.h to FFmpeg's decode of it.
+[ -f "$OUT/47 dff-dst.dff" ] || echo "47: fetch dst-64fs44-2ch.dff from the FATE suite into $OUT/47 dff-dst.dff"
 
 # ---------------------------------------------------------------- APE
 # 48-56: Monkey's Audio. ffmpeg decodes it and has no encoder, so these

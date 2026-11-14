@@ -9,6 +9,11 @@
  * (A 2nd-order modulator at 64x is good for roughly 70 dB at this
  * level. The threshold is below it; the number is printed.)
  *
+ * File 47 is DST (u-defeatist-0016): FFmpeg's FATE sample
+ * dst-64fs44-2ch.dff, ten frames. dst_checks() holds dst.h to the raw DSD
+ * FFmpeg's decoder gives for it, and the rest of the path to the same
+ * bits in a plain DFF.
+ *
  * Also: every container field the probes read, the refusals, a seek
  * landing on the same samples as a straight run, the exact length, and
  * that the DFF and DSF of the same audio decode alike.
@@ -79,7 +84,7 @@ static void load_ref(void)
 static uint64_t decode_all(const char *name, dsd_t *d, int16_t **out, uint32_t *latency)
 {
     char path[256];
-    snprintf(path, sizeof(path), DIR "%s", name);
+    snprintf(path, sizeof(path), name[0] == '/' ? "%s" : DIR "%s", name);
     FILE *f = fopen(path, "rb");
     if (!f) { printf("  (missing %s)\n", name); return 0; }
     fseek(f, 0, SEEK_END);
@@ -170,6 +175,237 @@ static dsd_conv_t *conv_for(const char *name, dsd_t *d)
 
 static size_t tbl_bytes(const dsd_conv_t *c) { return sizeof(int32_t) * (size_t)256 * c->S1 * 8; }
 
+/* ---- DST (u-defeatist-0016) ---------------------------------------- */
+
+/* FFmpeg's dst decoder on 47, AV_SAMPLE_FMT_DSD: 94080 bytes, this hash
+ * (FNV-1a). Made with a test-only build of FFmpeg's libavcodec. */
+#define DST47_BYTES 94080u
+#define DST47_FNV   0xdf722027u
+
+static uint32_t fnv(const uint8_t *p, size_t n, uint32_t h)
+{
+    while (n--) h = (h ^ *p++) * 0x01000193u;
+    return h;
+}
+
+static uint8_t *slurp(const char *path, size_t *n)
+{
+    FILE *f = fopen(path, "rb");
+    if (!f) return NULL;
+    fseek(f, 0, SEEK_END);
+    *n = (size_t)ftell(f);
+    rewind(f);
+    uint8_t *b = malloc(*n);
+    if (fread(b, 1, *n, f) != *n) { free(b); b = NULL; }
+    fclose(f);
+    return b;
+}
+
+static void put_be(uint8_t *p, uint64_t v, int n)
+{
+    for (int i = n - 1; i >= 0; i--) { p[i] = (uint8_t)v; v >>= 8; }
+}
+
+/* A DFF: FVER, PROP (FS, CHNL, CMPR), then `body` as the audio chunk --
+ * a `DSD ` chunk's bytes, or a `DST ` chunk's sub-chunks. */
+static void write_dff(const char *path, bool dst, const uint8_t *body, size_t n)
+{
+    uint8_t h[128];
+    size_t k;
+    memcpy(h, "FRM8", 4); k = 12; memcpy(h + k, "DSD ", 4); k += 4;
+    memcpy(h + k, "FVER", 4); put_be(h + k + 4, 4, 8); put_be(h + k + 12, 0x01050000, 4); k += 16;
+    const size_t prop = k;
+    memcpy(h + k, "PROP", 4); k += 12; memcpy(h + k, "SND ", 4); k += 4;
+    memcpy(h + k, "FS  ", 4); put_be(h + k + 4, 4, 8); put_be(h + k + 12, 2822400, 4); k += 16;
+    memcpy(h + k, "CHNL", 4); put_be(h + k + 4, 10, 8); put_be(h + k + 12, 2, 2);
+    memcpy(h + k + 14, "SLFTSRGT", 8); k += 22;
+    memcpy(h + k, "CMPR", 4); put_be(h + k + 4, 4, 8); memcpy(h + k + 12, dst ? "DST " : "DSD ", 4); k += 16;
+    put_be(h + prop + 4, k - prop - 12, 8);
+    memcpy(h + k, dst ? "DST " : "DSD ", 4); put_be(h + k + 4, n, 8); k += 12;
+    put_be(h + 4, k - 12 + n + (n & 1), 8);
+    FILE *f = fopen(path, "wb");
+    fwrite(h, 1, k, f);
+    fwrite(body, 1, n, f);
+    if (n & 1) fputc(0, f);
+    fclose(f);
+}
+
+/* A `DST ` chunk's body: FRTE, then each frame as a DSTF chunk. */
+static size_t dst_body(uint8_t *out, uint32_t frames, const uint8_t *const *fr,
+                       const size_t *len)
+{
+    size_t k;
+    memcpy(out, "FRTE", 4); put_be(out + 4, 6, 8); put_be(out + 12, frames, 4);
+    put_be(out + 16, 75, 2); k = 18;
+    for (uint32_t i = 0; i < frames; i++) {
+        memcpy(out + k, "DSTF", 4); put_be(out + k + 4, len[i], 8); k += 12;
+        memcpy(out + k, fr[i], len[i]); k += len[i];
+        if (len[i] & 1) out[k++] = 0;
+    }
+    return k;
+}
+
+/* Every DSTF of a DFF in memory, run through dst.h a `step` at a time. */
+static size_t dst_raw(const uint8_t *b, size_t n, uint32_t step, uint8_t *out, int *bad)
+{
+    static dst_dec_t d;
+    size_t at = 0;
+    *bad = 0;
+    for (size_t p = 16; p + 12 <= n;) {
+        const uint64_t l = dsd_be64(b + p + 4);
+        if (!memcmp(b + p, "DST ", 4)) { p += 12; continue; }    /* into it */
+        if (!memcmp(b + p, "DSTF", 4)) {
+            if (!dst_begin(&d, b + p + 12, (uint32_t)l, 2, 1)) { (*bad)++; return at; }
+            while (dst_left_bytes(&d)) at += 2 * dst_run(&d, out + at, step);
+        }
+        p += 12 + l + (l & 1);
+    }
+    return at;
+}
+
+static void dst_checks(void)
+{
+    printf("  DST\n");
+    size_t n;
+    uint8_t *b = slurp(DIR "47 dff-dst.dff", &n);
+    CHECK(b != NULL, "47 dff-dst.dff is missing");
+    if (!b) return;
+    uint8_t *raw = malloc(DST47_BYTES + 4096), *raw2 = malloc(DST47_BYTES + 4096);
+
+    /* dst.h against FFmpeg, in slices of every shape */
+    static const uint32_t steps[] = { 4704, DST_STEP, 7, 1 };
+    for (size_t i = 0; i < sizeof steps / sizeof steps[0]; i++) {
+        int bad;
+        uint8_t *o = i ? raw2 : raw;
+        const size_t got = dst_raw(b, n, steps[i], o, &bad);
+        const uint32_t h = fnv(o, got, 0x811c9dc5u);
+        CHECK(!bad && got == DST47_BYTES && h == DST47_FNV,
+              "47 in slices of %u: %zu bytes, %d refused, hash %08x, FFmpeg's %08x",
+              (unsigned)steps[i], got, bad, (unsigned)h, DST47_FNV);
+    }
+
+    /* the probe */
+    {
+        FILE *f = fopen(DIR "47 dff-dst.dff", "rb");
+        dsd_t d;
+        CHECK(dsd_probe(f, (int64_t)n, &d, STORAGE_IO_PLAYBACK) == DSD_OK, "47 refused");
+        CHECK(d.dst && d.dff && d.dst_frames == 10 && d.channels == 2 &&
+              d.rate == 2822400 && d.bits == 10ull * 37632,
+              "47 fields: dst %d frames %u ch %u rate %u bits %llu", d.dst,
+              (unsigned)d.dst_frames, d.channels, (unsigned)d.rate, (unsigned long long)d.bits);
+        fclose(f);
+    }
+
+    /* the whole path: 47 decodes as the same bits in a plain DFF do */
+    const char *plain = "/tmp/dsdtest-dst-plain.dff";
+    write_dff(plain, false, raw, DST47_BYTES);
+    dsd_t d1, d2;
+    int16_t *p1 = NULL, *p2 = NULL;
+    uint32_t l1, l2;
+    const uint64_t n1 = decode_all("47 dff-dst.dff", &d1, &p1, &l1);
+    const uint64_t n2 = decode_all(plain, &d2, &p2, &l2);
+    const bool same = n1 == n2 && n1 == 10ull * 588 && !memcmp(p1, p2, n1 * 4);
+    CHECK(same, "47 against its bits in a plain DFF: %llu and %llu frames, %s",
+          (unsigned long long)n1, (unsigned long long)n2, same ? "equal" : "different");
+
+    /* seeks: forward from where the walk is, and back behind it */
+    if (n1 == 10ull * 588) {
+        FILE *f = fopen(DIR "47 dff-dst.dff", "rb");
+        dsd_t d;
+        dsd_probe(f, (int64_t)n, &d, STORAGE_IO_PLAYBACK);
+        dsd_conv_t *c = dsd_conv_new(&d, DSD_BLOCK_MAX);
+        uint8_t *buf = malloc(2 * DSD_BLOCK_MAX);
+        int16_t blk[2 * (DSD_BLOCK_MAX + 8)];
+        static const uint64_t at[] = { 3000, 5000, 100, 5000, 0 };
+        for (size_t i = 0; i < sizeof at / sizeof at[0]; i++) {
+            dsd_rd_t r;
+            dsd_seek_plan(c, &r, at[i]);
+            const bool back = dsd_rd_offset(c, &r) == d.data_start;
+            size_t got = dsd_next(c, &r, f, buf, blk, STORAGE_IO_PLAYBACK);
+            if (got > n1 - at[i]) got = (size_t)(n1 - at[i]);
+            CHECK(got > 0 && !memcmp(blk, p1 + at[i] * 2, got * 4),
+                  "47: a seek to %llu (%s) does not land on the straight run's samples",
+                  (unsigned long long)at[i], back ? "from the start" : "forward");
+            if (i == 1) CHECK(!back, "47: a seek ahead started the walk again");
+            if (i == 2) CHECK(back, "47: a seek behind the walk did not start it again");
+        }
+        free(buf);
+        dsd_conv_free(c);
+        fclose(f);
+    }
+    free(p1);
+    free(p2);
+
+    /* stored frames: one whole, one short and filled with silence */
+    {
+        uint8_t *f0 = malloc(1 + 9408), *f1 = malloc(1 + 100);
+        f0[0] = 0; memcpy(f0 + 1, raw, 9408);
+        f1[0] = 0; memcpy(f1 + 1, raw + 9408, 100);
+        const uint8_t *fr[2] = { f0, f1 };
+        const size_t len[2] = { 9409, 101 };
+        uint8_t *body = malloc(20000), *want = malloc(2 * 9408);
+        const size_t bn = dst_body(body, 2, fr, len);
+        write_dff("/tmp/dsdtest-dst-stored.dff", true, body, bn);
+        memcpy(want, raw, 9408 + 100);
+        memset(want + 9408 + 100, 0x69, 9408 - 100);
+        write_dff(plain, false, want, 2 * 9408);
+        size_t sn;
+        uint8_t *sb = slurp("/tmp/dsdtest-dst-stored.dff", &sn);
+        int bad;
+        const size_t got = dst_raw(sb, sn, 333, raw2, &bad);
+        const bool ok = !bad && got == 2 * 9408 && !memcmp(raw2, want, got);
+        CHECK(ok, "stored frames: %zu bytes, %d refused, %s", got, bad,
+              ok ? "as stored" : "not as stored");
+        const uint64_t a = decode_all("/tmp/dsdtest-dst-stored.dff", &d1, &p1, &l1);
+        const uint64_t c2 = decode_all(plain, &d2, &p2, &l2);
+        CHECK(a == c2 && a == 2 * 588 && !memcmp(p1, p2, a * 4),
+              "stored frames against a plain DFF: %llu and %llu frames",
+              (unsigned long long)a, (unsigned long long)c2);
+        free(p1); free(p2); free(sb); free(f0); free(f1); free(body); free(want);
+    }
+
+    /* a frame dst.h will not take ends the file there, with nothing out */
+    {
+        uint8_t *bad = malloc(n);
+        memcpy(bad, b, n);
+        size_t p = 16;
+        while (memcmp(bad + p, "DSTF", 4)) {
+            p += !memcmp(bad + p, "DST ", 4) ? 12 : 12 + dsd_be64(bad + p + 4);
+        }
+        bad[p + 12] = 0x80;                     /* coded, but not one segment */
+        FILE *f = fopen("/tmp/dsdtest-dst-bad.dff", "wb");
+        fwrite(bad, 1, n, f);
+        fclose(f);
+        f = fopen("/tmp/dsdtest-dst-bad.dff", "rb");
+        dsd_t d;
+        CHECK(dsd_probe(f, (int64_t)n, &d, STORAGE_IO_PLAYBACK) == DSD_OK, "bad 47: refused at the probe");
+        dsd_conv_t *c = dsd_conv_new(&d, DSD_BLOCK_MAX);
+        uint8_t *buf = malloc(2 * DSD_BLOCK_MAX);
+        int16_t blk[2 * (DSD_BLOCK_MAX + 8)];
+        dsd_rd_t r;
+        dsd_seek_plan(c, &r, 0);
+        const size_t got = dsd_next(c, &r, f, buf, blk, STORAGE_IO_PLAYBACK);
+        CHECK(got == 0 && c->dst_bad == 1, "bad 47: %zu frames out, %u refused", got,
+              (unsigned)c->dst_bad);
+        free(buf);
+        dsd_conv_free(c);
+        fclose(f);
+        free(bad);
+
+        /* and without FRTE, the probe names DST */
+        uint8_t body[64];
+        memcpy(body, "DSTF", 4); put_be(body + 4, 4, 8); memset(body + 12, 0, 4);
+        write_dff("/tmp/dsdtest-dst-nofrte.dff", true, body, 16);
+        f = fopen("/tmp/dsdtest-dst-nofrte.dff", "rb");
+        fseek(f, 0, SEEK_END);
+        CHECK(dsd_probe(f, ftell(f), &d, STORAGE_IO_PLAYBACK) == DSD_DST, "no FRTE: not named DST");
+        fclose(f);
+    }
+    free(raw);
+    free(raw2);
+    free(b);
+}
+
 static void cache_checks(void)
 {
     static const char *const files[] = {
@@ -246,6 +482,7 @@ int main(void)
 #endif
 
     cache_checks();
+    dst_checks();
 
     printf("  decode against file 01\n");
     check_file("41 dsf-dsd64.dsf", 2822400, 2, 30.0, 50.0);
@@ -318,15 +555,7 @@ int main(void)
 
     printf("  refused\n");
     {
-        FILE *f = fopen(DIR "47 dff-dst-refuse.dff", "rb");
-        if (f) {
-            dsd_t d;
-            fseek(f, 0, SEEK_END);
-            CHECK(dsd_probe(f, ftell(f), &d, STORAGE_IO_PLAYBACK) == DSD_DST,
-                  "DST was not named");
-            fclose(f);
-        }
-        f = fopen(DIR "43 dsf-dsd256.dsf", "rb");
+        FILE *f = fopen(DIR "43 dsf-dsd256.dsf", "rb");
         if (f) {
             dsd_t d;
             fseek(f, 0, SEEK_END);

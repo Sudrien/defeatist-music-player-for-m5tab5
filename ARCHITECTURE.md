@@ -29603,3 +29603,81 @@ samples.
 checks, every APE hash the host's.
 
 *Not checked:* an ESP-IDF build; a board.
+
+### u-defeatist-0016 -- DST: DSD64 DFF from SACD rips plays
+
+A DFF ripped from an SACD with its compression kept holds DST frames,
+and until now the player refused it. `dst.h` turns each frame back into
+the plain DFF bytes `dsd.h` already converts; `dsd.h` finds the frames.
+
+*Where the format comes from.* DST is ISO/IEC 14496-3 subpart 10, which
+is not public. The one open decoder is FFmpeg's `libavcodec/dstdec.c`
+(Peter Ross, 2014, LGPL 2.1). `dst.h` is written for this player, under
+the project's MIT licence, from what that decoder shows of the
+bitstream; no code of it is copied. FFmpeg is also the test's oracle,
+built here test-only and never part of the player.
+
+*A frame* is 1/75 s: 37632 bits a channel at DSD64. It is either stored
+(the bytes as they are) or coded: a map of channels to filters and
+probability tables, the filters' coefficients (up to 128 taps, 9-bit),
+the tables (up to 64 entries), then an arithmetic-coded stream. Each bit
+runs the channel's filter over its last 128 bits; the sum's sign is the
+prediction and |sum|/8 picks a probability; the coder says whether the
+prediction was wrong. The filter is kept as 16 lookup tables of 256
+built per frame (32 KB for two channels), so a bit is 16 lookups and an
+arithmetic step. Segmentations other than one segment for the frame are
+refused, as FFmpeg refuses them; no file here has them.
+
+*In slices.* Everything that carries from bit to bit is in `dst_dec_t`,
+so `dst_run()` decodes any number of whole bytes of a frame and stops.
+`dsd_next()` asks for `DST_STEP` (512 bytes a channel, 4096 bits) per
+call, which boxwin counts as a window, then feeds them to the converter
+as a DFF block.
+
+*Finding frames.* The `DST ` chunk holds FRTE (frame count; frame rate,
+which must be 75) and a `DSTF` chunk a frame, with `DSTC` CRC chunks
+skipped. `dsd.h` walks the chunk headers from where the stream is. A
+seek ahead walks on, reading the headers and discarding the frames in
+between -- the same read-and-discard, no-`lseek()` policy the plain path
+has. A seek behind the walk starts it again from the first chunk, which
+`dsd_rd_offset()` reports, so `decoder.c` reopens the file as it already
+does for a backward seek. No DSTI index is needed or read.
+
+A frame `dst.h` will not take ends the file there: `dsd_next()` returns
+0 and counts it in `dst_bad`, and nothing is played from it.
+`DSD_DST` now means a DST file in a shape this does not take (more than
+two channels, or no FRTE).
+
+*Memory:* 33 KB for the decoder and up to 9.4 KB a frame buffer at
+DSD64 (37 KB at DSD256), PSRAM through `DSD_ALLOC`, only for DST files.
+
+*Fixture 47* is now FFmpeg's FATE sample `dst-64fs44-2ch.dff` (ten
+frames, 133 ms, 46 KB), in place of the junk frames that tested the
+refusal. `encode.sh` says where it comes from.
+
+*Checked:* `texttest` `dsdtest`, C and PIE model builds, 170 checks:
+- `dst.h` on 47 gives FFmpeg's DSD bit for bit (94080 bytes, FNV
+  df722027), in slices of 4704, 512, 7 and 1 bytes;
+- 47 through `dsd_next()` gives the same PCM as its bits in a plain DFF;
+- seeks ahead and behind land on the straight run's samples, and only
+  the one behind starts the walk again;
+- stored frames, whole and short (filled with 0x69), come out as
+  stored;
+- a frame with a bad segmentation ends the file with nothing out; a
+  file with no FRTE is DSD_DST.
+Four breaks are caught: a wrong half-probability, frames never skipped
+on a seek, the walk not restarted, the wrong fill.
+`make -C m5tab5/boxwin/test`, 276 checks: 47 decodes, hash 29baf489 =
+host. `dst.h` compiles with the board toolchain, -Werror, with only
+`memcpy` and `memset` imported. The rest of `texttest`, all passed.
+
+*Not checked:* an ESP-IDF build; a board; any DST file but FFmpeg's.
+
+*What to look for on a Tab5:* boxwin has a line for 47 (`dsd64 DST`),
+both kernel passes, `pcm 29baf489 != host (float)` like the other DSD
+files. The x real time figure is the open question. On the host, 47
+runs at 3.4x against 22x for the plain DFF 45, so DST costs about six
+times the conversion there. If the board keeps that ratio, DST DSD64
+lands near 0.5x on the C kernels, below real time, and the lookups are
+the place to work next. The window should be well under 5 ms; if not,
+`DST_STEP` comes down.

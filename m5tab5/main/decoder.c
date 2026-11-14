@@ -1886,7 +1886,8 @@ static esp_err_t dsd_open(decoder_t *d, const char *path)
     const dsd_status_t st = dsd_probe(d->f, size, &dd, STORAGE_IO_PLAYBACK);
     if (st != DSD_OK) {
         if (st == DSD_DST) {
-            ESP_LOGE(TAG, "DFF is DST-compressed; there is no DST decoder");
+            ESP_LOGE(TAG, "DFF is DST-compressed in a way dst.h does not take "
+                          "(more than two channels, or no FRTE)");
         } else if (st == DSD_UNSUPPORTED) {
             ESP_LOGE(TAG, "DSD this does not play (above DSD256, more than "
                           "two channels, or an unusual layout)");
@@ -1983,6 +1984,13 @@ static void dsd_log_timing(dsd_conv_t *c)
     ESP_LOGI(TAG, "dsd reads: max %u.%u ms, %u over 5 ms; first after seek (0.1 ms): %s",
              (unsigned)(c->us_read_max / 1000u), (unsigned)(c->us_read_max / 100u % 10u),
              (unsigned)c->slow_reads, first);
+    if (c->d.dst) {
+        const uint64_t x = c->us_dst ? audio_ms * 100000u / c->us_dst : 0;
+        ESP_LOGI(TAG, "dst: %" PRIu64 " ms decoding (%" PRIu64 ".%02" PRIu64
+                      "x realtime), %u frames refused",
+                 c->us_dst / 1000u, x / 100u, x % 100u, (unsigned)c->dst_bad);
+        c->us_dst = 0;
+    }
     c->us_read = c->us_feed = c->frames_fed = c->reads = 0;   /* per stretch */
     c->us_read_max = 0;
     c->slow_reads = 0;

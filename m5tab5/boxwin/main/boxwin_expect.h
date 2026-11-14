@@ -26,4 +26,5 @@ static const struct { const char *name; uint32_t pcm; bool exact; } bw_expect[] 
     { "44 dsf-dsd64-mono-odd.dsf", 0x8bc393a7u, false },
     { "45 dff-dsd64.dff", 0x09f80b7bu, false },
     { "46 dff-dsd64-mono.dff", 0x720bbd8au, false },
+    { "47 dff-dst.dff", 0x29baf489u, false },
 };

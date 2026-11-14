@@ -73,7 +73,7 @@ place; one that is wrong by more is obvious from the beep count.
 | 44 dsf-dsd64-mono-odd | DSF mono, 14112007 bits: not a whole byte or block; ffmpeg reports it a block long (5.0039 s) | plays 5.0000 s and stops there, not at the padding |
 | 45 dff-dsd64 | DFF (uncompressed, MSB first, byte-interleaved), 5 s | as 41 |
 | 46 dff-dsd64-mono | DFF mono | as 45 |
-| 47 dff-dst-refuse | DFF whose CMPR is `DST `, over junk frames | **refused**, log says DST; no noise played |
+| 47 dff-dst | DST-compressed DFF, DSD64 stereo, 10 frames (133 ms): FFmpeg's FATE sample `dst-64fs44-2ch.dff`; `dst.h` | plays; the bits are FFmpeg's decode of it (dsdtest); log has a `dst:` timing line |
 | 48 ape-normal | Monkey's Audio, `-c2000` (Normal), the whole minute of 01 | plays, seeks; the file to seek in |
 | 49 ape-fast | 48 at `-c1000` (Fast) | as 48 |
 | 50 ape-high | 48 at `-c3000` (High) | as 48 |

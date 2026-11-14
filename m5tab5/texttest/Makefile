@@ -815,7 +815,7 @@ $(AIFF_BIN): aifftest.c ../main/aiff.h ../main/pcmconv.h ../main/pcmfold.h
 run-aiff: $(AIFF_BIN)
 	ASAN_OPTIONS=detect_leaks=1:abort_on_error=0 ./$(AIFF_BIN)
 
-$(DSD_BIN): dsdtest.c ../main/dsd.h
+$(DSD_BIN): dsdtest.c ../main/dsd.h ../main/dst.h
 	$(CC) $(WARNCFLAGS) -c dsdtest.c -o /dev/null
 	$(CC) $(CFLAGS) -o $@ dsdtest.c $(LDFLAGS)
 	$(CC) $(WARNCFLAGS) -DDSD_PIE_MODEL -c dsdtest.c -o /dev/null

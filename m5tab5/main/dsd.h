@@ -37,7 +37,8 @@
  *
  * WHAT IS REFUSED, AND SAYS SO
  *
- *   - DST-compressed DFF (a different codec; there is none here).
+ *   - DST-compressed DFF in a shape dst.h does not take (it says why
+ *     only by refusing the frame; see dst.h).
  *   - Rates that are not 44.1 kHz * 64 * 2^n, or are above DSD_MAX_MULT (DSD256).
  *   - More than two channels.
  *   - DSF with a format id other than 0 (raw DSD).
@@ -50,6 +51,13 @@
  * DFF: big-endian, 64-bit chunk sizes, even-padded. FRM8 holding FVER,
  * PROP (FS, CHNL, CMPR, ...), and the audio in a `DSD ` chunk (or `DST `
  * when compressed). Bytes interleave per channel, MSB first.
+ *
+ * DST (u-defeatist-0016): the `DST ` chunk holds FRTE (the frame count)
+ * and a `DSTF` chunk a frame, 1/75 s, which dst.h turns back into those
+ * same interleaved bytes, DST_STEP bytes a channel at a time; from there
+ * it is the same conversion. Frames are found by walking the chunks
+ * from where the stream is, so a seek reads up to its target as the
+ * plain path does, and no DSTI index is needed.
  *
  * Reads go through storage_io_read_at(), as aiff.h's do.
  *
@@ -67,6 +75,7 @@
 #include <string.h>
 
 #include "storage_io.h"
+#include "dst.h"
 
 #ifndef M_PI
 #define M_PI 3.14159265358979323846
@@ -97,7 +106,7 @@ extern "C" {
 typedef enum {
     DSD_OK = 0,
     DSD_NOT_DSD,        /* not a DSF or DFF at all */
-    DSD_DST,            /* DFF, DST-compressed */
+    DSD_DST,            /* DFF, DST-compressed, and not a shape dst.h takes */
     DSD_UNSUPPORTED,    /* a DSD, but a shape this does not take */
 } dsd_status_t;
 
@@ -111,6 +120,8 @@ typedef struct {
     uint32_t block;         /* bytes per channel per block (DSF); 0 for DFF */
     uint64_t data_bytes;    /* all channels, as the chunk states, cut to the file */
     char     kind[4];       /* "DSF" or "DFF" */
+    bool     dst;           /* DFF with DST frames: data_start is the `DST ` chunk's body */
+    uint32_t dst_frames;    /* as FRTE says */
 } dsd_t;
 
 static inline uint32_t dsd_le32(const uint8_t *p)
@@ -217,7 +228,29 @@ static inline dsd_status_t dsd_probe_dff(FILE *f, int64_t size, dsd_t *d,
                 p += 12 + (int64_t)sl + (int64_t)(sl & 1);
             }
         } else if (!memcmp(c, "DST ", 4)) {
-            return DSD_DST;
+            /* FRTE first: four bytes of frame count, two of frame rate */
+            uint8_t ft[18];
+            if (chans < 1 || chans > DST_MAX_CH || !dsd_mult(rate)) return DSD_UNSUPPORTED;
+            if (!storage_io_read_at(f, pos + 12, ft, 18, cls) || memcmp(ft, "FRTE", 4) ||
+                dsd_be64(ft + 4) < 6 || (ft[16] << 8 | ft[17]) != 75) {
+                return DSD_DST;
+            }
+            const uint32_t frames = dsd_be32(ft + 12);
+            if (!frames) return DSD_DST;
+            d->kind[0] = 'D'; d->kind[1] = 'F'; d->kind[2] = 'F'; d->kind[3] = 0;
+            d->dff = true;
+            d->dst = true;
+            d->dst_frames = frames;
+            d->lsb_first = false;
+            d->channels = (uint16_t)chans;
+            d->rate = rate;
+            d->block = 0;
+            d->data_start = pos + 12;
+            uint64_t dl = len;
+            if (d->data_start + (int64_t)dl > size) dl = (uint64_t)(size - d->data_start);
+            d->data_bytes = dl;
+            d->bits = (uint64_t)frames * 588u * 64u * dsd_mult(rate);
+            return DSD_OK;
         } else if (!memcmp(c, "DSD ", 4)) {
             if (dst) return DSD_DST;
             if (chans < 1 || chans > 2 || !dsd_mult(rate)) return DSD_UNSUPPORTED;
@@ -458,6 +491,16 @@ typedef struct {
     uint32_t  us_read_max, slow_reads;      /* the longest read; reads over 5 ms */
     uint32_t  first_us[16];                 /* the first reads after a seek plan */
     uint32_t  first_n;
+    /* DST (dst.h): the decoder, the frame it is on, and the walk through
+     * the chunks -- the next chunk's offset and the next frame's number. */
+    dst_dec_t *dst;
+    uint8_t   *dst_buf;
+    uint32_t   dst_cap;
+    bool       dst_open;                /* a frame begun and not finished */
+    int64_t    dst_off;
+    uint32_t   dst_ix;
+    uint64_t   us_dst;                  /* in dst_run(), DSD_CLOCK units */
+    uint32_t   dst_bad;                 /* frames dst_begin() would not take */
 } dsd_conv_t;
 
 static inline double dsd_i0(double x)
@@ -537,6 +580,8 @@ static inline void dsd_conv_free(dsd_conv_t *c)
         free(c->ch[i].s2.x);
     }
     free(c->tbl_raw);
+    free(c->dst);
+    free(c->dst_buf);
     free(c);
 }
 
@@ -685,6 +730,17 @@ static inline dsd_conv_t *dsd_conv_new(const dsd_t *d, uint32_t in_chunk)
      * 31 LSB against a reference that agreed to 0.3 with K = 64). */
     const double d176 = 3.0 + DSD_HB1_H + 2.0 * DSD_HB2_H;
     c->latency = (uint32_t)(d176 / 4.0 + 0.5);
+    if (d->dst) {
+        /* a frame stored plainly is the largest: every channel's bytes, +1 */
+        c->dst_cap = (uint32_t)d->channels * 588u * 8u * mult + 1u;
+        c->dst = (dst_dec_t *)DSD_ALLOC(sizeof(dst_dec_t));
+        c->dst_buf = (uint8_t *)DSD_ALLOC(c->dst_cap);
+        if (!c->dst || !c->dst_buf) {
+            dsd_conv_free(c);
+            return NULL;
+        }
+        c->dst_off = d->data_start;
+    }
     dsd_conv_reset(c);
     return c;
 }
@@ -836,6 +892,17 @@ static inline void dsd_seek_plan(dsd_conv_t *c, dsd_rd_t *r, uint64_t frame)
     const uint64_t at = frame * fb;
     uint64_t start = at > 128 * fb ? at - 128 * fb : 0;
     if (!c->d.dff) start -= start % c->d.block;
+    if (c->d.dst) {
+        /* from the frame's start; and from the first chunk again if that
+         * frame is behind the walk, which dsd_rd_offset() then says */
+        const uint32_t ffb = 588u * 8u * dsd_mult(c->d.rate);
+        start -= start % ffb;
+        if (start / ffb < c->dst_ix) {
+            c->dst_off = c->d.data_start;
+            c->dst_ix = 0;
+        }
+        c->dst_open = false;
+    }
     r->pos = start;
     r->skip = frame - start / fb + c->latency;
     r->flushed = false;
@@ -850,8 +917,74 @@ static inline int64_t dsd_rd_offset(const dsd_conv_t *c, const dsd_rd_t *r)
 {
     const dsd_t *d = &c->d;
     if (r->pos >= (d->bits + 7) / 8) return -1;
+    if (d->dst) return c->dst_off;
     if (d->dff) return d->data_start + (int64_t)(r->pos * d->channels);
     return d->data_start + (int64_t)((r->pos / d->block) * d->block * d->channels);
+}
+
+/* `n` bytes at `off`, the stream left after them: read up to `off` and
+ * discard when behind it, as dsd_next() does, so no lseek() is made on a
+ * stream going forward. */
+static inline bool dsd_read_to(dsd_rd_t *r, FILE *f, int64_t off, uint8_t *dst,
+                               size_t n, uint8_t *scratch, size_t cap,
+                               storage_io_class_t cls)
+{
+    if (r->at >= 0 && r->at < off) {
+        while (r->at < off) {
+            size_t n2 = cap;
+            if ((int64_t)n2 > off - r->at) n2 = (size_t)(off - r->at);
+            if (storage_io_fread(scratch, n2, f, cls) != n2) return false;
+            r->at += (int64_t)n2;
+        }
+    }
+    if (r->at != off) {
+        if (!storage_io_read_at(f, off, dst, n, cls)) return false;
+    } else if (storage_io_fread(dst, n, f, cls) != n) {
+        return false;
+    }
+    r->at = off + (int64_t)n;
+    return true;
+}
+
+/* Open the frame r->pos is in, walking the chunks to it. False at the
+ * end of the chunk, on a short read, or a frame dst.h will not take. */
+static inline bool dsd_dst_open(dsd_conv_t *c, dsd_rd_t *r, FILE *f,
+                                uint8_t *buf, storage_io_class_t cls)
+{
+    const dsd_t *d = &c->d;
+    const uint32_t ffb = 588u * 8u * dsd_mult(d->rate);
+    const uint64_t want = r->pos / ffb;
+    const int64_t end = d->data_start + (int64_t)d->data_bytes;
+    const size_t cap = (size_t)d->channels * DSD_BLOCK_MAX;
+    while (c->dst_off + 12 <= end) {
+        uint8_t h[12];
+        if (!dsd_read_to(r, f, c->dst_off, h, 12, buf, cap, cls)) return false;
+        const uint64_t len = dsd_be64(h + 4);
+        if (len > (uint64_t)(end - c->dst_off - 12)) return false;
+        const int64_t next = c->dst_off + 12 + (int64_t)len + (int64_t)(len & 1);
+        if (memcmp(h, "DSTF", 4)) {             /* FRTE, DSTC, anything else */
+            c->dst_off = next;
+            continue;
+        }
+        if (c->dst_ix < want) {                 /* a frame before the target */
+            c->dst_off = next;
+            c->dst_ix++;
+            continue;
+        }
+        if (len > c->dst_cap ||
+            !dsd_read_to(r, f, c->dst_off + 12, c->dst_buf, (size_t)len, buf, cap, cls)) {
+            return false;
+        }
+        c->dst_off = next;
+        c->dst_ix++;
+        if (!dst_begin(c->dst, c->dst_buf, (uint32_t)len, d->channels, dsd_mult(d->rate))) {
+            c->dst_bad++;
+            return false;
+        }
+        c->dst_open = true;
+        return true;
+    }
+    return false;
 }
 
 /*
@@ -868,7 +1001,23 @@ static inline size_t dsd_next(dsd_conv_t *c, dsd_rd_t *r, FILE *f,
     const uint64_t total = (d->bits + 7) / 8;
     for (;;) {
         size_t n;
-        if (r->pos < total) {
+        if (d->dst && r->pos < total) {
+            /* DST_STEP bytes a channel of the frame, decoded into buf */
+            const uint64_t t0 = DSD_CLOCK();
+            if (!c->dst_open && !dsd_dst_open(c, r, f, buf, cls)) return 0;
+            const uint64_t t1 = DSD_CLOCK();
+            uint32_t step = DST_STEP;
+            if (step > total - r->pos) step = (uint32_t)(total - r->pos);
+            const uint32_t nb = dst_run(c->dst, buf, step);
+            if (!dst_left_bytes(c->dst)) c->dst_open = false;
+            const uint64_t t2 = DSD_CLOCK();
+            n = dsd_conv_feed(c, buf, nb, 1, d->channels, out);
+            c->us_read += t1 - t0;
+            c->us_dst += t2 - t1;
+            c->us_feed += DSD_CLOCK() - t2;
+            c->frames_fed += n;
+            r->pos += nb;
+        } else if (r->pos < total) {
             size_t nb = DSD_BLOCK_MAX;
             if (!d->dff && nb > d->block) nb = d->block;
             if (nb > total - r->pos) nb = (size_t)(total - r->pos);

@@ -301,7 +301,7 @@ static void run_dsd(FILE *f, int64_t size, bool pie, bw_result_t *r)
     dsd_t dd;
     const dsd_status_t st = dsd_probe(f, size, &dd, STORAGE_IO_PLAYBACK);
     if (st != DSD_OK) {
-        r->why = st == DSD_DST ? "DST-compressed: there is no DST decoder"
+        r->why = st == DSD_DST ? "DST-compressed in a way dst.h does not take"
                : st == DSD_UNSUPPORTED ? "a DSD this does not play" : "not a DSF or DFF";
         return;
     }
@@ -323,7 +323,7 @@ static void run_dsd(FILE *f, int64_t size, bool pie, bw_result_t *r)
         free(pcm);
         return;
     }
-    snprintf(r->kind, sizeof r->kind, "dsd%u %.3s", (unsigned)(dd.rate / DSD_OUT_RATE), dd.kind);
+    snprintf(r->kind, sizeof r->kind, "dsd%u %s", (unsigned)(dd.rate / DSD_OUT_RATE), dd.dst ? "DST" : dd.kind);
     r->rate = DSD_OUT_RATE;
     r->channels = dd.channels;
 
@@ -342,8 +342,8 @@ static void run_dsd(FILE *f, int64_t size, bool pie, bw_result_t *r)
     }
     end(r);
     r->audio_ms = ms_of(frames, r->rate);
-    r->ok = frames > 0;
-    if (!r->ok) r->why = "no audio came out";
+    r->ok = frames > 0 && !c->dst_bad;
+    if (!r->ok) r->why = c->dst_bad ? "a DST frame dst.h would not take" : "no audio came out";
     dsd_conv_free(c);
     free(in);
     free(pcm);

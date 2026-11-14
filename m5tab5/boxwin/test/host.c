@@ -127,14 +127,17 @@ int main(int argc, char **argv)
         char line[320];
         printf("%s\n", bw_format(name, &r, line, sizeof line));
         if (r.skipped) continue;
-        /* The one file the player refuses by name. */
+        /* A file the player refuses by name (none since 47 became real
+         * DST in u-defeatist-0016; kept for the next). */
         if (strstr(name, "refuse")) {
             CHECK(!r.ok && r.why, "%s should be refused", name);
             continue;
         }
         CHECK(r.ok, "%s: %s", name, r.why ? r.why : "?");
         if (!r.ok) continue;
-        CHECK(r.audio_ms >= 1000, "%s: only %u ms of audio", name, (unsigned)r.audio_ms);
+        /* 47 is FFmpeg's DST sample: ten frames, 133 ms */
+        const unsigned least = strstr(name, "dff-dst") ? 130 : 1000;
+        CHECK(r.audio_ms >= least, "%s: only %u ms of audio", name, (unsigned)r.audio_ms);
         CHECK(r.rate >= 8000 && (r.channels == 1 || r.channels == 2), "%s: %u Hz x%u", name,
               (unsigned)r.rate, (unsigned)r.channels);
         /* u-defeatist-0006: a window for each place PCM is handed on and

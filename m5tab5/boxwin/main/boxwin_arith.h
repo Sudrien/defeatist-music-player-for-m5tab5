@@ -40,3 +40,21 @@ typedef struct {
 } bw_arith_t;
 
 void bw_arith(bw_arith_t *out);
+
+/* u-defeatist-0013: the double libm the decoders' set-up calls -- sqrt,
+ * sin, cos, exp, log, pow, atan2, floor, fmod -- on BW_MATHS_N seeded
+ * arguments each, hashed by their bits (a NaN as one pattern). The hash is
+ * not a host's: libm is not IEEE-exact, and glibc's and newlib's differ.
+ * It is what newlib's gives, the toolchain's libm.a under qemu-riscv32,
+ * which is what a box answered these with as host calls and what
+ * feckless-libs' newlib_math (u-feckless-0041) compiles into the app.
+ * test/Makefile's maths target holds newlib_math to it on a host. */
+#define BW_MATHS_N 2048
+#define BW_MATHS_EXPECT 0xd01dbf09u
+
+typedef struct {
+    uint32_t hash;
+    uint32_t sqrt_ns, sin_ns, exp_ns, log_ns, pow_ns;   /* a call, the loop taken off */
+} bw_maths_t;
+
+void bw_maths(bw_maths_t *out);

@@ -29481,3 +29481,45 @@ between windows; the hash reads the 4 KB that was just decoded and so
 moves it through the cache. The likeliest reading is that APE, whose
 state is larger, pays for that in the next window. Not shown. It is
 boxwin's and not the player's, which does not hash.
+
+### u-defeatist-0013 -- boxwin checks and times the double libm
+
+feckless-libs' u-feckless-0041 compiles newlib's own double libm into a
+boxed app, where until now `sqrt`, `sin`, `exp` and the rest were host
+calls. boxwin gets a third line before any file:
+
+    boxwin: double maths: hash d01dbf09, newlib's; sqrt N ns, sin N ns, exp N ns, log N ns, pow N ns
+
+`bw_maths()` (`boxwin_arith.c`) runs `sqrt`, `sin`, `cos`, `exp`, `log`,
+`pow`, `atan2`, `floor` and `fmod` on 2048 seeded arguments each -- three
+in four where the decoders use them, a few hundred either way of zero,
+the rest any bit pattern -- and hashes every result by its bits, a NaN as
+one pattern. Five of them are timed.
+
+**The hash is newlib's, not a host's.** A libm is not IEEE-exact and
+glibc's results are not newlib's, so `test/host.c` cannot judge it.
+d01dbf09 is what the toolchain's own `libm.a` gives, built into a harness
+with `boxwin_arith.c` by the board build's compiler and run under
+qemu-riscv32 8.2.2; feckless-libs' `newlib_math` built the same way gives
+it too. That library is what the launcher answered these with as host
+calls, so the board must show d01dbf09 against feckless-libs before 0041
+and after it, and the times are what changed.
+
+`make -C m5tab5/boxwin/test` has a `maths` step that builds `bw_maths()`
+with `newlib_math` from `FECKLESS_BOX_LIBC` (by default the project's
+`managed_components/`) and requires that hash. Without a `newlib_math`
+there it says it did not check and passes, since nothing else can judge
+the hash. A wrong constant fails it.
+
+*Checked:* `make -C m5tab5/boxwin/test` with feckless-libs 0041: `boxwin
+maths: hash d01dbf09, as boxwin_arith.h says`, and 264 checks as before.
+The three board files compiled with the board build's toolchain, -Werror;
+all 84 imports in feckless_box_libc's lists, the nine maths names among
+them, which since 0041 are its own.
+
+*Not checked:* an ESP-IDF build; a board.
+
+*What to look for on a Tab5:* `double maths: hash d01dbf09, newlib's`.
+Built against feckless-libs 0040 the five times are host calls'; against
+0041 they are the code's, and the DSD `set-up` figures should fall below
+42, 78 and 114 ms.

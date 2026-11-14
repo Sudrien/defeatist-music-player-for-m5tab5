@@ -12,6 +12,7 @@
  * conversions to an integer are done only where C defines them (the value
  * in range), and no divisor is zero.
  */
+#include <math.h>
 #include <string.h>
 
 #include "boxwin.h"
@@ -179,4 +180,64 @@ void bw_arith(bw_arith_t *out)
     out->udiv1000_ns = ns_each(bw_now() - t0, loop);
     for (int i = 0; i < BW_ARITH_N; i++) h = fnv64(h, s_n[i] % thousand);
     out->div_hash = h;
+}
+
+/* ---- u-defeatist-0013: the double libm ----------------------------------- */
+
+static double s_ma[BW_MATHS_N], s_mb[BW_MATHS_N];
+
+/* Arguments where the decoders use these -- a few hundred either way of
+ * zero, positive for the logs and roots -- and some anywhere. */
+static void fill_maths(void)
+{
+    s_rng = 0xbb67ae8584caa73bull;
+    for (int i = 0; i < BW_MATHS_N; i++) {
+        uint64_t a = rnd();
+        uint64_t b = rnd();
+        if (i & 3) {
+            const uint64_t ea = 0x3ff - 30 + rnd() % 38;
+            const uint64_t eb = 0x3ff - 30 + rnd() % 36;
+            a = (a & 0x800fffffffffffffull) | (ea << 52);
+            b = (b & 0x800fffffffffffffull) | (eb << 52);
+        }
+        s_ma[i] = dbl_of(a);
+        s_mb[i] = dbl_of(b);
+    }
+}
+
+#define TIMED(field, expr) do {                                         \
+        const int64_t t_ = bw_now();                                    \
+        for (int i = 0; i < BW_MATHS_N; i++) h = fnv_dbl(h, (expr));    \
+        out->field = maths_ns(bw_now() - t_, loop);                     \
+    } while (0)
+
+static uint32_t maths_ns(int64_t us, int64_t loop_us)
+{
+    const int64_t net = us - loop_us;
+    if (net <= 0 || net > 4000000) return 0;
+    return (uint32_t)net * 1000u / BW_MATHS_N;
+}
+
+void bw_maths(bw_maths_t *out)
+{
+    memset(out, 0, sizeof *out);
+    fill_maths();
+    uint32_t h = 2166136261u;
+
+    int64_t t0 = bw_now();
+    for (int i = 0; i < BW_MATHS_N; i++) h = fnv_dbl(h, s_ma[i]);
+    const int64_t loop = bw_now() - t0;
+
+    TIMED(sqrt_ns, sqrt(s_ma[i]));
+    TIMED(sin_ns, sin(s_ma[i]));
+    for (int i = 0; i < BW_MATHS_N; i++) h = fnv_dbl(h, cos(s_ma[i]));
+    TIMED(exp_ns, exp(s_ma[i]));
+    TIMED(log_ns, log(s_ma[i]));
+    TIMED(pow_ns, pow(s_ma[i], s_mb[i]));
+    for (int i = 0; i < BW_MATHS_N; i++) {
+        h = fnv_dbl(h, atan2(s_ma[i], s_mb[i]));
+        h = fnv_dbl(h, floor(s_ma[i]));
+        h = fnv_dbl(h, fmod(s_ma[i], s_mb[i]));
+    }
+    out->hash = h;
 }

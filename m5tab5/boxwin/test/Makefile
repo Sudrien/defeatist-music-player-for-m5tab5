@@ -50,8 +50,23 @@ boxwinhost: $(DEPS)
 
 FILES = $(AUDIO)/*.mp3 $(AUDIO)/*.mp2 $(AUDIO)/*.ape $(AUDIO)/*.dsf $(AUDIO)/*.dff
 
-run: boxwinhost
+run: boxwinhost maths
 	./boxwinhost $(FILES)
+
+# u-defeatist-0013: bw_maths() against feckless-libs' newlib_math, which
+# needs a feckless_box_libc with it (u-feckless-0041 on); without one this
+# says so and passes, since host.c cannot judge that hash.
+FECKLESS_BOX_LIBC ?= ../managed_components/feckless_box_libc
+NEWLIB_MATH := $(FECKLESS_BOX_LIBC)/newlib_math
+NEWLIB_MATH_SRCS = $(wildcard $(NEWLIB_MATH)/math/*.c $(NEWLIB_MATH)/common/*.c)
+
+.PHONY: maths
+maths:
+	@if [ -d $(NEWLIB_MATH) ]; then \
+	  $(CC) -std=gnu11 -O2 -w -ffp-contract=off -fno-builtin -I../main \
+	        -I$(FECKLESS_BOX_LIBC)/test/newlib_shim -I$(NEWLIB_MATH)/common \
+	        -o boxwinmaths maths.c ../main/boxwin_arith.c $(NEWLIB_MATH_SRCS) && ./boxwinmaths; \
+	else echo "boxwin maths: no $(NEWLIB_MATH), not checked"; fi
 
 # ../main/boxwin_expect.h again, after a decoder or a test file changed on
 # purpose. Read the diff: a hash that moved is audio that moved.
@@ -61,4 +76,4 @@ expect: boxwinhost
 	mv ../main/boxwin_expect.h.new ../main/boxwin_expect.h
 
 clean:
-	rm -f boxwinhost
+	rm -f boxwinhost boxwinmaths

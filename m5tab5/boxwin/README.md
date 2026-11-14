@@ -65,6 +65,13 @@ ms or more and ` !!` at 20 ms or more. It is kept under 224 characters: a
 box's log line is 256 with its prefix, and one that does not fit loses its
 end and its newline.
 
+- **The third line** is the double libm (u-defeatist-0013): sqrt, sin,
+  cos, exp, log, pow, atan2, floor and fmod on 2048 arguments each, hashed
+  and compared with what newlib's libm gives -- not a host's, since libm is
+  not exact and glibc's differs. `newlib's` means the box gave the
+  toolchain's own results; the times are a call's. With feckless-libs
+  before u-feckless-0041 those are host calls, after it newlib's code in
+  the app.
 - **The first two lines** are the box's arithmetic (u-defeatist-0010): a
   fixed run of every double operation and 64-bit division the compiler
   emits a call for, hashed, and the hash compared with a host's. `the
@@ -113,5 +120,8 @@ A window recorded here is an upper bound: see `main/boxwin.h`.
 under ASan and UBSan: every format decodes to its length, the one DST file
 is refused, the window bookkeeping adds up, the arithmetic hashes are what
 `boxwin_arith.h` says and each file's PCM hash what `boxwin_expect.h` says
-(`make -C test expect` writes that file again). The times it prints are the
+(`make -C test expect` writes that file again). Its `maths` step builds the
+maths check with feckless-libs' `newlib_math` and requires newlib's hash;
+it needs `FECKLESS_BOX_LIBC` (by default `managed_components/`) and says
+so if that has no `newlib_math`. The times it prints are the
 host's and mean nothing for the board.

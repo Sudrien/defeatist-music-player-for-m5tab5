@@ -241,7 +241,21 @@ void app_main(void)
                       "what follows was computed on it",
                  (unsigned)BW_ARITH_DBL_EXPECT, (unsigned)BW_ARITH_DIV_EXPECT);
     }
-    say(dbl_ok && div_ok ? "Arithmetic: as a host's." : "ARITHMETIC: NOT AS A HOST'S", dbl_ok && div_ok ? C_DIM : C_BAD);
+    /* u-defeatist-0013: the double libm, against newlib's own. */
+    bw_maths_t mt;
+    bw_maths(&mt);
+    const bool maths_ok = mt.hash == BW_MATHS_EXPECT;
+    ESP_LOGW(TAG, "double maths: hash %08x, %s; sqrt %u ns, sin %u ns, exp %u ns, log %u ns, pow %u ns",
+             (unsigned)mt.hash, maths_ok ? "newlib's" : "NOT NEWLIB'S",
+             (unsigned)mt.sqrt_ns, (unsigned)mt.sin_ns, (unsigned)mt.exp_ns,
+             (unsigned)mt.log_ns, (unsigned)mt.pow_ns);
+    if (!maths_ok) {
+        ESP_LOGE(TAG, "the box's double maths gave a result newlib's does not (wanted %08x)",
+                 (unsigned)BW_MATHS_EXPECT);
+    }
+    const bool all_ok = dbl_ok && div_ok && maths_ok;
+    say(all_ok ? "Arithmetic and maths: as they should be." : "ARITHMETIC OR MATHS: NOT AS THEY SHOULD BE",
+        all_ok ? C_DIM : C_BAD);
 
     vTaskDelay(pdMS_TO_TICKS(1500));    /* the card mounts on storage's poll task */
 

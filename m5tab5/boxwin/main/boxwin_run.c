@@ -242,7 +242,7 @@ static void run_mp3(FILE *f, int64_t size, bw_result_t *r)
     r->ok = true;
 }
 
-/* ---- APE: ape.h, BW_APE_BLOCKS a window --------------------------------- */
+/* ---- APE: ape.h, ape_call_blocks() a window ----------------------------- */
 
 static void run_ape(FILE *f, int64_t size, bool pie, bw_result_t *r)
 {
@@ -274,9 +274,11 @@ static void run_ape(FILE *f, int64_t size, bool pie, bw_result_t *r)
 
     uint64_t blocks = 0;
     const uint64_t cap = cap_frames(r->rate);
+    uint32_t ask = ape_call_blocks(&a);         /* u-defeatist-0015 */
+    if (ask > BW_APE_BLOCKS) ask = BW_APE_BLOCKS;
     begin(r);
     for (;;) {
-        const uint32_t n = ape_next(d, f, pcm, BW_APE_BLOCKS);
+        const uint32_t n = ape_next(d, f, pcm, ask);
         cut_pcm(pcm, (size_t)n * a.channels);   /* one a block for mono, not two (0011) */
         if (!n) break;
         blocks += n;

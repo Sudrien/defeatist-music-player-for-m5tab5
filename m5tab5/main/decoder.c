@@ -2193,6 +2193,7 @@ static int ape_read(decoder_t *d, int16_t *out, int max_int16)
     }
     uint64_t blocks = (uint64_t)max_int16 / ch;
     if (blocks > total - d->done) blocks = total - d->done;
+    if (blocks > ape_call_blocks(&d->ape_hdr)) blocks = ape_call_blocks(&d->ape_hdr);
     if (!blocks) return 0;
     const uint32_t n = ape_next(d->ape, d->f, out, (uint32_t)blocks);
     if (!n) {

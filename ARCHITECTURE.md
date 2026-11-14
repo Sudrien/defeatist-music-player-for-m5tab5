@@ -29568,3 +29568,38 @@ a wrong halfband copied (5) or designed (5) is caught. Dropping `mult`
 from the key is not, and cannot be. The rest of `texttest`: all passed.
 
 *Not checked:* an ESP-IDF build; a board.
+
+### u-defeatist-0015 -- 0014 on a board; APE asked for fewer blocks at the high levels
+
+*The board run* of 0014 went as 0014 said. DSD `set-up`, C and PIE:
+41 42 / 38 ms, 42 74, 43 110, 44 38, 45 38, and 46 -- the one file
+that follows one of its own rate and bit order -- 3 ms. A miss is about
+4 ms less than before 0014, the halfbands no longer designed each time;
+the first converter still designs them. A hit is the table's copy.
+Every hash, every arithmetic and maths line, as in 0013's run.
+
+*The window.* What was left over 5 ms is APE at the high levels. A
+boxwin window there is one `ape_next()` of 1024 blocks, and the cost of
+a block is fixed by the level. The longest windows, C / PIE: Normal 3.4
+/ 2.8 ms, High 5.6 / 3.2, Extra high 16.4 / 5.3, Insane 75.3 / 15.0. A
+box holds interrupts off for a window, so a boxed player must not ask
+for that much at once.
+
+`ape_call_blocks()` (`ape.h`) is the most blocks one call should
+decode: 1024 up to Normal; 512 at High; 256 at Extra high, 512 with the
+PIE kernels; 64 at Insane, 256 with them. Each is the measured cost
+scaled to stay under 5 ms. The player's `ape_read()` asks for no more
+than that, as does boxwin. Fewer blocks a call change nothing the
+decoder puts out; outside a box they cost a function call each.
+
+*What to look for on a Tab5:* no APE line with a window `>=5 ms`; the
+longest near 2.8, 4.1 and 4.7 ms for High, Extra high and Insane on
+the C kernels, 1.6, 2.7 and 3.8 with PIE; window counts up by the same
+factors; the hashes as before. The x real time figures should hardly
+move: a window boundary is a clock read and a hash of a few hundred
+samples.
+
+*Checked:* `texttest`, all passed; `make -C m5tab5/boxwin/test`, 264
+checks, every APE hash the host's.
+
+*Not checked:* an ESP-IDF build; a board.

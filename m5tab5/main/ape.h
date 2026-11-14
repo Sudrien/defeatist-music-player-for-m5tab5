@@ -994,6 +994,28 @@ static inline uint32_t ape_decode(ape_dec_t *d, FILE *f, int16_t *out, uint32_t 
     return n;
 }
 
+/* The most blocks one call should decode, so one call stays under 5 ms
+ * on the P4 (u-defeatist-0015). The cost per block is fixed by the
+ * level, not the music; measured in a box on a Tab5, the longest 1024-
+ * block call was, C / PIE: Normal 3.4 / 2.8 ms, High 5.6 / 3.2, Extra
+ * high 16.4 / 5.3, Insane 75.3 / 15.0. A boxed decoder holds interrupts
+ * off for a call, so long calls are what a box must not have; outside
+ * one, short calls cost a function call each and nothing else. */
+static inline uint32_t ape_call_blocks(const ape_t *a)
+{
+#ifdef APE_HAVE_PIE
+    const bool pie = ape_pie_on;
+#else
+    const bool pie = false;
+#endif
+    switch (a->level) {
+    case 3000: return 512;
+    case 4000: return pie ? 512 : 256;
+    case 5000: return pie ? 256 : 64;
+    default:   return 1024;
+    }
+}
+
 /* The next block run of the stream, opening the following frame when
  * this one is done. 0 at the end of the file, or on bad data. */
 static inline uint32_t ape_next(ape_dec_t *d, FILE *f, int16_t *out, uint32_t max)

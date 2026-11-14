@@ -48,6 +48,16 @@
 
 static bw_track_t s_track = { .open_us = -1, .into = NULL };
 
+uint8_t bw_fill = 0;
+
+/* A PCM buffer, every byte bw_fill (boxwin.h). */
+static int16_t *pcm_alloc(size_t samples)
+{
+    int16_t *p = malloc(samples * sizeof(int16_t));
+    if (p) memset(p, bw_fill, samples * sizeof(int16_t));
+    return p;
+}
+
 /* The file being decoded: when it was opened, and what its reads and cuts
  * have come to since begin(). */
 static int64_t  s_t0;
@@ -186,6 +196,7 @@ static void run_mp3(FILE *f, int64_t size, bw_result_t *r)
     have = 1;
 
     mp3dec_init(&dec);
+    memset(pcm, bw_fill, sizeof pcm);
     uint64_t frames = 0, cap = UINT64_MAX;
     bool eof = false;
     int layer = 0;
@@ -249,7 +260,7 @@ static void run_ape(FILE *f, int64_t size, bool pie, bw_result_t *r)
     (void)pie;
 #endif
     ape_dec_t *d = ape_dec_new(&a, STORAGE_IO_PLAYBACK);
-    int16_t *pcm = malloc(sizeof(int16_t) * 2 * BW_APE_BLOCKS);
+    int16_t *pcm = pcm_alloc(2 * BW_APE_BLOCKS);
     if (!d || !pcm || !ape_frame_open(d, f, 0)) {
         r->why = (!d || !pcm) ? "no memory for the decoder" : "its first frame would not open";
         ape_dec_free(d);
@@ -266,7 +277,7 @@ static void run_ape(FILE *f, int64_t size, bool pie, bw_result_t *r)
     begin(r);
     for (;;) {
         const uint32_t n = ape_next(d, f, pcm, BW_APE_BLOCKS);
-        cut_pcm(pcm, (size_t)n * 2);            /* always two a block */
+        cut_pcm(pcm, (size_t)n * a.channels);   /* one a block for mono, not two (0011) */
         if (!n) break;
         blocks += n;
         r->calls++;
@@ -302,7 +313,7 @@ static void run_dsd(FILE *f, int64_t size, bool pie, bw_result_t *r)
     /* As decoder.c's dsd_open() sizes them. */
     dsd_conv_t *c = dsd_conv_new(&dd, DSD_BLOCK_MAX);
     uint8_t *in = malloc((size_t)dd.channels * DSD_BLOCK_MAX);
-    int16_t *pcm = malloc(sizeof(int16_t) * 2 * (DSD_BLOCK_MAX / 8 + 96));
+    int16_t *pcm = pcm_alloc(2 * (DSD_BLOCK_MAX / 8 + 96));
     if (!c || !in || !pcm) {
         r->why = "no memory for the converter";
         dsd_conv_free(c);
@@ -414,17 +425,26 @@ bool bw_pie_selftest(void)
 
 char *bw_format(const char *name, const bw_result_t *r, char *out, size_t len)
 {
+    /* The file's own name: its folder is on the "next:" line, and a box's
+     * log line has 256 bytes for everything (BW_LINE_MAX). */
+    const char *base = strrchr(name, '/');
+    base = base ? base + 1 : name;
+    /* Made whole, then cut to what the caller and the log have room for:
+     * with every figure at its widest it still fits (test/host.c), and if
+     * one day it did not, it would be cut here and keep its newline. */
+    char full[512];
+    int n;
     if (!r->ok) {
-        snprintf(out, len, "%.56s: %s", name, r->why ? r->why : "failed");
-        return out;
+        n = snprintf(full, sizeof full, "%.48s: %.160s", base, r->why ? r->why : "failed");
+        goto done;
     }
     const uint32_t cpu_ms = (uint32_t)(r->win.sum_us / 1000u);
     const uint32_t x100 = cpu_ms ? (uint32_t)((uint64_t)r->audio_ms * 100u / cpu_ms) : 0;
-    snprintf(out, len,
-             "%.56s: %s%s %u Hz x%u, %u ms of audio in %u ms (%u.%02ux); "
-             "%u windows, longest %u.%u ms, %u of 5 ms or more, %u of 20 ms or more; "
-             "set-up %u ms, %u KB read in %u ms; pcm %08x%s%s",
-             name, r->kind, r->pie ? " PIE" : "", (unsigned)r->rate, (unsigned)r->channels,
+    n = snprintf(full, sizeof full,
+             "%.48s: %s%s %u Hz x%u, %u ms in %u ms (%u.%02ux); "
+             "%u windows, longest %u.%u ms, %u >=5 ms, %u >=20 ms; "
+             "set-up %u ms; %u KB in %u ms; pcm %08x%s%s",
+             base, r->kind, r->pie ? " PIE" : "", (unsigned)r->rate, (unsigned)r->channels,
              (unsigned)r->audio_ms, (unsigned)cpu_ms, (unsigned)(x100 / 100u), (unsigned)(x100 % 100u),
              (unsigned)r->win.windows, (unsigned)(r->win.max_us / 1000u),
              (unsigned)(r->win.max_us % 1000u / 100u),
@@ -433,10 +453,17 @@ char *bw_format(const char *name, const bw_result_t *r, char *out, size_t len)
              (unsigned)r->setup_ms, (unsigned)r->read_kb, (unsigned)r->read_ms,
              (unsigned)r->pcm_hash,
              !r->pcm_want ? ""
-             : r->pcm_hash == r->pcm_want ? " (the host's)"
-             : r->pcm_exact ? " (NOT THE HOST'S, and this decoder is integer)"
-             : " (not the host's; float code need not be)",
-             r->win.max_us >= BW_AUDIO_US ? "  ** over the audio budget"
-             : r->win.max_us >= BW_PANEL_US ? "  * over the panel's" : "");
+             : r->pcm_hash == r->pcm_want ? " = host"
+             : r->pcm_exact ? " != HOST: WRONG"
+             : " != host (float)",
+             r->win.max_us >= BW_AUDIO_US ? " !!" : r->win.max_us >= BW_PANEL_US ? " !" : "");
+done:
+    if (!len) return out;
+    size_t m = n < 0 ? 0 : (size_t)n;
+    if (m > sizeof full - 1) m = sizeof full - 1;
+    if (m > BW_LINE_MAX - 1) m = BW_LINE_MAX - 1;
+    if (m > len - 1) m = len - 1;
+    memcpy(out, full, m);
+    out[m] = '\0';
     return out;
 }

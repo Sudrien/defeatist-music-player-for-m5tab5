@@ -18,7 +18,7 @@ static const struct { const char *name; uint32_t pcm; bool exact; } bw_expect[] 
     { "52 ape-insane.ape", 0x96460869u, true },
     { "53 ape-insane-noisy.ape", 0x5d2fee52u, true },
     { "54 ape-24bit.ape", 0x01bca688u, true },
-    { "55 ape-mono-22k.ape", 0xf8504d37u, true },
+    { "55 ape-mono-22k.ape", 0xbf295d37u, true },
     { "56 ape-apev2-tag.ape", 0x96460869u, true },
     { "41 dsf-dsd64.dsf", 0x7508c734u, false },
     { "42 dsf-dsd128.dsf", 0x79723799u, false },

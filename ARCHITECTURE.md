@@ -29372,3 +29372,81 @@ for a DSD or MP3 file in this run and the next. Send the six times. Built
 against feckless-libs 0037 the two division times are a host call's;
 built against 0038 they are what replaced it, and the difference is what
 0038 bought.
+
+### u-defeatist-0011 -- boxwin's first run with the checks: the arithmetic is right; a hash of boxwin's own was not
+
+**The eighth run on a board** (0010; boxwin built against feckless-libs
+with u-feckless-0036 and, by its division times, 0038).
+
+    boxwin: double arithmetic: hash 1beec1c3, the host's; an add 356 ns, a multiply 280 ns, a divide 3211 ns, from a 64-bit integer 219 ns
+    boxwin: 64-bit division: hash 2bebcd67, the host's; a divide 300 ns, by 1000 151 ns
+
+**The arithmetic is right on the P4.** Both hashes are the host's: every
+result of some 150,000 double operations, compares and conversions and
+some 50,000 64-bit divisions and remainders was the bit pattern a real
+FPU and divider give. That is what 0009 could not say, and it covers
+libgcc's in-app members (the compares, `__fix*`, `__truncdfsf2`) as well
+as feckless-libs' own.
+
+**What an operation costs in a box now.** An add 356 ns, a multiply 280
+ns, a conversion from a 64-bit integer 219 ns; a 64-bit divide 300 ns and
+151 ns by 1000. A double divide is 3.2 microseconds, ten times the rest:
+it is the 54 steps of subtraction u-feckless-0036 said it would be, and
+it is most of what is left of the DSD set-up (58, 106, 153 ms), whose
+Bessel series divides once a term.
+
+**The PCM.** Eight of the nine APE files hash to the host's value on the
+C kernel and again on the PIE kernel, six of them to the same value as
+each other, being one recording at six settings. Every DSD file has the
+same hash from the C kernel and the PIE kernel; so on the board the PIE
+kernels put out the C kernels' samples, bit for bit, for both decoders.
+MP3 and DSD differ from the host's, as 0010 expected of float code.
+
+**The ninth was boxwin's mistake.** `55 ape-mono-22k.ape` was `NOT THE
+HOST'S` on both kernels, with the same hash on both. `ape_decode()`
+writes one sample a block for a mono file; 0010's `cut_pcm()` hashed two,
+with the comment "always two a block", from reading the stereo branch
+only. The second half of what it hashed was whatever `malloc()` returned:
+the board had one hash, a plain host build another (06ee7d37), and the
+host under the sanitizers, which is where `boxwin_expect.h` had been
+written, a third (f8504d37). The host test decoded the file twice and
+compared, and passed, because the allocator hands the same block back.
+Valgrind names it at once: "uninitialised value ... created by a heap
+allocation ... run_ape (boxwin_run.c:252)". The decoder, the box and the
+PIE kernel were right; the file is mono and its true hash is bf295d37.
+
+**The lines were too long.** With the hash on the end, most result lines
+passed the 256 bytes a box's log line has (`BOX_LOG_LINE`,
+feckless_box_libc) and lost their end and their newline, so the next
+`next:` began on them: `...pcm 1718a8f5 (not the host's; floaW (187119)
+boxwin: next: ...`.
+
+**Changed.**
+
+- `cut_pcm()` is given `n * a.channels` for APE.
+- The PCM buffers are filled with `bw_fill` before a decoder writes to
+  them, and `test/host.c` decodes every file under two fills and requires
+  one hash. With 0010's count put back it fails on file 55 (`pcm cf859d37
+  with the buffers filled 0xa5, 06ee7d37 filled 0`).
+- `boxwin_expect.h` again: one line, file 55.
+- `bw_format()` writes a shorter line -- the file's name without its
+  folder, `30000 ms in 4065 ms`, `0 >=5 ms, 0 >=20 ms`, `= host`,
+  `!= host (float)`, `!= HOST: WRONG`, ` !` and ` !!` for the budgets --
+  makes it whole and cuts it at `BW_LINE_MAX`, 224. `test/host.c` formats
+  each file's result with every figure at its widest and requires it to
+  fit with its end on.
+
+*Checked, on a host:* `make -C m5tab5/boxwin/test`, 264 checks. File 55,
+48, 46 and 40 hash the same under gcc -O0 and -O2, as 32-bit code at -O3,
+and under clang. Valgrind over the three mono files: no error. The three
+board files compiled with the board build's toolchain, PIE kernels in,
+-Werror; their 76 imports are all in feckless_box_libc's lists.
+
+*Not checked:* an ESP-IDF build; a board.
+
+*What to look for on a Tab5:* every result line whole, on its own line;
+`pcm bf295d37 = host` for `55 ape-mono-22k.ape` on both kernels, and
+`= host` on the other eight as before. The DSD and MP3 hashes should be
+this run's: 1718a8f5, 708227ed, 1718a8f5, 238d1ca5 for files 03, 04, 12,
+40, and 0ec2ff06, 15e3f9b8, 64817e64, fbffc7fc, aaf5cf90, b7fdc169 for
+41 to 46.

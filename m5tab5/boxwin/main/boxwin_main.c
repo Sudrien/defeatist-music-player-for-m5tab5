@@ -63,7 +63,7 @@ static const char *TAG = "boxwin";
 /* PSRAM in a box, like everything in it; not on the 64 KB stack. */
 static char        s_name[MAX_FILES][NAME_LEN];
 static bw_result_t s_res[MAX_FILES];
-static char        s_line[320];
+static char        s_line[BW_LINE_MAX];
 static int         s_row;
 
 int64_t bw_now(void)   { return esp_timer_get_time(); }
@@ -86,13 +86,15 @@ static void say(const char *s, uint16_t c)
 static void say_result(const char *name, const bw_result_t *r)
 {
     char t[120];
+    const char *base = strrchr(name, '/');
+    base = base ? base + 1 : name;
     if (!r->ok) {
-        snprintf(t, sizeof t, "%.56s: %.60s", name, r->why ? r->why : "failed");
+        snprintf(t, sizeof t, "%.56s: %.60s", base, r->why ? r->why : "failed");
         say(t, C_BAD);
         return;
     }
     const bool wrong = r->pcm_want && r->pcm_exact && r->pcm_hash != r->pcm_want;
-    snprintf(t, sizeof t, "%.56s%s: %u.%u ms%s", name, r->pie ? " PIE" : "",
+    snprintf(t, sizeof t, "%.56s%s: %u.%u ms%s", base, r->pie ? " PIE" : "",
              (unsigned)(r->win.max_us / 1000u), (unsigned)(r->win.max_us % 1000u / 100u),
              wrong ? "  WRONG PCM" : "");
     say(t, wrong || r->win.max_us >= BW_AUDIO_US ? C_BAD : r->win.max_us >= BW_PANEL_US ? C_WARN : C_TEXT);

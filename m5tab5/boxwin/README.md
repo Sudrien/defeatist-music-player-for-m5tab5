@@ -50,16 +50,20 @@ list is the result.
 
 ## The log
 
+    boxwin: double arithmetic: hash 1beec1c3, the host's; an add 356 ns, ...
+    boxwin: 64-bit division: hash 2bebcd67, the host's; a divide 300 ns, by 1000 151 ns
     boxwin: next: test_audio_files/51 ape-extrahigh.ape
-    boxwin: test_audio_files/51 ape-extrahigh.ape: ape 4000 44100 Hz x2,
-            30000 ms of audio in 18439 ms (1.62x); 1339 windows, longest
-            16.3 ms, 1316 of 5 ms or more, 0 of 20 ms or more; set-up 12 ms,
-            1612 KB read in 1270 ms  * over the panel's
+    boxwin: 51 ape-extrahigh.ape: ape 4000 44100 Hz x2, 30000 ms in 18448 ms
+            (1.62x); 1338 windows, longest 16.3 ms, 1316 >=5 ms, 0 >=20 ms;
+            set-up 28 ms; 736 KB in 1242 ms; pcm 96460869 = host !
 
-(the window figures are a board's, u-defeatist-0006; the set-up and read
-figures are made up, to show the shape.) Two lines a file from the C
-kernels, then `the PIE self-tests next`, then the same files with the P4's
-PIE kernels, which is what the player ships with.
+(a board's, u-defeatist-0011; one line in the log, folded here.) The two
+arithmetic lines, then two lines a file from the C kernels, then `the PIE
+self-tests next`, then the same files with the P4's PIE kernels, which is
+what the player ships with. A line ends ` !` when its longest window is 5
+ms or more and ` !!` at 20 ms or more. It is kept under 224 characters: a
+box's log line is 256 with its prefix, and one that does not fit loses its
+end and its newline.
 
 - **The first two lines** are the box's arithmetic (u-defeatist-0010): a
   fixed run of every double operation and 64-bit division the compiler
@@ -67,23 +71,24 @@ PIE kernels, which is what the player ships with.
   host's` on both means every result was the right bits. The times are of
   one operation: a trap into the launcher with feckless-libs before
   u-feckless-0036 and 0038, the routine's own after.
-- **pcm** at the end of a line is a hash of the samples that came out.
-  For APE, an integer decoder, it must be `(the host's)`, C kernel or PIE;
-  `NOT THE HOST'S` there is wrong audio. MP3 and DSD go through float, and
+- **pcm** is a hash of the samples that came out. ` = host`: what a host
+  decodes. For APE, an integer decoder, it must be, C kernel or PIE;
+  ` != HOST: WRONG` there is wrong audio. MP3 and DSD go through float, and
   the board's compiler fuses a multiply and an add where the host test is
-  told not to, so theirs usually differ from the host's and say so. They
-  are still the same from run to run and build to build, which is what to
+  told not to, so theirs say ` != host (float)`. They are still the same
+  from run to run and from the C kernel to the PIE one, which is what to
   compare when the box's kernel or its arithmetic changes.
 - **longest** is the figure. Under 5 ms: no concern. 5 to 20 ms: the panel
   would flash if the app ran on the panel's core; fine on core 1. 20 ms or
   more: an audio underrun is possible with windows masked.
-- **(N.NNx)** is decode speed against real time, with the reads left out. An
+- **(N.NNx)** is decode speed against real time, with the reads left out:
+  `30000 ms in 18448 ms` is that much audio decoded in that much computing. An
   APE window is 1024 samples, 23 ms of audio, so its length is 23 ms / speed;
   a smaller chunk in the player would shorten it in proportion. Under 1.00x
   the format cannot be played at all, whatever its windows.
 - **set-up** is the probe and the tables, before the first window: for DSD,
   the filter design, which is double arithmetic and so thousands of host
-  calls in a box. **KB read in ms** is the reads while decoding, lease and
+  calls in a box. **KB in ms** is the reads while decoding, lease and
   seek included.
 - **`next: <file>`** comes before each file. A fault ends the app with no
   line of its own, so the last `next:` is the file it happened in.

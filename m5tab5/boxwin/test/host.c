@@ -155,9 +155,29 @@ int main(int argc, char **argv)
         CHECK(r.pcm_hash == r.pcm_want, "%s: pcm %08x, main/boxwin_expect.h says %08x", name,
               (unsigned)r.pcm_hash, (unsigned)r.pcm_want);
         CHECK(r.pcm_exact == !strncmp(r.kind, "ape", 3), "%s: exact is for the integer decoder", name);
+        /* 0011: again with the PCM buffers filled otherwise. A hash that
+         * moves took in a sample the decoder did not write. */
         bw_result_t again;
+        bw_fill = 0xa5;
         bw_run_file(argv[i], false, &again);
-        CHECK(again.pcm_hash == r.pcm_hash, "%s: a second decode gave pcm %08x", name, (unsigned)again.pcm_hash);
+        bw_fill = 0;
+        CHECK(again.pcm_hash == r.pcm_hash, "%s: pcm %08x with the buffers filled 0xa5, %08x filled 0", name,
+              (unsigned)again.pcm_hash, (unsigned)r.pcm_hash);
+        /* The line fits a box's log, at its worst: every count as wide as
+         * it gets, and the longest name here. */
+        bw_result_t wide = r;
+        wide.pie = true;
+        wide.audio_ms = wide.setup_ms = wide.read_kb = wide.read_ms = 99999;
+        wide.win.windows = 99999;
+        wide.win.sum_us = 99999000;
+        wide.win.max_us = 99900;
+        for (int b = 0; b < BW_BUCKETS; b++) wide.win.hist[b] = b >= 3 ? 9999 : 0;
+        wide.pcm_exact = true;
+        wide.pcm_want = ~wide.pcm_hash;
+        char big[512];
+        bw_format(argv[i], &wide, big, sizeof big);
+        CHECK(strlen(big) < BW_LINE_MAX - 1, "%s: a line of %zu characters, of %d", name, strlen(big), BW_LINE_MAX);
+        CHECK(strstr(big, "WRONG") != NULL && strstr(big, " !!") != NULL, "%s: the line lost its end: %s", name, big);
     }
     CHECK(s_leases == 0, "%d leases still held", s_leases);
     CHECK(s_lease_max == 1, "a lease taken while one was held (%d deep)", s_lease_max);

@@ -119,6 +119,19 @@ typedef struct {
     bool        pcm_exact;      /* integer decoder: any machine must get pcm_want */
 } bw_result_t;
 
+/* What the PCM buffers are filled with before a decoder writes to them.
+ * A hash that takes in a sample no decoder wrote is a hash of whatever the
+ * allocator handed over: 0010 hashed two samples a block of a mono APE,
+ * which writes one, and the board, the host and the host under ASan each
+ * had a hash of their own for that file. test/host.c decodes every file
+ * under two fills and requires one hash. */
+extern uint8_t bw_fill;
+
+/* The longest line bw_format() may make. A box's log line is 256 bytes
+ * with its prefix, and one that does not fit loses its end and its
+ * newline, so the next line starts on it. */
+#define BW_LINE_MAX 224
+
 /* What the platform supplies: main/boxwin_main.c in the box, test/host.c on
  * a host. bw_now() is a host call in a box (esp_timer_get_time()). The lease
  * is storage_io_acquire(STORAGE_IO_PLAYBACK) and its release, held across

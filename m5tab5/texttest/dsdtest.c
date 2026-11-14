@@ -151,6 +151,77 @@ static void check_file(const char *name, uint32_t rate, int nch, double secs,
     free(pcm);
 }
 
+/* u-defeatist-0014: dsd_conv_new()'s design cache. A converter built from
+ * the cache must hold what one designed from nothing does, byte for byte;
+ * a different rate or bit order must not be served from it. */
+static dsd_conv_t *conv_for(const char *name, dsd_t *d)
+{
+    char path[256];
+    snprintf(path, sizeof(path), DIR "%s", name);
+    FILE *f = fopen(path, "rb");
+    if (!f) return NULL;
+    fseek(f, 0, SEEK_END);
+    const int64_t size = ftell(f);
+    dsd_conv_t *c = NULL;
+    if (dsd_probe(f, size, d, STORAGE_IO_PLAYBACK) == DSD_OK) c = dsd_conv_new(d, DSD_BLOCK_MAX);
+    fclose(f);
+    return c;
+}
+
+static size_t tbl_bytes(const dsd_conv_t *c) { return sizeof(int32_t) * (size_t)256 * c->S1 * 8; }
+
+static void cache_checks(void)
+{
+    static const char *const files[] = {
+        "41 dsf-dsd64.dsf", "45 dff-dsd64.dff", "42 dsf-dsd128.dsf", "43 dsf-dsd256.dsf",
+    };
+    for (size_t i = 0; i < sizeof files / sizeof files[0]; i++) {
+        dsd_t d;
+        dsd_cache_drop();
+        const uint32_t m0 = dsd_cache.misses, h0 = dsd_cache.hits;
+        dsd_conv_t *fresh = conv_for(files[i], &d);
+        dsd_conv_t *kept = conv_for(files[i], &d);
+        CHECK(fresh && kept, "%s: no converter", files[i]);
+        if (!fresh || !kept) { dsd_conv_free(fresh); dsd_conv_free(kept); continue; }
+        CHECK(dsd_cache.misses == m0 + 1 && dsd_cache.hits == h0 + 1,
+              "%s: %u misses and %u hits for one design and one copy", files[i],
+              (unsigned)(dsd_cache.misses - m0), (unsigned)(dsd_cache.hits - h0));
+        CHECK(!memcmp(fresh->tbl, kept->tbl, tbl_bytes(fresh)), "%s: the kept table is not the designed one", files[i]);
+        CHECK(fresh->tbl != kept->tbl && dsd_cache.tbl != kept->tbl, "%s: a converter shares its table", files[i]);
+        /* The halfbands are designed once for every converter, so both of
+         * these came from the cache: hold them to a design made here. */
+        float hb1[(DSD_HB1_H + 1) / 2], hb2[(DSD_HB2_H + 1) / 2];
+        dsd_halfband(hb1, DSD_HB1_H, 9.65);
+        dsd_halfband(hb2, DSD_HB2_H, 9.65);
+        CHECK(!memcmp(hb1, kept->hb1, sizeof hb1) && !memcmp(hb2, kept->hb2, sizeof hb2) &&
+              !memcmp(hb1, fresh->hb1, sizeof hb1) && !memcmp(hb2, fresh->hb2, sizeof hb2),
+              "%s: the halfbands are not as designed", files[i]);
+        dsd_conv_free(fresh);
+        dsd_conv_free(kept);
+    }
+    /* The same rate in the other bit order (DSF is LSB first, DFF MSB first)
+     * and another rate: misses, and the tables differ, so the key holds. */
+    dsd_t d;
+    dsd_cache_drop();
+    dsd_conv_t *lsb = conv_for("41 dsf-dsd64.dsf", &d);
+    const uint32_t m0 = dsd_cache.misses;
+    dsd_conv_t *msb = conv_for("45 dff-dsd64.dff", &d);
+    dsd_conv_t *r128 = conv_for("42 dsf-dsd128.dsf", &d);
+    dsd_conv_t *back = conv_for("41 dsf-dsd64.dsf", &d);
+    CHECK(lsb && msb && r128 && back, "the four converters");
+    if (lsb && msb && r128 && back) {
+        CHECK(dsd_cache.misses == m0 + 3, "the other bit order, another rate and back: %u misses, not 3",
+              (unsigned)(dsd_cache.misses - m0));
+        CHECK(memcmp(lsb->tbl, msb->tbl, tbl_bytes(lsb)) != 0, "DSF's and DFF's DSD64 tables are the same");
+        CHECK(!memcmp(lsb->tbl, back->tbl, tbl_bytes(lsb)), "DSD64 designed again is not as before");
+    }
+    dsd_conv_free(lsb);
+    dsd_conv_free(msb);
+    dsd_conv_free(r128);
+    dsd_conv_free(back);
+    dsd_cache_drop();
+}
+
 int main(void)
 {
     load_ref();
@@ -173,6 +244,8 @@ int main(void)
         dsd_pie_on = true;
     }
 #endif
+
+    cache_checks();
 
     printf("  decode against file 01\n");
     check_file("41 dsf-dsd64.dsf", 2822400, 2, 30.0, 50.0);

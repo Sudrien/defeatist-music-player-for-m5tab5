@@ -490,6 +490,44 @@ static inline void dsd_halfband(float *out, int H, double beta)
     }
 }
 
+/* u-defeatist-0014: what dsd_conv_new() designs, kept for the next one.
+ *
+ * The stage-1 table depends only on the rate (mult) and the bit order, and
+ * the two halfbands on nothing at all; designing them is double arithmetic,
+ * 42, 78 and 114 ms for DSD64, 128 and 256 in a feckless box
+ * (u-defeatist-0012) and some of that on the player's own core. So the last
+ * table is kept here and copied into the next converter of the same rate
+ * and bit order, and the halfbands are designed once. A copy, not a shared
+ * pointer: each converter owns its table and frees it as before, and what
+ * it holds is byte for byte what it would have designed. An album at one
+ * rate designs its table once.
+ *
+ * One entry: the table for the last rate, up to 64 KB (DSD256), held until
+ * the next rate or dsd_cache_drop(). One per translation unit that
+ * includes this header, which in the player is decoder.c alone, whose one
+ * caller (play_file(), the player task) opens one decoder at a time. NOT
+ * safe for two tasks building converters at once. DSD_NO_CACHE builds it
+ * out. */
+typedef struct {
+    bool      hb;                               /* hb1 and hb2 designed */
+    float     hb1[(DSD_HB1_H + 1) / 2];
+    float     hb2[(DSD_HB2_H + 1) / 2];
+    uint32_t  mult;                             /* the table's key, */
+    int       lsb_first;                        /* both of it */
+    size_t    n;                                /* int32_t entries; 0: none kept */
+    int32_t  *tbl;
+    uint32_t  hits, misses;                     /* for tests and logs */
+} dsd_cache_t;
+static dsd_cache_t dsd_cache;
+
+/* Give back the kept table (the halfbands are a few hundred bytes and stay). */
+static inline void dsd_cache_drop(void)
+{
+    free(dsd_cache.tbl);
+    dsd_cache.tbl = NULL;
+    dsd_cache.n = 0;
+}
+
 static inline void dsd_conv_free(dsd_conv_t *c)
 {
     if (!c) return;
@@ -533,17 +571,28 @@ static inline dsd_conv_t *dsd_conv_new(const dsd_t *d, uint32_t in_chunk)
         return NULL;
     }
     const uint32_t taps1 = c->K * 8u;
-
-    /* Stage 1: windowed sinc at the DSD rate, cut at 88.2 kHz. */
-    float *h = (float *)DSD_ALLOC(sizeof(float) * taps1);
     const size_t tbl_n = (size_t)256 * c->S1 * 8;
     c->tbl_raw = DSD_ALLOC(sizeof(int32_t) * tbl_n + 16);
-    if (!h || !c->tbl_raw) {
-        free(h);
+    if (!c->tbl_raw) {
         dsd_conv_free(c);
         return NULL;
     }
     c->tbl = (int32_t *)(((uintptr_t)c->tbl_raw + 15) & ~(uintptr_t)15);
+
+#ifndef DSD_NO_CACHE
+    if (dsd_cache.tbl && dsd_cache.n == tbl_n && dsd_cache.mult == mult &&
+        dsd_cache.lsb_first == (int)d->lsb_first) {
+        memcpy(c->tbl, dsd_cache.tbl, sizeof(int32_t) * tbl_n);
+        dsd_cache.hits++;
+    } else
+#endif
+    {
+    /* Stage 1: windowed sinc at the DSD rate, cut at 88.2 kHz. */
+    float *h = (float *)DSD_ALLOC(sizeof(float) * taps1);
+    if (!h) {
+        dsd_conv_free(c);
+        return NULL;
+    }
     const double fc = 88200.0 / (double)d->rate;
     double sum = 0;
     for (uint32_t n = 0; n < taps1; n++) {
@@ -581,6 +630,20 @@ static inline dsd_conv_t *dsd_conv_new(const dsd_t *d, uint32_t in_chunk)
         }
     }
     free(h);
+#ifndef DSD_NO_CACHE
+    /* Kept for the next converter of this rate and bit order. Without the
+     * memory for it, nothing is kept and nothing else changes. */
+    dsd_cache.misses++;
+    dsd_cache_drop();
+    dsd_cache.tbl = (int32_t *)DSD_ALLOC(sizeof(int32_t) * tbl_n);
+    if (dsd_cache.tbl) {
+        memcpy(dsd_cache.tbl, c->tbl, sizeof(int32_t) * tbl_n);
+        dsd_cache.n = tbl_n;
+        dsd_cache.mult = mult;
+        dsd_cache.lsb_first = (int)d->lsb_first;
+    }
+#endif
+    }
 
     /* u-defeatist-0005: only while the PIE sum is on. A caller that has
      * turned it off has said this build is not to execute a PIE
@@ -590,8 +653,18 @@ static inline dsd_conv_t *dsd_conv_new(const dsd_t *d, uint32_t in_chunk)
 #ifdef DSD_HAVE_PIE
     if (dsd_pie_on) (void)dsd_pie_selftest();
 #endif
+#ifndef DSD_NO_CACHE
+    if (!dsd_cache.hb) {
+        dsd_halfband(dsd_cache.hb1, DSD_HB1_H, 9.65);
+        dsd_halfband(dsd_cache.hb2, DSD_HB2_H, 9.65);
+        dsd_cache.hb = true;
+    }
+    memcpy(c->hb1, dsd_cache.hb1, sizeof c->hb1);
+    memcpy(c->hb2, dsd_cache.hb2, sizeof c->hb2);
+#else
     dsd_halfband(c->hb1, DSD_HB1_H, 9.65);
     dsd_halfband(c->hb2, DSD_HB2_H, 9.65);
+#endif
 
     for (int i = 0; i < d->channels; i++) {
         c->ch[i].bh = (uint8_t *)DSD_ALLOC(c->K + in_chunk + 8);

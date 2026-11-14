@@ -29523,3 +29523,48 @@ them, which since 0041 are its own.
 Built against feckless-libs 0040 the five times are host calls'; against
 0041 they are the code's, and the DSD `set-up` figures should fall below
 42, 78 and 114 ms.
+
+### u-defeatist-0014 -- 0013 on a board; the DSD filter design, kept
+
+*The board run.* Built against feckless-libs 0041 to 0043 (Avoidant
+v0.2.0-pre11-5-g77601e2-dirty), boxwin ran to the end:
+
+    boxwin: double maths: hash d01dbf09, newlib's; sqrt 2377 ns, sin 11161 ns, exp 6032 ns, log 5490 ns, pow 15558 ns
+
+The hash is newlib's, so the maths in the app are right. Before
+feckless-libs 0042 the same build stopped with a store access fault at
+0x4ff6feb0: `__errno()` returns `tp`, and a window had never loaded the
+box's `tp`, so the first `errno` write went into the launcher. With 0042
+it does not fault. Every arithmetic and PCM hash is as before.
+
+The DSD `set-up` figures did not fall: still 42, 78 and 114 ms at DSD64,
+128 and 256. With the libm calls no longer host calls, what is left is
+the design's own arithmetic: one Kaiser-windowed filter of `S1 * 8`
+taps, folded into `DSD_NB` tables per byte, plus two halfbands, in soft
+double.
+
+*The cache.* `dsd_conv_new()` now keeps one designed table (`dsd_cache`
+in `dsd.h`). The key is the table's length, which is `mult` times a
+constant, and the bit order (`lsb_first`, DSF against DFF); `mult` is
+kept as well, though the length already says it. On a hit the table is
+copied, not shared, so `dsd_conv_free()` is unchanged. The halfbands
+depend on nothing and are designed once. It is bit-identical: the same
+code makes the table, once. `-DDSD_NO_CACHE` gives the old path.
+
+It costs the table once more: 64 KB at DSD256, PSRAM on the board. One
+entry, because an album is one rate and one format. It is not safe from
+two tasks at once; its one caller is `play_file()`.
+
+*What to expect.* In the player, the cost is paid on the first track of
+each rate and format, then a copy. In boxwin, which runs DSF and DFF at
+each rate in turn, `set-up` falls only for 46 after 45 in each pass.
+
+*Checked:* `texttest` `dsdtest`, C and PIE model builds, 151 checks: for
+files 41, 42, 43 and 45 a fresh build misses and a second hits; the
+tables are equal and not shared; the halfbands equal a design made in
+the test; DSF after DFF after DSD128 designs anew and gives the first
+table back. Breaking the key's bit order (8 failures), a half copy (27),
+a wrong halfband copied (5) or designed (5) is caught. Dropping `mult`
+from the key is not, and cannot be. The rest of `texttest`: all passed.
+
+*Not checked:* an ESP-IDF build; a board.

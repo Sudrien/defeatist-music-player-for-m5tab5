@@ -18,13 +18,13 @@ ABI's core list and the box and storage sections; `feckless_box_libc`
 (boxcheck) holds every import to what a box answers. Both must pass; the
 first build to pass them said
 
-    -- feckless_abi: 187 symbols, all in feckless_abi_v1 + feckless_abi_audio_v1 + feckless_abi_box_v1 + feckless_abi_storage_v2
-    -- feckless_box_libc: boxed, 187 imports, none of them in-app names, all answered by the box
+    -- feckless_abi: 195 symbols, all in feckless_abi_v1 + feckless_abi_audio_v1 + feckless_abi_box_v1 + feckless_abi_nvs_v1 + feckless_abi_storage_v2
+    -- feckless_box_libc: boxed, 195 imports, none of them in-app names, all answered by the box
 
-(180, without the audio section, with `-DDEFEATIST_BOXED_CODEC=OFF`.)
+(188, without the audio section, with `-DDEFEATIST_BOXED_CODEC=OFF`.)
 
 The manifest (`main/idf_component.yml`) follows feckless-libs' `umode`
-branch, which must have u-feckless-0045 to 0049, and 0052 for the codec. Its `dependencies.lock` is
+branch, which must have u-feckless-0045 to 0049 and 0053, and 0052 for the codec. Its `dependencies.lock` is
 written by the first configure and is this project's own; the player's
 manifest and lock are not touched.
 
@@ -38,6 +38,13 @@ locks, queues, stream buffers and notifications, threads.
 So the player's local playback: browsing the card, the library, playing
 MP3, MP2, WAV, AIFF, APE and DSD (DSF, plain DFF) with its own decoders,
 ReplayGain, the Fx sheet, recording to the card.
+
+Settings the player keeps in NVS -- volume, brightness, rotation, NTP,
+the screen's dim and off times, the language, the clock's correction --
+are kept through the box (u-feckless-0053), in the namespace `defeatist`,
+if the launcher names it for this app (`feckless_box_calls_nvs()`). If it
+does not, NVS reads as empty and the player starts from its defaults and
+the card's settings file, as it would on a device with nothing stored.
 
 FLAC, AAC/M4A, Vorbis, Opus and ALAC go through esp_audio_codec, which a
 box answers where the launcher links it (u-feckless-0052, u-defeatist-0023);
@@ -55,7 +62,6 @@ that fail the way the player already copes with:
 | absent | so |
 |---|---|
 | the network: Wi-Fi, Ethernet, sockets, HTTP client and server | an offline player: no radio, podcasts, remote, MPD, NTP |
-| NVS | nothing kept there: approvals and podcast keys (network features) |
 | the hardware JPEG decoder | album art in software |
 | esp_ota, esp_partition | no "exit to launcher" slot; the app ends instead |
 | raw I2C, deep sleep | no power-off pulse: power off ends the app |
@@ -67,7 +73,7 @@ replaces it, and the checks say which are left.
 ## On a board
 
 Needs a launcher on feckless-libs' umode branch with u-feckless-0045 to
-0049, and 0052 and esp_audio_codec linked for the default build (Avoidant's
+0049 and 0053, naming `defeatist` as this app's NVS namespace, and 0052 and esp_audio_codec linked for the default build (Avoidant's
 umode branch, rebuilt), and a box as large as it allows:
 the ELF and its statics are 1.35 MB, and the player's three PCM rings
 10.5 MB of the box's heap before anything else it allocates.

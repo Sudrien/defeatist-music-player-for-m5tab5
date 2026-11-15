@@ -12,9 +12,10 @@
  *                    sockets, no HTTP client or server. The player is an
  *                    offline player that way already when nothing is
  *                    configured, and its network screens say so.
- *   NVS              nothing stored, nothing written: every get is
- *                    ESP_ERR_NVS_NOT_FOUND, so settings start from their
- *                    defaults and the card's settings file.
+ *   NVS              answered by the box since u-feckless-0053
+ *                    (u-defeatist-0024), in the namespace the launcher
+ *                    names; with none named it reads as empty, as here
+ *                    before.
  *   esp_audio_codec  only with DEFEATIST_BOXED_CODEC off (u-defeatist-0023):
  *                    absent_codec.c. On, the box answers it
  *                    (u-feckless-0052).
@@ -57,7 +58,6 @@
 #include "lwip/inet.h"
 #include "lwip/netdb.h"
 #include "lwip/sockets.h"
-#include "nvs.h"
 #include "psa/crypto.h"
 
 #include "ethernet.h"
@@ -65,7 +65,6 @@
 #include "feckless_https.h"
 #include "feckless_net.h"
 #include "hid.h"
-#include "nvs_handler.h"
 #include "usbhost.h"
 #include "wifi.h"
 #include "wifistore.h"
@@ -348,28 +347,6 @@ psa_status_t psa_hash_compute(psa_algorithm_t alg, const uint8_t *input, size_t 
     if (hash_length) *hash_length = 0;
     return PSA_ERROR_NOT_SUPPORTED;
 }
-
-/* ---- NVS: nothing stored -------------------------------------------------- */
-
-esp_err_t nvsh_get_u8(const char *ns, const char *key, uint8_t *out) { (void)ns; (void)key; (void)out; return ESP_ERR_NVS_NOT_FOUND; }
-esp_err_t nvsh_get_str(const char *ns, const char *key, char *buf, size_t *len)
-{
-    (void)ns; (void)key; (void)buf; (void)len;
-    return ESP_ERR_NVS_NOT_FOUND;
-}
-esp_err_t nvsh_get_blob(const char *ns, const char *key, void *buf, size_t *len)
-{
-    (void)ns; (void)key; (void)buf; (void)len;
-    return ESP_ERR_NVS_NOT_FOUND;
-}
-esp_err_t nvsh_set_u8(const char *ns, const char *key, uint8_t v) { (void)ns; (void)key; (void)v; return ESP_ERR_NOT_SUPPORTED; }
-esp_err_t nvsh_set_str(const char *ns, const char *key, const char *s) { (void)ns; (void)key; (void)s; return ESP_ERR_NOT_SUPPORTED; }
-esp_err_t nvsh_set_blob(const char *ns, const char *key, const void *buf, size_t len)
-{
-    (void)ns; (void)key; (void)buf; (void)len;
-    return ESP_ERR_NOT_SUPPORTED;
-}
-esp_err_t nvsh_erase_key(const char *ns, const char *key) { (void)ns; (void)key; return ESP_ERR_NOT_SUPPORTED; }
 
 /* ---- the hardware JPEG decoder: no engine --------------------------------- */
 

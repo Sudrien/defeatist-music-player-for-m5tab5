@@ -30027,3 +30027,34 @@ feckless-libs' umode branch with u-feckless-0052 applied --
 
 *Not checked:* a launcher with the codec and 0052; a FLAC or ALAC file
 played boxed; a board.
+
+### u-defeatist-0024 -- boxed: settings kept in NVS through the box
+
+u-feckless-0053 answers feckless_nvs_handler's gets, sets and erases in a
+box, in the namespaces the launcher names for the app. The boxed player's
+seven NVS definitions come out of `absent.c`, and `boxed_main.c`
+requires the NVS section.
+
+- **What it keeps**, all in `defeatist` (`DEFEATIST_NVS_NS`): the prefs
+  blob (volume, brightness, rotation, NTP, dim and off times), the
+  language, the clock correction, the Wi-Fi switch, the kept station, and
+  the network features' approvals and podcast keys (written, and unused
+  with no network).
+- **The launcher names it.** A launcher that does not -- any launcher
+  today -- leaves the box answering every get with ESP_ERR_NVS_NOT_FOUND
+  and every set with ESP_ERR_NOT_ALLOWED: what absent.c did, so the
+  player behaves as 0022's. Avoidant names `defeatist` for this ELF and
+  it persists; that is an Avoidant change, not made here.
+- **No migration.** nvsns.c, which moves the old namespaces into
+  `defeatist`, is the firmware's (standalone.c calls it) and not in this
+  ELF; nvsh_migrate is not answered in a box. A device that ran the
+  firmware has its settings there already.
+
+*Checked:* an ESP-IDF 6.1.1 build of `boxed/`, against feckless-libs'
+umode branch with u-feckless-0053 applied --
+
+    -- feckless_abi: 195 symbols, all in feckless_abi_v1 + feckless_abi_audio_v1 + feckless_abi_box_v1 + feckless_abi_nvs_v1 + feckless_abi_storage_v2
+    -- feckless_box_libc: boxed, 195 imports, none of them in-app names, all answered by the box
+
+*Not checked:* a launcher naming `defeatist`; a setting kept across a
+relaunch; a board.

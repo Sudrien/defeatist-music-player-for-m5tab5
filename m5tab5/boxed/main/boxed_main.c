@@ -10,6 +10,9 @@
  * launcher that would run it trusted has no feckless_abi_box_v1 and refuses
  * it.
  *
+ * u-defeatist-0024: the NVS section too, which a box answers since
+ * u-feckless-0053.
+ *
  * u-defeatist-0023: with DEFEATIST_BOXED_CODEC (the default), the audio
  * section too: esp_audio_codec is answered by the box where the launcher
  * links it.
@@ -18,6 +21,7 @@
 
 #include "feckless_abi.h"
 #include "feckless_abi_storage.h"
+#include "feckless_abi_nvs.h"
 #include "feckless_box.h"
 #if DEFEATIST_BOXED_CODEC
 #include "feckless_abi_audio.h"
@@ -28,6 +32,9 @@ void app_main(void)
     feckless_abi_require();
     feckless_abi_require_storage();
     feckless_abi_require_box();
+    /* u-defeatist-0024: NVS through the box (u-feckless-0053), in the
+     * namespace the launcher names; a box without it refuses the ELF. */
+    feckless_abi_require_nvs();
 #if DEFEATIST_BOXED_CODEC
     /* u-defeatist-0023: esp_audio_codec through the box (u-feckless-0052);
      * a launcher without the codec refuses the ELF by this name. */

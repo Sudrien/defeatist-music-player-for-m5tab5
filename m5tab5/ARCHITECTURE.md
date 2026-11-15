@@ -1111,3 +1111,33 @@ already sized its body at three times its limit; `h_pod_add()`'s is now
 a board. The case to try: paste an address of 300+ bytes with a long query
 string into the page's feed-address field, and see `looking` rather than
 "invalid".
+
+### 8142 -- one app slot, 6 MB
+
+The image needs more than app0's 3 MB. `partitions.csv` had two 3 MB app
+slots, `app0` (ota_0) and `app1` (ota_1), from the Arduino core's
+app3M_fat9M_16MB scheme. Nothing in `main/` writes the second slot (no
+`esp_ota_begin()`, no `esp_ota_get_next_update_partition()`); `launcher.c`
+looks for a factory app and Avoidant's `app2`, neither of which is in this
+table, and `shim_import.c` walks every app partition, so one fewer changes
+neither. `app1` is removed "for now" and `app0` takes its space: 0x600000
+at 0x10000, ending at 0x610000 where `ffat` starts.
+
+`nvs`, `otadata`, `ffat` and `coredump` keep their offsets and sizes, so
+saved settings and networks and the flash FAT survive flashing the new
+table. What does not: anything in the old `app1` (an Arduino build sharing
+the board), and the claim that the table matches Arduino's, which the
+comment at the top of the file now puts in the past tense. `otadata`
+stays, with one OTA slot, so `esp_ota_get_running_partition()` and the
+boot partition it names are as before.
+
+The flash must take the new partition table: `idf.py flash` writes it, as
+does the merged `_standalone.bin`; an app-only flash of the plain `.bin`
+onto a board that still has the old table leaves app0 at 3 MB and the
+image will not fit. Under a launcher (Avoidant, M5Launcher) the launcher's
+own table decides and this file does not apply.
+
+*Checked:* the table by script (no overlap, 64 KB-aligned app, ends at
+16 MB). *Not checked:* an IDF build (the partition-size check at the end of
+`idf.py build` is the line to read: it reports app0's free space); a board.
+To bring `app1` back, the image must be under 3 MB again.

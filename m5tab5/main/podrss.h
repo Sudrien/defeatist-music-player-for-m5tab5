@@ -158,8 +158,15 @@ static inline bool podrss_attr(const char *tag, const char *tagend, const char *
  * CDATA verbatim, the rest entity-decoded, nested tags dropped, comments
  * skipped. Into `out`, cut to fit. One past the end tag, or NULL if the
  * body ends first.
+ *
+ * 8139: the end tag is the element's own, `</name>` -- `name[0..len)`, as
+ * its start tag wrote it. Any other end tag is a nested element's and is
+ * dropped like its start tag; a description with markup that is not
+ * escaped or in CDATA (<p>hi</p>) used to end at the </p>, which left the
+ * </description> to close the <item> in the caller's count.
  */
-static inline const char *podrss_leaf(const char *p, const char *end, char *out, size_t cap)
+static inline const char *podrss_leaf(const char *p, const char *end, const char *name, size_t len,
+                                      char *out, size_t cap)
 {
     size_t n = 0;
     if (cap) out[0] = '\0';
@@ -182,8 +189,13 @@ static inline const char *podrss_leaf(const char *p, const char *end, char *out,
             }
             if (p + 1 < end && p[1] == '/') {
                 const char *g = memchr(p, '>', (size_t)(end - p));
+                if (!g) return NULL;
+                const char *en = p + 2;
+                size_t el = 0;
+                while (en + el < g && en[el] != ' ' && en[el] != '\t' && en[el] != '\n' && en[el] != '\r') el++;
+                if (el != len || strncasecmp(en, name, len) != 0) { p = g + 1; continue; }
                 if (cap) podrss_trim_utf8(out, n);
-                return g ? g + 1 : NULL;
+                return g + 1;
             }
             const char *g = podrss_tag_end(p, end);
             if (!g) return NULL;
@@ -379,7 +391,7 @@ static inline int podrss_parse(const char *body, size_t n, podrss_info_t *info,
                 scratch->image[0] = scratch->feed_image[0] = '\0';
             } else if (in_channel && podrss_is(name, len, "title") && !info->title[0]) {
                 leaf = true;
-                if (!selfclose) leaf_to = podrss_leaf(te, end, info->title, sizeof(info->title));
+                if (!selfclose) leaf_to = podrss_leaf(te, end, name, len, info->title, sizeof(info->title));
                 podrss_oneline(info->title);
             } else if (in_channel && podrss_is(name, len, "itunes:image")) {      /* wins over <image> */
                 char u[PODEPS_URL_MAX];
@@ -389,26 +401,26 @@ static inline int podrss_parse(const char *body, size_t n, podrss_info_t *info,
                        !info->image[0]) {
                 char u[PODEPS_URL_MAX];
                 leaf = true;
-                if (!selfclose) leaf_to = podrss_leaf(te, end, u, sizeof(u));
+                if (!selfclose) leaf_to = podrss_leaf(te, end, name, len, u, sizeof(u));
                 podrss_oneline(u);
                 if (podeps_url_plain(u)) memcpy(info->image, u, strlen(u) + 1);
             }
         } else if (parent && podrss_is(parent, pl, "item")) {
             if (podrss_is(name, len, "title") && !scratch->title[0]) {
                 leaf = true;
-                if (!selfclose) leaf_to = podrss_leaf(te, end, scratch->title, sizeof(scratch->title));
+                if (!selfclose) leaf_to = podrss_leaf(te, end, name, len, scratch->title, sizeof(scratch->title));
                 podrss_oneline(scratch->title);
             } else if (podrss_is(name, len, "guid")) {
                 leaf = true;
-                if (!selfclose) leaf_to = podrss_leaf(te, end, guid, sizeof(guid));
+                if (!selfclose) leaf_to = podrss_leaf(te, end, name, len, guid, sizeof(guid));
                 podrss_oneline(guid);
             } else if (podrss_is(name, len, "pubDate") || podrss_is(name, len, "dc:date")) {
                 leaf = true;
-                if (!selfclose) leaf_to = podrss_leaf(te, end, tmp, sizeof(tmp));
+                if (!selfclose) leaf_to = podrss_leaf(te, end, name, len, tmp, sizeof(tmp));
                 if (!scratch->published) scratch->published = podrss_date(tmp);
             } else if (podrss_is(name, len, "itunes:duration")) {
                 leaf = true;
-                if (!selfclose) leaf_to = podrss_leaf(te, end, tmp, sizeof(tmp));
+                if (!selfclose) leaf_to = podrss_leaf(te, end, name, len, tmp, sizeof(tmp));
                 scratch->duration = podrss_duration(tmp);
             } else if (podrss_is(name, len, "enclosure") && !have_enc) {
                 char u[PODEPS_URL_MAX], l[24];
@@ -427,7 +439,7 @@ static inline int podrss_parse(const char *body, size_t n, podrss_info_t *info,
             } else if ((podrss_is(name, len, "description") || podrss_is(name, len, "itunes:summary")) &&
                        !scratch->desc[0]) {
                 leaf = true;
-                if (!selfclose) leaf_to = podrss_leaf(te, end, scratch->desc, sizeof(scratch->desc));
+                if (!selfclose) leaf_to = podrss_leaf(te, end, name, len, scratch->desc, sizeof(scratch->desc));
             }
         }
 

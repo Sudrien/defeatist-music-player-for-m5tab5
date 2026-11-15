@@ -122,6 +122,23 @@ int main(void)
         CHECK(strlen(info.title) <= PODFEEDS_TITLE_MAX - 1 && strlen(info.title) % 3 == 0, "%zu", strlen(info.title));
     }
 
+    printf("  markup in a description that is not escaped (8139)\n");
+    {
+        const char *r =
+            "<rss><channel><title>T</title>"
+            "<item><title>A</title><description><p>Hello <b>you</b></p><br/><p>again</p></description>"
+            "<enclosure url=\"https://x/a.mp3\"/><pubDate>Tue, 03 Nov 2026 08:00:00 GMT</pubDate></item>"
+            ITEM("B", "Mon, 02 Nov 2026 08:00:00 GMT", "https://x/b.mp3")
+            "<item><title>C <i>live</i></title><enclosure url=\"https://x/c.mp3\"/>"
+            "<pubDate>Sun, 01 Nov 2026 08:00:00 GMT</pubDate></item>"
+            "</channel></rss>";
+        const int n = PARSE(r, PODEPS_MAX);
+        CHECK(n == 3, "every item, not just the ones before the markup: %d", n);
+        CHECK(n == 3 && !strcmp(e[0].title, "A") && !strcmp(e[0].url, "https://x/a.mp3"), "the enclosure after the description: %s", e[0].url);
+        CHECK(n == 3 && !strcmp(e[0].desc, "Hello youagain"), "the text, the tags dropped: %s", e[0].desc);
+        CHECK(n == 3 && !strcmp(e[2].title, "C live"), "markup in a title: %s", e[2].title);
+    }
+
     printf("  dates, durations and ids\n");
     {
         CHECK(podrss_date("Thu, 01 Jan 1970 00:00:01 GMT") == 1, "epoch + 1");

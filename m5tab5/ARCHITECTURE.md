@@ -1051,3 +1051,27 @@ has `CONFIG_LIBC_PICOLIBC=y` and `CONFIG_MBEDTLS_X509_CREATE_C=y`, no
 `SDKCONFIG_DRIFT`, and the component manager says it is using
 `dependencies.lock`, not creating one. A local checkout with its own
 `dependencies.lock.idf6` untracked should delete it.
+
+### 8139 -- a feed's leaf ends at its own end tag
+
+`podrss_leaf()` read an element's text "up to its end tag", taken as the
+first `</` it met. A `<description>` whose markup is plain XML rather than
+escaped or in CDATA -- `<description><p>Hello</p></description>`, well
+formed and not rare -- therefore ended at `</p>`. The caller then met
+`</description>` as an end tag it had never counted, took the `<item>` off
+its stack for it, and from there every child of the item had the channel for
+a parent: the enclosure after it was not read, the item was dropped, and at
+`</item>` the stack fell below `<channel>`, so no later `<item>` was seen as
+one. One such description lost the feed -- the case in `podrsstest` gave 0
+episodes of 3.
+
+The leaf is now given the element's name and ends only at `</name>` (case
+as `podrss_is()` compares it); any other end tag is dropped as its start tag
+already was. Text either side is joined with nothing between, as before for
+the start tags: `<p>Hello</p><p>again</p>` is "Helloagain". A leaf whose own
+end tag never comes runs to the end of the body and stops the parse, as an
+unterminated CDATA section already did.
+
+*Checked:* `podrsstest`'s new case fails four ways on the old header and
+passes on this one; the whole texttest suite passes. *Not checked:* an IDF
+build; a board.

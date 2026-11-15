@@ -349,6 +349,128 @@ static void run_dsd(FILE *f, int64_t size, bool pie, bw_result_t *r)
     free(pcm);
 }
 
+
+/* ---- u-defeatist-0018: the DST probe ------------------------------------- */
+
+/* dst_run()'s loop with every lookup index ANDed with `mask`: 0 puts all
+ * 16 on entry 0 of their group, so the tables cost what a cached line
+ * costs and the rest of the loop is what is left. The bits are wrong;
+ * only the time is wanted. */
+static uint32_t probe_run_masked(dst_dec_t *d, uint8_t *out, uint32_t nb, uint32_t mask)
+{
+    const uint32_t ch = d->ch;
+    for (uint32_t b = 0; b < nb; b++) {
+        uint8_t acc[DST_MAX_CH] = { 0 };
+        for (uint32_t bit = 0; bit < 8; bit++) {
+            for (uint32_t c = 0; c < ch; c++) {
+                const int16_t (*t)[256] = (const int16_t (*)[256])d->lut[d->felem[c]];
+                uint32_t *h = d->hist[c];
+                const uint32_t h0 = h[0] & mask, h1 = h[1] & mask, h2 = h[2] & mask, h3 = h[3] & mask;
+#define PG(g, w) t[g][((w) >> (8 * ((g) & 3))) & 0xFFu]
+                const int32_t s = PG(0, h0) + PG(1, h0) + PG(2, h0) + PG(3, h0) +
+                                  PG(4, h1) + PG(5, h1) + PG(6, h1) + PG(7, h1) +
+                                  PG(8, h2) + PG(9, h2) + PG(10, h2) + PG(11, h2) +
+                                  PG(12, h3) + PG(13, h3) + PG(14, h3) + PG(15, h3);
+#undef PG
+                const int16_t pred = (int16_t)s;
+                const uint32_t pe = d->pelem[c];
+                uint32_t ix = (uint32_t)(pred < 0 ? -(int32_t)pred : pred) >> 3;
+                if (ix > d->plen[pe] - 1) ix = d->plen[pe] - 1;
+                const uint32_t v = (pred < 0 ? 1u : 0u) ^ dst_ac(d, d->prob[pe][ix]);
+                acc[c] |= (uint8_t)(v << (7 - bit));
+                h[3] = h[3] << 1 | h[2] >> 31;
+                h[2] = h[2] << 1 | h[1] >> 31;
+                h[1] = h[1] << 1 | h[0] >> 31;
+                h[0] = h[0] << 1 | v;
+            }
+        }
+        for (uint32_t c = 0; c < ch; c++) out[b * ch + c] = acc[c];
+    }
+    d->done += nb * 8u;
+    return nb;
+}
+
+bool bw_dst_probe(const char *path, bw_dst_probe_t *o)
+{
+    memset(o, 0, sizeof *o);
+    FILE *f = fopen(path, "rb");
+    if (!f) return false;
+    fseek(f, 0, SEEK_END);
+    const int64_t size = ftell(f);
+    dsd_t dd;
+    bool ok = false;
+    dst_dec_t *d = NULL;
+    uint8_t *frame = NULL, *raw = NULL;
+    dsd_conv_t *c = NULL;
+    int16_t *pcm = NULL;
+    if (dsd_probe(f, size, &dd, STORAGE_IO_PLAYBACK) != DSD_OK || !dd.dst) goto out;
+    /* the first DSTF */
+    int64_t pos = dd.data_start;
+    uint8_t h[12];
+    uint64_t len = 0;
+    for (;;) {
+        if (!storage_io_read_at(f, pos, h, 12, STORAGE_IO_PLAYBACK)) goto out;
+        len = dsd_be64(h + 4);
+        if (!memcmp(h, "DSTF", 4)) break;
+        pos += 12 + (int64_t)len + (int64_t)(len & 1);
+    }
+    const uint32_t fb = 4704u * dsd_mult(dd.rate);       /* bytes a channel */
+    d = malloc(sizeof *d);
+    frame = malloc((size_t)len);
+    raw = malloc((size_t)fb * dd.channels);
+    c = dsd_conv_new(&dd, DSD_BLOCK_MAX);
+    pcm = malloc(sizeof(int16_t) * 2 * (DSD_BLOCK_MAX / 8 + 96));
+    if (!d || !frame || !raw || !c || !pcm ||
+        !storage_io_read_at(f, pos + 12, frame, (size_t)len, STORAGE_IO_PLAYBACK)) {
+        goto out;
+    }
+    const uint32_t L = (uint32_t)len, ch = dd.channels, m = dsd_mult(dd.rate);
+
+    int64_t t0 = bw_now();
+    for (int i = 0; i < 10; i++) dst_begin(d, frame, L, ch, m);
+    o->setup_us = (uint32_t)((bw_now() - t0) / 10);
+
+    if (!dst_begin(d, frame, L, ch, m)) goto out;
+    t0 = bw_now();
+    uint32_t got = 0;
+    while (dst_left_bytes(d)) got += dst_run(d, raw + got * ch, 256);
+    o->decode_us = (uint32_t)(bw_now() - t0);
+    o->bits = got * 8u;
+
+    dst_begin(d, frame, L, ch, m);
+    volatile uint32_t zero = 0;
+    uint8_t *junk = malloc((size_t)fb * ch);
+    if (!junk) goto out;
+    t0 = bw_now();
+    for (uint32_t done = 0; done < fb; done += 256)
+        probe_run_masked(d, junk + done * ch, fb - done < 256 ? fb - done : 256, zero);
+    o->oneline_us = (uint32_t)(bw_now() - t0);
+    free(junk);
+
+    dst_begin(d, frame, L, ch, m);
+    uint32_t x = 0;
+    t0 = bw_now();
+    for (uint32_t i = 0; i < fb * 8u * ch; i++) x += dst_ac(d, d->prob[0][i & 63]);
+    o->arith_us = (uint32_t)(bw_now() - t0);
+    if (x == 0xFFFFFFFFu) o->arith_us++;                    /* keep x */
+
+    t0 = bw_now();
+    for (uint32_t at = 0; at < fb; at += 256)
+        dsd_conv_feed(c, raw + at * ch, fb - at < 256 ? fb - at : 256, 1, ch, pcm);
+    o->feed256_us = (uint32_t)(bw_now() - t0);
+    dsd_conv_reset(c);
+    t0 = bw_now();
+    for (uint32_t at = 0; at < fb; at += 4096)
+        dsd_conv_feed(c, raw + at * ch, fb - at < 4096 ? fb - at : 4096, 1, ch, pcm);
+    o->feed4096_us = (uint32_t)(bw_now() - t0);
+    ok = true;
+out:
+    free(d); free(frame); free(raw); free(pcm);
+    dsd_conv_free(c);
+    fclose(f);
+    return ok;
+}
+
 /* ------------------------------------------------------------------------ */
 
 static bool ext_is(const char *path, const char *ext)

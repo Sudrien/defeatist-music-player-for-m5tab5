@@ -88,6 +88,14 @@ static int expect(int argc, char **argv)
     for (int i = 2; i < argc; i++) {
         const char *name = strrchr(argv[i], '/');
         name = name ? name + 1 : argv[i];
+        if (strstr(name, "dff-dst.dff")) {      /* u-defeatist-0018 */
+            bw_dst_probe_t dp;
+            CHECK(bw_dst_probe(argv[i], &dp) && dp.bits == 37632,
+                  "%s: the DST probe did not run a frame (%u bits)", name, (unsigned)dp.bits);
+            printf("dst probe, us: set-up %u, decode %u, one-line %u, arith %u, feed 256s %u, 4096s %u\n",
+                   (unsigned)dp.setup_us, (unsigned)dp.decode_us, (unsigned)dp.oneline_us,
+                   (unsigned)dp.arith_us, (unsigned)dp.feed256_us, (unsigned)dp.feed4096_us);
+        }
         bw_result_t r;
         bw_run_file(argv[i], false, &r);
         if (!r.ok) continue;
@@ -122,6 +130,14 @@ int main(int argc, char **argv)
     for (int i = 1; i < argc; i++) {
         const char *name = strrchr(argv[i], '/');
         name = name ? name + 1 : argv[i];
+        if (strstr(name, "dff-dst.dff")) {      /* u-defeatist-0018 */
+            bw_dst_probe_t dp;
+            CHECK(bw_dst_probe(argv[i], &dp) && dp.bits == 37632,
+                  "%s: the DST probe did not run a frame (%u bits)", name, (unsigned)dp.bits);
+            printf("dst probe, us: set-up %u, decode %u, one-line %u, arith %u, feed 256s %u, 4096s %u\n",
+                   (unsigned)dp.setup_us, (unsigned)dp.decode_us, (unsigned)dp.oneline_us,
+                   (unsigned)dp.arith_us, (unsigned)dp.feed256_us, (unsigned)dp.feed4096_us);
+        }
         bw_result_t r;
         bw_run_file(argv[i], false, &r);
         char line[320];

@@ -29724,3 +29724,55 @@ test Makefile now rebuilds when `dst.h` changes.
 leaves over 133 ms is the lookups themselves: if it is far from 0.5x the
 other way, the tables' place in memory (PSRAM through the cache) is the
 next question.
+
+### u-defeatist-0018 -- 0017 on a board changed nothing; a probe for where DST's time goes
+
+*The board run.* 0017 is on it -- 217 windows where 0016 had 128 -- and
+47 still took 421 ms for 133 ms, 0.31x, C and PIE; pcm 21268c3d as
+before. One window of 5.1 to 5.2 ms where there were ten of 6.4. The
+32-bit history, the cached reader and the doubled build gave 1.6x on a
+32-bit host and nothing here.
+
+So what costs on the board is not the instructions 0017 took out.
+Per bit a channel, 380 ms is about 500 ns: 16 lookups and one
+arithmetic step. If most of it is the lookups, that is some 30 ns, a
+dozen cycles, each -- what a load that misses a level of cache costs,
+not what an add costs. The tables are 16 KB for two channels in the
+box's heap, PSRAM through the cache, read 16 times a bit at random.
+That is the guess. A guess cost a board run last time, so this one
+measures before changing anything.
+
+*The probe.* `bw_dst_probe()` (boxwin_run.c) takes the first frame of
+a DST DFF and times each part alone, the clock outside each (so these
+are not windows), and boxwin logs it before the C pass:
+
+    dst probe, a frame of 37632 bits x2, us: set-up N, decode N, one-line lookups N, arith alone N, feed 256s N, feed 4096s N
+
+- `set-up`: `dst_begin()`, the average of ten.
+- `decode`: `dst_run()` over the frame, 256 bytes a call, as dsd.h asks.
+- `one-line lookups`: the same loop with every lookup index masked to
+  entry 0 of its group, so the 16 tables cost what a cached line costs.
+  The bits are wrong; the time is the loop without the tables' misses.
+- `arith alone`: as many arithmetic-decoder events as the frame has.
+- `feed 256s`, `feed 4096s`: the decoded frame through
+  `dsd_conv_feed()` in DST's slices and in the plain path's blocks.
+
+*How to read it.* If `decode` is far above `one-line lookups`, the
+tables' place in memory is the cost, and the next step is to move them
+(internal RAM, which CLAUDE.md keeps for the radio, so that is a
+choice), or to make them smaller: the 16 groups could be 8-bit deltas,
+or 32 tables of 16. If the two are close, the loop's own work is the
+cost and the arithmetic decoder (`arith alone`) says how much of that
+is its. If `feed 256s` is well above `feed 4096s`, DST's small slices
+cost in the conversion and `DST_STEP` should go back up.
+
+On the host (ASan build) one frame is: set-up 52, decode 2900, one-line
+2653, arith 409, feed 256s 614, 4096s 575 -- the tables cost a host
+almost nothing, as expected with its caches.
+
+*Checked:* `make -C m5tab5/boxwin/test`, 277 checks: the probe runs on
+47, 37632 bits a channel. `boxwin_run.c` compiles with the board
+toolchain at -O3 with the PIE extension, -Werror; the probe uses only
+calls boxwin already imports.
+
+*Not checked:* an ESP-IDF build of boxwin_main.c; a board.

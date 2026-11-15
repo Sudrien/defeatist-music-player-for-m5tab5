@@ -165,3 +165,18 @@ bool bw_pcm_expect(const char *name, uint32_t *want, bool *exact);
 
 /* One line for the log and the screen. Returns out. */
 char *bw_format(const char *name, const bw_result_t *r, char *out, size_t len);
+
+/* u-defeatist-0018: where DST's time goes, on the first frame of a DST
+ * DFF, each part timed alone with the clock outside it (so these are not
+ * windows). All in microseconds, for one frame: 37632 bits a channel. */
+typedef struct {
+    uint32_t setup_us;      /* dst_begin(): the tables read, the lookups built */
+    uint32_t decode_us;     /* dst_run() over the frame, 256 bytes a call */
+    uint32_t oneline_us;    /* the same loop with every lookup on one cache line */
+    uint32_t arith_us;      /* the arithmetic decoder alone, as many events */
+    uint32_t feed256_us;    /* the frame's bytes through dsd_conv_feed(), 256 at a time */
+    uint32_t feed4096_us;   /* ... 4096 at a time */
+    uint32_t bits;          /* bits a channel decoded, to check it ran */
+} bw_dst_probe_t;
+
+bool bw_dst_probe(const char *path, bw_dst_probe_t *out);

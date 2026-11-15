@@ -275,6 +275,21 @@ void app_main(void)
                       " on the card or the drive, or in a folder inside it");
         say("Nothing to decode: put files in /" FOLDER, C_BAD);
     } else {
+        for (int i = 0; i < n; i++) {           /* u-defeatist-0018 */
+            if (!strstr(s_name[i], "dff-dst.dff")) continue;
+            char p[PATH_LEN];
+            bw_dst_probe_t dp;
+            if (storage_join_path(p, sizeof p, dir, s_name[i]) && bw_dst_probe(p, &dp)) {
+                ESP_LOGW(TAG, "dst probe, a frame of %u bits x2, us: set-up %u, decode %u, "
+                              "one-line lookups %u, arith alone %u, feed 256s %u, feed 4096s %u",
+                         (unsigned)dp.bits, (unsigned)dp.setup_us, (unsigned)dp.decode_us,
+                         (unsigned)dp.oneline_us, (unsigned)dp.arith_us,
+                         (unsigned)dp.feed256_us, (unsigned)dp.feed4096_us);
+            } else {
+                ESP_LOGW(TAG, "dst probe: %s would not run", s_name[i]);
+            }
+            break;
+        }
         ESP_LOGW(TAG, "%d files in %s; the C kernels", n, dir);
         pass(dir, n, false);
 

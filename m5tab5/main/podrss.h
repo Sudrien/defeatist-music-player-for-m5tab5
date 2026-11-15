@@ -262,8 +262,11 @@ static inline int64_t podrss_date(const char *s)
         while (*s >= '0' && *s <= '9' && digits < 3) { hh = hh * 10 + (*s++ - '0'); digits++; }
         if (*s == ':') {
             s++;
-            while (*s >= '0' && *s <= '9') mm = mm * 10 + (*s++ - '0');
-            if (*s == ':') { s++; while (*s >= '0' && *s <= '9') ss = ss * 10 + (*s++ - '0'); }
+            /* 8143: three digits at most, as the hour: a feed's run of digits
+             * would overflow the int, and the range check below then sees
+             * whatever it wrapped to. */
+            for (digits = 0; *s >= '0' && *s <= '9' && digits < 3; digits++) mm = mm * 10 + (*s++ - '0');
+            if (*s == ':') { s++; for (digits = 0; *s >= '0' && *s <= '9' && digits < 3; digits++) ss = ss * 10 + (*s++ - '0'); }
         }
     }
     if (hh > 23 || mm > 59 || ss > 60) return 0;

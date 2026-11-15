@@ -1141,3 +1141,26 @@ own table decides and this file does not apply.
 16 MB). *Not checked:* an IDF build (the partition-size check at the end of
 `idf.py build` is the line to read: it reports app0's free space); a board.
 To bring `app1` back, the image must be under 3 MB again.
+
+### 8143 -- a feed's pubDate cannot overflow the minutes or seconds
+
+`podrss_date()` read the hour to three digits but the minutes and seconds
+to as many as the feed wrote, into an `int`. `08:0000000000:00` is signed
+overflow -- undefined behaviour, and in practice a wrap to whatever value
+then passes or fails the `mm > 59` check by chance. A mutation fuzzer over
+`podrss_parse()` (ASan and UBSan, seeded with `podrsstest`'s feed; not in
+the repository) found it in under two minutes. Both now stop at three
+digits, as the hour does; extra digits are then not part of the time, the
+range check refuses three that are out of range, and the rest of the line
+is read as before.
+
+The same run gave the other parsers no findings: `mpdproto_line()` over
+whole sessions, `mpdfilter_parse()`/`_eval()`, `icydemux_feed()` in random
+chunks, `jsonpick_string()`, `cue_parse()`, `hls_parse_media()` and
+`hls_pick_variant()`, `podfeeds_parse()` and `_parse_one()`,
+`podeps_parse()`, `tsdemux_feed()` and `sniff_bytes()` -- 1 to 17 million
+runs each.
+
+*Checked:* `podrsstest`'s new case passes, and the old header fails it
+under UBSan; four more minutes of fuzzing on this header, clean; the whole
+texttest suite passes. *Not checked:* an IDF build; a board.

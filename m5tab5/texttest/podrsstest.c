@@ -165,6 +165,9 @@ int main(void)
         CHECK(podrss_date("Wed, 04 Nov 2026 08:00:00 -0500") == 1793779200LL + 5 * 3600, "negative offset");
         CHECK(podrss_date("Wed, 4 Nov 26 08:00:00 Z") == 1793779200LL, "two-digit year, Z");
         CHECK(podrss_date("Sat, 29 Feb 2028 12:00:00 GMT") == 1835438400LL, "leap day: %lld", (long long)podrss_date("Sat, 29 Feb 2028 12:00:00 GMT"));
+        CHECK(podrss_date("Wed, 04 Nov 2026 08:00:0000000000000 GMT") == 1793779200LL &&
+              podrss_date("Wed, 04 Nov 2026 08:0000000000000:00 GMT") == 1793779200LL &&
+              podrss_date("Wed, 04 Nov 2026 08:99999999999:00 GMT") == 0, "a run of digits in the time (8143)");
         CHECK(podrss_date("") == 0 && podrss_date("garbage") == 0 && podrss_date("32 Jan 2026") == 0 && podrss_date("04 Foo 2026") == 0, "not dates");
         CHECK(podrss_duration("3021") == 3021 && podrss_duration("50:21") == 3021 && podrss_duration("1:02:03") == 3723, "durations");
         CHECK(podrss_duration("50:21.500") == 3021 && podrss_duration("") == 0 && podrss_duration("x") == 0, "fraction and junk");

@@ -29880,3 +29880,42 @@ is not run); an ESP-IDF build.
 line faster, same pcm 21268c3d -- a different hash would mean the
 kernel disagrees with the model, which the self-test should have caught
 and turned off.
+
+### u-defeatist-0021 -- DST: where it ended, and the player refuses it
+
+*0020 on a Tab5.* 47's PIE line: 133 ms in 290 ms, 0.45x, pcm 21268c3d
+-- the C pass's hash, so the vector kernel, its saturation guard and its
+self-test do on the board what the host model does. Longest window 4.4
+ms, none over 5. The C pass and the probe as before (0.32x; decode
+36.3 ms a frame).
+
+*Where DST stands.* A frame is 13.3 ms of audio and now takes about
+29 ms: the conversion about 3 (PIE), the arithmetic decoder about 5,
+the vector sums of the history perhaps 5 to 8, and the per-bit scalar
+work the rest. Real time wants DST in about 10 ms of each 13.3. Tidying
+the scalar part might reach 0.6 to 0.7x; nothing found gets to 1x on
+this core. The arithmetic decoder alone is 5 ms a frame and serial --
+both channels come out of one coded stream -- so the second core does
+not help either.
+
+The story, for whoever comes back to it:
+
+| patch | what | 47 on a Tab5 |
+|---|---|---|
+| 0016 | dst.h, bit at a time, 64-bit history | 0.31x; a 6.4 ms window a frame |
+| 0017 | 32-bit history, cached reader, doubled build | 0.31x (1.6x on a 32-bit host: the instructions taken out were not the cost) |
+| 0018/0019 | the probe: lookups on one cache line 33.3 ms of 36.4 | the lookups' instruction count, not their misses |
+| 0020 | a byte at a time: 32 nibble rows summed with PIE | 0.45x with PIE; bit-exact |
+
+*The player refuses DST.* `decoder.c`'s `dsd_open()` logs that a DST DFF
+decodes at under half real time here and is not played, and to convert
+it to DSF on a computer, and returns ESP_ERR_NOT_SUPPORTED as it did
+before 0016. `-DDSD_DST_PLAY` plays it anyway. `dsd.h` and `dst.h` keep
+decoding it: dsdtest holds it to FFmpeg's bits, boxwin times it, and a
+faster target, or a convert-to-DSF action that is allowed to take twice
+the track's length, can use it as it is.
+
+*Checked:* nothing new to check on a host -- decoder.c is not built
+there; the change is the early return the file had before 0016.
+
+*Not checked:* an ESP-IDF build of decoder.c; a board.

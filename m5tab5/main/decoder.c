@@ -1898,6 +1898,19 @@ static esp_err_t dsd_open(decoder_t *d, const char *path)
         d->f = NULL;
         return ESP_ERR_NOT_SUPPORTED;
     }
+#ifndef DSD_DST_PLAY
+    /* u-defeatist-0021: dst.h decodes DST, but on the P4 at 0.45x real
+     * time with PIE (0.32x without): a track would stall every few
+     * seconds. Refused, and said why; -DDSD_DST_PLAY plays it anyway. */
+    if (dd.dst) {
+        ESP_LOGE(TAG, "DFF is DST-compressed: this decodes it at under half "
+                      "real time, so it is not played. Convert it to DSF "
+                      "(uncompressed) on a computer.");
+        storage_io_close(d->f);
+        d->f = NULL;
+        return ESP_ERR_NOT_SUPPORTED;
+    }
+#endif
     d->dsd = dsd_conv_new(&dd, DSD_BLOCK_MAX);
     d->inbuf = heap_caps_malloc((size_t)dd.channels * DSD_BLOCK_MAX,
                                 MALLOC_CAP_SPIRAM | MALLOC_CAP_8BIT);

@@ -15,10 +15,9 @@
  *   NVS              nothing stored, nothing written: every get is
  *                    ESP_ERR_NVS_NOT_FOUND, so settings start from their
  *                    defaults and the card's settings file.
- *   esp_audio_codec  no FLAC, AAC, Vorbis, Opus or ALAC: the open fails
- *                    and the player says the format is not supported.
- *                    MP3, MP2, WAV, AIFF, APE and DSD are its own decoders,
- *                    in the app, and play.
+ *   esp_audio_codec  only with DEFEATIST_BOXED_CODEC off (u-defeatist-0023):
+ *                    absent_codec.c. On, the box answers it
+ *                    (u-feckless-0052).
  *   hardware JPEG    no engine: album art decodes in software
  *                    (feckless_image_handler's fallback).
  *   the rest         esp_ota/esp_partition (no "exit to launcher" slot to
@@ -45,9 +44,6 @@
 #include "esp_err.h"
 #include "esp_log.h"
 
-#include "esp_audio_dec_default.h"
-#include "esp_audio_simple_dec.h"
-#include "esp_audio_simple_dec_default.h"
 #include "esp_crt_bundle.h"
 #include "esp_http_client.h"
 #include "esp_http_server.h"
@@ -374,29 +370,6 @@ esp_err_t nvsh_set_blob(const char *ns, const char *key, const void *buf, size_t
     return ESP_ERR_NOT_SUPPORTED;
 }
 esp_err_t nvsh_erase_key(const char *ns, const char *key) { (void)ns; (void)key; return ESP_ERR_NOT_SUPPORTED; }
-
-/* ---- esp_audio_codec: none ------------------------------------------------ */
-
-esp_audio_err_t esp_audio_dec_register_default(void) { return ESP_AUDIO_ERR_NOT_SUPPORT; }
-esp_audio_err_t esp_audio_simple_dec_register_default(void) { return ESP_AUDIO_ERR_NOT_SUPPORT; }
-esp_audio_err_t esp_audio_simple_dec_open(esp_audio_simple_dec_cfg_t *cfg, esp_audio_simple_dec_handle_t *dec)
-{
-    (void)cfg;
-    if (dec) *dec = NULL;
-    return ESP_AUDIO_ERR_NOT_SUPPORT;
-}
-esp_audio_err_t esp_audio_simple_dec_get_info(esp_audio_simple_dec_handle_t dec, esp_audio_simple_dec_info_t *info)
-{
-    (void)dec; (void)info;
-    return ESP_AUDIO_ERR_NOT_SUPPORT;
-}
-esp_audio_err_t esp_audio_simple_dec_process(esp_audio_simple_dec_handle_t dec, esp_audio_simple_dec_raw_t *raw,
-                                             esp_audio_simple_dec_out_t *frame)
-{
-    (void)dec; (void)raw; (void)frame;
-    return ESP_AUDIO_ERR_NOT_SUPPORT;
-}
-void esp_audio_simple_dec_close(esp_audio_simple_dec_handle_t dec) { (void)dec; }
 
 /* ---- the hardware JPEG decoder: no engine --------------------------------- */
 

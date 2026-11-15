@@ -11,7 +11,10 @@
 #   absent.c       those sections' calls, and the few others a box does
 #                  not answer, as the app's own functions that fail the
 #                  way the player already handles: no network, nothing
-#                  stored in NVS, no esp_audio_codec, no hardware JPEG.
+#                  stored in NVS, no hardware JPEG.
+#   absent_codec.c esp_audio_codec as absent, only with
+#                  -DDEFEATIST_BOXED_CODEC=OFF (u-defeatist-0023); by
+#                  default the box answers it (u-feckless-0052).
 #
 # and feckless_storage_handler's storage_list.c, in the app: its reader
 # calls the app's filter for every entry, which a launcher cannot do.
@@ -47,6 +50,14 @@ if(_missing OR _extra)
 endif()
 
 set(_srcs "boxed_main.c" "absent.c")
+# u-defeatist-0023: esp_audio_codec through the box (u-feckless-0052), on
+# by default; off, absent_codec.c in the app, for a launcher without it.
+if(NOT DEFINED DEFEATIST_BOXED_CODEC)
+    set(DEFEATIST_BOXED_CODEC ON)
+endif()
+if(NOT DEFEATIST_BOXED_CODEC)
+    list(APPEND _srcs "absent_codec.c")
+endif()
 foreach(_f IN LISTS _player_srcs)
     list(APPEND _srcs "${_m}/${_f}")
 endforeach()
@@ -68,6 +79,10 @@ idf_component_register(
              feckless_box_libc            # linked into the ELF
     PRIV_REQUIRES minimp3
 )
+
+if(DEFEATIST_BOXED_CODEC)
+    set_property(SOURCE boxed_main.c APPEND PROPERTY COMPILE_DEFINITIONS DEFEATIST_BOXED_CODEC=1)
+endif()
 
 # storage_list.c from feckless_storage_handler, compiled into the app.
 idf_component_get_property(_sh feckless_storage_handler COMPONENT_DIR)

@@ -29996,3 +29996,34 @@ player's own windows run on core 1 with the I2S interrupt there; this
 project's `dependencies.lock`, which the first configure with the
 component manager writes, and whose diff is to be read before it is
 committed.
+
+### u-defeatist-0023 -- boxed: FLAC, AAC, Vorbis, Opus and ALAC through the box
+
+u-feckless-0052 answers esp_audio_codec's simple decoder in a box where the
+launcher links the codec, so the boxed player no longer defines it as
+absent by default.
+
+- **`DEFEATIST_BOXED_CODEC`**, a CMake variable, on unless set: the six
+  codec calls are imports, answered by the box, and `boxed_main.c`
+  requires the ABI's audio section, so a launcher without the codec
+  refuses the ELF by `feckless_abi_audio_v1` rather than failing a decode.
+- **Off** (`idf.py -DDEFEATIST_BOXED_CODEC=OFF elf`), the codec's absent
+  definitions are compiled in from `absent_codec.c` -- moved there from
+  absent.c unchanged -- and the ELF is 0022's: those formats are "not
+  supported" and the player's own play, on any box.
+- **decoder.c is unchanged.** Its use of the simple decoder is what the
+  box copies: the config (ALAC's cookie by pointer, both ways it tries
+  it), the input and PCM buffers in the app, `get_info` after the first
+  decoded frame, a close and reopen on seek. Nothing it passes is a
+  Vorbis raw-header config, the one the box refuses.
+
+*Checked:* ESP-IDF 6.1.1 builds of `boxed/` both ways, against
+feckless-libs' umode branch with u-feckless-0052 applied --
+
+    on:  -- feckless_abi: 187 symbols, all in feckless_abi_v1 + feckless_abi_audio_v1 + feckless_abi_box_v1 + feckless_abi_storage_v2
+         -- feckless_box_libc: boxed, 187 imports, none of them in-app names, all answered by the box
+    off: -- feckless_abi: 180 symbols, all in feckless_abi_v1 + feckless_abi_box_v1 + feckless_abi_storage_v2
+         -- feckless_box_libc: boxed, 180 imports, none of them in-app names, all answered by the box
+
+*Not checked:* a launcher with the codec and 0052; a FLAC or ALAC file
+played boxed; a board.

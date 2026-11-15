@@ -847,7 +847,10 @@ static char s_add_rss[PODFEEDS_URL_MAX + 8];       /* as h_pod_add()'s v: the co
  */
 static esp_err_t h_pod_add(httpd_req_t *req)
 {
-    static char body[PODFEEDS_URL_MAX + 64], v[PODFEEDS_URL_MAX + 8], asked[PODFEEDS_URL_MAX];
+    /* 8141: the page sends the address through URLSearchParams, which
+     * makes each : / ? & = % three bytes, so the body is sized as
+     * h_pod_search()'s is: three times what podfeeds_url_ok() allows. */
+    static char body[PODFEEDS_URL_MAX * 3 + 64], v[PODFEEDS_URL_MAX + 8], asked[PODFEEDS_URL_MAX];
     static char title[PODFEEDS_TITLE_MAX];
     const int got = pw_body(req, body, sizeof(body));
     if (got < 0 || !portalweb_field(body, (size_t)got, "url", v, sizeof(v))) return pw_said(req, "invalid");

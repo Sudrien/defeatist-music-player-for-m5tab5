@@ -1094,3 +1094,20 @@ read (`info->title` and the item's title and description by their
 *Checked:* `podrsstest` passes, and runs clean under valgrind (the old
 header: 20 reports and one failed check); the whole texttest suite
 passes. *Not checked:* an IDF build; a board.
+
+### 8141 -- `/pod/add`'s body has room for the address percent-encoded
+
+`h_pod_add()` read the form into `PODFEEDS_URL_MAX + 64` bytes, and
+`pw_body()` refuses a body that does not fit, which the page shows as
+"invalid". But the page sends the address through `URLSearchParams`, which
+writes each `:` `/` `?` `&` `=` and `%` as three bytes, so an address
+`podfeeds_url_ok()` accepts could arrive too big to read: a 331-byte one
+with a query string of 30 pairs makes a 529-byte body. `h_pod_search()`
+already sized its body at three times its limit; `h_pod_add()`'s is now
+`PODFEEDS_URL_MAX * 3 + 64`. It is a static, so it is in PSRAM
+(`psram_bss.lf`), not on the httpd task's stack.
+
+*Not checked:* compiled (no stub harness for `remote.c` here); an IDF build;
+a board. The case to try: paste an address of 300+ bytes with a long query
+string into the page's feed-address field, and see `looking` rather than
+"invalid".

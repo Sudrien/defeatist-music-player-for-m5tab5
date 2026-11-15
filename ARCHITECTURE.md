@@ -29681,3 +29681,46 @@ times the conversion there. If the board keeps that ratio, DST DSD64
 lands near 0.5x on the C kernels, below real time, and the lookups are
 the place to work next. The window should be well under 5 ms; if not,
 `DST_STEP` comes down.
+
+### u-defeatist-0017 -- 0016 on a board; DST made for a 32-bit core
+
+*The board run.* 47 decoded on a Tab5 in both passes, every frame taken,
+pcm 21268c3d in each (the float conversion's, so not the host's, as for
+every DSD file). But 133 ms of audio took 421 ms, 0.31x, and PIE did not
+help (0.32x): it speeds only the conversion. The plain DFF 45 converts at
+3.46x, so the conversion is about 38 ms of that and DST about 380: some
+500 ns, 200 cycles, a bit a channel. Ten windows of 6.3 to 6.4 ms, one a
+frame: the frame's set-up and its first 512-byte slice in one call. The
+old `47 dff-dst-refuse.dff`, still on the card, was refused as it should
+be.
+
+*What changed in `dst.h`,* none of it in what comes out:
+- The 128-bit history is four 32-bit words, not two 64-bit ones. Each
+  of the 16 lookups now takes its byte at a fixed shift of one word,
+  and the shift a bit is four words with carries; on a 32-bit core every
+  64-bit shift was several instructions.
+- The coded data comes through a 32-bit cache. The arithmetic decoder's
+  renormalisation counts its shifts in a register and takes the bits in
+  one go, where each bit was a bounds check and a variable shift.
+- The lookups are built by doubling: entry k | 1<<l is entry k plus twice
+  tap l. That is 256 adds a group, not 2048.
+- `DST_STEP` is 256 bytes a channel, from 512.
+
+The 16 lookups a bit are still all there; this takes out what was around
+them. On the host built 32-bit (gcc -m32 -O2), the decoder went from 22.1
+to 13.9 ns a bit a channel and the set-up from 32.7 to 9.8 us a frame.
+If the board gains as much, 47 lands near 0.5x: still below real time.
+
+*Checked:* `dsdtest`, C and PIE model builds, 170 checks, 47 still
+FFmpeg's bits in every slice size. `make -C m5tab5/boxwin/test`, 276
+checks, 47 hash 29baf489 = host, 217 windows for 128. The board
+toolchain, -Werror, `memcpy` and `memset` the only imports. boxwin's
+test Makefile now rebuilds when `dst.h` changes.
+
+*Not checked:* an ESP-IDF build; a board.
+
+*What to look for on a Tab5:* 47's line with no window >= 5 ms, about
+217 windows, the same pcm 21268c3d, and the x real time figure. What it
+leaves over 133 ms is the lookups themselves: if it is far from 0.5x the
+other way, the tables' place in memory (PSRAM through the cache) is the
+next question.

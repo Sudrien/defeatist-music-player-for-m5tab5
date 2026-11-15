@@ -31,7 +31,7 @@ LDFLAGS    := -fsanitize=address,undefined -lm
 
 SRCS := host.c ../main/boxwin_run.c ../main/boxwin_arith.c
 DEPS := $(SRCS) ../main/boxwin.h ../main/boxwin_arith.h ../main/boxwin_expect.h \
-        ../../main/ape.h ../../main/dsd.h $(MINIMP3_DIR)/minimp3.h
+        ../../main/ape.h ../../main/dsd.h ../../main/dst.h $(MINIMP3_DIR)/minimp3.h
 
 # -ffp-contract=off: the hashes in ../main/boxwin_expect.h and
 # boxwin_arith.h are of results rounded once an operation, which is what

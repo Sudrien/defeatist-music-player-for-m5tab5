@@ -48,6 +48,11 @@
  * slice at a time, any whole number of bytes a channel, and a boxed
  * caller keeps its windows short (dsd.h asks for DST_STEP).
  *
+ * For a 32-bit core (u-defeatist-0017): the history is four 32-bit
+ * words, the coded data comes through a 32-bit cache, and the lookups
+ * are built by doubling. 0016's first board run had the decoder at about
+ * 500 ns a bit a channel.
+ *
  * SPDX-License-Identifier: MIT
  */
 #ifndef DST_H
@@ -67,10 +72,11 @@ extern "C" {
 #define DST_MAX_TAPS    128
 #define DST_MAX_PROBS   64
 
-/* Bytes a channel one dst_run() is asked for by dsd.h. 512 is 4096 bits
- * a channel; see ARCHITECTURE.md (u-defeatist-0016) for what that costs. */
+/* Bytes a channel one dst_run() is asked for by dsd.h: 2048 bits a
+ * channel. 512 was 0016's, and with the frame's set-up in the same call
+ * it made a 6.4 ms window on a Tab5 (u-defeatist-0017). */
 #ifndef DST_STEP
-#define DST_STEP        512u
+#define DST_STEP        256u
 #endif
 
 typedef struct {
@@ -85,6 +91,9 @@ typedef struct {
     bool     plain;             /* stored, not coded */
 
     uint32_t a, c;              /* the arithmetic decoder */
+    /* The coded data's reader (0017): up to 32 bits ahead, MSB first, in
+     * `cache`, `have` of them; `next` the next byte to load. */
+    uint32_t cache, have, next;
 
     uint8_t  felem[DST_MAX_CH], pelem[DST_MAX_CH];
     bool     half[DST_MAX_CH];
@@ -93,7 +102,9 @@ typedef struct {
     int16_t  coef[DST_MAX_ELEM][DST_MAX_TAPS];
     uint8_t  prob[DST_MAX_ELEM][DST_MAX_PROBS];
 
-    uint64_t hist[DST_MAX_CH][2];   /* last 128 bits, newest in bit 0 of [0] */
+    /* the last 128 bits, newest in bit 0 of [0]: 32-bit words, so the 16
+     * lookups take their bytes at fixed shifts on a 32-bit core (0017) */
+    uint32_t hist[DST_MAX_CH][4];
     int16_t  lut[DST_MAX_ELEM][16][256];
 } dst_dec_t;
 
@@ -195,17 +206,57 @@ static inline bool dst_set(dst_dec_t *d, int32_t *v, uint32_t len,
 
 static inline uint32_t dst_ac_k(uint32_t a) { return (a >> 8) | ((a >> 7) & 1u); }
 
-/* One arithmetic-coded event at probability p/256 of a zero. */
+/* The coded data's reader. Zeros past the end, as dst_bit(). */
+static inline void dst_fill(dst_dec_t *d)
+{
+    while (d->have <= 24) {
+        const uint32_t b = d->next < d->bytes ? d->p[d->next] : 0;
+        d->next++;
+        d->cache |= b << (24 - d->have);
+        d->have += 8;
+    }
+}
+
+static inline uint32_t dst_take(dst_dec_t *d, uint32_t n)       /* 1 .. 11 */
+{
+    if (d->have < n) dst_fill(d);
+    const uint32_t v = d->cache >> (32 - n);
+    d->cache <<= n;
+    d->have -= n;
+    return v;
+}
+
+/* From dst_bit()'s position to the fast reader: the bits of the byte
+ * it is in that are not yet read go into the cache first. */
+static inline void dst_fast(dst_dec_t *d)
+{
+    const uint32_t used = d->pos & 7u;
+    d->next = d->pos >> 3;
+    d->cache = 0;
+    d->have = 0;
+    if (used) {
+        const uint32_t b = d->next < d->bytes ? d->p[d->next] : 0;
+        d->next++;
+        d->cache = (b << (24 + used));
+        d->have = 8 - used;
+    }
+}
+
+/* One arithmetic-coded event at probability p/256 of a zero. The
+ * renormalisation takes all its bits from the cache at once. */
 static inline uint32_t dst_ac(dst_dec_t *d, uint32_t p)
 {
     const uint32_t q = dst_ac_k(d->a) * p, rest = d->a - q;
-    uint32_t e;
-    if (d->c < rest) { d->a = rest; e = 1; }
-    else             { d->a = q; d->c -= rest; e = 0; }
-    while (d->a < 2048) {
-        d->a <<= 1;
-        d->c = d->c << 1 | dst_bit(d);
+    uint32_t e, a, c = d->c;
+    if (c < rest) { a = rest; e = 1; }
+    else          { a = q; c -= rest; e = 0; }
+    if (a < 2048) {
+        uint32_t n = 0;
+        while (a < 2048) { a <<= 1; n++; }
+        c = c << n | dst_take(d, n);
     }
+    d->a = a;
+    d->c = c;
     return e;
 }
 
@@ -270,27 +321,32 @@ static inline bool dst_begin(dst_dec_t *d, const uint8_t *p, uint32_t bytes,
     if (dst_bit(d)) return false;
 
     /* the filters as lookups: entry k of group g is the sum over the 8
-     * taps of g of +coef where bit l of k is 1, -coef where it is 0 */
+     * taps of g of +coef where bit l of k is 1, -coef where it is 0.
+     * Built up a bit at a time -- entry k | 1<<l is entry k plus twice
+     * tap l -- 256 adds a group, not 2048 (0017). */
     for (uint32_t e = 0; e < d->nf; e++) {
         for (uint32_t g = 0; g < 16; g++) {
             const int32_t n0 = (int32_t)d->flen[e] - (int32_t)g * 8;
             const uint32_t n = n0 < 0 ? 0 : n0 > 8 ? 8 : (uint32_t)n0;
+            int32_t t[256];
+            t[0] = 0;
+            for (uint32_t l = 0; l < n; l++) t[0] -= d->coef[e][g * 8 + l];
+            for (uint32_t l = 0; l < 8; l++) {
+                const int32_t two = l < n ? 2 * d->coef[e][g * 8 + l] : 0;
+                for (uint32_t k = 0; k < (1u << l); k++) t[k | 1u << l] = t[k] + two;
+            }
             for (uint32_t k = 0; k < 256; k++) {
-                int32_t s = 0;
-                for (uint32_t l = 0; l < n; l++) {
-                    const int32_t cf = d->coef[e][g * 8 + l];
-                    s += ((k >> l) & 1u) ? cf : -cf;
-                }
-                if (s < INT16_MIN || s > INT16_MAX) return false;
-                d->lut[e][g][k] = (int16_t)s;
+                if (t[k] < INT16_MIN || t[k] > INT16_MAX) return false;
+                d->lut[e][g][k] = (int16_t)t[k];
             }
         }
     }
 
     d->a = 4095;
     d->c = dst_bits(d, 12);
+    dst_fast(d);
     for (uint32_t c = 0; c < ch; c++) {
-        d->hist[c][0] = d->hist[c][1] = 0xAAAAAAAAAAAAAAAAull;
+        d->hist[c][0] = d->hist[c][1] = d->hist[c][2] = d->hist[c][3] = 0xAAAAAAAAu;
     }
     (void)dst_ac(d, dst_rev7((uint32_t)d->coef[0][0] & 127u) + 1u);  /* a reserved bit */
     return true;
@@ -331,10 +387,15 @@ static inline uint32_t dst_run(dst_dec_t *d, uint8_t *out, uint32_t nb)
             for (uint32_t c = 0; c < ch; c++) {
                 const uint32_t fe = d->felem[c];
                 const int16_t (*t)[256] = (const int16_t (*)[256])d->lut[fe];
-                const uint64_t lo = d->hist[c][0], hi = d->hist[c][1];
-                int32_t s = 0;
-                for (uint32_t g = 0; g < 8; g++) s += t[g][(lo >> (8 * g)) & 0xFF];
-                for (uint32_t g = 0; g < 8; g++) s += t[8 + g][(hi >> (8 * g)) & 0xFF];
+                uint32_t *h = d->hist[c];
+                const uint32_t h0 = h[0], h1 = h[1], h2 = h[2], h3 = h[3];
+#define DST_G(g, w) t[g][((w) >> (8 * ((g) & 3))) & 0xFFu]
+                const int32_t s =
+                    DST_G(0, h0) + DST_G(1, h0) + DST_G(2, h0) + DST_G(3, h0) +
+                    DST_G(4, h1) + DST_G(5, h1) + DST_G(6, h1) + DST_G(7, h1) +
+                    DST_G(8, h2) + DST_G(9, h2) + DST_G(10, h2) + DST_G(11, h2) +
+                    DST_G(12, h3) + DST_G(13, h3) + DST_G(14, h3) + DST_G(15, h3);
+#undef DST_G
                 const int16_t pred = (int16_t)s;
 
                 uint32_t p;
@@ -348,8 +409,10 @@ static inline uint32_t dst_run(dst_dec_t *d, uint8_t *out, uint32_t nb)
                 }
                 const uint32_t v = (pred < 0 ? 1u : 0u) ^ dst_ac(d, p);
                 acc[c] |= (uint8_t)(v << (7 - bit));
-                d->hist[c][1] = hi << 1 | lo >> 63;
-                d->hist[c][0] = lo << 1 | v;
+                h[3] = h3 << 1 | h2 >> 31;
+                h[2] = h2 << 1 | h1 >> 31;
+                h[1] = h1 << 1 | h0 >> 31;
+                h[0] = h0 << 1 | v;
             }
         }
         d->done += 8;

@@ -29820,3 +29820,63 @@ the board toolchain, -O3, the PIE extension, -Werror.
 
 *What to look for on a Tab5:* the PIE pass back, the probe's line as
 before.
+
+### u-defeatist-0020 -- DST a byte at a time, with PIE
+
+0019's probe put DST's cost in the 16 lookups a bit and their
+arithmetic, not in where the tables sit. This makes fewer of them.
+
+*The idea.* For the 8 bits of the next output byte, every history bit
+older than the byte is known before the byte starts. The part of each
+of the 8 predictions that those bits make -- all of it but what the
+byte's own earlier bits add -- is computed once for the byte: the 128
+history bits as 32 nibbles, each nibble one lookup of a row of 8 int16
+lanes (lane j: that nibble's part in bit j), summed with PIE, 32 vector
+loads and adds a byte. Bit j then adds the part from the byte's bits
+0..j-1, one scalar lookup in a 255-entry table, and wraps to 16 bits
+as DST does. The arithmetic decoder sees the same events in the same
+order, so the bits are the same.
+
+Bit j of the byte has the history's age-a bit at tap a + j - 1, and the
+byte's own bit i at tap j - 1 - i: `far[e][n][v][j]` and `nearv[e][..]`
+in `dst.h`, built per frame from the coefficients, 8 KB and 510 bytes a
+filter. The history is then shifted a byte at a time.
+
+*Saturation.* PIE's 16-bit adds saturate; DST's sum wraps. If a
+filter's coefficients sum, in absolute value, to under 2^15, no partial
+sum can reach either limit and the two agree. The sample's filters sum
+to 10 to 14 thousand. A frame with a filter at or over 2^15 is decoded a
+bit at a time, as before.
+
+*Where it runs.* As dsd.h's own kernel: `DSD_PIE` on the board,
+`DSD_PIE_MODEL` on a host (a C model that saturates as PIE does). A
+converter gets it only when `dsd_pie_on` is set when it is made, and
+only if `dst_pie_selftest()` -- the vector sum against the C one on 200
+random histories, once a process -- passes. So boxwin's C pass is the
+bit-at-a-time loop and its PIE pass is this. The PIE rows must be
+16-byte aligned, so dsd.h aligns the decoder. The probe stays on the
+bit-at-a-time loop, before PIE is tried.
+
+*What to expect.* The kernel is about 200 instructions a byte a channel,
+25 a bit, where the lookups were some 150 cycles a bit; the arithmetic
+decoder and the rest stay. A guess: 47's PIE line from 0.32x to 0.6 to
+0.8x. Real time would want the arithmetic decoder's 4.8 ms a frame and
+the conversion's 3.4 to fit with the rest in 13.3, which leaves little.
+
+*Checked:* `dsdtest`, 172 checks in the C build, 178 in the PIE model
+build: there, `dst_pie_selftest()` passes, 47 a byte at a time is
+FFmpeg's bits in slices of 4704, 256, 7 and 1, every frame that way, and
+a hand-made frame whose filter sums to 32768 goes a bit at a time.
+Four breaks are caught: a history tap off by one, the byte's own taps
+reversed, the byte entering the history unreversed, the byte path never
+taken. `make -C m5tab5/boxwin/test`, 277 checks. `boxwin_run.c` and a
+player-style file with the board toolchain, the PIE extension, -O3,
+-Werror; the kernel assembles.
+
+*Not checked:* the PIE kernel on a board (the model is checked, the asm
+is not run); an ESP-IDF build.
+
+*What to look for on a Tab5:* 47's C line as before (0.32x); its PIE
+line faster, same pcm 21268c3d -- a different hash would mean the
+kernel disagrees with the model, which the self-test should have caught
+and turned off.

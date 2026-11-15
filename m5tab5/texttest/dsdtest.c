@@ -245,22 +245,39 @@ static size_t dst_body(uint8_t *out, uint32_t frames, const uint8_t *const *fr,
     return k;
 }
 
-/* Every DSTF of a DFF in memory, run through dst.h a `step` at a time. */
-static size_t dst_raw(const uint8_t *b, size_t n, uint32_t step, uint8_t *out, int *bad)
+/* Every DSTF of a DFF in memory, run through dst.h a `step` at a time;
+ * a byte at a time where `vec` and the build allow (u-defeatist-0020).
+ * dst_vec_frames counts the frames that went that way. */
+static int dst_vec_frames;
+static size_t dst_raw_v(const uint8_t *b, size_t n, uint32_t step, uint8_t *out, int *bad, bool vec)
 {
-    static dst_dec_t d;
+    static dst_dec_t d __attribute__((aligned(16)));
     size_t at = 0;
     *bad = 0;
+    dst_vec_frames = 0;
+#ifdef DST_BYTEWISE
+    d.vec = vec;
+#else
+    (void)vec;
+#endif
     for (size_t p = 16; p + 12 <= n;) {
         const uint64_t l = dsd_be64(b + p + 4);
         if (!memcmp(b + p, "DST ", 4)) { p += 12; continue; }    /* into it */
         if (!memcmp(b + p, "DSTF", 4)) {
             if (!dst_begin(&d, b + p + 12, (uint32_t)l, 2, 1)) { (*bad)++; return at; }
+#ifdef DST_BYTEWISE
+            dst_vec_frames += d.vec_frame;
+#endif
             while (dst_left_bytes(&d)) at += 2 * dst_run(&d, out + at, step);
         }
         p += 12 + l + (l & 1);
     }
     return at;
+}
+
+static size_t dst_raw(const uint8_t *b, size_t n, uint32_t step, uint8_t *out, int *bad)
+{
+    return dst_raw_v(b, n, step, out, bad, false);
 }
 
 static void dst_checks(void)
@@ -283,6 +300,43 @@ static void dst_checks(void)
               "47 in slices of %u: %zu bytes, %d refused, hash %08x, FFmpeg's %08x",
               (unsigned)steps[i], got, bad, (unsigned)h, DST47_FNV);
     }
+
+#ifdef DST_BYTEWISE
+    /* a byte at a time (0020): the same bits, every frame that way */
+    CHECK(dst_pie_selftest(), "dst_pie_selftest() failed");
+    for (size_t i = 0; i < sizeof steps / sizeof steps[0]; i++) {
+        int bad;
+        const size_t got = dst_raw_v(b, n, steps[i], raw2, &bad, true);
+        const uint32_t h = fnv(raw2, got, 0x811c9dc5u);
+        CHECK(!bad && got == DST47_BYTES && h == DST47_FNV && dst_vec_frames == 10,
+              "47 a byte at a time in slices of %u: %zu bytes, %d frames that way, hash %08x",
+              (unsigned)steps[i], got, dst_vec_frames, (unsigned)h);
+    }
+    /* a frame whose filter's absolute sum reaches 2^15 goes a bit at a
+     * time: built by hand, one channel, 128 taps of -256, plain coding --
+     * a sum of exactly 32768. */
+    {
+        static dst_dec_t d __attribute__((aligned(16)));
+        d.vec = true;
+        /* one channel, one filter, one table; uncoded */
+        uint8_t fr[400] = { 0 };
+        uint32_t bp = 0;
+#define PUT(v, nb) do { for (int k_ = (nb) - 1; k_ >= 0; k_--) { \
+            if (((v) >> k_) & 1u) { fr[bp >> 3] |= (uint8_t)(0x80u >> (bp & 7)); } \
+            bp++; } } while (0)
+        PUT(1, 1); PUT(7, 3);           /* coded; one segment */
+        PUT(1, 1);                      /* same map (one channel: nothing more) */
+        PUT(1, 1);                      /* every channel to element 0 */
+        PUT(0, 1);                      /* half probability: no */
+        PUT(127, 7); PUT(0, 1);         /* 128 taps, plain */
+        for (int k = 0; k < 128; k++) PUT(256, 9);   /* -256 each: sum 32768 */
+        PUT(0, 6); PUT(0, 1); PUT(64, 7);            /* one table entry, 65 */
+        PUT(0, 1);                      /* then the coded data */
+#undef PUT
+        CHECK(dst_begin(&d, fr, sizeof fr, 1, 1) && !d.vec_frame,
+              "a filter summing to 32768 was taken a byte at a time");
+    }
+#endif
 
     /* the probe */
     {

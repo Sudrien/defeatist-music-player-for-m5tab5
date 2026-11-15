@@ -72,6 +72,33 @@ extern "C" {
 #define DST_MAX_TAPS    128
 #define DST_MAX_PROBS   64
 
+/*
+ * BYTE AT A TIME (u-defeatist-0020), with the P4's PIE.
+ *
+ * For the 8 bits of the next output byte, every history bit older than
+ * the byte is known when it starts. So the part of each of the 8
+ * predictions that comes from those bits -- most of it -- is made at
+ * once: the 128 bits as 32 nibbles, each nibble one lookup of an 8-lane
+ * int16 vector (lane j: what that nibble adds to the prediction of bit j
+ * of the byte), 32 vector loads and adds a byte. What the bits already
+ * decoded in the byte add is one small scalar lookup a bit. The tables
+ * are 8 KB a filter, built per frame.
+ *
+ * PIE's 16-bit adds saturate where DST's sum wraps. A filter whose
+ * coefficients' absolute sum is under 2^15 cannot reach the limit in any
+ * partial sum, so for those the two agree; a frame with a filter over it
+ * (none in the sample, whose sums are 10 to 14 thousand) is decoded a bit
+ * at a time as before. The scalar part is added and wrapped as DST does.
+ *
+ * DSD_PIE (the board) or DSD_PIE_MODEL (a host model of the same sums)
+ * turn it on, as they do dsd.h's vector kernel; dst_dec_t.vec says,
+ * frame by frame, whether to use it (dsd.h sets it from dsd_pie_on and
+ * dst_pie_selftest()).
+ */
+#if defined(DSD_PIE_MODEL) || (defined(DSD_PIE) && defined(__riscv))
+#define DST_BYTEWISE 1
+#endif
+
 /* Bytes a channel one dst_run() is asked for by dsd.h: 2048 bits a
  * channel. 512 was 0016's, and with the frame's set-up in the same call
  * it made a 6.4 ms window on a Tab5 (u-defeatist-0017). */
@@ -106,6 +133,16 @@ typedef struct {
      * lookups take their bytes at fixed shifts on a 32-bit core (0017) */
     uint32_t hist[DST_MAX_CH][4];
     int16_t  lut[DST_MAX_ELEM][16][256];
+#ifdef DST_BYTEWISE
+    bool     vec;                       /* the caller's leave to use the tables below */
+    bool     vec_frame;                 /* and this frame can */
+    /* far[e][n][v][j]: nibble n of the history (ages 4n+1..4n+4) at value
+     * v, its part of the prediction of bit j of the byte. 16-byte rows. */
+    int16_t  far[DST_MAX_ELEM][32][16][8] __attribute__((aligned(16)));
+    /* nearv[e][(1 << j) - 1 + p]: bits 0..j-1 of the byte so far (bit i of
+     * p is bit i of the byte), their part of the prediction of bit j */
+    int16_t  nearv[DST_MAX_ELEM][255];
+#endif
 } dst_dec_t;
 
 /* ---- reading the frame ---- */
@@ -267,6 +304,187 @@ static inline uint8_t dst_rev7(uint32_t c)
     return (uint8_t)r;
 }
 
+#ifdef DST_BYTEWISE
+/* Tap k of filter e, 0 past its length. */
+static inline int32_t dst_tap(const dst_dec_t *d, uint32_t e, uint32_t k)
+{
+    return k < d->flen[e] ? d->coef[e][k] : 0;
+}
+
+/* The two tables, for every filter of the frame (see BYTE AT A TIME).
+ * Bit j of the byte has the history's age-a bit at tap a + j - 1, and
+ * the byte's own bit i at tap j - 1 - i. */
+static inline void dst_build_bytewise(dst_dec_t *d)
+{
+    for (uint32_t e = 0; e < d->nf; e++) {
+        for (uint32_t n = 0; n < 32; n++) {
+            for (uint32_t j = 0; j < 8; j++) {
+                int32_t c[4];
+                for (uint32_t m = 0; m < 4; m++) c[m] = dst_tap(d, e, 4 * n + m + j);
+                for (uint32_t v = 0; v < 16; v++) {
+                    int32_t s = 0;
+                    for (uint32_t m = 0; m < 4; m++) s += ((v >> m) & 1u) ? c[m] : -c[m];
+                    d->far[e][n][v][j] = (int16_t)s;
+                }
+            }
+        }
+        for (uint32_t j = 0; j < 8; j++) {
+            for (uint32_t p = 0; p < (1u << j); p++) {
+                int32_t s = 0;
+                for (uint32_t i = 0; i < j; i++) {
+                    const int32_t c = dst_tap(d, e, j - 1 - i);
+                    s += ((p >> i) & 1u) ? c : -c;
+                }
+                d->nearv[e][(1u << j) - 1u + p] = (int16_t)s;
+            }
+        }
+    }
+}
+
+/* out[j] = sum over the 32 nibbles of far[n][nibble n][j]: the plain C. */
+static inline void dst_far_c(const int16_t (*far)[16][8], const uint32_t *h, int16_t *out)
+{
+    int32_t a[8] = { 0, 0, 0, 0, 0, 0, 0, 0 };
+    for (uint32_t n = 0; n < 32; n++) {
+        const int16_t *r = far[n][(h[n >> 3] >> (4 * (n & 7))) & 15u];
+        for (uint32_t j = 0; j < 8; j++) a[j] += r[j];
+    }
+    for (uint32_t j = 0; j < 8; j++) out[j] = (int16_t)a[j];
+}
+
+#if defined(DSD_PIE_MODEL)
+/* The host's stand-in for the vector sum, saturating as PIE does. */
+static inline void dst_far_pie(const int16_t (*far)[16][8], const uint32_t *h, int16_t *out)
+{
+    int32_t a[8] = { 0, 0, 0, 0, 0, 0, 0, 0 };
+    for (uint32_t n = 0; n < 32; n++) {
+        const int16_t *r = far[n][(h[n >> 3] >> (4 * (n & 7))) & 15u];
+        for (uint32_t j = 0; j < 8; j++) {
+            a[j] += r[j];
+            if (a[j] > 32767) a[j] = 32767;
+            if (a[j] < -32768) a[j] = -32768;
+        }
+    }
+    for (uint32_t j = 0; j < 8; j++) out[j] = (int16_t)a[j];
+}
+#else
+/*
+ * PIE: q0 the sum, q1 the row. A row is far + (n << 8) + (nibble << 4);
+ * a word's 8 nibbles take one shift and one mask each, scaled to 16
+ * bytes by shifting 4 less (the first nibble, by shifting left 4). The
+ * first row loads straight into q0. a0 the table, a1 the history, a2
+ * the word, a3 the row's address, a4 the result.
+ */
+#define DST_ROW(sh, off)                                                    \
+    "srli a3, a2, " #sh "\n andi a3, a3, 0xf0\n add a3, a3, a0\n"          \
+    "addi a3, a3, " #off "\n"
+static inline void dst_far_pie(const int16_t (*far)[16][8], const uint32_t *h, int16_t *out)
+{
+    register const int16_t (*r0)[16][8] __asm__("a0") = far;
+    register const uint32_t *r1 __asm__("a1") = h;
+    register uint32_t r2 __asm__("a2");
+    register uint32_t r3 __asm__("a3");
+    register int16_t *r4 __asm__("a4") = out;
+#define DST_WORD(first)                                                     \
+        "lw a2, 0(a1)\n addi a1, a1, 4\n"                                   \
+        "slli a3, a2, 4\n andi a3, a3, 0xf0\n add a3, a3, a0\n"            \
+        first                                                               \
+        DST_ROW(0, 256)  "esp.vld.128.ip q1, a3, 0\n esp.vadd.s16 q0, q0, q1\n" \
+        DST_ROW(4, 512)  "esp.vld.128.ip q1, a3, 0\n esp.vadd.s16 q0, q0, q1\n" \
+        DST_ROW(8, 768)  "esp.vld.128.ip q1, a3, 0\n esp.vadd.s16 q0, q0, q1\n" \
+        DST_ROW(12, 1024) "esp.vld.128.ip q1, a3, 0\n esp.vadd.s16 q0, q0, q1\n" \
+        DST_ROW(16, 1280) "esp.vld.128.ip q1, a3, 0\n esp.vadd.s16 q0, q0, q1\n" \
+        DST_ROW(20, 1536) "esp.vld.128.ip q1, a3, 0\n esp.vadd.s16 q0, q0, q1\n" \
+        DST_ROW(24, 1792) "esp.vld.128.ip q1, a3, 0\n esp.vadd.s16 q0, q0, q1\n" \
+        "addi a0, a0, 2047\n addi a0, a0, 1\n"
+    __asm__ volatile(
+        ".option push\n .option arch, +xesppie\n .option norvc\n"
+        DST_WORD("esp.vld.128.ip q0, a3, 0\n")
+        DST_WORD("esp.vld.128.ip q1, a3, 0\n esp.vadd.s16 q0, q0, q1\n")
+        DST_WORD("esp.vld.128.ip q1, a3, 0\n esp.vadd.s16 q0, q0, q1\n")
+        DST_WORD("esp.vld.128.ip q1, a3, 0\n esp.vadd.s16 q0, q0, q1\n")
+        "esp.vst.128.ip q0, a4, 0\n"
+        ".option pop\n"
+        : "+r"(r0), "+r"(r1), "=r"(r2), "=r"(r3), "+r"(r4)
+        :
+        : "memory");
+#undef DST_WORD
+}
+#undef DST_ROW
+#endif
+
+/* The vector sum against the C one on random tables and histories; run
+ * once, and only where the caller allows PIE (dsd.h). */
+static bool dst_pie_ok = true;
+static inline bool dst_pie_selftest(void)
+{
+    static bool done = false;
+    if (done) return dst_pie_ok;
+    done = true;
+    static int16_t far[32][16][8] __attribute__((aligned(16)));
+    uint32_t r = 88172645u;
+    for (uint32_t i = 0; i < 32 * 16 * 8; i++) {
+        r ^= r << 13; r ^= r >> 17; r ^= r << 5;
+        ((int16_t *)far)[i] = (int16_t)((int32_t)(r % 2049u) - 1024);  /* sums stay inside 2^15 */
+    }
+    bool ok = true;
+    for (int t = 0; t < 200 && ok; t++) {
+        uint32_t h[4];
+        for (int w = 0; w < 4; w++) { r ^= r << 13; r ^= r >> 17; r ^= r << 5; h[w] = r; }
+        int16_t a[8] __attribute__((aligned(16))), b[8] __attribute__((aligned(16)));
+        dst_far_c((const int16_t (*)[16][8])far, h, a);
+        dst_far_pie((const int16_t (*)[16][8])far, h, b);
+        ok = !memcmp(a, b, sizeof a);
+    }
+    dst_pie_ok = ok;
+    return ok;
+}
+
+/* dst_run(), a byte at a time: the history's part of all 8 bits from the
+ * vector sum, then each bit with its byte's own part added. Same events
+ * in the same order as the bit-at-a-time loop, so the same bits. */
+static inline void dst_run_bytes(dst_dec_t *d, uint8_t *out, uint32_t nb)
+{
+    const uint32_t ch = d->ch;
+    int16_t farv[DST_MAX_CH][8] __attribute__((aligned(16)));
+    for (uint32_t b = 0; b < nb; b++) {
+        for (uint32_t c = 0; c < ch; c++)
+            dst_far_pie((const int16_t (*)[16][8])d->far[d->felem[c]], d->hist[c], farv[c]);
+        uint32_t part[DST_MAX_CH] = { 0 };
+        for (uint32_t j = 0; j < 8; j++) {
+            const uint32_t i = d->done + j;
+            for (uint32_t c = 0; c < ch; c++) {
+                const uint32_t fe = d->felem[c];
+                const int16_t pred = (int16_t)(farv[c][j] + d->nearv[fe][(1u << j) - 1u + part[c]]);
+                uint32_t p;
+                if (d->half[c] && i < d->flen[fe]) {
+                    p = 128;
+                } else {
+                    const uint32_t pe = d->pelem[c];
+                    uint32_t ix = (uint32_t)(pred < 0 ? -(int32_t)pred : pred) >> 3;
+                    if (ix > d->plen[pe] - 1) ix = d->plen[pe] - 1;
+                    p = d->prob[pe][ix];
+                }
+                part[c] |= ((pred < 0 ? 1u : 0u) ^ dst_ac(d, p)) << j;
+            }
+        }
+        d->done += 8;
+        for (uint32_t c = 0; c < ch; c++) {
+            /* bit j of part is the byte's bit j in time; the history's
+             * newest bit is bit 0, so the byte goes in reversed */
+            uint32_t v = part[c], rv = 0;
+            for (int k = 0; k < 8; k++) rv |= ((v >> k) & 1u) << (7 - k);
+            uint32_t *h = d->hist[c];
+            h[3] = h[3] << 8 | h[2] >> 24;
+            h[2] = h[2] << 8 | h[1] >> 24;
+            h[1] = h[1] << 8 | h[0] >> 24;
+            h[0] = h[0] << 8 | rv;
+            out[b * ch + c] = (uint8_t)rv;
+        }
+    }
+}
+#endif
+
 /*
  * Start a frame: `p`, `bytes` (kept, not copied, until the frame is
  * done), `ch` channels, `mult` 1 for DSD64. False on anything this does
@@ -342,6 +560,20 @@ static inline bool dst_begin(dst_dec_t *d, const uint8_t *p, uint32_t bytes,
         }
     }
 
+#ifdef DST_BYTEWISE
+    d->vec_frame = false;
+    if (d->vec) {
+        bool ok = true;
+        for (uint32_t e = 0; e < d->nf && ok; e++) {
+            int32_t sum = 0;
+            for (uint32_t i = 0; i < d->flen[e]; i++) sum += d->coef[e][i] < 0 ? -d->coef[e][i] : d->coef[e][i];
+            ok = sum < 32768;
+        }
+        if (ok) dst_build_bytewise(d);
+        d->vec_frame = ok;
+    }
+#endif
+
     d->a = 4095;
     d->c = dst_bits(d, 12);
     dst_fast(d);
@@ -380,6 +612,12 @@ static inline uint32_t dst_run(dst_dec_t *d, uint8_t *out, uint32_t nb)
         return nb;
     }
 
+#ifdef DST_BYTEWISE
+    if (d->vec_frame) {
+        dst_run_bytes(d, out, nb);
+        return nb;
+    }
+#endif
     for (uint32_t b = 0; b < nb; b++) {
         uint8_t acc[DST_MAX_CH] = { 0 };
         for (uint32_t bit = 0; bit < 8; bit++) {

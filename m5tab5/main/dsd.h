@@ -493,7 +493,8 @@ typedef struct {
     uint32_t  first_n;
     /* DST (dst.h): the decoder, the frame it is on, and the walk through
      * the chunks -- the next chunk's offset and the next frame's number. */
-    dst_dec_t *dst;
+    dst_dec_t *dst;                     /* 16-byte aligned in dst_raw: PIE rows */
+    void      *dst_raw;
     uint8_t   *dst_buf;
     uint32_t   dst_cap;
     bool       dst_open;                /* a frame begun and not finished */
@@ -580,7 +581,7 @@ static inline void dsd_conv_free(dsd_conv_t *c)
         free(c->ch[i].s2.x);
     }
     free(c->tbl_raw);
-    free(c->dst);
+    free(c->dst_raw);
     free(c->dst_buf);
     free(c);
 }
@@ -733,12 +734,21 @@ static inline dsd_conv_t *dsd_conv_new(const dsd_t *d, uint32_t in_chunk)
     if (d->dst) {
         /* a frame stored plainly is the largest: every channel's bytes, +1 */
         c->dst_cap = (uint32_t)d->channels * 588u * 8u * mult + 1u;
-        c->dst = (dst_dec_t *)DSD_ALLOC(sizeof(dst_dec_t));
+        c->dst_raw = DSD_ALLOC(sizeof(dst_dec_t) + 16);
         c->dst_buf = (uint8_t *)DSD_ALLOC(c->dst_cap);
-        if (!c->dst || !c->dst_buf) {
+        if (!c->dst_raw || !c->dst_buf) {
             dsd_conv_free(c);
             return NULL;
         }
+        c->dst = (dst_dec_t *)(((uintptr_t)c->dst_raw + 15) & ~(uintptr_t)15);
+#ifdef DST_BYTEWISE
+        /* a byte at a time with the vector sum (u-defeatist-0020): only
+         * while the caller has PIE on, as for the self-test above */
+        c->dst->vec = false;
+#ifdef DSD_HAVE_PIE
+        if (dsd_pie_on) c->dst->vec = dst_pie_selftest();
+#endif
+#endif
         c->dst_off = d->data_start;
     }
     dsd_conv_reset(c);

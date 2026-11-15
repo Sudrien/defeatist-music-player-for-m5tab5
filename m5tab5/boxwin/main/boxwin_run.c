@@ -433,6 +433,9 @@ bool bw_dst_probe(const char *path, bw_dst_probe_t *o)
         goto out;
     }
     const uint32_t L = (uint32_t)len, ch = dd.channels, m = dsd_mult(dd.rate);
+#ifdef DST_BYTEWISE
+    d->vec = false;     /* the bit-at-a-time loop: the probe runs before PIE is tried */
+#endif
 
     int64_t t0 = bw_now();
     for (int i = 0; i < 10; i++) dst_begin(d, frame, L, ch, m);

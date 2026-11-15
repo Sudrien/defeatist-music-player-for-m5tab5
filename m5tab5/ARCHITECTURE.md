@@ -1075,3 +1075,22 @@ unterminated CDATA section already did.
 *Checked:* `podrsstest`'s new case fails four ways on the old header and
 passes on this one; the whole texttest suite passes. *Not checked:* an IDF
 build; a board.
+
+### 8140 -- an empty element in a feed reads as nothing
+
+A leaf written as an empty element -- `<pubDate/>`, `<itunes:duration/>`,
+the channel image's `<url/>` -- skips `podrss_leaf()`, which is what writes
+the buffer, and `podrss_parse()` then read the buffer anyway. Three of them
+were not set beforehand: `tmp` (date and duration), which holds whatever
+the previous leaf left or, the first time, whatever was on the stack; and
+the `<url>` branch's `u`, never set at all. Under valgrind the old header
+reports uninitialised reads in `podrss_oneline()` and `podrss_parse()`, and
+in `podrsstest`'s new case `<url/>` took a stale enclosure address from the
+stack as the podcast's picture. Each of the three is emptied before the
+leaf is read. The other leaves' buffers were already empty when they are
+read (`info->title` and the item's title and description by their
+`[0]` checks, `guid` at each `<item>`).
+
+*Checked:* `podrsstest` passes, and runs clean under valgrind (the old
+header: 20 reports and one failed check); the whole texttest suite
+passes. *Not checked:* an IDF build; a board.

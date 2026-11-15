@@ -401,6 +401,7 @@ static inline int podrss_parse(const char *body, size_t n, podrss_info_t *info,
                        !info->image[0]) {
                 char u[PODEPS_URL_MAX];
                 leaf = true;
+                u[0] = '\0';                           /* 8140: <url/> reads nothing */
                 if (!selfclose) leaf_to = podrss_leaf(te, end, name, len, u, sizeof(u));
                 podrss_oneline(u);
                 if (podeps_url_plain(u)) memcpy(info->image, u, strlen(u) + 1);
@@ -416,10 +417,12 @@ static inline int podrss_parse(const char *body, size_t n, podrss_info_t *info,
                 podrss_oneline(guid);
             } else if (podrss_is(name, len, "pubDate") || podrss_is(name, len, "dc:date")) {
                 leaf = true;
+                tmp[0] = '\0';                         /* 8140: <pubDate/> reads nothing */
                 if (!selfclose) leaf_to = podrss_leaf(te, end, name, len, tmp, sizeof(tmp));
                 if (!scratch->published) scratch->published = podrss_date(tmp);
             } else if (podrss_is(name, len, "itunes:duration")) {
                 leaf = true;
+                tmp[0] = '\0';                         /* 8140: as <pubDate/> */
                 if (!selfclose) leaf_to = podrss_leaf(te, end, name, len, tmp, sizeof(tmp));
                 scratch->duration = podrss_duration(tmp);
             } else if (podrss_is(name, len, "enclosure") && !have_enc) {

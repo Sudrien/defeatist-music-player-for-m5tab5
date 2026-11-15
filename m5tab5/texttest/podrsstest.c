@@ -139,6 +139,25 @@ int main(void)
         CHECK(n == 3 && !strcmp(e[2].title, "C live"), "markup in a title: %s", e[2].title);
     }
 
+    printf("  empty elements read as nothing (8140)\n");
+    {
+        /* Leave a date and a duration in the parser's buffer first, so an
+         * empty element that reused it would show. */
+        const char *r1 = "<rss><channel><item><title>A</title><pubDate>Tue, 03 Nov 2026 08:00:00 GMT</pubDate>"
+                         "<itunes:duration>1:00</itunes:duration><enclosure url=\"https://x/a.mp3\"/></item></channel></rss>";
+        CHECK(PARSE(r1, PODEPS_MAX) == 1 && e[0].published && e[0].duration == 60, "the first feed");
+        const char *r2 = "<rss><channel><title>T</title><image><url/></image>"
+                         "<item><title>B</title><itunes:duration>1:00</itunes:duration><pubDate/>"
+                         "<enclosure url=\"https://x/b.mp3\"/></item>"
+                         "<item><title>C</title><pubDate>Tue, 03 Nov 2026 08:00:00 GMT</pubDate><itunes:duration/>"
+                         "<enclosure url=\"https://x/c.mp3\"/></item></channel></rss>";
+        const int n = PARSE(r2, PODEPS_MAX);
+        CHECK(n == 2, "both items: %d", n);
+        CHECK(!info.image[0], "<url/> is no picture: %s", info.image);
+        CHECK(n == 2 && !strcmp(e[1].title, "B") && e[1].published == 0, "<pubDate/> is no date: %lld", (long long)e[1].published);
+        CHECK(n == 2 && !strcmp(e[0].title, "C") && e[0].duration == 0, "<itunes:duration/> is no duration: %d", (int)e[0].duration);
+    }
+
     printf("  dates, durations and ids\n");
     {
         CHECK(podrss_date("Thu, 01 Jan 1970 00:00:01 GMT") == 1, "epoch + 1");

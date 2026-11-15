@@ -29919,3 +29919,80 @@ the track's length, can use it as it is.
 there; the change is the early return the file had before 0016.
 
 *Not checked:* an ESP-IDF build of decoder.c; a board.
+
+### u-defeatist-0022 -- boxed: the player in a box, local playback first
+
+`m5tab5/boxed/`, a project of its own, as boxwin is: the whole player,
+main/'s sources unchanged, built into an ELF for a feckless box
+(`feckless_abi_box_elf()`). Its README says how to build it and what to
+look for. The firmware does not build it, and nothing of main/ changes.
+
+**Where it stood.** The player's ELF (../elf/, ABI v1) imports 413 names --
+counted from a real link this time, not from source text as 0001's 360 --
+and a box answered 154 of them. The other 259: 99 network, 40 storage, 45
+drivers and gfx, 29 FreeRTOS, 12 ESP-IDF, 8 libc, 7 NVS, 6 esp_audio_codec,
+4 hardware JPEG, 2 crypto, 2 raw I2C. 0001's intended order was the box's
+side first; it is, in feckless-libs' umode branch:
+
+| patch | what the box gained | names |
+|---|---|---|
+| u-feckless-0045 | FreeRTOS: mutexes, semaphores, queues, stream buffers, notifications, critical sections, task queries | 40 |
+| u-feckless-0046 | audio_out's playback side, battery, RTC, polyrsp, the rest of gfx | 43 |
+| u-feckless-0047 | storage writes, the paths, storage_io, FatFs directories, the rest of the storage handler | 32 |
+| u-feckless-0048 | strtod, sscanf, strftime, the rest of stdio in the app; 8192 heap blocks, not 256; esp_random, settimeofday, esp_restart | 26 in the app, 5 calls |
+| u-feckless-0049 | the heap figures' call in the box section; a static stream buffer's storage in place | -- |
+
+**What is left is `boxed/main/absent.c`**: 127 names, every one a
+library's, defined in the app to fail the way the player already copes
+with -- the network down and never coming up, nothing in NVS, no
+esp_audio_codec, no hardware JPEG engine, no OTA slot, no raw I2C, no HID
+or USB class callback, deep sleep ending the app. So the boxed player is
+the offline local player: the card and USB storage, the library, MP3, MP2,
+WAV, AIFF, APE and DSD through its own decoders, ReplayGain, the Fx sheet,
+recording. Each name comes out of absent.c when a box answers it.
+
+- **The sources are main/'s, by path.** The project needs its own
+  manifest (feckless-libs' umode branch), which main/'s pinned one cannot
+  be, so it has its own `main` component listing ../../main's sources;
+  its CMakeLists.txt reads main/CMakeLists.txt and stops the configure if
+  the two lists differ, so a source added there cannot quietly become an
+  import here. The player's per-file options (8031's -Os, decoder.c's
+  -O3) are repeated.
+- **`boxed_main.c`** is elf_main.c's app_main, requiring the core, the
+  storage section and the box (`feckless_abi_require_box()`) rather than
+  the five sections a box lacks.
+- **`storage_list.c` is compiled into the app**, from
+  feckless_storage_handler: its reader calls the app's filter for every
+  entry, which a launcher cannot do (u-feckless-0047).
+- **No privileged instruction.** The disassembly has 11 CSR accesses, all
+  `csrs fflags` (the FPU's flags, a user CSR, the FPU on before every
+  window since u-feckless-0028), and one `ecall`, feckless_box_libc's
+  `vTaskDelete`. The cycle counter and core id reads in decoder.c and
+  player.c are DECBENCH and FXBENCH only, which this build does not set.
+
+*Checked:* an ESP-IDF 6.1.1 build of `boxed/` with riscv32-esp-elf
+15.2.0, `idf.py elf`, against feckless-libs' umode branch with
+u-feckless-0045 to 0049 applied: both checks pass --
+
+    -- feckless_abi: 180 symbols, all in feckless_abi_v1 + feckless_abi_box_v1 + feckless_abi_storage_v2
+    -- feckless_box_libc: boxed, 180 imports, none of them in-app names, all answered by the box
+
+The image is 915 KB of code and rodata and 441 KB of data and bss. The
+registry is not reachable from the session, so its components came from
+GitHub at the versions the player's lock names (esp-iot-solution,
+esp-bsp, esp-usb, idf-extra-components, esp-protocols, esp-hosted-mcu,
+esp-wifi-remote, esp-adf-libs, Sudrien/esp_usbh_asix) with the component
+manager off; each was given its manifest's dependencies as
+`idf_component_optional_requires()`, since without the manager nothing
+else adds them. esp_audio_codec's headers were 2.6.2's, not the 2.5.0 the
+lock names (only its headers reach this build). The same setup built
+boxwin (`34 imports ... all answered by the box`) and the player's own
+ELF (`413 symbols, all in ...`) first, as a check on it.
+
+*Not checked:* a board; a launcher built with u-feckless-0045 to 0049;
+whether the box is big enough (the ELF and statics are 1.35 MB and the
+three PCM rings 10.5 MB of its heap, before anything else); how long the
+player's own windows run on core 1 with the I2S interrupt there; this
+project's `dependencies.lock`, which the first configure with the
+component manager writes, and whose diff is to be read before it is
+committed.

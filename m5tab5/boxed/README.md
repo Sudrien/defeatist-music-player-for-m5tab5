@@ -1,0 +1,67 @@
+# boxed -- the player in a feckless box
+
+The `umode` branch's second project (u-defeatist-0022): the whole player,
+main/'s sources unchanged, built into an ELF for a feckless box -- RISC-V
+user mode, one block of PSRAM, every call out of it an `ecall` the launcher
+checks. Where ../elf/ makes the trusted ELF a launcher runs as itself, this
+makes the one a launcher runs boxed.
+
+## Building
+
+ESP-IDF 6.1, from this directory:
+
+    idf.py set-target esp32p4
+    idf.py elf                  # -> build/defeatist_boxed.app.elf
+
+The build ends with two checks. `feckless_abi` holds every import to the
+ABI's core list and the box and storage sections; `feckless_box_libc`
+(boxcheck) holds every import to what a box answers. Both must pass; the
+first build to pass them said
+
+    -- feckless_abi: 180 symbols, all in feckless_abi_v1 + feckless_abi_box_v1 + feckless_abi_storage_v2
+    -- feckless_box_libc: boxed, 180 imports, none of them in-app names, all answered by the box
+
+The manifest (`main/idf_component.yml`) follows feckless-libs' `umode`
+branch, which must have u-feckless-0045 to 0049. Its `dependencies.lock` is
+written by the first configure and is this project's own; the player's
+manifest and lock are not touched.
+
+## What runs, and what does not
+
+What a box answers (feckless-libs' umode branch, to u-feckless-0049): the
+screen and touch, gfx, the SD card and USB storage (reading and writing),
+audio output through the codec or USB, the battery and the RTC, FreeRTOS's
+locks, queues, stream buffers and notifications, threads.
+
+So the player's local playback: browsing the card, the library, playing
+MP3, MP2, WAV, AIFF, APE and DSD (DSF, plain DFF) with its own decoders,
+ReplayGain, the Fx sheet, recording to the card.
+
+What it does not answer is in `main/absent.c`, as the app's own functions
+that fail the way the player already copes with:
+
+| absent | so |
+|---|---|
+| the network: Wi-Fi, Ethernet, sockets, HTTP client and server | an offline player: no radio, podcasts, remote, MPD, NTP |
+| NVS | nothing kept there: approvals and podcast keys (network features) |
+| esp_audio_codec | no FLAC, AAC, Vorbis, Opus, ALAC: "not supported" |
+| the hardware JPEG decoder | album art in software |
+| esp_ota, esp_partition | no "exit to launcher" slot; the app ends instead |
+| raw I2C, deep sleep | no power-off pulse: power off ends the app |
+| HID, USB class registration | callbacks a box cannot make yet |
+
+Each comes out of `absent.c` when a box answers it: the box's call then
+replaces it, and the checks say which are left.
+
+## On a board
+
+Needs a launcher on feckless-libs' umode branch with u-feckless-0045 to
+0049 (Avoidant's umode branch, rebuilt), and a box as large as it allows:
+the ELF and its statics are 1.35 MB, and the player's three PCM rings
+10.5 MB of the box's heap before anything else it allocates.
+
+What to look for in the log: `=== Defeatist Music Player ===`, then the
+player's own start-up; `no PCM ring` if the box was too small for the
+rings; any `thread N ended: reason` line from feckless_umode, with the pc
+(u-feckless-0043 turns it into an address in this ELF:
+`riscv32-esp-elf-addr2line -e build/defeatist_boxed.app.elf`).

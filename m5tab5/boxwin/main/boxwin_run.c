@@ -395,6 +395,14 @@ bool bw_dst_probe(const char *path, bw_dst_probe_t *o)
     memset(o, 0, sizeof *o);
     FILE *f = fopen(path, "rb");
     if (!f) return false;
+    /* u-defeatist-0019: the C kernel, and no PIE self-test from here.
+     * dsd_conv_new() runs the self-test while dsd_pie_on is set, once a
+     * process; from the probe, before the C pass, it failed on a Tab5 and
+     * took the PIE pass away. The self-test runs where it always did. */
+#ifdef DSD_HAVE_PIE
+    const bool pie_was = dsd_pie_on;
+    dsd_pie_on = false;
+#endif
     fseek(f, 0, SEEK_END);
     const int64_t size = ftell(f);
     dsd_t dd;
@@ -465,6 +473,9 @@ bool bw_dst_probe(const char *path, bw_dst_probe_t *o)
     o->feed4096_us = (uint32_t)(bw_now() - t0);
     ok = true;
 out:
+#ifdef DSD_HAVE_PIE
+    dsd_pie_on = pie_was;
+#endif
     free(d); free(frame); free(raw); free(pcm);
     dsd_conv_free(c);
     fclose(f);

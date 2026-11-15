@@ -29776,3 +29776,47 @@ toolchain at -O3 with the PIE extension, -Werror; the probe uses only
 calls boxwin already imports.
 
 *Not checked:* an ESP-IDF build of boxwin_main.c; a board.
+
+### u-defeatist-0019 -- what the DST probe found; the probe off the PIE self-test
+
+*The probe on a Tab5,* one frame (13.3 ms of audio), microseconds:
+
+    set-up 604, decode 36417, one-line lookups 33251, arith alone 4769, feed 256s 3720, feed 4096s 3442
+
+- The tables' place in memory is not the cost. With every lookup on one
+  cached line the frame takes 33.3 ms against 36.4: the misses are
+  under a tenth. 0018's guess was wrong, and moving the tables to
+  internal RAM would buy that tenth at most.
+- The arithmetic decoder is 4.8 ms, an eighth.
+- The rest, some 28 ms a frame, is the loop's own work: 16 extracts,
+  lookups and adds a bit, about 375 ns a bit a channel. That is the
+  instruction count on an in-order core, and 0017 did not change it
+  because it did not change the count of lookups.
+- The conversion is 3.7 ms in DST's 256-byte slices and 3.4 in 4096s:
+  the small slices cost little.
+- The set-up is 0.6 ms a frame.
+
+A frame is 13.3 ms of audio and takes 36.4 + 3.7 ms: 0.33x, as the
+file's line says. Real time needs the lookups' part to fall from about
+28 ms to under 5. A faster scalar loop will not do that; fewer
+lookups a bit will.
+
+*The PIE pass went missing in this run:* "PIE ran in a box and FAILED
+its self-test against the C kernels". The probe called
+`dsd_conv_new()` before the C pass, and that runs the DSD PIE self-test,
+once a process, while `dsd_pie_on` is set -- earlier than it has ever
+run in a box. Every run before ran it after the C pass, and passed.
+The probe now turns `dsd_pie_on` off around itself (it measures the C
+kernel anyway), so the self-test runs where it always did. Why the
+self-test fails when it is the first PIE use that early is not known:
+it might be the box's PIE state before something else has used it, or
+something about that moment in the run. It is worth knowing before a
+boxed player trusts its own self-test. feckless-libs may want to look.
+
+*Checked:* `make -C m5tab5/boxwin/test`, 277 checks; boxwin_run.c with
+the board toolchain, -O3, the PIE extension, -Werror.
+
+*Not checked:* an ESP-IDF build; a board.
+
+*What to look for on a Tab5:* the PIE pass back, the probe's line as
+before.

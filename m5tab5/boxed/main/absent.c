@@ -21,11 +21,13 @@
  *                    (u-feckless-0052).
  *   hardware JPEG    no engine: album art decodes in software
  *                    (feckless_image_handler's fallback).
- *   the rest         esp_ota/esp_partition (no "exit to launcher" slot to
- *                    pick: a box ends instead), raw I2C (the power-off
- *                    pulse), HID (a callback a box cannot call yet),
- *                    USB class registration (likewise), deep sleep (the
- *                    app ends rather than power the board down).
+ *   the rest         esp_ota/esp_partition (no slot to pick: u-defeatist-0025
+ *                    has the table say "hosted", so Exit to Launcher shows
+ *                    and leaves by esp_restart(), which a box answers by
+ *                    ending the app), raw I2C (the power-off pulse), HID (a
+ *                    callback a box cannot call yet), USB class
+ *                    registration (likewise), deep sleep (returns, and the
+ *                    player's esp_restart() after it ends the app).
  *
  * Each of these comes out of this file when a box answers it -- the box's
  * call then replaces it at the next build, and boxcheck says which are
@@ -52,6 +54,7 @@
 #include "esp_ota_ops.h"
 #include "esp_partition.h"
 #include "esp_sleep.h"
+#include "esp_system.h"   /* u-defeatist-0025: esp_restart */
 #include "esp_wifi.h"
 #include "driver/i2c_master.h"
 #include "driver/jpeg_decode.h"
@@ -377,12 +380,31 @@ esp_err_t jpeg_decoder_process(jpeg_decoder_handle_t eng, const jpeg_decode_cfg_
 
 /* ---- the rest -------------------------------------------------------------- */
 
-const esp_partition_t *esp_ota_get_running_partition(void) { return NULL; }
+/* u-defeatist-0025: the table a boxed app is given, so launcher.c's
+ * launcher_kind() says LAUNCHER_HOSTED -- a factory app running, and an
+ * "app2" beside it -- which is the truth of a box: a launcher is running
+ * this, and leaving is esp_restart(), which the box answers by ending the
+ * app (feckless_box_calls' c_esp_restart) and the launcher's menu comes
+ * back. Without it every lookup was NULL, launcher_present() false, and
+ * Exit to Launcher was hidden: power off was the only way out.
+ *
+ * launcher.c, the only caller in this ELF, compares the pointers and never
+ * reads through them; the entries are filled in all the same, so anything
+ * that did would read a plausible, empty, unencrypted app slot. */
+static const esp_partition_t s_box_factory = {
+    .type = ESP_PARTITION_TYPE_APP, .subtype = ESP_PARTITION_SUBTYPE_APP_FACTORY, .label = "boxed",
+};
+static const esp_partition_t s_box_app2 = {
+    .type = ESP_PARTITION_TYPE_APP, .subtype = ESP_PARTITION_SUBTYPE_APP_OTA_0, .label = "app2",
+};
+const esp_partition_t *esp_ota_get_running_partition(void) { return &s_box_factory; }
 esp_err_t esp_ota_set_boot_partition(const esp_partition_t *p) { (void)p; return ESP_ERR_NOT_SUPPORTED; }
 const esp_partition_t *esp_partition_find_first(esp_partition_type_t type, esp_partition_subtype_t subtype,
                                                 const char *label)
 {
-    (void)type; (void)subtype; (void)label;
+    if (type != ESP_PARTITION_TYPE_APP) return NULL;
+    if (subtype == ESP_PARTITION_SUBTYPE_APP_FACTORY) return &s_box_factory;
+    if (subtype == ESP_PARTITION_SUBTYPE_APP_OTA_0 && label && !strcmp(label, "app2")) return &s_box_app2;
     return NULL;
 }
 
@@ -403,9 +425,14 @@ bool hid_present(void) { return false; }
 esp_err_t usbhost_register_class(const char *name, usbhost_class_fn fn) { (void)name; (void)fn; return ESP_ERR_NOT_SUPPORTED; }
 
 /* The power-off tail: a box cannot power the board down, so the app ends
- * (the box answers abort() by ending it) and the launcher comes back. */
+ * and the launcher comes back. u-defeatist-0025: by esp_restart(), not
+ * abort(). The box answers esp_restart() as an app asking to end (a
+ * warning, feckless_box_calls' c_esp_restart); abort() was logged as an
+ * error, the app counted as killed. Both are noreturn, as this is: the
+ * esp_restart() player.c writes after esp_deep_sleep_start() is dead code
+ * to the compiler, so it is called here. */
 void esp_deep_sleep_start(void)
 {
-    ESP_LOGW(TAG, "power off asked for: a boxed app ends instead");
-    abort();
+    ESP_LOGW(TAG, "power off asked for: a boxed app ends instead; the board stays on");
+    esp_restart();
 }

@@ -30058,3 +30058,51 @@ umode branch with u-feckless-0053 applied --
 
 *Not checked:* a launcher naming `defeatist`; a setting kept across a
 relaunch; a board.
+
+### u-defeatist-0025 -- boxed: Exit to Launcher, a clean end on power off, ready for Avoidant
+
+What stood between the boxed ELF and a first run, short of a board.
+
+- **Exit to Launcher was hidden.** `absent.c` answered every partition
+  lookup with NULL, so `launcher_kind()` said LAUNCHER_NONE, the rocket
+  was not drawn, and power off was the only way out. A box is hosted by
+  definition -- a launcher runs it, and leaving is `esp_restart()`, which
+  feckless_box_calls answers by ending the app (`c_esp_restart`, a
+  warning, u-feckless-0048) -- so `absent.c` now gives the table that
+  says so: `esp_ota_get_running_partition()` and
+  `esp_partition_find_first(APP, FACTORY)` the same static entry, and
+  `(APP, OTA_0, "app2")` another. launcher.c is the only caller in this
+  ELF (shim_import.c is the firmware's) and only compares the pointers;
+  the entries are filled in anyway. `esp_ota_set_boot_partition()` stays
+  refused: LAUNCHER_HOSTED never calls it.
+- **Power off ended the app as killed.** `esp_deep_sleep_start()` called
+  `abort()`, which the box logs as an error. It now calls `esp_restart()`
+  itself. Not by returning: the declaration is `noreturn`, so the
+  `esp_restart()` that player.c writes after it is dead code to the
+  compiler and would not be reached.
+- **README**: the box as of u-feckless-0053; the thread budget (eight
+  besides app_main; the offline player peaks at seven with a recording, a
+  reindex and a GIF decode); `DEFEATIST_BOXED_CODEC` staying in CMake's
+  cache; power off and the low-battery power off not cutting the power in
+  a box; crypto in the absent table; and what Avoidant needs. Its umode
+  source has it all (u-avoidant-0001 to 0004), but its committed
+  `dependencies.lock` holds feckless-libs at f6991f3, before
+  u-feckless-0045, so `idf.py update-dependencies` in Avoidant's m5tab5/
+  comes first, or the load refuses this ELF at its first FreeRTOS import.
+
+The imports: `abort` out of absent.c, `esp_restart` and `strcmp` in --
+both answered by the box and both imported by the player already, so the
+ELF's 195 should not change.
+
+*Checked:* absent.c compiled with ESP-IDF 6.1.1's riscv32-esp-elf against
+IDF's real headers, the player's sdkconfig.defaults and feckless-libs'
+umode headers, with IDF's flags and `-Wextra -Werror=extra`; its
+undefined symbols compared with the old file's (the three above, nothing
+else). launcher.c built on a host with the partition block lifted from
+absent.c as it is in the file: LAUNCHER_HOSTED, `launcher_present()`
+true, Exit to Launcher reaching `esp_restart()`; with the old NULL
+answers the same test fails.
+
+*Not checked:* an `idf.py elf` of boxed/ (the registry is not reachable
+from the session); this project's `dependencies.lock`, still uncommitted;
+a board.

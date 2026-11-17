@@ -44,6 +44,10 @@ if(NOT _dmp_elf)
                        -DSDKCONFIG=${_elf_dir}/sdkconfig
                        -DDEFEATIST_HOST_SDKCONFIG=${_sdkconfig}
                        -DDEFEATIST_PROJECT_VER=${_project_ver}
+                       # u-defeatist-0026: what CMake 4.5 passes by itself (policy
+                       # CMP0225), given here so it does not warn and every
+                       # CMake does the same. Nothing is installed.
+                       -DCMAKE_INSTALL_PREFIX=<INSTALL_DIR>
             CMAKE_GENERATOR "Unix Makefiles"
             BUILD_COMMAND make elf
             BUILD_ALWAYS 1

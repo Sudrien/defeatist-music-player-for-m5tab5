@@ -30131,3 +30131,32 @@ manager off, the ELF build's cache showing
 `CMAKE_INSTALL_PREFIX=.../esp-idf/main/defeatist_elf-prefix`, its output as
 before. *Not checked:* CMake 4.5 itself, which the session has no copy
 of (4.4.5 is the newest it can install); a board.
+
+### u-defeatist-0027 -- CMP0225 for ESP-IDF's own ExternalProject
+
+After the ELF's ExternalProject named its prefix, CMake 4.5 still warned
+once per configure, for ESP-IDF's:
+
+    ExternalProject_Add(bootloader) uses the default configure command without
+    a CMAKE_INSTALL_PREFIX.
+      /opt/esp-idf/6.1/esp-idf/components/bootloader/project_include.cmake:127
+
+That call is ESP-IDF's, and a `cmake_policy(SET CMP0225 NEW)` in the
+project does not reach it: CMake runs a function with the policies in
+force where it was defined, and ESP-IDF's `project()` and
+`idf_build_process()` are defined in project.cmake after its own
+`cmake_minimum_required(VERSION 3.22)`, which leaves CMP0225 unset. What
+does reach it is `CMAKE_POLICY_DEFAULT_CMP0225`, the default that
+`cmake_minimum_required()` gives a policy newer than its version. So
+`m5tab5/CMakeLists.txt`, `m5tab5/boxed/CMakeLists.txt`, `m5tab5/boxwin/CMakeLists.txt`, `m5tab5/elf/CMakeLists.txt` set it to NEW after their own `cmake_minimum_required()` and
+before project.cmake. NEW passes `CMAKE_INSTALL_PREFIX=<INSTALL_DIR>` to
+the bootloader's configure; its install step is empty, so nothing else
+changes. Older CMake ignores the variable.
+
+*Checked*, on ESP-IDF 6.1.1 with CMake 4.4 (the newest the session can
+install; it has no CMP0225), by the same route with CMP0168: a
+`cmake_policy(SET … NEW)` before `project()` leaves it unset at the
+bootloader's ExternalProject call, and `CMAKE_POLICY_DEFAULT_CMP0168` set
+before project.cmake makes it NEW there. Then the change itself: every
+project configures with CMake 3.28 and 4.4 without warnings, and the
+firmware builds as before. *Not checked:* CMake 4.5; a board.

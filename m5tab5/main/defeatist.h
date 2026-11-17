@@ -19,7 +19,8 @@ extern "C" {
  * runs an app -- Avoidant, or standalone.c: NVS, the bus and expanders, the
  * USB host's owner, storage, and the network brought up to be asked for.
  * Every board init it repeats returns ESP_OK when run again. In the ELF
- * (8087) it is called from elf_main.c's app_main(). */
+ * (8087) it is called from elf_main.c's app_main(), in a box since
+ * u-defeatist-0028. */
 void defeatist_main(void);
 
 #ifdef __cplusplus

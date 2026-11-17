@@ -1,3 +1,6 @@
+# u-defeatist-0028: for a feckless box now, run by Avoidant's umode branch or
+# by this firmware's standalone.c -- boxed/ is gone, and this is the one ELF.
+#
 # 8087: the player as an ELF for esp_elf -- main/'s sources, linked
 # position-independent with the libraries that are not the ABI's linked in
 # (minimp3 is a header in decoder.c; cJSON; feckless_image_handler's
@@ -93,7 +96,10 @@ foreach(_c IN LISTS _comps)
         list(APPEND ELF_COMPONENTS "${_c}")
     endif()
 endforeach()
-feckless_abi_elf(defeatist_player)
+# u-defeatist-0028: for a box (feckless-libs' umode branch): the pure part
+# of libc linked into the ELF, and a second check (boxcheck) that every
+# import is one a box answers.
+feckless_abi_box_elf(defeatist_player)
 
 # 5283: libversions.h, the BUILD tab's list -- moved here from the top-level
 # CMakeLists.txt with the code that includes it (panel.c). It reads the

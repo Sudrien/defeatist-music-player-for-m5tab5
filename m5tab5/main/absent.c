@@ -1,6 +1,8 @@
 /* SPDX-License-Identifier: MIT
  *
  * u-defeatist-0022: what a box does not answer, as the app's own functions.
+ * (In boxed/main/ until u-defeatist-0028 made the player's one build the
+ * boxed one.)
  *
  * The boxed ELF is the player's sources unchanged, so it still calls the
  * network, NVS, esp_audio_codec, the hardware JPEG decoder, the crypto

@@ -93,8 +93,12 @@ jobs:
           idf.py merge-bin
           mv build/merged-binary.bin build/defeatist_${{ steps.ver.outputs.name }}_music_player_for_m5tab5_standalone.bin
           mv build/defeatist_music_player_for_m5tab5.bin build/defeatist_${{ steps.ver.outputs.name }}_music_player_for_m5tab5.bin
+          # u-defeatist-0028: the player alone, for a launcher (Avoidant's
+          # umode branch) to run in a box. The .bins hold the same ELF. Its
+          # name up to the first '_' is the NVS namespace Avoidant gives it.
+          cp build/defeatist_player.app.elf build/defeatist_${{ steps.ver.outputs.name }}_music_player_for_m5tab5.elf
 
-      # 8005: a signed record that these two files, by their SHA-256,
+      # 8005: a signed record that these files, by their SHA-256,
       # were built by this workflow from this commit. It is stored with
       # the repository, not in the files: the .bins are byte for byte
       # what they were and flash as before. Every run attests, not only
@@ -106,6 +110,7 @@ jobs:
           subject-path: |
             m5tab5/build/defeatist_${{ steps.ver.outputs.name }}_music_player_for_m5tab5_standalone.bin
             m5tab5/build/defeatist_${{ steps.ver.outputs.name }}_music_player_for_m5tab5.bin
+            m5tab5/build/defeatist_${{ steps.ver.outputs.name }}_music_player_for_m5tab5.elf
 
       - name: Archive build output artifacts
         uses: actions/upload-artifact@v4
@@ -114,6 +119,7 @@ jobs:
           path: |
             m5tab5/build/defeatist_${{ steps.ver.outputs.name }}_music_player_for_m5tab5_standalone.bin
             m5tab5/build/defeatist_${{ steps.ver.outputs.name }}_music_player_for_m5tab5.bin
+            m5tab5/build/defeatist_${{ steps.ver.outputs.name }}_music_player_for_m5tab5.elf
 
       # The build writes its own lock (see CMakeLists.txt) and this is the
       # only place one gets made from the registry. Upload it so it can be
@@ -143,3 +149,4 @@ jobs:
           files: |
             m5tab5/build/defeatist_${{ steps.ver.outputs.name }}_music_player_for_m5tab5_standalone.bin
             m5tab5/build/defeatist_${{ steps.ver.outputs.name }}_music_player_for_m5tab5.bin
+            m5tab5/build/defeatist_${{ steps.ver.outputs.name }}_music_player_for_m5tab5.elf

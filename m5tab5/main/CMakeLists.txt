@@ -11,6 +11,14 @@ set(DMP_JSON cjson)
 # nvsns.c); the top level builds those and launcher.c, which ui.c uses too,
 # runs ../elf/ and embeds what it made. The shape is Errant's,
 # Lothesome's, Unprofitable Mahjong's and Spurious's.
+#
+# u-defeatist-0028: the ELF is for a feckless box (feckless-libs' umode
+# branch), and the shim runs it in one: standalone.c is the whole of a
+# launcher. In the ELF, beside the player's sources: elf_main.c (was
+# boxed/'s boxed_main.c), absent.c (what a box does not answer, as the
+# app's own functions), absent_codec.c with -DDEFEATIST_BOXED_CODEC=OFF,
+# and feckless_storage_handler's storage_list.c, whose reader calls the
+# app's filter for every entry -- something a launcher cannot do.
 idf_build_get_property(_dmp_elf DEFEATIST_ELF)
 
 if(NOT _dmp_elf)
@@ -23,6 +31,8 @@ if(NOT _dmp_elf)
                       nvs_flash app_update spi_flash esp_driver_usb_serial_jtag
                       feckless_drivers feckless_storage_handler
                       feckless_network_handler feckless_nvs_handler ${DMP_JSON}
+                      feckless_umode feckless_box_calls       # u-defeatist-0028: the box
+                      feckless_graphics_handler               # u-defeatist-0028: the panel first
     )
     if(NOT CMAKE_BUILD_EARLY_EXPANSION)
         include(ExternalProject)
@@ -35,6 +45,17 @@ if(NOT _dmp_elf)
 
         set(_elf_dir "${_build_dir}/elf")
         set(_elf "${_elf_dir}/defeatist_player.app.elf")
+        # u-defeatist-0028: esp_audio_codec through the box by default;
+        # -DDEFEATIST_BOXED_CODEC=OFF builds the ELF without it
+        # (absent_codec.c), for a launcher that does not link the codec.
+        if(NOT DEFINED DEFEATIST_BOXED_CODEC)
+            set(DEFEATIST_BOXED_CODEC ON)
+        endif()
+        if(DEFEATIST_BOXED_CODEC)
+            set(_dmp_codec ON)
+        else()
+            set(_dmp_codec OFF)
+        endif()
 
         externalproject_add(defeatist_elf
             SOURCE_DIR "${_project_dir}/elf"
@@ -44,6 +65,8 @@ if(NOT _dmp_elf)
                        -DSDKCONFIG=${_elf_dir}/sdkconfig
                        -DDEFEATIST_HOST_SDKCONFIG=${_sdkconfig}
                        -DDEFEATIST_PROJECT_VER=${_project_ver}
+                       # u-defeatist-0028: the codec setting, to the ELF's build
+                       -DDEFEATIST_BOXED_CODEC=${_dmp_codec}
                        # u-defeatist-0026: what CMake 4.5 passes by itself (policy
                        # CMP0225), given here so it does not warn and every
                        # CMake does the same. Nothing is installed.
@@ -59,6 +82,13 @@ if(NOT _dmp_elf)
         # waits for that.
         add_dependencies(${COMPONENT_LIB} defeatist_elf)
 
+        # u-defeatist-0028: and a copy beside the .bin,
+        # build/defeatist_player.app.elf, the file a launcher is given (its
+        # name, up to the first '_', is the NVS namespace Avoidant gives it).
+        add_custom_command(TARGET defeatist_elf POST_BUILD
+            COMMAND ${CMAKE_COMMAND} -E copy_if_different "${_elf}" "${_build_dir}/defeatist_player.app.elf"
+            VERBATIM)
+
         # elf_loader's: 4-byte aligned, as esp_elf_relocate() wants it.
         elf_embed_aligned_binary(${COMPONENT_LIB} "${_elf}" BINARY)
     endif()
@@ -72,7 +102,7 @@ idf_component_register(
          "portal.c" "portalweb.c" "dnsreply.c"
          "sleeppage.c" "streamprobe.c" "netstream.c" "netdec.c" "stations.c" "favorites.c" "starred.c" "streamgain.c" "radiobrowser.c" "bench.c" "cuedir.c" "cardtime.c" "mediacat.c" "mediawalk.c" "mediasync.c" "medialib.c" "mediadir.c" "rateconv.c" "varispeed.c" "fx.c" "radiokeep.c" "heapmap.c" "flacenc.c" "recorder.c" "beam.c"
          "mpdqueue.c" "mpdproto.c" "mpdfilter.c" "casefold_tab.c" "mpduri.c" "mpdmode.c" "mpdidle.c" "mpd.c" "uireq.c" "m3uline.c" "urlclean.c" "remote.c" "approve.c" "podindex.c" "poddl.c" "remoteproto.c" "wifijoin.c" "launcher.c"
-         "elf_main.c"
+         "elf_main.c" "absent.c"     # u-defeatist-0028: the box's entry; what a box does not answer
     INCLUDE_DIRS "."
     EMBED_FILES "remote_i18n.html.gz"    # 6028: generated from remote.html; 6127: gzipped
                 "favicon.ico"
@@ -90,8 +120,22 @@ idf_component_register(
              feckless_drivers   # 6054
              feckless_graphics_handler   # 6055: gfx, lcd, ark12, arabixel
              feckless_image_handler   # 8069: every decoder, the fit, the ico converter; miniz.h
+             feckless_box_libc        # u-defeatist-0028: linked into the ELF
     PRIV_REQUIRES minimp3
 )
+
+# u-defeatist-0028: esp_audio_codec through the box unless built with
+# -DDEFEATIST_BOXED_CODEC=OFF, which puts absent_codec.c in the app.
+if(NOT DEFINED DEFEATIST_BOXED_CODEC OR DEFEATIST_BOXED_CODEC)
+    set_property(SOURCE elf_main.c APPEND PROPERTY COMPILE_DEFINITIONS DEFEATIST_BOXED_CODEC=1)
+else()
+    target_sources(${COMPONENT_LIB} PRIVATE "absent_codec.c")
+endif()
+
+# u-defeatist-0028: storage_list.c from feckless_storage_handler, compiled
+# into the app: its reader calls the app's filter for every entry.
+idf_component_get_property(_sh feckless_storage_handler COMPONENT_DIR)
+target_sources(${COMPONENT_LIB} PRIVATE "${_sh}/src/storage_list.c")
 
 # Heap integrity checkpoints, off by default. Build with
 #   idf.py -DHEAPCHECK=1 build

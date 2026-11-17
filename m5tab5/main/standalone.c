@@ -15,25 +15,54 @@
  * nothing.
  *
  * 8087: the player is the ELF that ../elf/ built from the rest of main/
- * (elf_main.c is its app_main()), embedded here and run through the feckless
- * ABI, as a launcher runs a published copy. This links the ABI's sections
- * (feckless_abi, _storage, _nvs, _network, _image, _crypto) so that the
- * ELF's calls resolve against what is brought up below.
+ * (elf_main.c is its app_main()), embedded here and run as a launcher runs a
+ * published copy.
+ *
+ * u-defeatist-0028: in a box, as Avoidant's umode branch runs it -- RISC-V
+ * user mode, in one block of PSRAM the PMP grants it and nothing else, every
+ * call outside it answered by feckless_box_calls -- and not through
+ * feckless_abi_run(), which would refuse it by the name feckless_abi_box_v1.
+ * This file is the whole of the launcher, in the shape Errant's, Spurious's
+ * and Lothesome's standalone .bins have: what is brought up below, then the
+ * panel, gfx and touch on core 0, so the panel's interrupts are that core's;
+ * then the box, the player's NVS namespace named for it, and the player run
+ * on core 1, where its windows cannot hold the panel's interrupts off. The
+ * network is started as before, though a box cannot ask for it yet
+ * (absent.c).
+ *
+ * When the player ends: Exit to Launcher and power off both end it the same
+ * way in a box (esp_restart(), which the box answers by ending the app;
+ * absent.c). So on a clean end this does what a launcher would be there
+ * for: back to M5Launcher if one booted this from a slot, and otherwise the
+ * power off the player asked for and could not do from the box -- the
+ * PMS150's pulse, then deep sleep. A fault restarts, as a panic did.
  */
 #include <stddef.h>
 #include <stdint.h>
 
+#include "driver/i2c_master.h"           /* u-defeatist-0028: the power-off pulse */
 #include "driver/usb_serial_jtag.h"      /* 5082: the console TX buffer */
 #include "driver/usb_serial_jtag_vfs.h"
+#include "esp_heap_caps.h"
 #include "esp_log.h"
-#include "feckless_abi.h"
+#include "esp_sleep.h"
+#include "esp_system.h"
+#include "feckless_box_calls.h"
 #include "feckless_net.h"
+#include "feckless_umode_idf.h"
+#include "feckless_umode_load.h"
+#include "freertos/FreeRTOS.h"
+#include "freertos/task.h"
+#include "gfx.h"
+#include "launcher.h"
+#include "lcd.h"
 #include "nvs_handler.h"
 #include "nvsns.h"
 #include "shim_import.h"
 #include "storage.h"
 #include "storage_io.h"
 #include "tab5io.h"
+#include "touch.h"
 #include "usbhost.h"
 
 static const char *TAG = "standalone";
@@ -41,6 +70,57 @@ static const char *TAG = "standalone";
 /* The player: elf_loader's embed of build/elf/defeatist_player.app.elf. */
 extern const uint8_t elf_start[] asm("_binary_defeatist_player_app_elf_start");
 extern const uint8_t elf_end[]   asm("_binary_defeatist_player_app_elf_end");
+
+/* u-defeatist-0028: the box. The largest free PSRAM block less 2 MB for this
+ * firmware, measured after the panel's framebuffer is taken, and at most
+ * 24 MB -- Avoidant's rule (u-avoidant-0005). The player wants about
+ * 12 MB before its covers and library: the ELF and its statics 1.35 MB,
+ * its three PCM rings 10.5 MB (BOX.md). */
+#define BOX_MARGIN      (2u << 20)
+#define BOX_MAX         (24u << 20)
+#define BOX_STACK       (64 * 1024)         /* app_main's, in the box */
+#define BOX_CORE        (1)                 /* not the panel's */
+
+/* u-defeatist-0028: power off from here, as player.c's power_off_now()
+ * does it on a trusted run: the PMS150 cuts the supply when P4 of the
+ * expander at 0x44 is toggled -- M5Unified's ten writes, 50 ms apart. On
+ * battery the rail goes somewhere in the loop; on external power the
+ * controller holds it, and deep sleep takes the SoC dark instead. The
+ * player has saved its settings before it ended. */
+#define PWROFF_PULSE_BIT    (1u << 4)
+#define PWROFF_I2C_MS       (1000)
+
+static void power_off(void)
+{
+    ESP_LOGW(TAG, "powering off");
+    lcd_backlight_set(0);
+    i2c_master_dev_handle_t exp2 = tab5io_exp2();
+    if (exp2) {
+        const uint8_t setup[][2] = {
+            { PI4IOE_REG_IO_DIR,     1 },     /* output        */
+            { PI4IOE_REG_OUT_HIGH_Z, 0 },     /* out of high-Z */
+        };
+        for (size_t i = 0; i < sizeof setup / sizeof setup[0]; i++) {
+            uint8_t reg = setup[i][0], val = 0;
+            if (i2c_master_transmit_receive(exp2, &reg, 1, &val, 1, PWROFF_I2C_MS) != ESP_OK) continue;
+            val = setup[i][1] ? (uint8_t)(val | PWROFF_PULSE_BIT) : (uint8_t)(val & (uint8_t)~PWROFF_PULSE_BIT);
+            const uint8_t w[2] = { reg, val };
+            (void)i2c_master_transmit(exp2, w, sizeof w, PWROFF_I2C_MS);
+        }
+        uint8_t reg = PI4IOE_REG_OUT_SET, out = 0;
+        if (i2c_master_transmit_receive(exp2, &reg, 1, &out, 1, PWROFF_I2C_MS) == ESP_OK) {
+            for (int i = 0; i < 10; i++) {
+                const uint8_t v = (i & 1) ? (uint8_t)(out | PWROFF_PULSE_BIT) : (uint8_t)(out & (uint8_t)~PWROFF_PULSE_BIT);
+                const uint8_t w[2] = { PI4IOE_REG_OUT_SET, v };
+                (void)i2c_master_transmit(exp2, w, sizeof w, PWROFF_I2C_MS);
+                vTaskDelay(pdMS_TO_TICKS(50));
+            }
+        }
+    } else {
+        ESP_LOGE(TAG, "power off: expander 0x44 not up");
+    }
+    esp_deep_sleep_start();
+}
 
 void app_main(void)
 {
@@ -138,7 +218,48 @@ void app_main(void)
      * network is saved yet (shim_import.h); the card is up by now. */
     if (nvs_err == ESP_OK) (void)shim_import_launcher_wifi(DEFEATIST_NVS_NS);
 
-    /* 8087: the player. Does not return unless it could not start. */
-    const int ret = feckless_abi_run(elf_start, (size_t)(elf_end - elf_start));
-    ESP_LOGE(TAG, "the player did not start: %d", ret);
+    /* u-defeatist-0028: the panel, gfx and touch, on core 0, before the box
+     * is sized. The player's own inits find them up and return ESP_OK. */
+    esp_lcd_panel_handle_t panel = NULL;
+    if (lcd_init(&panel) != ESP_OK || gfx_init(panel, LCD_H_RES, LCD_V_RES) != ESP_OK) {
+        ESP_LOGE(TAG, "the panel did not come up");
+        return;
+    }
+    touch_init(tab5io_bus(), LCD_H_RES, LCD_V_RES);     /* the player copes without */
+
+    /* The box. The stack guard's interrupt out of every core's routing
+     * first, which a window needs. NVS in the player's namespace only:
+     * the saved networks and everything else stay out of its reach. */
+    feckless_umode_guard_unroute();
+    const size_t big = heap_caps_get_largest_free_block(MALLOC_CAP_SPIRAM);
+    size_t box = big > BOX_MARGIN ? big - BOX_MARGIN : 0;
+    if (box > BOX_MAX) box = BOX_MAX;
+    box &= ~(size_t)63;
+    const char *const ns[] = { DEFEATIST_NVS_NS };
+    (void)feckless_box_calls_nvs(ns, 1);
+    uint32_t n;
+    const feckless_umode_call_t *calls = feckless_box_calls_v1(&n);
+    feckless_umode_app_t *app = NULL;
+    const esp_err_t err = feckless_umode_load(elf_start, (size_t)(elf_end - elf_start), calls, n,
+                                              (uint32_t)box, BOX_STACK, &app);
+    if (err != ESP_OK) {
+        ESP_LOGE(TAG, "the player would not load in a box of %u KB: %s",
+                 (unsigned)(box / 1024), esp_err_to_name(err));
+        return;
+    }
+    ESP_LOGI(TAG, "the player in a box of %u KB", (unsigned)(box / 1024));
+    const feckless_umode_end_t end = feckless_umode_app_run_on(app, BOX_CORE);
+    feckless_umode_unload(app);
+    feckless_box_calls_end();
+
+    if (end.reason == FECKLESS_UMODE_END_EXIT || end.reason == FECKLESS_UMODE_END_KILLED) {
+        ESP_LOGI(TAG, "the player ended");
+        if (launcher_present()) launcher_exit_to_launcher();   /* back to M5Launcher; no return */
+        power_off();
+    }
+    ESP_LOGE(TAG, "the player ended: reason %d, %s at 0x%08x; restarting", (int)end.reason,
+             end.reason == FECKLESS_UMODE_END_FAULT ? feckless_umode_cause_name(end.mcause) : "-",
+             (unsigned)end.pc);
+    vTaskDelay(pdMS_TO_TICKS(3000));
+    esp_restart();
 }

@@ -763,3 +763,11 @@ CONFIG_MBEDTLS_X509_CREATE_C=y
 # call to `__errno()`. 8134 selected newlib instead, before that existed.
 # A configuration carried over from 8134 has newlib until you rm sdkconfig.
 CONFIG_LIBC_PICOLIBC=y
+
+# u-defeatist-0028: the player runs in a box (feckless_umode, feckless-libs'
+# umode branch). ESP-IDF's region protection programs the PMP and locks
+# every entry, one giving user mode read and write over internal DRAM, so no
+# box could be granted; off, the PMP is left in its reset state and the box
+# is granted alone. feckless_umode stops the configure if this is on.
+# rm sdkconfig.
+CONFIG_BOOTLOADER_REGION_PROTECTION_ENABLE=n

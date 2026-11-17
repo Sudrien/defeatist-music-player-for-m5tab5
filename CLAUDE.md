@@ -216,11 +216,16 @@ for the next number. feckless-libs and Avoidant have the same arrangement
 (`u-feckless-NNNN`, `u-avoidant-NNNN`). When the branch merges, its entries
 move into the series of the release it goes into.
 
-**On that branch the player's own manifest and lock stay on a tag.** What
-follows feckless-libs' `umode` branch is a project of its own under
-`m5tab5/` (boxwin is the first), with its own `idf_component.yml` and
-`dependencies.lock`, so a measurement there cannot move a pin that a
-release is built from.
+**On that branch there is one build, and it is the boxed one**
+(u-defeatist-0028). `idf.py build` in `m5tab5/` makes the player as an
+ELF for a box, `build/defeatist_player.app.elf`, and the .bin beside it,
+whose `standalone.c` is the whole of a launcher: it brings the board up
+and runs that ELF in a box. `main/idf_component.yml` pins feckless-libs'
+own `umode` branch (`u-feckless-NNNN`), not a tag, and the lock records
+its commit; Avoidant's `umode` branch (`u-avoidant-NNNN`) is the launcher
+that runs the same ELF. No trusted build of the player on this branch.
+`boxwin/` is a measurement, not the player: a project of its own with its
+own manifest and lock, as before.
 
 **`ABBREVIATIONS.md` lists every short label and setting the screen
 shows.** A patch that adds, renames or removes one changes that file in

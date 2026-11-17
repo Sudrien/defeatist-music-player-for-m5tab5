@@ -30160,3 +30160,79 @@ bootloader's ExternalProject call, and `CMAKE_POLICY_DEFAULT_CMP0168` set
 before project.cmake makes it NEW there. Then the change itself: every
 project configures with CMake 3.28 and 4.4 without warnings, and the
 firmware builds as before. *Not checked:* CMake 4.5; a board.
+
+### u-defeatist-0028 -- one build: the boxed ELF, and a .bin whose launcher boxes it
+
+The player comes to the shape Errant's, Spurious's and Lothesome's umode
+branches have. `boxed/` goes, and with it the trusted ELF: `idf.py
+build` in `m5tab5/` makes
+
+    build/defeatist_player.app.elf                 the player, for a box
+    build/defeatist_music_player_for_m5tab5.bin    a launcher that runs it in one
+
+and nothing else builds the player. `boxwin/` stays: a measurement with
+its own manifest, not the player.
+
+- **`main/idf_component.yml`**: the sixteen feckless pins move from
+  v0.10.3 to feckless-libs' `umode` branch (boxed/'s manifest had them
+  there already); `feckless_box_libc`, `feckless_umode` and
+  `feckless_box_calls` are added. The registry pins are unchanged. The
+  lock is re-resolved by the next build.
+- **`elf/CMakeLists.txt`**: `feckless_abi_box_elf()`, so the ELF carries
+  the box's part of libc and both checks run.
+- **`main/CMakeLists.txt`**, the ELF's half: boxed/'s additions -- its
+  `boxed_main.c`, now `elf_main.c` in place of the trusted one;
+  `absent.c`; `absent_codec.c` with `-DDEFEATIST_BOXED_CODEC=OFF`;
+  feckless_storage_handler's `storage_list.c` compiled into the app. The
+  source list is main/'s own, so boxed/'s check that two lists agree goes
+  too. The .bin's half: the box's components, the setting passed to the
+  ELF's build, and a copy of the ELF beside the .bin.
+- **`main/standalone.c` is the launcher, whole.** The console, NVS, the
+  bus, USB, storage, the network and M5Launcher's networks as before;
+  then the panel, gfx and touch on core 0; then the box -- the largest
+  free PSRAM block less 2 MB, at most 24 MB, a 64 KB stack, NVS in
+  `defeatist` alone -- and `feckless_umode_app_run_on(app, 1)`. It no
+  longer calls `feckless_abi_run()`, which refuses a boxed ELF.
+- **When the player ends.** In a box Exit to Launcher and power off end it
+  alike (absent.c's partitions say "hosted", and `esp_restart()` is the
+  box ending the app; the power-off pulse is raw I2C, absent). So on a
+  clean end the .bin does what a launcher would be there for: back to
+  M5Launcher if one booted it from a slot (`launcher_exit_to_launcher()`
+  on the real table), and otherwise the power off itself -- the PMS150's
+  pulse as `power_off_now()` gives it, then deep sleep. A fault, a stack
+  overflow or a refused window logs the reason and pc and restarts after
+  3 s, as a panic did. On the .bin alone, Exit to Launcher now shows (the
+  ELF's table is absent.c's) and powers off.
+- **`sdkconfig.defaults`**: `CONFIG_BOOTLOADER_REGION_PROTECTION_ENABLE=n`,
+  which feckless_umode stops the configure without. **`rm sdkconfig`**
+  once. (`CONFIG_ESP_HTTPS_SERVER_ENABLE=y` was there already.)
+- **The workflow** publishes the ELF beside the two .bins, as
+  `defeatist_<version>_music_player_for_m5tab5.elf`: Avoidant names the
+  NVS namespace from a file name up to its first `_`, so that and
+  `defeatist_player.app.elf` both get `defeatist`.
+- boxed/'s README is `m5tab5/BOX.md`, its building and on-a-board parts
+  rewritten for one build; CLAUDE.md's paragraph on the branch says the
+  above.
+
+*Checked:* a clean ESP-IDF 6.1.1 build of `m5tab5/`, riscv32-esp-elf
+15.2.0, component manager off, given only the feckless components the
+manifest names, against feckless-libs' umode branch at cfa96c9:
+
+    -- feckless_abi: 195 symbols, all in feckless_abi_v1 + feckless_abi_audio_v1 + feckless_abi_box_v1 + feckless_abi_nvs_v1 + feckless_abi_storage_v2
+    -- feckless_box_libc: boxed, 195 imports, none of them in-app names, all answered by the box
+    defeatist_music_player_for_m5tab5.bin binary size 0x290ee0 bytes. Smallest app partition is 0x600000 bytes. 0x36f120 bytes (57%) free.
+
+the same 195 boxed/ reported; the only warnings minimp3's two, as
+before. `build/defeatist_player.app.elf` is byte for byte the one in
+`build/elf/`, 927196 bytes, with no privileged instruction (eleven
+`fflags` accesses); the .bin holds `feckless_umode_app_run_on`,
+`feckless_box_calls_nvs` and `launcher_exit_to_launcher`, and no object
+of feckless_box_libc. With `-DDEFEATIST_BOXED_CODEC=OFF` the ELF builds
+with `absent_codec.c`, 188 imports, all answered -- boxed/'s 188.
+texttest passes.
+
+*Not checked:* a board; a build with the component manager, which writes
+the new lock; the workflow's run. What a board's log should show:
+`standalone: the player in a box of N KB` (N near 24576 if the PSRAM is
+free), `=== Defeatist Music Player ===`, the player's start-up; on power
+off, `standalone: the player ended` and then `powering off`.

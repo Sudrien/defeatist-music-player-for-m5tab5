@@ -2481,7 +2481,31 @@ static esp_err_t seek_raw(decoder_t *d, uint32_t sec, uint32_t *landed_cs)
      * own index and this reads as the whole file.
      */
     const int64_t t0 = esp_timer_get_time();
-    const int rc = mp3dec_ex_seek(&d->ex, target);
+    int rc;
+    if (target == 0 && !d->ex.indexes_built) {
+        /*
+         * u-defeatist-0034: the start needs no index. minimp3 has a fast
+         * path for 0, but tests for it after adding start_delay -- the
+         * encoder delay a LAME header gives -- so on a gapless file 0
+         * missed it and the first seek read the whole file to build the
+         * per-frame index: "prev" 7 s into a 6 MB track took 12.4 s, the
+         * ring played out, and the rest was silence.
+         *
+         * Where open left the decoder is the answer: start_offset, with
+         * start_delay still to skip. A byte seek to start_offset puts the
+         * file and the decoder's buffers there without an index (the
+         * flag is consulted only by the seek), and to_skip is open's.
+         * minimp3_ex.h is vendored under a SHA256 pin, so the fix is
+         * here rather than in it.
+         */
+        const int flags = d->ex.flags;
+        d->ex.flags &= ~MP3D_SEEK_TO_SAMPLE;
+        rc = mp3dec_ex_seek(&d->ex, d->ex.start_offset);
+        d->ex.flags = flags;
+        if (rc == 0) d->ex.to_skip = d->ex.start_delay;
+    } else {
+        rc = mp3dec_ex_seek(&d->ex, target);
+    }
     const uint32_t ms = (uint32_t)((esp_timer_get_time() - t0) / 1000);
 
     if (rc != 0) {

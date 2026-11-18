@@ -16023,17 +16023,23 @@ void defeatist_main(void)
         if (!s_ring[i]) { s_pcm = NULL; break; }
     }
     if (s_pcm) {
-        /* u-defeatist-0030: on core 0, apart from the rest of the player.
-         * In a box every thread asked for without a core runs on app_main's
-         * (core 1), and a window holds interrupts off on its core until the
-         * thread's next host call (u-feckless-0017): the writer, highest of
-         * the player's priorities, could not preempt the UI drawing a cover
-         * or the media task decoding, and the I2S DMA's 87 ms ran out while
-         * it waited -- a pop. On core 0 it waits for no thread of the
-         * player's, and its own windows are short (a ring read, the gain and
-         * effects on one chunk, a write), so the panel's interrupts there
-         * are held off for no longer than that. */
-        xTaskCreatePinnedToCore(i2s_writer_task, "i2s_wr", 4096, NULL, 6, NULL, 0);
+        /* u-defeatist-0031: on app_main's core (1), with the rest of the
+         * player -- back from core 0, where 0030 put it. A window holds
+         * interrupts off on its core until the thread's next host call
+         * (u-feckless-0017), and core 0 is the launcher's: the touch, the
+         * console, the panel. Every other box on this board runs its
+         * windows on core 1 only, and the one boot that played while the
+         * media index was being written hung there with no panic and came
+         * back through the hardware watchdog.
+         *
+         * The pops 0030 was after came from the keystone's 170 ms window,
+         * which the writer could not preempt. The keystone checks in now
+         * (feckless_box_checkin, every 16K pixels a host call), and at a
+         * host call the scheduler takes the writer, highest of the
+         * player's priorities, ahead of it -- so it no longer has to be on
+         * a core of its own to be heard on time. A loop that computes long
+         * checks in; that is the rule, not the core. */
+        xTaskCreate(i2s_writer_task, "i2s_wr", 4096, NULL, 6, NULL);
     } else {
         ESP_LOGE(TAG, "no PCM ring; this boot cannot play audio");
     }

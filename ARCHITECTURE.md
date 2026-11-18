@@ -30273,3 +30273,35 @@ an older feckless-libs, boxcheck fails this build on the JPEG names.
 *Not checked:* a board. What to look for: no `no hardware JPEG engine`
 line; img_esp's `decoded by` lines saying hardware for baseline covers;
 and no watchdog over a long run with covers changing.
+
+### u-defeatist-0030 -- the audio writer on core 0; the keystone checks in
+
+With 0029 the player played in a box, and a podcast "popped a lot". The
+log has no underrun line -- neither the player nor the driver logs one --
+but the shape fits one cause. Every thread of the player asked for
+without a core runs on app_main's in a box (feckless_box_calls'
+`box_rtos_core()`): all seven on core 1. A window holds interrupts off
+on its core until the thread's next host call (u-feckless-0017), so the
+I2S writer, the player's highest priority, cannot preempt the UI or the
+media task mid-computation; it runs at their next host call. The I2S DMA
+holds 8 x 480 frames, 87 ms at 44.1 kHz, and auto-clears: a wait longer
+than that is a gap of silence, which is a pop. The podcast had a cover
+(the classical tracks before it had none), and that cover's keystone took
+170 ms in one window (181563 -> 181732).
+
+- **`player.c`**: the writer is made with `xTaskCreatePinnedToCore(...,
+  0)`. On core 0 it waits for no thread of the player's. Its own windows
+  are one chunk's worth (a ring read, gain and effects on 4 KB, a write),
+  so the panel's interrupts on core 0 are held off no longer than that;
+  the other threads stay on core 1, away from the panel, as before.
+- **`albumart.c`**: `keystone_apply()` calls `feckless_box_checkin()`
+  (u-feckless-0065) once a line, so the UI's 170 ms is no longer one
+  window.
+
+*Checked:* a clean ESP-IDF 6.1.1 build against feckless-libs' umode
+branch at 2a10c92 (u-feckless-0065): 200 imports, all answered, the .bin
+0x2951e0 bytes. *Not checked:* that this is the pops' cause, or that it
+ends them: a board. What to listen for: the same podcast, with its
+cover, clean; and the screen not flickering while the writer is on core
+0. If the pops go on, the next thing is to make underruns visible (the
+I2S driver's `on_send_q_ovf` event) so the log says when.

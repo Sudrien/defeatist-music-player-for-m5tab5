@@ -15965,7 +15965,17 @@ void defeatist_main(void)
         if (!s_ring[i]) { s_pcm = NULL; break; }
     }
     if (s_pcm) {
-        xTaskCreate(i2s_writer_task, "i2s_wr", 4096, NULL, 6, NULL);
+        /* u-defeatist-0030: on core 0, apart from the rest of the player.
+         * In a box every thread asked for without a core runs on app_main's
+         * (core 1), and a window holds interrupts off on its core until the
+         * thread's next host call (u-feckless-0017): the writer, highest of
+         * the player's priorities, could not preempt the UI drawing a cover
+         * or the media task decoding, and the I2S DMA's 87 ms ran out while
+         * it waited -- a pop. On core 0 it waits for no thread of the
+         * player's, and its own windows are short (a ring read, the gain and
+         * effects on one chunk, a write), so the panel's interrupts there
+         * are held off for no longer than that. */
+        xTaskCreatePinnedToCore(i2s_writer_task, "i2s_wr", 4096, NULL, 6, NULL, 0);
     } else {
         ESP_LOGE(TAG, "no PCM ring; this boot cannot play audio");
     }

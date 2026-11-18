@@ -36,6 +36,7 @@
 #include "gfx.h"
 #include "ui.h"      /* ui_blit_art(): the artwork is a band in portrait
                      * and a column in landscape, and only ui.c knows */
+#include "feckless_box.h"   /* u-defeatist-0030: feckless_box_checkin() */
 
 static const char *TAG = "tab5_art";
 
@@ -757,6 +758,9 @@ static void keystone_apply(uint16_t *fb, int fbw, int dx, int dy, int cw, int ch
      * near edge to 1 at the far one. */
     const int lines = rows ? ch : cw;
     for (int l = 0; l < lines; l++) {
+        /* u-defeatist-0030: 170 ms for a 560 px cover in a box, with no host
+         * call in it; a line at a time, the core takes what was held off. */
+        feckless_box_checkin((uint32_t)(rows ? cw : ch));
         const int from_far = flip ? l : (lines - 1 - l);
         const uint32_t t_q16 = (uint32_t)(((uint64_t)(lines - 1 - from_far) << 16) / (lines - 1));
         const uint32_t shrink = 65536u - (uint32_t)(((uint64_t)k_q16 * t_q16) >> 16);

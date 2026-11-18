@@ -2427,6 +2427,96 @@ static size_t late_recv(StreamBufferHandle_t sb, void *dst, size_t n, TickType_t
     return got;
 }
 
+/*
+ * u-defeatist-0035: the tap -- what the writer hands the output, to a file.
+ *
+ * A stutter on the jack and the speaker that the output never ran dry for
+ * (u-feckless-0066 counts every buffer of silence the I2S DMA sends) is
+ * either in the samples or after them: the driver, the codec, the analog.
+ * Listening cannot tell those apart; the samples can. With /sd/.tap on the
+ * card at boot, the first TAP_SECONDS written after it is seen are copied
+ * to PSRAM as they go to audio_out_write() -- a memcpy on the writer, no
+ * I/O -- and then saved by a task of their own as /sd/tap-<ms>.wav. If the
+ * stutter is in that file it is upstream of the driver; if the file is
+ * clean, it is not.
+ *
+ * Once a boot; delete /sd/.tap to stop. Pauses are not in the file: it is
+ * the samples written, end to end.
+ */
+#define TAP_SECONDS     15
+#define TAP_FLAG        "/sd/.tap"
+
+static uint8_t *s_tap;
+static size_t   s_tap_n, s_tap_cap;
+static uint32_t s_tap_rate;
+static int      s_tap_state;        /* 0 not looked, 1 recording, 2 done or off */
+
+static void put_le(uint8_t *p, uint32_t v, int bytes)
+{
+    for (int i = 0; i < bytes; i++) p[i] = (uint8_t)(v >> (8 * i));
+}
+
+static void tap_save_task(void *arg)
+{
+    (void)arg;
+    char path[40];
+    snprintf(path, sizeof path, "/sd/tap-%lu.wav",
+             (unsigned long)(esp_timer_get_time() / 1000));
+    uint8_t h[44];
+    const uint32_t rate = s_tap_rate ? s_tap_rate : 44100;
+    memcpy(h, "RIFF", 4);  put_le(h + 4, 36 + (uint32_t)s_tap_n, 4);
+    memcpy(h + 8, "WAVEfmt ", 8);
+    put_le(h + 16, 16, 4); put_le(h + 20, 1, 2); put_le(h + 22, 2, 2);
+    put_le(h + 24, rate, 4); put_le(h + 28, rate * 4, 4);
+    put_le(h + 32, 4, 2);  put_le(h + 34, 16, 2);
+    memcpy(h + 36, "data", 4); put_le(h + 40, (uint32_t)s_tap_n, 4);
+    FILE *f = fopen(path, "wb");
+    bool ok = f && fwrite(h, 1, sizeof h, f) == sizeof h &&
+              fwrite(s_tap, 1, s_tap_n, f) == s_tap_n;
+    if (f && fclose(f) != 0) ok = false;
+    if (ok) {
+        ESP_LOGW(TAG, "tap: %s, %u KB, %lu Hz stereo 16-bit -- what went to the output",
+                 path, (unsigned)(s_tap_n / 1024), (unsigned long)rate);
+    } else {
+        ESP_LOGE(TAG, "tap: could not write %s", path);
+    }
+    heap_caps_free(s_tap);
+    s_tap = NULL;
+    vTaskDelete(NULL);
+}
+
+static void tap_take(const void *buf, size_t n)
+{
+    if (s_tap_state == 0) {
+        struct stat st;
+        s_tap_state = 2;
+        if (stat(TAP_FLAG, &st) != 0) return;
+        s_tap_rate = audio_out_rate();
+        s_tap_cap = (size_t)TAP_SECONDS * (s_tap_rate ? s_tap_rate : 44100) * 4;
+        s_tap = heap_caps_malloc(s_tap_cap, MALLOC_CAP_SPIRAM | MALLOC_CAP_8BIT);
+        if (!s_tap) {
+            ESP_LOGW(TAG, "tap: no %u KB for it", (unsigned)(s_tap_cap / 1024));
+            return;
+        }
+        s_tap_n = 0;
+        s_tap_state = 1;
+        ESP_LOGW(TAG, "tap: %s is on the card; the next %d s written go to a file",
+                 TAP_FLAG, TAP_SECONDS);
+    }
+    if (s_tap_state != 1) return;
+    size_t take = s_tap_cap - s_tap_n;
+    if (take > n) take = n;
+    memcpy(s_tap + s_tap_n, buf, take);
+    s_tap_n += take;
+    if (s_tap_n == s_tap_cap) {
+        s_tap_state = 2;
+        if (xTaskCreate(tap_save_task, "tap", 4096, NULL, 1, NULL) != pdPASS) {
+            heap_caps_free(s_tap);
+            s_tap = NULL;
+        }
+    }
+}
+
 static void late_write(const void *buf, size_t n)
 {
     const int64_t now = esp_timer_get_time();
@@ -2440,6 +2530,7 @@ static void late_write(const void *buf, size_t n)
             }
         }
     }
+    tap_take(buf, n);                                   /* 0035 */
     audio_out_write(buf, n);
     s_late_last = esp_timer_get_time();
     s_late_wait = 0;

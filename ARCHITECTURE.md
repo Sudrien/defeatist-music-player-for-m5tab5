@@ -30305,3 +30305,40 @@ ends them: a board. What to listen for: the same podcast, with its
 cover, clean; and the screen not flickering while the writer is on core
 0. If the pops go on, the next thing is to make underruns visible (the
 I2S driver's `on_send_q_ovf` event) so the log says when.
+
+### u-defeatist-0036 -- tapcheck.py: a tap read against its file
+
+Some files stutter, and the question was whether the files are damaged
+or the player is. 0035's tap answers it, but only by ear. This answers
+it in numbers, on the PC: `tools/tapcheck.py tap-<ms>.wav <the track>`.
+
+- ffmpeg decodes the whole source with errors on; any error is printed,
+  and the file is damaged whatever else is found.
+- The tap's first loud second is found in that decode by normalised
+  cross-correlation, so a tap that began mid-track (a resume, a seek)
+  still lines up.
+- Then 20 ms blocks, each with a gain fitted to the source at that point
+  (volume, ReplayGain and the ramps scale; they do not reshape), scored
+  as the residual's SNR. A block well under 20 dB has the *next* block
+  looked for within half a second of where it belongs -- the seam block
+  is half one thing and half the other -- and a better match there is a
+  SKIP (forward) or REPEAT (back) of that many frames. Zeros where the
+  source has sound are SILENT; a block 15 dB under the tap's own median
+  at the right place is BAD.
+- A tap with none of these is clean, and a stutter heard in that stretch
+  is downstream of `audio_out_write()`.
+
+On a periodic signal a jump is only known modulo the period, so most of
+test_audio_files (tones) are poor for it; among equal matches the
+nearest lag wins, which is right for music. Needs numpy and ffmpeg, so
+it is not stdlib-only like streamcheck.py.
+
+*Checked*, on the host, with taps built from pink noise and a tone (FLAC
+and 192k MP3), 1 s in, gain 0.6, 2000 frames of leading zeros, and a
+1024-frame skip, a 1024-frame repeat, 512 zeros and a 40-frame click
+spliced in: all four found at the right tap and source times, the skip
+and repeat to the frame, and nothing flagged on the same tap without
+them (median 72 dB). Through a linear resampler to 48 kHz the median
+falls to 24 dB and the same four are found, nothing else. A copy of the
+MP3 with five 600-byte holes is reported damaged. *Not checked:* a real
+tap from the board.

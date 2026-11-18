@@ -5,9 +5,9 @@
  * boxed one.)
  *
  * The boxed ELF is the player's sources unchanged, so it still calls the
- * network, NVS, esp_audio_codec, the hardware JPEG decoder, the crypto
- * section, raw I2C and a few others that a feckless box (feckless-libs'
- * umode branch, to u-feckless-0049) has no host call for. Each is defined
+ * network, NVS, esp_audio_codec, the crypto section, raw I2C and a few
+ * others that a feckless box (feckless-libs' umode branch, to
+ * u-feckless-0049) has no host call for. Each is defined
  * here to fail the way the player already copes with on a trusted run:
  *
  *   the network      down and never coming up: no Wi-Fi, no Ethernet, no
@@ -21,8 +21,8 @@
  *   esp_audio_codec  only with DEFEATIST_BOXED_CODEC off (u-defeatist-0023):
  *                    absent_codec.c. On, the box answers it
  *                    (u-feckless-0052).
- *   hardware JPEG    no engine: album art decodes in software
- *                    (feckless_image_handler's fallback).
+ *   hardware JPEG    answered by the box since u-feckless-0065
+ *                    (u-defeatist-0029): its stand-ins are gone from here.
  *   the rest         esp_ota/esp_partition (no slot to pick: u-defeatist-0025
  *                    has the table say "hosted", so Exit to Launcher shows
  *                    and leaves by esp_restart(), which a box answers by
@@ -59,7 +59,6 @@
 #include "esp_system.h"   /* u-defeatist-0025: esp_restart */
 #include "esp_wifi.h"
 #include "driver/i2c_master.h"
-#include "driver/jpeg_decode.h"
 #include "lwip/inet.h"
 #include "lwip/netdb.h"
 #include "lwip/sockets.h"
@@ -351,33 +350,6 @@ psa_status_t psa_hash_compute(psa_algorithm_t alg, const uint8_t *input, size_t 
     (void)alg; (void)input; (void)input_length; (void)hash; (void)hash_size;
     if (hash_length) *hash_length = 0;
     return PSA_ERROR_NOT_SUPPORTED;
-}
-
-/* ---- the hardware JPEG decoder: no engine --------------------------------- */
-
-esp_err_t jpeg_new_decoder_engine(const jpeg_decode_engine_cfg_t *cfg, jpeg_decoder_handle_t *ret)
-{
-    (void)cfg;
-    if (ret) *ret = NULL;
-    return ESP_ERR_NOT_SUPPORTED;
-}
-void *jpeg_alloc_decoder_mem(size_t size, const jpeg_decode_memory_alloc_cfg_t *cfg, size_t *allocated)
-{
-    (void)size; (void)cfg;
-    if (allocated) *allocated = 0;
-    return NULL;
-}
-esp_err_t jpeg_decoder_get_info(const uint8_t *bs, uint32_t n, jpeg_decode_picture_info_t *info)
-{
-    (void)bs; (void)n; (void)info;
-    return ESP_ERR_NOT_SUPPORTED;
-}
-esp_err_t jpeg_decoder_process(jpeg_decoder_handle_t eng, const jpeg_decode_cfg_t *cfg, const uint8_t *bs,
-                               uint32_t n, uint8_t *out, uint32_t out_size, uint32_t *out_len)
-{
-    (void)eng; (void)cfg; (void)bs; (void)n; (void)out; (void)out_size;
-    if (out_len) *out_len = 0;
-    return ESP_ERR_NOT_SUPPORTED;
 }
 
 /* ---- the rest -------------------------------------------------------------- */

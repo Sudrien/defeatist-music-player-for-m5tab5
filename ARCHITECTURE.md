@@ -30236,3 +30236,40 @@ the new lock; the workflow's run. What a board's log should show:
 `standalone: the player in a box of N KB` (N near 24576 if the PSRAM is
 free), `=== Defeatist Music Player ===`, the player's start-up; on power
 off, `standalone: the player ended` and then `powering off`.
+
+### u-defeatist-0029 -- covers by the JPEG engine, through the box
+
+An hour into a run of 0028's standalone .bin:
+
+    W (3626000) img_esp: no hardware JPEG engine (ESP_ERR_NOT_SUPPORTED); pictures decode in software
+    Guru Meditation Error: Core  1 panic'ed (Interrupt wdt timeout on CPU1).
+
+absent.c had the hardware JPEG decoder as no engine, so every cover went
+to TJpgDec or pngle in software, in the player's window on core 1, with
+interrupts held off there for the length of the decode; a large one
+outlasted the interrupt watchdog. feckless-libs' u-feckless-0065 answers
+the engine in a box, and has the image handler check in with the host
+from its software PNG decode and its fit.
+
+- **absent.c** loses its four JPEG stand-ins; the box's calls take their
+  place.
+- **elf_main.c** requires the image section, `feckless_abi_require_image()`:
+  a box without the engine refuses the ELF by that name, as for the audio
+  and NVS sections.
+
+Nothing in the player's own code changes: it already asks the image
+handler, which already tries the engine first.
+
+*Checked:* a clean ESP-IDF 6.1.1 build, component manager off, only the
+manifest's feckless components, against feckless-libs' umode branch with
+u-feckless-0065:
+
+    -- feckless_abi: 200 symbols, all in feckless_abi_v1 + feckless_abi_audio_v1 + feckless_abi_box_v1 + feckless_abi_image_v1 + feckless_abi_nvs_v1 + feckless_abi_storage_v2
+    -- feckless_box_libc: boxed, 200 imports, none of them in-app names, all answered by the box
+    defeatist_music_player_for_m5tab5.bin binary size 0x2951e0 bytes. Smallest app partition is 0x600000 bytes. 0x36ae20 bytes (57%) free.
+
+**Needs u-feckless-0065 pushed and the lock moved to it first**: against
+an older feckless-libs, boxcheck fails this build on the JPEG names.
+*Not checked:* a board. What to look for: no `no hardware JPEG engine`
+line; img_esp's `decoded by` lines saying hardware for baseline covers;
+and no watchdog over a long run with covers changing.

@@ -30,6 +30,7 @@
 #if DEFEATIST_BOXED_CODEC
 #include "feckless_abi_audio.h"
 #endif
+#include "feckless_abi_image.h"          /* u-defeatist-0029 */
 
 void app_main(void)
 {
@@ -39,6 +40,12 @@ void app_main(void)
     /* u-defeatist-0024: NVS through the box (u-feckless-0053), in the
      * namespace the launcher names; a box without it refuses the ELF. */
     feckless_abi_require_nvs();
+    /* u-defeatist-0029: the hardware JPEG decoder through the box
+     * (u-feckless-0065): a cover decodes in one host call, by DMA, not in
+     * software in the player's window -- which held interrupts off long
+     * enough to trip the interrupt watchdog. A box without it refuses the
+     * ELF by this name. */
+    feckless_abi_require_image();
 #if DEFEATIST_BOXED_CODEC
     /* u-defeatist-0023: esp_audio_codec through the box (u-feckless-0052);
      * a launcher without the codec refuses the ELF by this name. */

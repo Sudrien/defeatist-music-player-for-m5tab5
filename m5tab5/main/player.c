@@ -2398,6 +2398,62 @@ static void fxbench_poll(void)
 #endif
 
 /*
+ * u-defeatist-0032: a block that reaches I2S late, and why.
+ *
+ * The DMA holds 87 ms at 44.1 kHz; a writer that comes back later than
+ * that is heard as a click (feckless's audio_out counts those and says
+ * so, u-feckless-0066). From in here the time between two blocks splits
+ * in two: what the writer spent blocked on the ring -- the decode behind,
+ * the card or the network slow -- and everything else, which in a box is
+ * mostly other threads' windows on this core holding it off
+ * (u-feckless-0017). Which half it was is the diagnosis, so both go in
+ * the log.
+ *
+ * Only gaps under a second count; longer is a pause or nothing playing.
+ * The pause and rebuffer paths clear s_late_last for the same reason.
+ */
+#define LATE_MS         60
+#define LATE_LOG_US     (2000 * 1000)
+static int64_t  s_late_last;        /* when the last block went; 0: none to measure from */
+static int64_t  s_late_wait;        /* us blocked on the ring since */
+static int64_t  s_late_logged;
+static uint32_t s_late_n, s_late_worst, s_late_worst_wait;
+
+static size_t late_recv(StreamBufferHandle_t sb, void *dst, size_t n, TickType_t to)
+{
+    const int64_t t = esp_timer_get_time();
+    const size_t got = xStreamBufferReceive(sb, dst, n, to);
+    s_late_wait += esp_timer_get_time() - t;
+    return got;
+}
+
+static void late_write(const void *buf, size_t n)
+{
+    const int64_t now = esp_timer_get_time();
+    if (s_late_last) {
+        const int64_t gap = now - s_late_last;
+        if (gap >= LATE_MS * 1000 && gap < 1000 * 1000) {
+            s_late_n++;
+            if ((uint32_t)(gap / 1000) > s_late_worst) {
+                s_late_worst = (uint32_t)(gap / 1000);
+                s_late_worst_wait = (uint32_t)(s_late_wait / 1000);
+            }
+        }
+    }
+    audio_out_write(buf, n);
+    s_late_last = esp_timer_get_time();
+    s_late_wait = 0;
+    if (s_late_n && s_late_last - s_late_logged >= LATE_LOG_US) {
+        ESP_LOGW(TAG, "writer late %" PRIu32 "x; worst %" PRIu32 " ms between blocks: "
+                 "%" PRIu32 " ms waiting on the ring, %" PRIu32 " ms held off",
+                 s_late_n, s_late_worst, s_late_worst_wait,
+                 s_late_worst > s_late_worst_wait ? s_late_worst - s_late_worst_wait : 0);
+        s_late_n = s_late_worst = s_late_worst_wait = 0;
+        s_late_logged = s_late_last;
+    }
+}
+
+/*
  * Up to `cap` bytes of ring r at `step` into dst. Tops the stage up from
  * the ring first -- waiting up to `wait` only when the stage is nearly
  * empty, so a chunk of staged audio is never held behind a timeout.
@@ -2408,9 +2464,8 @@ static size_t vs_read(int r, uint32_t step, uint8_t *dst, size_t cap,
     uint8_t *st = s_vs_stage[r];
     size_t have = s_vs_stage_n[r];
     if (have < PCM_CHUNK_BYTES) {
-        have += xStreamBufferReceive(s_ring[r], st + have,
-                                     PCM_CHUNK_BYTES - have,
-                                     have >= 4 * PCM_BYTES_PER_FRAME ? 0 : wait);
+        have += late_recv(s_ring[r], st + have, PCM_CHUNK_BYTES - have,
+                          have >= 4 * PCM_BYTES_PER_FRAME ? 0 : wait);
     }
     size_t used = 0;
 #ifdef FXBENCH
@@ -2814,6 +2869,7 @@ static void i2s_writer_task(void *arg)
                     ring_dry(s_ring_play)) {
                     ring_advance_play();
                 }
+                s_late_last = 0;                /* 0032: silence on purpose */
                 vTaskDelay(pdMS_TO_TICKS(20));
                 continue;
             }
@@ -2844,6 +2900,7 @@ static void i2s_writer_task(void *arg)
          */
         if (s_stream_hold) {
             s_fx_gap = true;                /* 6097 */
+            s_late_last = 0;                /* 0032: silence on purpose */
             vTaskDelay(pdMS_TO_TICKS(20));
             continue;
         }
@@ -3083,7 +3140,7 @@ static void i2s_writer_task(void *arg)
                     xfade_mix((int16_t *)buf, (const int16_t *)mixbuf,
                               n / PCM_BYTES_PER_FRAME);
                     fx_out(buf, n);                         /* 6097 */
-                    audio_out_write(buf, n);
+                    late_write(buf, n);
                     ring_publish();
 
                     if (s_xfade_pos >= s_xfade_frames) {
@@ -3159,7 +3216,7 @@ static void i2s_writer_task(void *arg)
                     }
 
                     fx_out(buf, solo);                      /* 6097 */
-                    audio_out_write(buf, solo);
+                    late_write(buf, solo);
                     ring_publish();
                     continue;
                 }
@@ -3207,8 +3264,8 @@ static void i2s_writer_task(void *arg)
         const int pr = s_ring_play;
         const size_t got = vs_engaged(pr)
             ? vs_read(pr, s_vs_step[pr], buf, PCM_CHUNK_BYTES, pdMS_TO_TICKS(100))
-            : xStreamBufferReceive(s_ring[pr], buf, PCM_CHUNK_BYTES,
-                                   pdMS_TO_TICKS(100));
+            : late_recv(s_ring[pr], buf, PCM_CHUNK_BYTES,
+                        pdMS_TO_TICKS(100));
         ring_publish();
 
         if (got) {
@@ -3320,7 +3377,7 @@ static void i2s_writer_task(void *arg)
             }
 
             fx_out(buf, got);                               /* 6097 */
-            audio_out_write(buf, got);
+            late_write(buf, got);
             levelhist_note(peak_of(buf, got));
 
             /*

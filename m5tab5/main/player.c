@@ -2792,6 +2792,7 @@ static void i2s_writer_task(void *arg)
 
             s_pcm_flush = false;
             ring_publish();
+            s_late_last = 0;    /* 0033: what comes next is a new start, not a late block */
             ESP_LOGI(TAG, "%s: dropped %u KB of queued audio",
                      s_flush_why, (unsigned)(dropped / 1024));
         }

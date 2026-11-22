@@ -16,6 +16,7 @@ ESP-IDF 6.1, in `m5tab5/`, as ever:
 makes both, side by side:
 
     build/defeatist_player.app.elf                 the player, for a box
+    build/defeatist_player.app.elf.debug           the same, unstripped, for addr2line
     build/defeatist_music_player_for_m5tab5.bin    a launcher that runs it in one
 
 The ELF's build (`elf/`) ends with two checks. `feckless_abi` holds every
@@ -105,5 +106,7 @@ What to look for in the log: `standalone: the player in a box of N KB`
 (the .bin) or Avoidant's own line; `=== Defeatist Music Player ===`, then
 the player's start-up; `no PCM ring` if the box was too small for the
 rings; any `thread N ended: reason` line from feckless_umode, with the pc
-(`riscv32-esp-elf-addr2line -e build/defeatist_player.app.elf`, built with
-`-DELF_LOADER_KEEP_DEBUG_ELF=ON` for the symbols).
+(`riscv32-esp-elf-addr2line -pfiaC -e build/defeatist_player.app.elf.debug`;
+the `.app.elf` itself is stripped by elf_loader and answers `??`). The
+same file places feckless_umode's long windows: the address after "from"
+in `ending at a call to X from 0x... in the app` is a link address.

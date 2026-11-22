@@ -71,10 +71,14 @@ if(NOT _dmp_elf)
                        # CMP0225), given here so it does not warn and every
                        # CMake does the same. Nothing is installed.
                        -DCMAKE_INSTALL_PREFIX=<INSTALL_DIR>
+                       # u-defeatist-0039: elf_loader's unstripped copy,
+                       # <name>.app.elf.debug, saved before its strip. The
+                       # ELF a launcher loads is stripped as before.
+                       -DELF_LOADER_KEEP_DEBUG_ELF=ON
             CMAKE_GENERATOR "Unix Makefiles"
             BUILD_COMMAND make elf
             BUILD_ALWAYS 1
-            BUILD_BYPRODUCTS "${_elf}"
+            BUILD_BYPRODUCTS "${_elf}" "${_elf}.debug"
             INSTALL_COMMAND ""
         )
 
@@ -87,6 +91,9 @@ if(NOT _dmp_elf)
         # name, up to the first '_', is the NVS namespace Avoidant gives it).
         add_custom_command(TARGET defeatist_elf POST_BUILD
             COMMAND ${CMAKE_COMMAND} -E copy_if_different "${_elf}" "${_build_dir}/defeatist_player.app.elf"
+            # u-defeatist-0039: and its symbols beside it, for addr2line on
+            # the link addresses feckless_umode logs ("from 0x... in the app")
+            COMMAND ${CMAKE_COMMAND} -E copy_if_different "${_elf}.debug" "${_build_dir}/defeatist_player.app.elf.debug"
             VERBATIM)
 
         # elf_loader's: 4-byte aligned, as esp_elf_relocate() wants it.

@@ -30423,3 +30423,35 @@ feckless-libs' umode headers: both clean, and player.c's errors before
 the stubs were filled in identical before and after the change.
 *Not checked:* a build, a board, texttest (it needs managed_components/,
 which only a build makes; it covers none of this).
+
+### u-defeatist-0039 -- the ELF's symbols kept, beside the stripped one
+
+addr2line on `build/defeatist_player.app.elf` answered `?? ??:0` for every
+address feckless_umode logged (`a call to gfx_fill_star from 0x00036b1c in
+the app`, a 985 ms window). elf_loader's `project_elf()` links with
+`-Wl,--strip-all -Wl,--strip-debug` and then runs `strip --strip-unneeded`,
+and with `-fvisibility=hidden` that leaves no name in the file at all.
+BOX.md said to build with `-DELF_LOADER_KEEP_DEBUG_ELF=ON` but pointed
+addr2line at the stripped file, and nothing passed the option.
+
+- **`main/CMakeLists.txt`**: `-DELF_LOADER_KEEP_DEBUG_ELF=ON` to the ELF's
+  ExternalProject. elf_loader 2.1.0 (its bab57775, in the 2.1.0 release)
+  then links without `--strip-all` and copies `<name>.app.elf.debug`
+  before its strip; the `.app.elf` a launcher loads is stripped by the
+  same `strip --strip-unneeded` as before. The copy goes beside the .bin
+  as `build/defeatist_player.app.elf.debug`.
+- **`BOX.md`**: the `.debug` in the list of outputs, and addr2line pointed
+  at it, with how to read a long-window line.
+
+An option to the ELF's own configure, not sdkconfig: nothing to `rm`.
+IDF compiles with `-ggdb` already, so the objects carry DWARF either way;
+the only change is that the link keeps it in the copy. The code, and so
+every address, is the same, which also means a rebuild of the same
+source with this places the addresses of a log taken before it.
+
+*Not checked:* a build. What it should show: `build/elf/` and `build/`
+each with a `defeatist_player.app.elf.debug` several MB in size; the
+`.app.elf` beside it the same size as before (and byte-identical to one
+built without the option, if compared); and addr2line on the `.debug`
+naming a function for the addresses above. The workflow does not
+publish the `.debug`.

@@ -443,8 +443,27 @@ CONFIG_SPIRAM_TRY_ALLOCATE_WIFI_LWIP=y
 # comes back -- try it with the RTL8152 plugged in and a stream playing,
 # 5052's case -- set these two back to "is not set".
 # Proof it took: `grep HARDWARE_AES sdkconfig` reads =y.
-CONFIG_MBEDTLS_HARDWARE_AES=y
-CONFIG_MBEDTLS_HARDWARE_SHA=y
+#
+# u-defeatist-0047: OFF AGAIN, AS 8035 SAID TO IF IT CAME BACK. The boxed
+# player's first podcast download (u-defeatist-0046) ran the launcher's
+# internal heap down to 52 bytes, and the AES engine failed for want of
+# DMA descriptors every few seconds:
+#
+#   esp-aes: Failed to allocate memory for the array of DMA descriptors
+#   esp-tls-mbedtls: read error :-0x0084
+#
+# Every segment was retried and the 21.6 MB file came whole, at 2.6
+# Mbit/s on a cable -- above 8034's 0.9-1.2 with hardware AES on Wi-Fi.
+# Most of that internal RAM was the box's host stacks, which
+# feckless-libs u-feckless-0082 moves to PSRAM (below); this stays off
+# all the same, since software TLS needs no DMA memory at all and a
+# download's throughput here is the network's. To try hardware again
+# once 0082's heap map shows internal RAM to spare: =y, rm sdkconfig.
+# Written =n, not "is not set", so cmake/defaults_check.cmake checks them
+# (8017's reason). Proof it took: `grep HARDWARE_AES sdkconfig` reads
+# "is not set".
+CONFIG_MBEDTLS_HARDWARE_AES=n
+CONFIG_MBEDTLS_HARDWARE_SHA=n
 
 # ---------------------------------------------------------------------------
 # 8015: THE BIGNUM, ECC AND ECDSA ENGINES, SAID RATHER THAN DEFAULTED.
@@ -512,6 +531,21 @@ CONFIG_SPIRAM_MALLOC_ALWAYSINTERNAL=4096
 # rm sdkconfig before building. Proof it took: the boot line reads
 # `Reserving pool of 64K`, and the artwork line's `DMA N free` is higher.
 CONFIG_SPIRAM_MALLOC_RESERVE_INTERNAL=65536
+
+# ---------------------------------------------------------------------------
+# u-defeatist-0047: THE BOX'S HOST STACKS IN PSRAM (feckless-libs
+# u-feckless-0082). Each of the player's threads in the box, and app_main,
+# runs on a launcher task whose stack was 8 KB (16 KB) of internal RAM --
+# 88 KB for nine threads, which is where the 96 KB of internal free the
+# trusted build had during a download went. feckless_umode makes them in
+# PSRAM, and runs NVS and the HTTPS server's start (which touch flash) on
+# a task of its own with an internal stack. Both are the defaults; written
+# down so a change shows as drift. rm sdkconfig before building. Proof it
+# took: the heap map's internal line -- which is the launcher's own now,
+# not the box's 10 MB -- in the tens of KB during a download, and
+# feckless_fetch's `internal free` likewise.
+CONFIG_FREERTOS_TASK_CREATE_ALLOW_EXT_MEM=y
+CONFIG_FECKLESS_UMODE_HOST_STACK_PSRAM=y
 
 # ---------------------------------------------------------------------------
 # NOT HERE: LWIP TCP RECEIVE TUNING. 0044 raised CONFIG_LWIP_TCP_WND_DEFAULT

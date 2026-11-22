@@ -30777,3 +30777,32 @@ to look for:
 
 Pausing from the row, and cancelling from the remote's page, which is the
 callback-loop path u-feckless-0081 defers, are worth a try too.
+
+### u-defeatist-0047 -- internal RAM for a boxed download: software AES and SHA; the host stacks in PSRAM
+
+The first boxed podcast download (u-defeatist-0046) finished whole: 21.6 MB
+in 67 s, 2.6 Mbit/s on a cable. But the launcher's internal heap fell to
+52 bytes, and the AES engine failed every few seconds for want of DMA
+descriptors, each failure costing a segment retry. In **sdkconfig.defaults**:
+- **`CONFIG_MBEDTLS_HARDWARE_AES=n`, `CONFIG_MBEDTLS_HARDWARE_SHA=n`**, as
+  the 8035 note said to do if these errors came back. Software TLS needs
+  no DMA memory, and a download here is limited by the network. They're
+  written `=n` so cmake/defaults_check.cmake reports drift.
+- **`CONFIG_FREERTOS_TASK_CREATE_ALLOW_EXT_MEM=y`,
+  `CONFIG_FECKLESS_UMODE_HOST_STACK_PSRAM=y`**: feckless-libs
+  u-feckless-0082 moves the box's host stacks to PSRAM. That was 88 KB of
+  internal RAM for nine threads; NVS and the HTTPS server's start run on a
+  task of the box's own with an internal stack. Both are already the
+  defaults, written down so a change shows as drift.
+
+No source changes. With u-feckless-0082, the player's `tab5_heap` internal
+and DMA lines, and netstream's "internal free", report the launcher's
+real internal RAM, where they used to show the box's 10 MB of PSRAM.
+
+*Not checked:* a build; the board. Needs the libs at u-feckless-0082;
+`rm sdkconfig` before building. What to look for:
+- `grep HARDWARE_AES sdkconfig` reads "is not set";
+- no `esp-aes: Failed to allocate` during a download;
+- feckless_fetch's `internal free ... min ...` in the tens of KB;
+- the boot heap map's internal line showing a believable figure, not
+  10677856.

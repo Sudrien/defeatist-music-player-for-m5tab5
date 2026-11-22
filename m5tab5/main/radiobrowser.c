@@ -666,12 +666,20 @@ bool radiobrowser_art_fetch(const char *url, uint8_t **out, size_t *out_len)
     }
 
     {
+        /* u-defeatist-0044: the RESPONSE's Content-Type -- get_header()
+         * reads the request's own headers, so this check never saw one
+         * and never skipped anything. Now that it can, only a text reply
+         * (an error or login page) is skipped: favicons come back as
+         * application/octet-stream often enough, and the decoder knows a
+         * picture by its bytes. */
+#if CONFIG_ESP_HTTP_CLIENT_SAVE_RESPONSE_HEADERS
         char *ctype = NULL;
-        if (esp_http_client_get_header(c, "Content-Type", &ctype) == ESP_OK &&
-            ctype && strncasecmp(ctype, "image/", 6) != 0) {
+        if (esp_http_client_get_response_header(c, "Content-Type", &ctype) == ESP_OK &&
+            ctype && strncasecmp(ctype, "text/", 5) == 0) {
             ESP_LOGI(TAG, "artwork is %.32s, not an image; skipped", ctype);
             goto close;
         }
+#endif
     }
 
     {

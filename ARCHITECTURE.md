@@ -30648,3 +30648,51 @@ after: the same errors, every one a gap in the stubs (httpd and netif
 types), none on the lines changed. *Not checked:* a build; the board.
 What to look for: one `W tab5_remote: not in this build ...` line after
 the cable's address, and no more.
+
+### u-defeatist-0044 -- web radio over the box's HTTP client
+
+feckless-libs u-feckless-0073 answers esp_http_client in a box, with the
+launcher's own client. So absent.c's stand-ins for it -- every init NULL,
+every open ESP_ERR_NOT_SUPPORTED -- come out, and on a cable the boxed
+player streams web radio, runs the benchmark, searches podcasts and
+fetches station pictures. (An episode's picture is fetched from inside a
+feckless_fetch download, which is still absent.)
+
+The box never calls the player's event handler (a box does not call back
+into its app), and the handler is how netstream and poddl read headers.
+So:
+
+- **`netstream.c`**: on_event()'s body is now `take_header()`;
+  `take_saved_headers()`, after each fetch_headers in connect_hops() and
+  hls_get(), asks the client for content-type, icy-name, icy-br,
+  icy-metaint, icy-logo and location with
+  `esp_http_client_get_response_header()` and hands them to the same
+  function, so the log lines and the values are what the handler gave.
+  It does nothing when the handler did run that hop (`s_hdr_seen`), so a
+  build where it is called reads each header once.
+- **`poddl.c`**: a picture's redirect takes Location the same way when
+  the handler did not -- ready for when feckless_fetch is answered.
+- **`radiobrowser.c`**: the artwork check read `esp_http_client_get_header()`
+  -- the request's headers -- for Content-Type, so it never saw one and
+  never skipped anything. It reads the response's now, and skips only a
+  `text/` reply (an error or login page): favicons come back as
+  application/octet-stream often enough that "not image/" would have
+  dropped working artwork the check had always let through.
+- **`sdkconfig.defaults`**: `CONFIG_ESP_HTTP_CLIENT_SAVE_RESPONSE_HEADERS=y`
+  (get_response_header exists only with it, and feckless_abi_network now
+  refuses a build without it), with 40 headers kept and 2048 bytes each
+  -- the defaults of 10 and 128 would drop icy-metaint behind a station's
+  other headers, and a CDN's Location. `rm sdkconfig` before building.
+- **NET tab**: the benchmark row is enabled by a cable (`clientok`), its
+  "needs the HTTP client" note and the touch refusal are gone; the Wi-Fi
+  note says web radio and MPD work on the cable, downloads and the remote
+  do not yet. The boot line likewise. Remote control (the HTTP server),
+  Wi-Fi control, NTP and podcast downloads (feckless_fetch) stay absent.
+  Two strings out, one in (`~`); i18n_tab.c recompiled.
+
+*Checked:* netstream's header functions compiled on their own against
+ESP-IDF 6.1's esp_http_client.h, with and without the option; the box's
+side has its own host test (u-feckless-0073). *Not checked:* a build; the
+board. What to look for: on an ICY station, the `  icy-...:` lines after
+`hop 1:` and `metaint` non-zero on the `HTTP 200` line; the benchmark
+running on a cable; a station picture.

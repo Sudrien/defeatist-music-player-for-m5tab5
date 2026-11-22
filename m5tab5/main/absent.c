@@ -13,11 +13,14 @@
  *   the network      the routes and sockets answered by the box since
  *                    u-feckless-0071 (u-defeatist-0042): a cable the
  *                    launcher brought up is the player's, and MPD serves on
- *                    it. Still here: the radio's control and the portal,
- *                    esp_netif's handles, the HTTP client and server,
- *                    feckless_fetch and feckless_https, which call back
- *                    into the player or need the launcher's hooks; they
- *                    fail as with no Wi-Fi, and net_limited() says so.
+ *                    it. The HTTP client is the box's since
+ *                    u-feckless-0073 (u-defeatist-0044): web radio, the
+ *                    benchmark, podcast search, station pictures. Still here:
+ *                    the radio's control and the portal, esp_netif's
+ *                    handles, the HTTP server, feckless_fetch and
+ *                    feckless_https, which call back into the player or
+ *                    need the launcher's hooks; they fail as with no
+ *                    Wi-Fi, and net_limited() says so.
  *   NVS              answered by the box since u-feckless-0053
  *                    (u-defeatist-0024), in the namespace the launcher
  *                    names; with none named it reads as empty, as here
@@ -54,8 +57,6 @@
 #include "netabsent.h"   /* u-defeatist-0041 */
 #include "esp_log.h"
 
-#include "esp_crt_bundle.h"
-#include "esp_http_client.h"
 #include "esp_http_server.h"
 #include "esp_netif.h"
 #include "esp_ota_ops.h"
@@ -93,8 +94,10 @@ void feckless_net_set_hooks(const feckless_net_hooks_t *hooks) { (void)hooks; }
  * u-defeatist-0042: the routes' state -- net_online, net_probe,
  * net_route_describe, ethernet_*, wifi_up, wifi_connected, wifi_ntp_synced,
  * wifi_sta_ip, wifi_sta_ssid, wifistore_count -- and lwIP's sockets,
- * select() and close() are the box's now (u-feckless-0071), and gone from
- * here. What stays below calls back into the player, or controls the
+ * select() and close() are the box's now (u-feckless-0071), and so are
+ * esp_http_client and esp_crt_bundle_attach (u-feckless-0073,
+ * u-defeatist-0044); all gone from here. What stays below calls back into
+ * the player, or controls the
  * radio, which a box cannot do yet.
  */
 
@@ -155,38 +158,6 @@ esp_err_t esp_netif_dhcps_option(esp_netif_t *n, esp_netif_dhcp_option_mode_t op
     (void)n; (void)op; (void)id; (void)val; (void)len;
     return ESP_ERR_NOT_SUPPORTED;
 }
-
-/* the HTTP client: no handle, so nothing after init does anything */
-esp_http_client_handle_t esp_http_client_init(const esp_http_client_config_t *config) { (void)config; return NULL; }
-esp_err_t esp_http_client_cleanup(esp_http_client_handle_t c) { (void)c; return ESP_OK; }
-esp_err_t esp_http_client_close(esp_http_client_handle_t c) { (void)c; return ESP_OK; }
-esp_err_t esp_http_client_open(esp_http_client_handle_t c, int write_len) { (void)c; (void)write_len; return ESP_ERR_NOT_SUPPORTED; }
-int64_t esp_http_client_fetch_headers(esp_http_client_handle_t c) { (void)c; return ESP_FAIL; }
-int64_t esp_http_client_get_content_length(esp_http_client_handle_t c) { (void)c; return -1; }
-int esp_http_client_get_status_code(esp_http_client_handle_t c) { (void)c; return -1; }
-int esp_http_client_read(esp_http_client_handle_t c, char *buffer, int len) { (void)c; (void)buffer; (void)len; return -1; }
-bool esp_http_client_is_complete_data_received(esp_http_client_handle_t c) { (void)c; return false; }
-esp_err_t esp_http_client_get_header(esp_http_client_handle_t c, const char *key, char **value)
-{
-    (void)c; (void)key;
-    if (value) *value = NULL;
-    return ESP_ERR_NOT_SUPPORTED;
-}
-esp_err_t esp_http_client_get_url(esp_http_client_handle_t c, char *url, const int len)
-{
-    (void)c;
-    if (url && len > 0) url[0] = '\0';
-    return ESP_ERR_NOT_SUPPORTED;
-}
-esp_err_t esp_http_client_set_header(esp_http_client_handle_t c, const char *key, const char *value)
-{
-    (void)c; (void)key; (void)value;
-    return ESP_ERR_NOT_SUPPORTED;
-}
-esp_err_t esp_http_client_set_redirection(esp_http_client_handle_t c) { (void)c; return ESP_ERR_NOT_SUPPORTED; }
-esp_err_t esp_http_client_set_timeout_ms(esp_http_client_handle_t c, int t) { (void)c; (void)t; return ESP_ERR_NOT_SUPPORTED; }
-esp_err_t esp_http_client_set_url(esp_http_client_handle_t c, const char *url) { (void)c; (void)url; return ESP_ERR_NOT_SUPPORTED; }
-esp_err_t esp_crt_bundle_attach(void *conf) { (void)conf; return ESP_ERR_NOT_SUPPORTED; }
 
 /* the HTTP server: never started, so no handle and no request */
 esp_err_t httpd_start(httpd_handle_t *handle, const httpd_config_t *config)

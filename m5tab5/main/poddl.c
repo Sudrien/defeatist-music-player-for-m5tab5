@@ -242,6 +242,15 @@ static esp_http_client_handle_t open_followed(char *url, int *status)
             return NULL;
         }
         esp_http_client_fetch_headers(c);
+#if CONFIG_ESP_HTTP_CLIENT_SAVE_RESPONSE_HEADERS
+        /* u-defeatist-0044: a boxed player's handler is never called
+         * (feckless-libs u-feckless-0073); the client kept the header. */
+        if (!s_location[0]) {
+            char *loc = NULL;
+            if (esp_http_client_get_response_header(c, "Location", &loc) == ESP_OK && loc)
+                snprintf(s_location, sizeof(s_location), "%s", loc);
+        }
+#endif
         *status = esp_http_client_get_status_code(c);
         const bool redirect = *status == 301 || *status == 302 || *status == 303 ||
                               *status == 307 || *status == 308;

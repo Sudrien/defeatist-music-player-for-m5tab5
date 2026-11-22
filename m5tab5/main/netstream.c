@@ -525,12 +525,14 @@ static void publish_title(const char *title)
 /* Headers                                                             */
 /* ------------------------------------------------------------------ */
 
-static esp_err_t on_event(esp_http_client_event_t *e)
-{
-    if (e->event_id != HTTP_EVENT_ON_HEADER || !e->header_key) return ESP_OK;
-    const char *k = e->header_key;
-    const char *v = e->header_value ? e->header_value : "";
+/* u-defeatist-0044: true once on_event has been shown a header this hop.
+ * A boxed player's handler is never called (feckless-libs u-feckless-0073:
+ * a box does not call back into its app), so after fetch_headers the
+ * headers are asked for by name instead -- take_saved_headers(). */
+static bool s_hdr_seen;
 
+static void take_header(const char *k, const char *v)
+{
     if (strcasecmp(k, "location") == 0) {
         snprintf(s_hdr_location, sizeof(s_hdr_location), "%s", v);
     } else if (strcasecmp(k, "icy-metaint") == 0) {
@@ -554,7 +556,32 @@ static esp_err_t on_event(esp_http_client_event_t *e)
         const int vn = logcut_len(v, 120);
         ESP_LOGI(TAG, "  %s: %.*s%s", k, vn, v, logcut_more(v, vn));
     }
+}
+
+static esp_err_t on_event(esp_http_client_event_t *e)
+{
+    if (e->event_id != HTTP_EVENT_ON_HEADER || !e->header_key) return ESP_OK;
+    s_hdr_seen = true;
+    take_header(e->header_key, e->header_value ? e->header_value : "");
     return ESP_OK;
+}
+
+/* u-defeatist-0044: what on_event would have taken, from the headers the
+ * client kept (CONFIG_ESP_HTTP_CLIENT_SAVE_RESPONSE_HEADERS), when it was
+ * not called. In take_header()'s order, so the log reads the same. */
+static void take_saved_headers(esp_http_client_handle_t c)
+{
+#if CONFIG_ESP_HTTP_CLIENT_SAVE_RESPONSE_HEADERS
+    if (s_hdr_seen) return;
+    static const char *const keys[] = { "content-type", "icy-name", "icy-br", "icy-metaint",
+                                        "icy-logo", "location" };
+    for (size_t i = 0; i < sizeof keys / sizeof keys[0]; i++) {
+        char *v = NULL;
+        if (esp_http_client_get_response_header(c, keys[i], &v) == ESP_OK && v) take_header(keys[i], v);
+    }
+#else
+    (void)c;
+#endif
 }
 
 /* ------------------------------------------------------------------ */
@@ -725,6 +752,7 @@ static netplan_action_t connect_hops(esp_http_client_handle_t c, uint32_t gen)
         s_hdr_name[0] = '\0';
         s_hdr_logo[0] = '\0';
         s_hdr_ctype[0] = '\0';
+        s_hdr_seen = false;                     /* u-defeatist-0044 */
 
         char url[NETSTREAM_URL_MAX];
         if (esp_http_client_get_url(c, url, sizeof(url)) != ESP_OK) url[0] = '\0';
@@ -748,6 +776,7 @@ static netplan_action_t connect_hops(esp_http_client_handle_t c, uint32_t gen)
             return NETPLAN_RETRY;
         }
         esp_http_client_fetch_headers(c);
+        take_saved_headers(c);                  /* u-defeatist-0044: a box's */
 
         int status = esp_http_client_get_status_code(c);
         /* Shoutcast's `ICY 200 OK` is not an HTTP status line and the
@@ -1352,6 +1381,7 @@ static int hls_get(esp_http_client_handle_t c, uint32_t gen, int *connect_ms)
         if (superseded(gen)) return 0;
         s_hdr_location[0] = '\0';
         s_hdr_ctype[0] = '\0';
+        s_hdr_seen = false;                     /* u-defeatist-0044 */
         int64_t t0 = esp_timer_get_time();
         esp_err_t err = esp_http_client_open(c, 0);
         /* fetch_headers() returns -1 for a chunked body as well as for a
@@ -1376,6 +1406,7 @@ static int hls_get(esp_http_client_handle_t c, uint32_t gen, int *connect_ms)
             esp_http_client_set_timeout_ms(c, SOCKET_TIMEOUT_MS);
         }
         *connect_ms += (int)((esp_timer_get_time() - t0) / 1000);
+        take_saved_headers(c);                  /* u-defeatist-0044: a box's */
         const int status = esp_http_client_get_status_code(c);
         s_last_status = status;
         if (status < 300 || status >= 400) return status;

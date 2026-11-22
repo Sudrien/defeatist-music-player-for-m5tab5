@@ -371,8 +371,6 @@ it:
     # recorder.c
     "Not enough memory to record.": "Memoria insufficiente\nper registrare."
     # panel.c
-    "Not in this build yet: it needs the HTTP client.": ~
-    # panel.c
     "Not in this build yet: it needs the HTTP server.": ~
     # remote.html
     "Nothing here.": ~
@@ -737,7 +735,7 @@ it:
     # player.c
     "Waiting for network": "In attesa della rete"
     # panel.c
-    "Web radio, downloads and the remote wait for the box to answer HTTP; MPD works on the cable.": ~
+    "Web radio and MPD work on the cable; downloads and the remote wait for the box to answer more.": ~
     # player.c
     "Web setup is open": "Config. web aperta"
     # remote.c

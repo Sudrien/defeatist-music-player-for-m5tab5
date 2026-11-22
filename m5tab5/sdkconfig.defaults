@@ -693,6 +693,21 @@ CONFIG_HTTPD_WS_SUPPORT=y
 # it took.
 CONFIG_ESP_HTTPS_SERVER_ENABLE=y
 
+# u-defeatist-0044: the boxed player's HTTP client is the launcher's
+# (feckless-libs u-feckless-0073), and the box never calls the player's
+# event handler, so the headers netstream (icy-*, Content-Type, Location),
+# poddl (Location) and radiobrowser (Content-Type) read are the ones the
+# client keeps: esp_http_client_get_response_header(), which only exists
+# with this. feckless_abi_network refuses a build without it. A station
+# sends a dozen headers or more before icy-metaint, and a CDN's Location
+# runs past a few hundred bytes, so the defaults (10, 128) are raised:
+# a header past either limit is not kept, and a warning says so. rm
+# sdkconfig before building; `hop 1: HTTP 200 ... metaint 16000` with a
+# non-zero metaint on an ICY station is the line that says it took.
+CONFIG_ESP_HTTP_CLIENT_SAVE_RESPONSE_HEADERS=y
+CONFIG_ESP_HTTP_CLIENT_MAX_SAVED_RESPONSE_HEADERS=40
+CONFIG_ESP_HTTP_CLIENT_MAX_RESPONSE_HEADER_SIZE=2048
+
 # 5157: A SOCKET CEILING THAT THE SERVERS ALREADY EXCEED.
 #
 # CONFIG_LWIP_MAX_SOCKETS was unset, so IDF's default of 10 applied, and

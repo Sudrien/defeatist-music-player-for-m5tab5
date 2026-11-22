@@ -371,8 +371,6 @@ ja:
     # recorder.c
     "Not enough memory to record.": "録音するメモリが足りない。"
     # panel.c
-    "Not in this build yet: it needs the HTTP client.": ~
-    # panel.c
     "Not in this build yet: it needs the HTTP server.": ~
     # remote.html
     "Nothing here.": ~
@@ -737,7 +735,7 @@ ja:
     # player.c
     "Waiting for network": "ネット待ち"
     # panel.c
-    "Web radio, downloads and the remote wait for the box to answer HTTP; MPD works on the cable.": ~
+    "Web radio and MPD work on the cable; downloads and the remote wait for the box to answer more.": ~
     # player.c
     "Web setup is open": "Web設定が開いている"
     # remote.c

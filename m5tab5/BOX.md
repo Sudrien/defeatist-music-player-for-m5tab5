@@ -64,7 +64,7 @@ that fail the way the player already copes with:
 
 | absent | so |
 |---|---|
-| the network: Wi-Fi, Ethernet, sockets, HTTP client and server | an offline player: no radio, podcasts, remote, MPD, NTP |
+| the network's Wi-Fi control, the HTTP server, feckless_fetch, NTP | a cable works -- MPD, web radio, the benchmark, podcast search (the box answers the routes, sockets and the HTTP client: u-defeatist-0042, 0044) -- but no Wi-Fi, remote, podcast downloads or NTP |
 | the hardware JPEG decoder | album art in software |
 | esp_ota, esp_partition | the table says "hosted" (u-defeatist-0025): Exit to Launcher shows, and ends the app |
 | raw I2C, deep sleep | no power-off pulse: power off ends the app, and the board stays on |

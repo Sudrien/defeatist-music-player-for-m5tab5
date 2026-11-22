@@ -788,8 +788,8 @@ static const char *const k_ntp_note[] = {
  * remote's row. */
 static const char *const k_wifi_note_absent[] = {
     N_("No Wi-Fi in this build yet: a cable connects, the radio does not."),
-    N_("Web radio, downloads and the remote wait for the box to "
-       "answer HTTP; MPD works on the cable."),
+    N_("Web radio and MPD work on the cable; downloads and the "
+       "remote wait for the box to answer more."),
 };
 static int net_wifi_note_lines(void)
 {
@@ -1065,16 +1065,19 @@ static int draw_net(void)
     int x, y, bw, bh;
     const bool wifi = settings_wifi_enabled();
     /* u-defeatist-0041, 0042: with only the box's network, the rows that
-     * need what it lacks -- the radio's control, NTP, the HTTP server, the
-     * HTTP client -- are greyed and say why, whatever their setting. MPD
-     * is a socket server, so a cable enables it. */
+     * need what it lacks -- the radio's control, NTP, the HTTP server --
+     * are greyed and say why, whatever their setting. MPD is a socket
+     * server and the benchmark an HTTP client (u-defeatist-0044), so a
+     * cable enables both. */
     const bool absent = net_limited();
     /* 5096: the benchmark reads a station over whatever route there is,
      * so a cable enables it as well as the radio does. */
     const bool netok = absent ? net_online() : (wifi || net_online());
-    /* u-defeatist-0042: the remote is an HTTP server and the benchmark an
-     * HTTP client, neither in the box yet: greyed on a cable too. */
+    /* u-defeatist-0042: the remote is an HTTP server, not in the box yet:
+     * greyed on a cable too. u-defeatist-0044: the benchmark is an HTTP
+     * client, which the box answers, so a cable enables it. */
     const bool httpok = netok && !absent;
+    const bool clientok = netok;
 
     /* --- Wi-Fi ------------------------------------------------------ */
     wifi_switch_box(&x, &y, &bw, &bh);
@@ -1264,22 +1267,18 @@ static int draw_net(void)
     bench_box(&x, &y, &bw, &bh);
     gfx_fill_rect(x, y, bw, bh, C_ROW);
     gfx_draw_text(24, y + (bh - GFX_GLYPH_H(NAME_SCALE)) / 2, _("Benchmark"),
-                  NAME_SCALE, 400, httpok ? C_TEXT : C_DISABLED);
+                  NAME_SCALE, 400, clientok ? C_TEXT : C_DISABLED);
     {
         const int pw = 132, ph = 56;
         draw_state_pill(w - 24 - pw, y + (bh - ph) / 2, pw, ph,
-                        bs.running ? _("BUSY") : _("RUN"), bs.running, httpok,
+                        bs.running ? _("BUSY") : _("RUN"), bs.running, clientok,
                         NAME_SCALE);
     }
     char blines[NET_BENCH_NOTE_LINES][64];
-    bench_lines(&bs, httpok, blines);
+    bench_lines(&bs, clientok, blines);
     const char *bench_note[NET_BENCH_NOTE_LINES] = { blines[0], blines[1],
                                                      blines[2] };
-    if (absent && netok) {                                      /* u-defeatist-0042 */
-        bench_note[0] = N_("Not in this build yet: it needs the HTTP client.");
-        bench_note[1] = NULL;
-        bench_note[2] = NULL;
-    } else if (httpok && !bs.running && !bs.have) {             /* 6018 */
+    if (clientok && !bs.running && !bs.have) {                  /* 6018 */
         bench_note[0] = N_("Reads the selected station without decoding it, "
                            "to tell a slow network from a slow decoder.");
         bench_note[1] = N_("Stop playback first.");
@@ -1825,11 +1824,7 @@ bool panel_touch(bool down, int x, int y)
          * is playing, because that loop is not running then.
          */
         bench_box(&bx, &by, &bw, &bh);
-        if (y >= by && y < by + bh && net_limited()) {     /* u-defeatist-0041, 0042 */
-            ESP_LOGW(TAG, "benchmark: refused -- no HTTP client in this build");
-            return false;
-        }
-        if (y >= by && y < by + bh) {
+        if (y >= by && y < by + bh) {                       /* u-defeatist-0044: the box's client */
             const bool asked = bench_request();
             ESP_LOGI(TAG, "benchmark: %s", asked ? "requested"
                                                  : "not now");

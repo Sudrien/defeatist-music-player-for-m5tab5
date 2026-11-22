@@ -116,6 +116,10 @@ static remote_state_t s_cur;
 static int64_t        s_sent_us;
 static uint32_t       s_wave_gen = UINT32_MAX;
 static int64_t        s_retry_us;
+/* u-defeatist-0043: feckless_https_start() said this build has no server
+ * (ESP_ERR_NOT_SUPPORTED: absent.c in a box). Said once, not retried:
+ * nothing changes it short of another build. */
+static bool           s_unsupported;
 /* PSRAM, from remote_init(): 3 KB of scratch is 3 KB of internal RAM
  * the httpd task's stack would rather have. */
 static char          *s_build;          /* the larger of REMOTE_WAVE_MAX and _JSON_MAX */
@@ -1758,6 +1762,13 @@ static void start(void)
     cfg.task_caps = MALLOC_CAP_SPIRAM | MALLOC_CAP_8BIT;
     cfg.open_fn = open_tls;       /* 8001 */
     const esp_err_t herr = feckless_https_start(&s_srv, &cfg, REMOTE_PORT);
+    if (herr == ESP_ERR_NOT_SUPPORTED) {                    /* u-defeatist-0043 */
+        s_srv = NULL;
+        s_unsupported = true;
+        ESP_LOGW(TAG, "not in this build: no HTTPS server to start on port %d; "
+                      "not trying again", REMOTE_PORT);
+        return;
+    }
     if (herr != ESP_OK) {
         s_srv = NULL;
         s_retry_us = esp_timer_get_time() + REMOTE_RETRY_US;
@@ -1852,7 +1863,8 @@ void remote_poll(bool want)
      */
     if (s_srv && !want) stop("switched off");
     else if (s_srv && !net) stop("no network");
-    else if (!s_srv && want && net && esp_timer_get_time() >= s_retry_us) start();
+    else if (!s_srv && want && net && !s_unsupported &&       /* u-defeatist-0043 */
+             esp_timer_get_time() >= s_retry_us) start();
 
     if (s_srv && !portal && !s_plain) plain_start();
     else if (s_plain && (portal || !s_srv)) plain_stop();

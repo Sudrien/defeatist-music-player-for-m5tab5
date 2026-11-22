@@ -30625,3 +30625,26 @@ a build; the board. What to look for: the new boot line; with a cable,
 the NET tab's address and MPD reachable on port 6600 from a client on the
 LAN; Wi-Fi, network time, setup, remote and benchmark greyed with the new
 notes.
+
+### u-defeatist-0043 -- remote control: a server the build does not have is said once
+
+With 0042 a cable gives the boxed player a route, so remote_poll() --
+the setting on from an earlier run -- called start() as soon as the
+address came, and feckless_https_start() (absent.c's) answered
+ESP_ERR_NOT_SUPPORTED. start() took that as a failure to retry, and the
+board's log had `could not start on port 443 (ESP_ERR_NOT_SUPPORTED);
+trying again in 5 s` every five seconds for as long as it ran.
+
+- **`remote.c`**: ESP_ERR_NOT_SUPPORTED from feckless_https_start()
+  latches `s_unsupported` and logs `not in this build: no HTTPS server to
+  start on port 443; not trying again` once; remote_poll() does not call
+  start() again that boot. Any other error is retried every 5 s as before
+  -- a port taken, memory short. Nothing changes NOT_SUPPORTED short of
+  another build, so switching the setting off and on does not re-arm it;
+  the NET tab already greys the row and says why (0042).
+
+*Checked:* remote.c compiled against the same minimal stubs before and
+after: the same errors, every one a gap in the stubs (httpd and netif
+types), none on the lines changed. *Not checked:* a build; the board.
+What to look for: one `W tab5_remote: not in this build ...` line after
+the cable's address, and no more.

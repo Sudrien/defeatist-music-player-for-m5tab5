@@ -48,7 +48,14 @@ html, body { height: auto; }
    --bg and its visited purple darker still, so a link once followed
    read as dimmed text. */
 .below a, .below a:link, .below a:visited, .below a:hover, .below a:active { color: var(--link); }
-#wifi, #pi, #pod { margin-top: 2.4em; }
+#settings, #stations, #wifi, #pi, #pod { padding-bottom: 0; }
+#pod { padding-bottom: 64px; }
+/* Each section folds; its heading is the <summary>. */
+summary { cursor: pointer; list-style: none; margin-bottom: .6em; }
+summary::-webkit-details-marker { display: none; }
+summary h2 { display: inline; margin: 0; }
+summary h2::before { content: "\25B8\FE0E  "; color: var(--icon); }
+details[open] > summary h2::before { content: "\25BE\FE0E  "; }
 /* 8033: a row that opens a list, and an episode's line under its title. */
 .below li.go { cursor: pointer; }
 .below li .sub { color: var(--album); font-size: .9em; margin-top: .2em; }
@@ -266,21 +273,26 @@ svg { display: block; width: 100%; height: 100%; }
 <div class="fold" id="fold">&#9662; <span data-t><span data-l="en">queue, files, settings, stations</span><span data-l="zh-CN">队列、文件、设置、电台</span><span data-l="ja">キュー、ファイル、設定、ラジオ局</span><span data-l="es">cola, archivos, ajustes, emisoras</span><span data-l="pt">fila, arquivos, ajustes, rádios</span><span data-l="fr">file, fichiers, réglages, radios</span><span data-l="it">coda, file, impostazioni, radio</span></span></div>
 
 <section class="files" id="queue">
-  <div class="qhead"><h2 data-t><span data-l="en">Queue</span><span data-l="zh-CN">队列</span><span data-l="ja">キュー</span><span data-l="es">Cola</span><span data-l="pt">Fila</span><span data-l="fr">File d'attente</span><span data-l="it">Coda</span></h2><span class="msg" id="qmsg"></span>
-    <button id="qclear" hidden data-t><span data-l="en">Clear</span><span data-l="zh-CN">清空</span><span data-l="ja">クリア</span><span data-l="es">Vaciar</span><span data-l="pt">Limpar</span><span data-l="fr">Vider</span><span data-l="it">Svuota</span></button></div>
+  <details open>
+  <summary class="qhead"><h2 data-t><span data-l="en">Queue</span><span data-l="zh-CN">队列</span><span data-l="ja">キュー</span><span data-l="es">Cola</span><span data-l="pt">Fila</span><span data-l="fr">File d'attente</span><span data-l="it">Coda</span></h2><span class="msg" id="qmsg"></span>
+    <button id="qclear" hidden data-t><span data-l="en">Clear</span><span data-l="zh-CN">清空</span><span data-l="ja">クリア</span><span data-l="es">Vaciar</span><span data-l="pt">Limpar</span><span data-l="fr">Vider</span><span data-l="it">Svuota</span></button></summary>
   <ul class="flist qlist" id="qlist"></ul>
+  </details>
 </section>
 
 <section class="files" id="files">
-  <h2 data-t><span data-l="en">Files</span><span data-l="zh-CN">文件</span><span data-l="ja">ファイル</span><span data-l="es">Archivos</span><span data-l="pt">Arquivos</span><span data-l="fr">Fichiers</span><span data-l="it">File</span></h2>
+  <details open>
+  <summary><h2 data-t><span data-l="en">Files</span><span data-l="zh-CN">文件</span><span data-l="ja">ファイル</span><span data-l="es">Archivos</span><span data-l="pt">Arquivos</span><span data-l="fr">Fichiers</span><span data-l="it">File</span></h2></summary>
   <div class="crumbs" id="crumbs"></div>
   <div class="msg" id="fmsg"></div>
   <ul class="flist" id="flist"></ul>
+  </details>
 </section>
 
 <!-- 5269: the settings that mean the same from across the room. -->
 <section class="below" id="settings">
-  <h2 data-t><span data-l="en">Settings</span><span data-l="zh-CN">设置</span><span data-l="ja">設定</span><span data-l="es">Ajustes</span><span data-l="pt">Ajustes</span><span data-l="fr">Réglages</span><span data-l="it">Impostazioni</span></h2>
+  <details open>
+  <summary><h2 data-t><span data-l="en">Settings</span><span data-l="zh-CN">设置</span><span data-l="ja">設定</span><span data-l="es">Ajustes</span><span data-l="pt">Ajustes</span><span data-l="fr">Réglages</span><span data-l="it">Impostazioni</span></h2></summary>
   <!-- 6026: never translated, so it can be found from any language; the
        options are each language in its own name. -->
   <label>Language <select id="slang" aria-label="Language"></select></label>
@@ -290,10 +302,12 @@ svg { display: block; width: 100%; height: 100%; }
   <label class="chk"><input type="checkbox" id="sxfa"> <span data-t><span data-l="en">Crossfade within an album</span><span data-l="zh-CN">同一专辑内也交叉淡化</span><span data-l="ja">同じアルバム内でもクロスフェード</span><span data-l="es">Fundido cruzado dentro de un álbum</span><span data-l="pt">Crossfade dentro do álbum</span><span data-l="fr">Fondu enchaîné dans un album</span><span data-l="it">Dissolvenza nello stesso album</span></span></label>
   <label><span data-t><span data-l="en">Sleep timer</span><span data-l="zh-CN">睡眠定时</span><span data-l="ja">スリープタイマー</span><span data-l="es">Temporizador</span><span data-l="pt">Timer</span><span data-l="fr">Minuterie</span><span data-l="it">Timer</span></span> <span class="msg" id="sleft"></span>
     <select id="ssleep"><option value="0" data-t>Off</option></select></label>
+  </details>
 </section>
 
 <section class="below" id="stations">
-  <h2 data-t><span data-l="en">Radio stations</span><span data-l="zh-CN">电台</span><span data-l="ja">ラジオ局</span><span data-l="es">Emisoras de radio</span><span data-l="pt">Rádios</span><span data-l="fr">Radios</span><span data-l="it">Radio</span></h2>
+  <details open>
+  <summary><h2 data-t><span data-l="en">Radio stations</span><span data-l="zh-CN">电台</span><span data-l="ja">ラジオ局</span><span data-l="es">Emisoras de radio</span><span data-l="pt">Rádios</span><span data-l="fr">Radios</span><span data-l="it">Radio</span></h2></summary>
   <p data-k="Added to %s on the card. The name is optional &mdash; without one the station is listed by its address."
      data-arg="&lt;code&gt;stations.m3u&lt;/code&gt;"><span data-l="en">Added to <code>stations.m3u</code> on the card. The name is optional — without one the station is listed by its address.</span><span data-l="zh-CN">添加到卡上的 <code>stations.m3u</code>。名称可不填——不填时以地址列出该电台。</span><span data-l="ja">カードの <code>stations.m3u</code> に追加されます。名前は省略できます。省略すると局はアドレスで表示されます。</span><span data-l="es">Se añade a <code>stations.m3u</code> en la tarjeta. El nombre es opcional: sin él, la emisora aparece por su dirección.</span><span data-l="pt">Adicionada a <code>stations.m3u</code> no cartão. O nome é opcional: sem ele, a rádio aparece pelo endereço.</span><span data-l="fr">Ajoutée à <code>stations.m3u</code> sur la carte. Le nom est facultatif : sans nom, la radio apparaît sous son adresse.</span><span data-l="it">Aggiunta a <code>stations.m3u</code> sulla scheda. Il nome è facoltativo: senza, la radio appare col suo indirizzo.</span></p>
   <form id="addf">
@@ -305,71 +319,78 @@ svg { display: block; width: 100%; height: 100%; }
   </form>
   <p id="have"></p>
   <ul id="list"></ul>
+  </details>
+</section>
 
-  <section id="wifi">
-    <h2>Wi-Fi</h2>
-    <p id="wcur"></p>
-    <p class="warn" id="wwarn" hidden data-t><span data-l="en">You are reaching the player over Wi-Fi. Joining a different network drops this page; the player's NET tab shows which network it ended up on, and if the join fails it goes back to its saved networks within a minute.</span><span data-l="zh-CN">你正通过 Wi-Fi 连接播放器。连接其他网络会使此页面断开；播放器的 NET 标签页会显示它最终连接的网络，如果连接失败，它会在一分钟内回到已保存的网络。</span><span data-l="ja">あなたはWi-Fi経由でプレーヤーに接続しています。別のネットワークに接続するとこのページは切れます。プレーヤーのNETタブに接続先が表示され、接続に失敗した場合は1分以内に保存済みのネットワークに戻ります。</span><span data-l="es">Llegas al reproductor por Wi-Fi. Conectarlo a otra red corta esta página; la pestaña NET del reproductor muestra en qué red quedó, y si falla vuelve a sus redes guardadas en menos de un minuto.</span><span data-l="pt">Você está acessando o player pelo Wi-Fi. Conectá-lo a outra rede derruba esta página; a aba NET do player mostra em qual rede ele ficou, e se a conexão falhar ele volta às redes salvas em menos de um minuto.</span><span data-l="fr">Vous joignez le lecteur par le Wi-Fi. Rejoindre un autre réseau coupe cette page ; l'onglet NET du lecteur indique sur quel réseau il a fini, et si la connexion échoue, il revient à ses réseaux enregistrés en moins d'une minute.</span><span data-l="it">Stai raggiungendo il lettore via Wi-Fi. Collegarlo a un'altra rete chiude questa pagina; la scheda NET del lettore mostra su quale rete è finito, e se il collegamento fallisce torna alle reti salvate entro un minuto.</span></p>
-    <form id="wf">
-      <div class="row">
-        <button type="button" class="ghost" id="wscan" data-t><span data-l="en">Scan</span><span data-l="zh-CN">扫描</span><span data-l="ja">スキャン</span><span data-l="es">Buscar</span><span data-l="pt">Buscar</span><span data-l="fr">Rechercher</span><span data-l="it">Cerca</span></button>
-        <span class="msg" id="wmsg"></span>
-      </div>
-      <label><span data-t><span data-l="en">Network</span><span data-l="zh-CN">网络</span><span data-l="ja">ネットワーク</span><span data-l="es">Red</span><span data-l="pt">Rede</span><span data-l="fr">Réseau</span><span data-l="it">Rete</span></span><select name="ssid" id="wsel">
-        <option value="" data-t>Other or hidden network (type it below)</option></select></label>
-      <label><span data-t><span data-l="en">Or type a network name</span><span data-l="zh-CN">或输入网络名称</span><span data-l="ja">またはネットワーク名を入力</span><span data-l="es">O escribe el nombre de una red</span><span data-l="pt">Ou digite o nome de uma rede</span><span data-l="fr">Ou saisissez un nom de réseau</span><span data-l="it">Oppure scrivi il nome di una rete</span></span><input name="ssid_other" maxlength="32" autocomplete="off"
-        autocapitalize="none" data-ta="placeholder" placeholder="only if not in the list"></label>
-      <label><span data-t><span data-l="en">Password</span><span data-l="zh-CN">密码</span><span data-l="ja">パスワード</span><span data-l="es">Contraseña</span><span data-l="pt">Senha</span><span data-l="fr">Mot de passe</span><span data-l="it">Password</span></span><input name="pass" type="password" maxlength="64" autocomplete="off" required></label>
-      <button id="wjoin" data-t><span data-l="en">Join</span><span data-l="zh-CN">连接</span><span data-l="ja">接続</span><span data-l="es">Conectar</span><span data-l="pt">Conectar</span><span data-l="fr">Rejoindre</span><span data-l="it">Collegati</span></button>
-    </form>
-    <p data-t><span data-l="en">The player tests the network and password before saving them. The password is only ever sent over this encrypted connection.</span><span data-l="zh-CN">播放器会在保存前先测试网络和密码。密码只通过这个加密连接发送。</span><span data-l="ja">プレーヤーは保存する前にネットワークとパスワードを試します。パスワードはこの暗号化された接続でのみ送られます。</span><span data-l="es">El reproductor prueba la red y la contraseña antes de guardarlas. La contraseña solo se envía por esta conexión cifrada.</span><span data-l="pt">O player testa a rede e a senha antes de salvá-las. A senha só é enviada por esta conexão criptografada.</span><span data-l="fr">Le lecteur essaie le réseau et le mot de passe avant de les enregistrer. Le mot de passe n'est envoyé que par cette connexion chiffrée.</span><span data-l="it">Il lettore prova la rete e la password prima di salvarle. La password viene inviata solo tramite questa connessione cifrata.</span></p>
-  </section>
+<section class="below" id="wifi">
+  <details open>
+  <summary><h2>Wi-Fi</h2></summary>
+  <p id="wcur"></p>
+  <p class="warn" id="wwarn" hidden data-t><span data-l="en">You are reaching the player over Wi-Fi. Joining a different network drops this page; the player's NET tab shows which network it ended up on, and if the join fails it goes back to its saved networks within a minute.</span><span data-l="zh-CN">你正通过 Wi-Fi 连接播放器。连接其他网络会使此页面断开；播放器的 NET 标签页会显示它最终连接的网络，如果连接失败，它会在一分钟内回到已保存的网络。</span><span data-l="ja">あなたはWi-Fi経由でプレーヤーに接続しています。別のネットワークに接続するとこのページは切れます。プレーヤーのNETタブに接続先が表示され、接続に失敗した場合は1分以内に保存済みのネットワークに戻ります。</span><span data-l="es">Llegas al reproductor por Wi-Fi. Conectarlo a otra red corta esta página; la pestaña NET del reproductor muestra en qué red quedó, y si falla vuelve a sus redes guardadas en menos de un minuto.</span><span data-l="pt">Você está acessando o player pelo Wi-Fi. Conectá-lo a outra rede derruba esta página; a aba NET do player mostra em qual rede ele ficou, e se a conexão falhar ele volta às redes salvas em menos de um minuto.</span><span data-l="fr">Vous joignez le lecteur par le Wi-Fi. Rejoindre un autre réseau coupe cette page ; l'onglet NET du lecteur indique sur quel réseau il a fini, et si la connexion échoue, il revient à ses réseaux enregistrés en moins d'une minute.</span><span data-l="it">Stai raggiungendo il lettore via Wi-Fi. Collegarlo a un'altra rete chiude questa pagina; la scheda NET del lettore mostra su quale rete è finito, e se il collegamento fallisce torna alle reti salvate entro un minuto.</span></p>
+  <form id="wf">
+    <div class="row">
+      <button type="button" class="ghost" id="wscan" data-t><span data-l="en">Scan</span><span data-l="zh-CN">扫描</span><span data-l="ja">スキャン</span><span data-l="es">Buscar</span><span data-l="pt">Buscar</span><span data-l="fr">Rechercher</span><span data-l="it">Cerca</span></button>
+      <span class="msg" id="wmsg"></span>
+    </div>
+    <label><span data-t><span data-l="en">Network</span><span data-l="zh-CN">网络</span><span data-l="ja">ネットワーク</span><span data-l="es">Red</span><span data-l="pt">Rede</span><span data-l="fr">Réseau</span><span data-l="it">Rete</span></span><select name="ssid" id="wsel">
+      <option value="" data-t>Other or hidden network (type it below)</option></select></label>
+    <label><span data-t><span data-l="en">Or type a network name</span><span data-l="zh-CN">或输入网络名称</span><span data-l="ja">またはネットワーク名を入力</span><span data-l="es">O escribe el nombre de una red</span><span data-l="pt">Ou digite o nome de uma rede</span><span data-l="fr">Ou saisissez un nom de réseau</span><span data-l="it">Oppure scrivi il nome di una rete</span></span><input name="ssid_other" maxlength="32" autocomplete="off"
+      autocapitalize="none" data-ta="placeholder" placeholder="only if not in the list"></label>
+    <label><span data-t><span data-l="en">Password</span><span data-l="zh-CN">密码</span><span data-l="ja">パスワード</span><span data-l="es">Contraseña</span><span data-l="pt">Senha</span><span data-l="fr">Mot de passe</span><span data-l="it">Password</span></span><input name="pass" type="password" maxlength="64" autocomplete="off" required></label>
+    <button id="wjoin" data-t><span data-l="en">Join</span><span data-l="zh-CN">连接</span><span data-l="ja">接続</span><span data-l="es">Conectar</span><span data-l="pt">Conectar</span><span data-l="fr">Rejoindre</span><span data-l="it">Collegati</span></button>
+  </form>
+  <p data-t><span data-l="en">The player tests the network and password before saving them. The password is only ever sent over this encrypted connection.</span><span data-l="zh-CN">播放器会在保存前先测试网络和密码。密码只通过这个加密连接发送。</span><span data-l="ja">プレーヤーは保存する前にネットワークとパスワードを試します。パスワードはこの暗号化された接続でのみ送られます。</span><span data-l="es">El reproductor prueba la red y la contraseña antes de guardarlas. La contraseña solo se envía por esta conexión cifrada.</span><span data-l="pt">O player testa a rede e a senha antes de salvá-las. A senha só é enviada por esta conexão criptografada.</span><span data-l="fr">Le lecteur essaie le réseau et le mot de passe avant de les enregistrer. Le mot de passe n'est envoyé que par cette connexion chiffrée.</span><span data-l="it">Il lettore prova la rete e la password prima di salvarle. La password viene inviata solo tramite questa connessione cifrata.</span></p>
+  </details>
+</section>
 
-  <section id="pi">
-    <h2>Podcast Index</h2>
-    <!-- 8011: the sign-up page as a link, in a new tab so this page and
-         anything typed into the form stay where they are. -->
-    <p data-k="Podcast directory search needs your own free API key and secret from %s, which asks for an email address to register. The player tries them before saving them, and once they work this form is locked."
-       data-arg="&lt;a href=&quot;https://api.podcastindex.org/&quot; target=&quot;_blank&quot; rel=&quot;noopener noreferrer&quot;&gt;api.podcastindex.org&lt;/a&gt;"><span data-l="en">Podcast directory search needs your own free API key and secret from <a href="https://api.podcastindex.org/" target="_blank" rel="noopener noreferrer">api.podcastindex.org</a>, which asks for an email address to register. The player tries them before saving them, and once they work this form is locked.</span><span data-l="zh-CN">Podcast directory search needs your own free API key and secret from <a href="https://api.podcastindex.org/" target="_blank" rel="noopener noreferrer">api.podcastindex.org</a>, which asks for an email address to register. The player tries them before saving them, and once they work this form is locked.</span><span data-l="ja">Podcast directory search needs your own free API key and secret from <a href="https://api.podcastindex.org/" target="_blank" rel="noopener noreferrer">api.podcastindex.org</a>, which asks for an email address to register. The player tries them before saving them, and once they work this form is locked.</span><span data-l="es">Podcast directory search needs your own free API key and secret from <a href="https://api.podcastindex.org/" target="_blank" rel="noopener noreferrer">api.podcastindex.org</a>, which asks for an email address to register. The player tries them before saving them, and once they work this form is locked.</span><span data-l="pt">Podcast directory search needs your own free API key and secret from <a href="https://api.podcastindex.org/" target="_blank" rel="noopener noreferrer">api.podcastindex.org</a>, which asks for an email address to register. The player tries them before saving them, and once they work this form is locked.</span><span data-l="fr">Podcast directory search needs your own free API key and secret from <a href="https://api.podcastindex.org/" target="_blank" rel="noopener noreferrer">api.podcastindex.org</a>, which asks for an email address to register. The player tries them before saving them, and once they work this form is locked.</span><span data-l="it">Podcast directory search needs your own free API key and secret from <a href="https://api.podcastindex.org/" target="_blank" rel="noopener noreferrer">api.podcastindex.org</a>, which asks for an email address to register. The player tries them before saving them, and once they work this form is locked.</span></p>
-    <form id="pif">
-      <label><span data-t><span data-l="en">API key</span><span data-l="zh-CN">API key</span><span data-l="ja">API key</span><span data-l="es">API key</span><span data-l="pt">API key</span><span data-l="fr">API key</span><span data-l="it">API key</span></span><input name="key" maxlength="63" autocomplete="off"
-        autocapitalize="none" spellcheck="false" required></label>
-      <label><span data-t><span data-l="en">API secret</span><span data-l="zh-CN">API secret</span><span data-l="ja">API secret</span><span data-l="es">API secret</span><span data-l="pt">API secret</span><span data-l="fr">API secret</span><span data-l="it">API secret</span></span><input name="secret" type="password" maxlength="127" autocomplete="off" required></label>
-      <button id="pigo" data-t><span data-l="en">Try and save</span><span data-l="zh-CN">Try and save</span><span data-l="ja">Try and save</span><span data-l="es">Try and save</span><span data-l="pt">Try and save</span><span data-l="fr">Try and save</span><span data-l="it">Try and save</span></button>
-      <div class="msg" id="pimsg"></div>
-    </form>
-  </section>
+<section class="below" id="pi">
+  <details open>
+  <summary><h2>Podcast Index</h2></summary>
+  <!-- 8011: the sign-up page as a link, in a new tab so this page and
+       anything typed into the form stay where they are. -->
+  <p data-k="Podcast directory search needs your own free API key and secret from %s, which asks for an email address to register. The player tries them before saving them, and once they work this form is locked."
+     data-arg="&lt;a href=&quot;https://api.podcastindex.org/&quot; target=&quot;_blank&quot; rel=&quot;noopener noreferrer&quot;&gt;api.podcastindex.org&lt;/a&gt;"><span data-l="en">Podcast directory search needs your own free API key and secret from <a href="https://api.podcastindex.org/" target="_blank" rel="noopener noreferrer">api.podcastindex.org</a>, which asks for an email address to register. The player tries them before saving them, and once they work this form is locked.</span><span data-l="zh-CN">Podcast directory search needs your own free API key and secret from <a href="https://api.podcastindex.org/" target="_blank" rel="noopener noreferrer">api.podcastindex.org</a>, which asks for an email address to register. The player tries them before saving them, and once they work this form is locked.</span><span data-l="ja">Podcast directory search needs your own free API key and secret from <a href="https://api.podcastindex.org/" target="_blank" rel="noopener noreferrer">api.podcastindex.org</a>, which asks for an email address to register. The player tries them before saving them, and once they work this form is locked.</span><span data-l="es">Podcast directory search needs your own free API key and secret from <a href="https://api.podcastindex.org/" target="_blank" rel="noopener noreferrer">api.podcastindex.org</a>, which asks for an email address to register. The player tries them before saving them, and once they work this form is locked.</span><span data-l="pt">Podcast directory search needs your own free API key and secret from <a href="https://api.podcastindex.org/" target="_blank" rel="noopener noreferrer">api.podcastindex.org</a>, which asks for an email address to register. The player tries them before saving them, and once they work this form is locked.</span><span data-l="fr">Podcast directory search needs your own free API key and secret from <a href="https://api.podcastindex.org/" target="_blank" rel="noopener noreferrer">api.podcastindex.org</a>, which asks for an email address to register. The player tries them before saving them, and once they work this form is locked.</span><span data-l="it">Podcast directory search needs your own free API key and secret from <a href="https://api.podcastindex.org/" target="_blank" rel="noopener noreferrer">api.podcastindex.org</a>, which asks for an email address to register. The player tries them before saving them, and once they work this form is locked.</span></p>
+  <form id="pif">
+    <label><span data-t><span data-l="en">API key</span><span data-l="zh-CN">API key</span><span data-l="ja">API key</span><span data-l="es">API key</span><span data-l="pt">API key</span><span data-l="fr">API key</span><span data-l="it">API key</span></span><input name="key" maxlength="63" autocomplete="off"
+      autocapitalize="none" spellcheck="false" required></label>
+    <label><span data-t><span data-l="en">API secret</span><span data-l="zh-CN">API secret</span><span data-l="ja">API secret</span><span data-l="es">API secret</span><span data-l="pt">API secret</span><span data-l="fr">API secret</span><span data-l="it">API secret</span></span><input name="secret" type="password" maxlength="127" autocomplete="off" required></label>
+    <button id="pigo" data-t><span data-l="en">Try and save</span><span data-l="zh-CN">Try and save</span><span data-l="ja">Try and save</span><span data-l="es">Try and save</span><span data-l="pt">Try and save</span><span data-l="fr">Try and save</span><span data-l="it">Try and save</span></button>
+    <div class="msg" id="pimsg"></div>
+  </form>
+  </details>
+</section>
 
   <!-- 8033: the PODCAST tab's lists and its downloads, from here. -->
-  <section id="pod">
-    <h2 data-t><span data-l="en">Podcasts</span><span data-l="zh-CN">Podcasts</span><span data-l="ja">Podcasts</span><span data-l="es">Podcasts</span><span data-l="pt">Podcasts</span><span data-l="fr">Podcasts</span><span data-l="it">Podcasts</span></h2>
-    <div class="row" id="pdlrow" hidden>
-      <span class="msg" id="pdl"></span>
-      <button type="button" class="ghost" id="ppause" data-t><span data-l="en">Pause</span><span data-l="zh-CN">Pause</span><span data-l="ja">Pause</span><span data-l="es">Pause</span><span data-l="pt">Pause</span><span data-l="fr">Pause</span><span data-l="it">Pause</span></button>
-      <button type="button" class="ghost" id="pagain" data-t><span data-l="en">Go on</span><span data-l="zh-CN">Go on</span><span data-l="ja">Go on</span><span data-l="es">Go on</span><span data-l="pt">Go on</span><span data-l="fr">Go on</span><span data-l="it">Go on</span></button>
-      <button type="button" class="ghost" id="pcancel" data-t><span data-l="en">Cancel and delete</span><span data-l="zh-CN">Cancel and delete</span><span data-l="ja">Cancel and delete</span><span data-l="es">Cancel and delete</span><span data-l="pt">Cancel and delete</span><span data-l="fr">Cancel and delete</span><span data-l="it">Cancel and delete</span></button>
-    </div>
-    <div class="row">
-      <button type="button" class="ghost" id="pback" hidden data-t><span data-l="en">Back</span><span data-l="zh-CN">Back</span><span data-l="ja">Back</span><span data-l="es">Back</span><span data-l="pt">Back</span><span data-l="fr">Back</span><span data-l="it">Back</span></button>
-      <strong id="pwhere"></strong>
-    </div>
-    <form class="row" id="psearchform" autocomplete="off">
-      <input type="search" id="psearch" maxlength="80" placeholder="Search Podcast Index" data-ta="placeholder"
-             style="flex:1 1 12em">
-      <button type="submit" class="ghost" data-t><span data-l="en">Search</span><span data-l="zh-CN">Search</span><span data-l="ja">Search</span><span data-l="es">Search</span><span data-l="pt">Search</span><span data-l="fr">Search</span><span data-l="it">Search</span></button>
-    </form>
-    <form class="row" id="paddform" autocomplete="off">
-      <input type="url" id="paddurl" maxlength="399" placeholder="https://example.com/feed.xml"
-             style="flex:1 1 16em">
-      <button type="submit" class="ghost" id="paddgo" data-t><span data-l="en">Add by feed address</span><span data-l="zh-CN">Add by feed address</span><span data-l="ja">Add by feed address</span><span data-l="es">Add by feed address</span><span data-l="pt">Add by feed address</span><span data-l="fr">Add by feed address</span><span data-l="it">Add by feed address</span></button>
-    </form>
-    <label id="pvoll" hidden><span data-t><span data-l="en">Download to</span><span data-l="zh-CN">Download to</span><span data-l="ja">Download to</span><span data-l="es">Download to</span><span data-l="pt">Download to</span><span data-l="fr">Download to</span><span data-l="it">Download to</span></span><select id="pvol"></select></label>
-    <div class="row">
-      <span class="msg" id="pmsg"></span>
-      <button type="button" class="ghost" id="pretry" hidden data-t><span data-l="en">Ask again</span><span data-l="zh-CN">Ask again</span><span data-l="ja">Ask again</span><span data-l="es">Ask again</span><span data-l="pt">Ask again</span><span data-l="fr">Ask again</span><span data-l="it">Ask again</span></button>
-    </div>
-    <ul id="plist"></ul>
-  </section>
+<section class="below" id="pod">
+  <details open>
+  <summary><h2 data-t><span data-l="en">Podcasts</span><span data-l="zh-CN">Podcasts</span><span data-l="ja">Podcasts</span><span data-l="es">Podcasts</span><span data-l="pt">Podcasts</span><span data-l="fr">Podcasts</span><span data-l="it">Podcasts</span></h2></summary>
+  <div class="row" id="pdlrow" hidden>
+    <span class="msg" id="pdl"></span>
+    <button type="button" class="ghost" id="ppause" data-t><span data-l="en">Pause</span><span data-l="zh-CN">Pause</span><span data-l="ja">Pause</span><span data-l="es">Pause</span><span data-l="pt">Pause</span><span data-l="fr">Pause</span><span data-l="it">Pause</span></button>
+    <button type="button" class="ghost" id="pagain" data-t><span data-l="en">Go on</span><span data-l="zh-CN">Go on</span><span data-l="ja">Go on</span><span data-l="es">Go on</span><span data-l="pt">Go on</span><span data-l="fr">Go on</span><span data-l="it">Go on</span></button>
+    <button type="button" class="ghost" id="pcancel" data-t><span data-l="en">Cancel and delete</span><span data-l="zh-CN">Cancel and delete</span><span data-l="ja">Cancel and delete</span><span data-l="es">Cancel and delete</span><span data-l="pt">Cancel and delete</span><span data-l="fr">Cancel and delete</span><span data-l="it">Cancel and delete</span></button>
+  </div>
+  <div class="row">
+    <button type="button" class="ghost" id="pback" hidden data-t><span data-l="en">Back</span><span data-l="zh-CN">Back</span><span data-l="ja">Back</span><span data-l="es">Back</span><span data-l="pt">Back</span><span data-l="fr">Back</span><span data-l="it">Back</span></button>
+    <strong id="pwhere"></strong>
+  </div>
+  <form class="row" id="psearchform" autocomplete="off">
+    <input type="search" id="psearch" maxlength="80" placeholder="Search Podcast Index" data-ta="placeholder"
+           style="flex:1 1 12em">
+    <button type="submit" class="ghost" data-t><span data-l="en">Search</span><span data-l="zh-CN">Search</span><span data-l="ja">Search</span><span data-l="es">Search</span><span data-l="pt">Search</span><span data-l="fr">Search</span><span data-l="it">Search</span></button>
+  </form>
+  <form class="row" id="paddform" autocomplete="off">
+    <input type="url" id="paddurl" maxlength="399" placeholder="https://example.com/feed.xml"
+           style="flex:1 1 16em">
+    <button type="submit" class="ghost" id="paddgo" data-t><span data-l="en">Add by feed address</span><span data-l="zh-CN">Add by feed address</span><span data-l="ja">Add by feed address</span><span data-l="es">Add by feed address</span><span data-l="pt">Add by feed address</span><span data-l="fr">Add by feed address</span><span data-l="it">Add by feed address</span></button>
+  </form>
+  <label id="pvoll" hidden><span data-t><span data-l="en">Download to</span><span data-l="zh-CN">Download to</span><span data-l="ja">Download to</span><span data-l="es">Download to</span><span data-l="pt">Download to</span><span data-l="fr">Download to</span><span data-l="it">Download to</span></span><select id="pvol"></select></label>
+  <div class="row">
+    <span class="msg" id="pmsg"></span>
+    <button type="button" class="ghost" id="pretry" hidden data-t><span data-l="en">Ask again</span><span data-l="zh-CN">Ask again</span><span data-l="ja">Ask again</span><span data-l="es">Ask again</span><span data-l="pt">Ask again</span><span data-l="fr">Ask again</span><span data-l="it">Ask again</span></button>
+  </div>
+  <ul id="plist"></ul>
+  </details>
 </section>
 
 <script>
@@ -745,6 +766,7 @@ function renderFiles() {
 // The folder link opens the list on the playing track's folder, as the
 // device's folder button does.
 $("folder").addEventListener("click", () => {
+  $("files").querySelector("details").open = true;
   if (S && S.path) listDir(parentOf(S.path)); else if (!fPath) listDir("/");
 });
 

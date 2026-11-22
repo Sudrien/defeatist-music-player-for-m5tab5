@@ -47,7 +47,14 @@ html, body { height: auto; }
    --bg and its visited purple darker still, so a link once followed
    read as dimmed text. */
 .below a, .below a:link, .below a:visited, .below a:hover, .below a:active { color: var(--link); }
-#wifi, #pi, #pod { margin-top: 2.4em; }
+#settings, #stations, #wifi, #pi, #pod { padding-bottom: 0; }
+#pod { padding-bottom: 64px; }
+/* Each section folds; its heading is the <summary>. */
+summary { cursor: pointer; list-style: none; margin-bottom: .6em; }
+summary::-webkit-details-marker { display: none; }
+summary h2 { display: inline; margin: 0; }
+summary h2::before { content: "\25B8\FE0E  "; color: var(--icon); }
+details[open] > summary h2::before { content: "\25BE\FE0E  "; }
 /* 8033: a row that opens a list, and an episode's line under its title. */
 .below li.go { cursor: pointer; }
 .below li .sub { color: var(--album); font-size: .9em; margin-top: .2em; }
@@ -265,21 +272,26 @@ svg { display: block; width: 100%; height: 100%; }
 <div class="fold" id="fold">&#9662; <span data-t>queue, files, settings, stations</span></div>
 
 <section class="files" id="queue">
-  <div class="qhead"><h2 data-t>Queue</h2><span class="msg" id="qmsg"></span>
-    <button id="qclear" hidden data-t>Clear</button></div>
+  <details open>
+  <summary class="qhead"><h2 data-t>Queue</h2><span class="msg" id="qmsg"></span>
+    <button id="qclear" hidden data-t>Clear</button></summary>
   <ul class="flist qlist" id="qlist"></ul>
+  </details>
 </section>
 
 <section class="files" id="files">
-  <h2 data-t>Files</h2>
+  <details open>
+  <summary><h2 data-t>Files</h2></summary>
   <div class="crumbs" id="crumbs"></div>
   <div class="msg" id="fmsg"></div>
   <ul class="flist" id="flist"></ul>
+  </details>
 </section>
 
 <!-- 5269: the settings that mean the same from across the room. -->
 <section class="below" id="settings">
-  <h2 data-t>Settings</h2>
+  <details open>
+  <summary><h2 data-t>Settings</h2></summary>
   <!-- 6026: never translated, so it can be found from any language; the
        options are each language in its own name. -->
   <label>Language <select id="slang" aria-label="Language"></select></label>
@@ -289,10 +301,12 @@ svg { display: block; width: 100%; height: 100%; }
   <label class="chk"><input type="checkbox" id="sxfa"> <span data-t>Crossfade within an album</span></label>
   <label><span data-t>Sleep timer</span> <span class="msg" id="sleft"></span>
     <select id="ssleep"><option value="0" data-t>Off</option></select></label>
+  </details>
 </section>
 
 <section class="below" id="stations">
-  <h2 data-t>Radio stations</h2>
+  <details open>
+  <summary><h2 data-t>Radio stations</h2></summary>
   <p data-k="Added to %s on the card. The name is optional &mdash; without one the station is listed by its address."
      data-arg="&lt;code&gt;stations.m3u&lt;/code&gt;">Added to <code>stations.m3u</code> on the card. The name is optional &mdash;
     without one the station is listed by its address.</p>
@@ -305,77 +319,84 @@ svg { display: block; width: 100%; height: 100%; }
   </form>
   <p id="have"></p>
   <ul id="list"></ul>
+  </details>
+</section>
 
-  <section id="wifi">
-    <h2>Wi-Fi</h2>
-    <p id="wcur"></p>
-    <p class="warn" id="wwarn" hidden data-t>You are reaching the player over Wi-Fi. Joining a
-      different network drops this page; the player's NET tab shows which network it
-      ended up on, and if the join fails it goes back to its saved networks within a minute.</p>
-    <form id="wf">
-      <div class="row">
-        <button type="button" class="ghost" id="wscan" data-t>Scan</button>
-        <span class="msg" id="wmsg"></span>
-      </div>
-      <label><span data-t>Network</span><select name="ssid" id="wsel">
-        <option value="" data-t>Other or hidden network (type it below)</option></select></label>
-      <label><span data-t>Or type a network name</span><input name="ssid_other" maxlength="32" autocomplete="off"
-        autocapitalize="none" data-ta="placeholder" placeholder="only if not in the list"></label>
-      <label><span data-t>Password</span><input name="pass" type="password" maxlength="64" autocomplete="off" required></label>
-      <button id="wjoin" data-t>Join</button>
-    </form>
-    <p data-t>The player tests the network and password before saving them. The password is only ever sent over this encrypted connection.</p>
-  </section>
+<section class="below" id="wifi">
+  <details open>
+  <summary><h2>Wi-Fi</h2></summary>
+  <p id="wcur"></p>
+  <p class="warn" id="wwarn" hidden data-t>You are reaching the player over Wi-Fi. Joining a
+    different network drops this page; the player's NET tab shows which network it
+    ended up on, and if the join fails it goes back to its saved networks within a minute.</p>
+  <form id="wf">
+    <div class="row">
+      <button type="button" class="ghost" id="wscan" data-t>Scan</button>
+      <span class="msg" id="wmsg"></span>
+    </div>
+    <label><span data-t>Network</span><select name="ssid" id="wsel">
+      <option value="" data-t>Other or hidden network (type it below)</option></select></label>
+    <label><span data-t>Or type a network name</span><input name="ssid_other" maxlength="32" autocomplete="off"
+      autocapitalize="none" data-ta="placeholder" placeholder="only if not in the list"></label>
+    <label><span data-t>Password</span><input name="pass" type="password" maxlength="64" autocomplete="off" required></label>
+    <button id="wjoin" data-t>Join</button>
+  </form>
+  <p data-t>The player tests the network and password before saving them. The password is only ever sent over this encrypted connection.</p>
+  </details>
+</section>
 
-  <section id="pi">
-    <h2>Podcast Index</h2>
-    <!-- 8011: the sign-up page as a link, in a new tab so this page and
-         anything typed into the form stay where they are. -->
-    <p data-k="Podcast directory search needs your own free API key and secret from %s, which asks for an email address to register. The player tries them before saving them, and once they work this form is locked."
-       data-arg="&lt;a href=&quot;https://api.podcastindex.org/&quot; target=&quot;_blank&quot; rel=&quot;noopener noreferrer&quot;&gt;api.podcastindex.org&lt;/a&gt;">Podcast directory
-      search needs your own free API key and secret from <a href="https://api.podcastindex.org/" target="_blank"
-      rel="noopener noreferrer">api.podcastindex.org</a>, which asks for an email address
-      to register. The player tries them before saving them, and once they work
-      this form is locked.</p>
-    <form id="pif">
-      <label><span data-t>API key</span><input name="key" maxlength="63" autocomplete="off"
-        autocapitalize="none" spellcheck="false" required></label>
-      <label><span data-t>API secret</span><input name="secret" type="password" maxlength="127" autocomplete="off" required></label>
-      <button id="pigo" data-t>Try and save</button>
-      <div class="msg" id="pimsg"></div>
-    </form>
-  </section>
+<section class="below" id="pi">
+  <details open>
+  <summary><h2>Podcast Index</h2></summary>
+  <!-- 8011: the sign-up page as a link, in a new tab so this page and
+       anything typed into the form stay where they are. -->
+  <p data-k="Podcast directory search needs your own free API key and secret from %s, which asks for an email address to register. The player tries them before saving them, and once they work this form is locked."
+     data-arg="&lt;a href=&quot;https://api.podcastindex.org/&quot; target=&quot;_blank&quot; rel=&quot;noopener noreferrer&quot;&gt;api.podcastindex.org&lt;/a&gt;">Podcast directory
+    search needs your own free API key and secret from <a href="https://api.podcastindex.org/" target="_blank"
+    rel="noopener noreferrer">api.podcastindex.org</a>, which asks for an email address
+    to register. The player tries them before saving them, and once they work
+    this form is locked.</p>
+  <form id="pif">
+    <label><span data-t>API key</span><input name="key" maxlength="63" autocomplete="off"
+      autocapitalize="none" spellcheck="false" required></label>
+    <label><span data-t>API secret</span><input name="secret" type="password" maxlength="127" autocomplete="off" required></label>
+    <button id="pigo" data-t>Try and save</button>
+    <div class="msg" id="pimsg"></div>
+  </form>
+  </details>
+</section>
 
   <!-- 8033: the PODCAST tab's lists and its downloads, from here. -->
-  <section id="pod">
-    <h2 data-t>Podcasts</h2>
-    <div class="row" id="pdlrow" hidden>
-      <span class="msg" id="pdl"></span>
-      <button type="button" class="ghost" id="ppause" data-t>Pause</button>
-      <button type="button" class="ghost" id="pagain" data-t>Go on</button>
-      <button type="button" class="ghost" id="pcancel" data-t>Cancel and delete</button>
-    </div>
-    <div class="row">
-      <button type="button" class="ghost" id="pback" hidden data-t>Back</button>
-      <strong id="pwhere"></strong>
-    </div>
-    <form class="row" id="psearchform" autocomplete="off">
-      <input type="search" id="psearch" maxlength="80" placeholder="Search Podcast Index" data-ta="placeholder"
-             style="flex:1 1 12em">
-      <button type="submit" class="ghost" data-t>Search</button>
-    </form>
-    <form class="row" id="paddform" autocomplete="off">
-      <input type="url" id="paddurl" maxlength="399" placeholder="https://example.com/feed.xml"
-             style="flex:1 1 16em">
-      <button type="submit" class="ghost" id="paddgo" data-t>Add by feed address</button>
-    </form>
-    <label id="pvoll" hidden><span data-t>Download to</span><select id="pvol"></select></label>
-    <div class="row">
-      <span class="msg" id="pmsg"></span>
-      <button type="button" class="ghost" id="pretry" hidden data-t>Ask again</button>
-    </div>
-    <ul id="plist"></ul>
-  </section>
+<section class="below" id="pod">
+  <details open>
+  <summary><h2 data-t>Podcasts</h2></summary>
+  <div class="row" id="pdlrow" hidden>
+    <span class="msg" id="pdl"></span>
+    <button type="button" class="ghost" id="ppause" data-t>Pause</button>
+    <button type="button" class="ghost" id="pagain" data-t>Go on</button>
+    <button type="button" class="ghost" id="pcancel" data-t>Cancel and delete</button>
+  </div>
+  <div class="row">
+    <button type="button" class="ghost" id="pback" hidden data-t>Back</button>
+    <strong id="pwhere"></strong>
+  </div>
+  <form class="row" id="psearchform" autocomplete="off">
+    <input type="search" id="psearch" maxlength="80" placeholder="Search Podcast Index" data-ta="placeholder"
+           style="flex:1 1 12em">
+    <button type="submit" class="ghost" data-t>Search</button>
+  </form>
+  <form class="row" id="paddform" autocomplete="off">
+    <input type="url" id="paddurl" maxlength="399" placeholder="https://example.com/feed.xml"
+           style="flex:1 1 16em">
+    <button type="submit" class="ghost" id="paddgo" data-t>Add by feed address</button>
+  </form>
+  <label id="pvoll" hidden><span data-t>Download to</span><select id="pvol"></select></label>
+  <div class="row">
+    <span class="msg" id="pmsg"></span>
+    <button type="button" class="ghost" id="pretry" hidden data-t>Ask again</button>
+  </div>
+  <ul id="plist"></ul>
+  </details>
 </section>
 
 <script>
@@ -751,6 +772,7 @@ function renderFiles() {
 // The folder link opens the list on the playing track's folder, as the
 // device's folder button does.
 $("folder").addEventListener("click", () => {
+  $("files").querySelector("details").open = true;
   if (S && S.path) listDir(parentOf(S.path)); else if (!fPath) listDir("/");
 });
 

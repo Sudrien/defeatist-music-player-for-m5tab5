@@ -6062,6 +6062,70 @@ static bool rg_holding(const char *path)
 }
 
 /*
+ * u-defeatist-0038: the seek table out of the decoder and into the held
+ * record. Was inline at the end of play_file(); the open calls it too
+ * now, so a table the open's scan built is in the record before the
+ * first block rather than after the last.
+ */
+static bool rg_take_index(decoder_t *dec, const char *path)
+{
+    if (!rg_holding(path)) return false;
+    uint32_t ixoff[REPLAYGAIN_INDEX_MAX];
+    uint32_t ixfrm[REPLAYGAIN_INDEX_MAX];
+    int ixn = 0;
+    uint32_t ixsp = 0;
+    if (!decoder_index_extract(dec, ixoff, ixfrm, REPLAYGAIN_INDEX_MAX,
+                               REPLAYGAIN_INDEX_SPACING_SEC,
+                               &ixn, &ixsp)) {
+        return false;
+    }
+    s_rg.index.present = true;
+    s_rg.index.count = ixn;
+    s_rg.index.spacing_sec = ixsp;
+    memcpy(s_rg.index.offset, ixoff, (size_t)ixn * sizeof(uint32_t));
+    memcpy(s_rg.index.sample, ixfrm, (size_t)ixn * sizeof(uint32_t));
+    s_rg_dirty = true;
+    return true;
+}
+
+/*
+ * u-defeatist-0038: WRITTEN WHEN IT IS PAID FOR, NOT WHEN THE TRACK ENDS.
+ *
+ * The record went to the card once, at rg_release(), so a fact that cost
+ * a whole-file read -- the open's scan of a Xing-less MP3, the ADTS walk,
+ * the frame walk's length -- was lost with everything else if the track
+ * never got there: a pause and a power cut, a reflash, a crash. A 72 MB
+ * podcast scanned for 27 s on every boot that way, the table never once
+ * reaching its .rgcache.
+ *
+ * This hands a copy of the held record to media_task through the same
+ * one slot rg_release() uses, and keeps holding it. Anything learned
+ * after marks it dirty again and goes out at the end as before, in one
+ * record with this. The loudness and the envelope are not affected:
+ * they are still merged only after a complete play.
+ *
+ * False when the slot is taken (the previous track's record not yet
+ * written); the caller tries again on a later block. True when it was
+ * handed over or there was nothing to hand.
+ */
+static bool rg_checkpoint(void)
+{
+    if (!s_rg_dirty || !s_rg_path[0]) return true;
+    if (s_rg_pending_ready) return false;
+    replaygain_t *copy = heap_caps_malloc(sizeof(*copy),
+                                          MALLOC_CAP_SPIRAM | MALLOC_CAP_8BIT);
+    if (!copy) return true;     /* rg_release() still owes it, and writes inline */
+    memcpy(copy, &s_rg, sizeof(*copy));
+    snprintf(s_rg_pending_path, sizeof(s_rg_pending_path), "%s", s_rg_path);
+    s_rg_pending = copy;
+    s_rg_pending_ready = true;  /* last: this is the hand-off */
+    s_rg_dirty = false;
+    ESP_LOGI(TAG, "sidecar: the seek table and length go to the card now, "
+                  "not at the track's end");
+    return true;
+}
+
+/*
  * The two big records here are heap, not stack.
  *
  * A replaygain_t is a shade over 3 KB -- the seek index alone is 256
@@ -11101,7 +11165,19 @@ static track_end_t play_file(const char *path)
      * those apart -- the seed IS the sidecar, so every track would look
      * like it already knew.
      */
-    const bool len_from_header = (len_sec != 0);
+    /*
+     * u-defeatist-0038: a table the open built is taken now, and its
+     * length is NOT a header's. Before this, a Xing-less MP3's length
+     * came from minimp3's scan and so read as len_from_header; it was
+     * never filed, and the next open -- the table installed, no scan, no
+     * ex.samples -- had no length but a complete play's waveform.sec.
+     * An installed table is not taken back (decoder_index_extract()
+     * refuses it), and a Xing file builds none at open, so this is the
+     * scan and nothing else.
+     */
+    const bool ix_scanned = !have_ix && rg_take_index(dec, path);
+    bool rg_ckpt_owed = ix_scanned;
+    const bool len_from_header = (len_sec != 0) && !ix_scanned;
 
     if (!len_sec) len_sec = seed_len;
     if (len_sec == 0) {
@@ -11250,6 +11326,7 @@ static track_end_t play_file(const char *path)
                  * paid for and a track can be skipped out of before its
                  * boundary ever runs. */
                 rg_note_format(path, &track_info, len_sec, file_bytes);
+                rg_ckpt_owed = true;        /* u-defeatist-0038 */
             }
         }
 
@@ -11484,6 +11561,14 @@ static track_end_t play_file(const char *path)
         }
         if (n == 0) break;
         track_info = info;
+
+        /* u-defeatist-0038: after the first block, so track_info is there
+         * for the format section; tried again on later blocks while the
+         * slot is taken. */
+        if (rg_ckpt_owed) {
+            if (ix_scanned) rg_note_format(path, &track_info, len_sec, file_bytes);
+            rg_ckpt_owed = !rg_checkpoint();
+        }
 
         /*
          * Recorded silence past TAIL_SILENCE_KEEP_MS is not decoded into
@@ -12462,6 +12547,7 @@ static track_end_t play_file(const char *path)
                         memcpy(s_rg.index.sample, s_ixw_frm,
                                (size_t)s_ixw_n * sizeof(uint32_t));
                         s_rg_dirty = true;
+                        rg_ckpt_owed = true;    /* u-defeatist-0038 */
                     }
 
                     if (!len_sec && s_ixw_rate) {
@@ -13089,23 +13175,11 @@ static track_end_t play_file(const char *path)
      * file, which never scans at open and pays for it on the first drag.
      * Both are whole-file walks the player has already spent; this is
      * what stops it spending them again next time.
+     *
+     * u-defeatist-0038: the scan's table was taken at the open, and a
+     * scanned index does not grow, so only the lazy build is left here.
      */
-    if (rg_holding(path)) {
-        uint32_t ixoff[REPLAYGAIN_INDEX_MAX];
-        uint32_t ixfrm[REPLAYGAIN_INDEX_MAX];
-        int ixn = 0;
-        uint32_t ixsp = 0;
-        if (decoder_index_extract(dec, ixoff, ixfrm, REPLAYGAIN_INDEX_MAX,
-                                  REPLAYGAIN_INDEX_SPACING_SEC,
-                                  &ixn, &ixsp)) {
-            s_rg.index.present = true;
-            s_rg.index.count = ixn;
-            s_rg.index.spacing_sec = ixsp;
-            memcpy(s_rg.index.offset, ixoff, (size_t)ixn * sizeof(uint32_t));
-            memcpy(s_rg.index.sample, ixfrm, (size_t)ixn * sizeof(uint32_t));
-            s_rg_dirty = true;
-        }
-    }
+    if (!ix_scanned) (void)rg_take_index(dec, path);
 
     /* Why, not just that. "finished" on a track the user skipped out of
      * reads as the skip having been ignored until the next line arrives. */

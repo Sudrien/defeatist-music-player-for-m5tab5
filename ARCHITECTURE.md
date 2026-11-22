@@ -30365,3 +30365,61 @@ it took: no drift warning at configure naming either key, no
 larger .bin -- 8095 measured about 217 KB of merged string literals on the
 launcher side, of which this is part. *Not checked:* a build; how much
 larger the .bin and the ELF come out.
+
+### u-defeatist-0038 -- the seek table and the length written when they are paid for
+
+A 72 MB Xing-less podcast took 27 s to open (`open playback: 9736 reads,
+72812 KB`, minimp3's scan) on one boot, and 28 s on the next: the episode
+had no `.rgcache` at all. The scan's table was taken out of the decoder
+only at the end of play_file(), and the record written only from
+rg_release() there; both runs were paused or playing when the board went
+down, so the table never reached the card. The episode beside it had a
+sidecar holding nothing but `art.ext`, which poddl writes at download
+(8056) -- not playback's -- and which the load logged as `(waveform only)`.
+
+The rule had been one write per track, at its end (the 0908-era reasons
+in rg_release()'s comment: three loads and rewrites during one open, and
+the write sitting in front of the next track's open). That is right for
+what a play measures -- the loudness and the envelope are still merged
+only after a complete, unseeked play, since a partial measurement cannot
+later be told from a real one -- and wrong for what a whole-file read
+learned, which is just as true after one second as after the last.
+
+- **`rg_take_index()`**: the end's harvest, as a function. The open calls
+  it right after `decoder_open_indexed()` when no table was installed; it
+  succeeds only for a table the open's scan built (an installed one is
+  refused by decoder_index_extract(), and a Xing file builds none at
+  open). The end calls it only when the open did not, for minimp3's lazy
+  build on a first seek.
+- **`len_from_header` is false for a scanned length.** It counted the
+  scan's `ex.samples` as a header, so the length was never filed; the next
+  open, the table installed and no scan, had none (`no duration
+  available`) unless a complete play had left `waveform.sec`. Now
+  rg_note_format() files it, after the first block when track_info is
+  there.
+- **`rg_checkpoint()`**: hands a copy of the held record to media_task
+  through rg_release()'s one slot and keeps holding it; anything learned
+  later marks it dirty and goes at the end as before. Owed after the
+  open's scan, the ADTS walk's table (0716's crossing) and the frame
+  walk's length; tried on each block while the slot holds the previous
+  track's record. media_task still waits for the ring (40%, or 10 s), so
+  the write does not sit in front of the first sound. Logs `sidecar: the
+  seek table and length go to the card now, not at the track's end`.
+- **replaygain.c's load line** names the sections present: `sidecar:
+  <path>: waveform loudness seek-table length art`.
+
+What a board's log should show on the first play of such a file: the
+scan and `open took`, then the checkpoint line, then within ten seconds
+`tab5_rg: sidecar written: ... .rgcache`. On the next boot, without the
+track having ended: `tab5_rg: sidecar: ...: seek-table length`, `mp3:
+seek table installed, N entries every S s; no scan at open`, an `open
+took` in milliseconds, and the seek bar with its length from the start.
+
+*Checked:* player.c and replaygain.c compiled with gcc -O2 -Wall
+-Werror=all -Wextra -Werror=extra (-Wno-unused-parameter, as IDF passes)
+against texttest's fakes, empty or minimal stubs for the rest of IDF,
+ESP_LOGx stubs that paste the format beside a literal, real cJSON, and
+feckless-libs' umode headers: both clean, and player.c's errors before
+the stubs were filled in identical before and after the change.
+*Not checked:* a build, a board, texttest (it needs managed_components/,
+which only a build makes; it covers none of this).

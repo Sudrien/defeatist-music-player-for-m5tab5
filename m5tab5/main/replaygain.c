@@ -461,9 +461,14 @@ bool replaygain_load(const char *path, replaygain_t *out)
     free(buf);
 
     if (found) {
-        ESP_LOGI(TAG, "sidecar: %s%s", cache_path,
-                 out->loudness.present ? " (waveform+loudness)"
-                                       : " (waveform only)");
+        /* u-defeatist-0038: what is in it, not "waveform only" for a
+         * record poddl wrote with nothing but its picture's name. */
+        ESP_LOGI(TAG, "sidecar: %s:%s%s%s%s%s", cache_path,
+                 out->waveform.present ? " waveform" : "",
+                 out->loudness.present ? " loudness" : "",
+                 out->index.present ? " seek-table" : "",
+                 out->format.present ? " length" : "",
+                 (out->art.present || out->art.ext[0]) ? " art" : "");
     }
     return found;
 }

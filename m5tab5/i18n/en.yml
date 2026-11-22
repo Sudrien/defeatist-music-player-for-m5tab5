@@ -346,6 +346,8 @@ en:
     "Next": ~
     # recorder.c
     "No USB microphone is plugged in.": "No USB microphone is\nplugged in."
+    # panel.c
+    "No Wi-Fi in this build yet: a cable connects, the radio does not.": ~
     # portal.c
     "No answer from that network. Try again.": ~
     # panel.c
@@ -354,8 +356,6 @@ en:
     "No memory for the recording task.": "No memory for the\nrecording task."
     # bench.c
     "No memory to measure with.": ~
-    # panel.c
-    "No network in this build: nothing connects, on or off.": ~
     # panel.c
     "No password: each address is allowed on the player.": ~
     # panel.c
@@ -371,7 +371,9 @@ en:
     # recorder.c
     "Not enough memory to record.": "Not enough memory\nto record."
     # panel.c
-    "Not in this build: it has no network to listen on.": ~
+    "Not in this build yet: it needs the HTTP client.": ~
+    # panel.c
+    "Not in this build yet: it needs the HTTP server.": ~
     # remote.html
     "Nothing here.": ~
     # recorder.c
@@ -484,8 +486,6 @@ en:
     "Radio": ~
     # portal.c, remote.html
     "Radio stations": ~
-    # panel.c
-    "Radio, downloads, the remote and MPD need a launcher that gives its apps the network.": ~
     # panel.c
     "Reading %s without decoding…": ~
     # remote.html
@@ -736,6 +736,8 @@ en:
     "Waiting for a network.": ~
     # player.c
     "Waiting for network": ~
+    # panel.c
+    "Web radio, downloads and the remote wait for the box to answer HTTP; MPD works on the cable.": ~
     # player.c
     "Web setup is open": ~
     # remote.c

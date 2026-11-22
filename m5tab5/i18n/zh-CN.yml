@@ -346,6 +346,8 @@ zh-CN:
     "Next": "下一首"
     # recorder.c
     "No USB microphone is plugged in.": "未插入 USB 麦克风。"
+    # panel.c
+    "No Wi-Fi in this build yet: a cable connects, the radio does not.": ~
     # portal.c
     "No answer from that network. Try again.": "该网络没有响应。请重试。"
     # panel.c
@@ -354,8 +356,6 @@ zh-CN:
     "No memory for the recording task.": "录音任务内存不足。"
     # bench.c
     "No memory to measure with.": "内存不足，无法测量。"
-    # panel.c
-    "No network in this build: nothing connects, on or off.": ~
     # panel.c
     "No password: each address is allowed on the player.": "无密码：每个地址都需在播放器上允许。"
     # panel.c
@@ -371,7 +371,9 @@ zh-CN:
     # recorder.c
     "Not enough memory to record.": "内存不足，无法录音。"
     # panel.c
-    "Not in this build: it has no network to listen on.": ~
+    "Not in this build yet: it needs the HTTP client.": ~
+    # panel.c
+    "Not in this build yet: it needs the HTTP server.": ~
     # remote.html
     "Nothing here.": ~
     # recorder.c
@@ -484,8 +486,6 @@ zh-CN:
     "Radio": "电台"
     # portal.c, remote.html
     "Radio stations": "电台"
-    # panel.c
-    "Radio, downloads, the remote and MPD need a launcher that gives its apps the network.": ~
     # panel.c
     "Reading %s without decoding…": "正在读取 %s（不解码）…"
     # remote.html
@@ -736,6 +736,8 @@ zh-CN:
     "Waiting for a network.": "正在等待网络。"
     # player.c
     "Waiting for network": "等待网络"
+    # panel.c
+    "Web radio, downloads and the remote wait for the box to answer HTTP; MPD works on the cable.": ~
     # player.c
     "Web setup is open": "网页设置已开启"
     # remote.c

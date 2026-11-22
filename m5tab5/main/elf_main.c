@@ -20,6 +20,9 @@
  * u-defeatist-0023: with DEFEATIST_BOXED_CODEC (the default), the audio
  * section too: esp_audio_codec is answered by the box where the launcher
  * links it.
+ *
+ * u-defeatist-0042: the network section, whose routes and sockets a box
+ * answers since u-feckless-0071; the rest of it is still absent.c's.
  */
 #include "defeatist.h"
 
@@ -31,6 +34,7 @@
 #include "feckless_abi_audio.h"
 #endif
 #include "feckless_abi_image.h"          /* u-defeatist-0029 */
+#include "feckless_abi_network.h"        /* u-defeatist-0042 */
 
 void app_main(void)
 {
@@ -46,6 +50,10 @@ void app_main(void)
      * enough to trip the interrupt watchdog. A box without it refuses the
      * ELF by this name. */
     feckless_abi_require_image();
+    /* u-defeatist-0042: the routes and lwIP's sockets through the box
+     * (u-feckless-0071), so a cable the launcher brought up is the
+     * player's; a box without them refuses the ELF by this name. */
+    feckless_abi_require_network();
 #if DEFEATIST_BOXED_CODEC
     /* u-defeatist-0023: esp_audio_codec through the box (u-feckless-0052);
      * a launcher without the codec refuses the ELF by this name. */

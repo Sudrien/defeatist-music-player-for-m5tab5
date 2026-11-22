@@ -30572,3 +30572,56 @@ up to date. texttest's run-i18n needs managed_components/, so not run.
 for: the boot line; the NET tab greyed with the new notes, the remote
 row's note not overlapping the allowed-devices row; a `W tab5_panel:`
 line on each tap.
+
+### u-defeatist-0042 -- the box's network: a cable connects, MPD serves on it
+
+feckless-libs' u-feckless-0071 has a box answer the network section's
+routes and lwIP's sockets. The player's stand-ins for those come out of
+absent.c, so the box's calls replace them, and the ELF requires the
+section (`feckless_abi_require_network()`; a box without it refuses the
+ELF by that name).
+
+- **Gone from absent.c**: `net_online`, `net_probe`, `net_route_describe`,
+  `ethernet_connected`, `ethernet_link`, `ethernet_ip`, `wifi_up`,
+  `wifi_connected`, `wifi_ntp_synced`, `wifi_sta_ip`, `wifi_sta_ssid`,
+  `wifistore_count`; `lwip_socket`, `_bind`, `_listen`, `_accept`,
+  `_setsockopt`, `_getsockname`, `_getpeername`, `_recv`, `_recvfrom`,
+  `_send`, `_sendto`, `_inet_ntop`, `_getaddrinfo`, `_freeaddrinfo`,
+  `ipaddr_addr`, `select`, `close`. A cable the launcher brought up is now
+  the player's: the NET tab shows its address, and MPD (mpd.c's own
+  socket server) listens on it.
+- **Still absent.c's**: the radio's control and the portal
+  (`wifi_request_apply` and the rest: the launcher's hooks would have to
+  ask the player), NTP (likewise), esp_netif's handles, the HTTP client
+  (web radio, the benchmark, podcast downloads), the HTTP server (remote
+  control), feckless_fetch and feckless_https.
+- **`net_absent()` is `net_limited()`** (netabsent.h): true while absent.c
+  stands in for part of the network. The NET tab greys Wi-Fi, network
+  time, network setup, remote control and the benchmark, and says what is
+  missing: Wi-Fi's note "No Wi-Fi in this build yet: a cable connects, the
+  radio does not." and that web radio, downloads and the remote wait for
+  HTTP while MPD works on the cable; remote control "Not in this build
+  yet: it needs the HTTP server."; the benchmark "... the HTTP client."
+  MPD is enabled by a route, as on a trusted build. The taps' `W` lines
+  say the same; MPD's is gone. The boot line: "the box's network only
+  (absent.c has the rest): a cable and MPD work; Wi-Fi, web radio,
+  podcast downloads and remote control do not yet".
+- **Translations**: four new sentences (`~`, drawn in English); 0041's
+  three removed from every locale by hand -- they were never translated,
+  and `--prune` would also have dropped an entry this did not add.
+
+**Needs u-feckless-0071 pushed and the lock moved to it** (which also
+takes 0070, which 0040 needs): `idf.py update-dependencies`, or
+`rm dependencies.lock` and a build. Against b4aa074 the ELF does not link
+the box's names and boxcheck fails on the first socket call.
+
+*Checked:* panel.c, player.c and elf_main.c compiled with gcc -O2 -Wall
+-Werror=all -Wextra -Werror=extra (-Wno-unused-parameter) against
+minimal IDF stubs and feckless-libs with u-feckless-0071: clean. absent.c
+against the same stubs: no kind of error that was not there before (all
+stub gaps), and 13 fewer. Every name taken out is in the box's table
+(boxcalls_names.txt). `./tools/i18n.py check` up to date. *Not checked:*
+a build; the board. What to look for: the new boot line; with a cable,
+the NET tab's address and MPD reachable on port 6600 from a client on the
+LAN; Wi-Fi, network time, setup, remote and benchmark greyed with the new
+notes.

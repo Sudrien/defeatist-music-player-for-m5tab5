@@ -782,13 +782,14 @@ static const char *const k_ntp_note[] = {
        "invalid at an unset clock."),
     N_("Over Wi-Fi or a USB Ethernet cable."),           /* 6126 */
 };
-/* u-defeatist-0041: in place of k_wifi_note when the build has no network
- * (netabsent.h). The rows below are placed for the longer of the two, so
- * neither runs into the remote's row. */
+/* u-defeatist-0041, 0042: in place of k_wifi_note while the build has
+ * only the box's network (netabsent.h): a cable, not the radio. The rows
+ * below are placed for the longer of the two, so neither runs into the
+ * remote's row. */
 static const char *const k_wifi_note_absent[] = {
-    N_("No network in this build: nothing connects, on or off."),
-    N_("Radio, downloads, the remote and MPD need a launcher that "
-       "gives its apps the network."),
+    N_("No Wi-Fi in this build yet: a cable connects, the radio does not."),
+    N_("Web radio, downloads and the remote wait for the box to "
+       "answer HTTP; MPD works on the cable."),
 };
 static int net_wifi_note_lines(void)
 {
@@ -1063,12 +1064,17 @@ static int draw_net(void)
     const int w = gfx_w();
     int x, y, bw, bh;
     const bool wifi = settings_wifi_enabled();
-    /* u-defeatist-0041: with no network in the build, every row that
-     * needs one is greyed and says why, whatever its setting. */
-    const bool absent = net_absent();
+    /* u-defeatist-0041, 0042: with only the box's network, the rows that
+     * need what it lacks -- the radio's control, NTP, the HTTP server, the
+     * HTTP client -- are greyed and say why, whatever their setting. MPD
+     * is a socket server, so a cable enables it. */
+    const bool absent = net_limited();
     /* 5096: the benchmark reads a station over whatever route there is,
      * so a cable enables it as well as the radio does. */
-    const bool netok = (wifi || net_online()) && !absent;
+    const bool netok = absent ? net_online() : (wifi || net_online());
+    /* u-defeatist-0042: the remote is an HTTP server and the benchmark an
+     * HTTP client, neither in the box yet: greyed on a cable too. */
+    const bool httpok = netok && !absent;
 
     /* --- Wi-Fi ------------------------------------------------------ */
     wifi_switch_box(&x, &y, &bw, &bh);
@@ -1100,12 +1106,12 @@ static int draw_net(void)
     remote_box(&x, &y, &bw, &bh);
     gfx_fill_rect(x, y, bw, bh, C_ROW);
     gfx_draw_text(24, y + (bh - GFX_GLYPH_H(NAME_SCALE)) / 2, _("Remote control"),
-                  NAME_SCALE, 400, netok ? C_TEXT : C_DISABLED);
+                  NAME_SCALE, 400, httpok ? C_TEXT : C_DISABLED);
     {
         const bool pref = settings_remote_enabled();
         const int pw = 132, ph = 56;
         draw_state_pill(w - 24 - pw, y + (bh - ph) / 2, pw, ph,
-                        pref ? _("ON") : _("OFF"), pref, netok, NAME_SCALE);
+                        pref ? _("ON") : _("OFF"), pref, httpok, NAME_SCALE);
     }
     {
         /*
@@ -1116,8 +1122,8 @@ static int draw_net(void)
         static char url_line[64];
         const char *rn[NET_REMOTE_NOTE_PARAS];
         char url[48];
-        if (absent) {                                       /* u-defeatist-0041 */
-            rn[0] = N_("Not in this build: it has no network to listen on.");
+        if (absent) {                                       /* u-defeatist-0041, 0042 */
+            rn[0] = N_("Not in this build yet: it needs the HTTP server.");
             rn[1] = NULL;
         } else if (remote_running() && remote_url(url, sizeof(url))) {
             snprintf(url_line, sizeof(url_line), _("Open %s"), url);
@@ -1193,10 +1199,7 @@ static int draw_net(void)
         static char addr_line[64], who_line[48];
         const char *mn[NET_MPD_NOTE_LINES];
         char addr[32];
-        if (absent) {                                       /* u-defeatist-0041 */
-            mn[0] = N_("Not in this build: it has no network to listen on.");
-            mn[1] = NULL;
-        } else if (mpd_running() && mpd_address(addr, sizeof(addr))) {
+        if (mpd_running() && mpd_address(addr, sizeof(addr))) {
             snprintf(addr_line, sizeof(addr_line), _("Connect an MPD app to %s"), addr);
             mn[0] = addr_line;
             const int n = mpd_clients();
@@ -1261,18 +1264,22 @@ static int draw_net(void)
     bench_box(&x, &y, &bw, &bh);
     gfx_fill_rect(x, y, bw, bh, C_ROW);
     gfx_draw_text(24, y + (bh - GFX_GLYPH_H(NAME_SCALE)) / 2, _("Benchmark"),
-                  NAME_SCALE, 400, netok ? C_TEXT : C_DISABLED);
+                  NAME_SCALE, 400, httpok ? C_TEXT : C_DISABLED);
     {
         const int pw = 132, ph = 56;
         draw_state_pill(w - 24 - pw, y + (bh - ph) / 2, pw, ph,
-                        bs.running ? _("BUSY") : _("RUN"), bs.running, netok,
+                        bs.running ? _("BUSY") : _("RUN"), bs.running, httpok,
                         NAME_SCALE);
     }
     char blines[NET_BENCH_NOTE_LINES][64];
-    bench_lines(&bs, netok, blines);
+    bench_lines(&bs, httpok, blines);
     const char *bench_note[NET_BENCH_NOTE_LINES] = { blines[0], blines[1],
                                                      blines[2] };
-    if (netok && !bs.running && !bs.have) {                     /* 6018 */
+    if (absent && netok) {                                      /* u-defeatist-0042 */
+        bench_note[0] = N_("Not in this build yet: it needs the HTTP client.");
+        bench_note[1] = NULL;
+        bench_note[2] = NULL;
+    } else if (httpok && !bs.running && !bs.have) {             /* 6018 */
         bench_note[0] = N_("Reads the selected station without decoding it, "
                            "to tell a slow network from a slow decoder.");
         bench_note[1] = N_("Stop playback first.");
@@ -1724,7 +1731,8 @@ bool panel_touch(bool down, int x, int y)
             settings_set_wifi_enabled(on);
             ESP_LOGI(TAG, "wifi %s", on ? "on" : "off");
             /* u-defeatist-0041: kept for a build that has one, but said */
-            if (net_absent()) ESP_LOGW(TAG, "wifi: no network in this build; nothing will connect");
+            if (net_limited()) ESP_LOGW(TAG, "wifi: no Wi-Fi control in this build; the radio stays off "
+                                             "(a cable still connects)");
             /* Posts and returns. Doing the work here would block
              * ui_task, and this is the only writer of the framebuffer. */
             wifi_request_apply();
@@ -1739,8 +1747,8 @@ bool panel_touch(bool down, int x, int y)
             const bool on = !settings_remote_enabled();
             settings_set_remote_enabled(on);
             ESP_LOGI(TAG, "remote control %s", on ? "on" : "off");
-            if (net_absent()) ESP_LOGW(TAG, "remote control: no network in this build; "   /* u-defeatist-0041 */
-                                            "no server will start");
+            if (net_limited()) ESP_LOGW(TAG, "remote control: no HTTP server in this build; "   /* u-defeatist-0041, 0042 */
+                                             "none will start");
             s_dirty = true;
             return false;
         }
@@ -1767,8 +1775,6 @@ bool panel_touch(bool down, int x, int y)
             const bool on = !settings_mpd_enabled();
             settings_set_mpd_enabled(on);
             ESP_LOGI(TAG, "mpd server %s", on ? "on" : "off");
-            if (net_absent()) ESP_LOGW(TAG, "mpd server: no network in this build; "        /* u-defeatist-0041 */
-                                            "no server will start");
             s_dirty = true;
             return false;
         }
@@ -1788,8 +1794,8 @@ bool panel_touch(bool down, int x, int y)
             const bool on = !settings_ntp_pref();
             settings_set_ntp_enabled(on);
             ESP_LOGI(TAG, "ntp %s", on ? "on" : "off");
-            if (net_absent()) ESP_LOGW(TAG, "network time: no network in this build; "      /* u-defeatist-0041 */
-                                            "the clock keeps its own time");
+            if (net_limited()) ESP_LOGW(TAG, "network time: not in this build; "              /* u-defeatist-0041, 0042 */
+                                             "the clock keeps its own time");
             s_dirty = true;
         }
 
@@ -1801,8 +1807,8 @@ bool panel_touch(bool down, int x, int y)
             if (portal_running()) {
                 ESP_LOGI(TAG, "network setup: stop");
                 portal_request_stop();
-            } else if (net_absent()) {                      /* u-defeatist-0041 */
-                ESP_LOGW(TAG, "network setup: refused -- no network in this build");
+            } else if (net_limited()) {                     /* u-defeatist-0041, 0042 */
+                ESP_LOGW(TAG, "network setup: refused -- no Wi-Fi control in this build");
             } else {
                 const esp_err_t err = portal_start();
                 ESP_LOGI(TAG, "network setup: start%s",
@@ -1819,8 +1825,8 @@ bool panel_touch(bool down, int x, int y)
          * is playing, because that loop is not running then.
          */
         bench_box(&bx, &by, &bw, &bh);
-        if (y >= by && y < by + bh && net_absent()) {      /* u-defeatist-0041 */
-            ESP_LOGW(TAG, "benchmark: refused -- no network in this build");
+        if (y >= by && y < by + bh && net_limited()) {     /* u-defeatist-0041, 0042 */
+            ESP_LOGW(TAG, "benchmark: refused -- no HTTP client in this build");
             return false;
         }
         if (y >= by && y < by + bh) {

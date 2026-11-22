@@ -16299,11 +16299,11 @@ void defeatist_main(void)
         ESP_LOGW(TAG, "no USB remote support this boot");
     }
 
-    /* u-defeatist-0041: said once at boot, beside the other things this
-     * boot will not do, so a log read later does not have to infer it. */
-    if (net_absent()) {
-        ESP_LOGW(TAG, "no network in this build (absent.c): Wi-Fi, Ethernet, radio, "
-                      "podcast downloads, remote control and MPD stay off");
+    /* u-defeatist-0041, 0042: said once at boot, beside the other things
+     * this boot will not do, so a log read later does not have to infer it. */
+    if (net_limited()) {
+        ESP_LOGW(TAG, "the box's network only (absent.c has the rest): a cable and MPD work; "
+                      "Wi-Fi, web radio, podcast downloads and remote control do not yet");
     }
 
     /* 8074: the USB Ethernet class was registered by feckless_net_start(),

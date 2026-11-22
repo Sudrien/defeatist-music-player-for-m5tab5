@@ -346,6 +346,8 @@ ja:
     "Next": "次へ"
     # recorder.c
     "No USB microphone is plugged in.": "USBマイクが\nつながっていない。"
+    # panel.c
+    "No Wi-Fi in this build yet: a cable connects, the radio does not.": ~
     # portal.c
     "No answer from that network. Try again.": "そのネットワークから応答がありません。もう一度お試しください。"
     # panel.c
@@ -354,8 +356,6 @@ ja:
     "No memory for the recording task.": "録音タスクのメモリ不足。"
     # bench.c
     "No memory to measure with.": "測定するメモリがない。"
-    # panel.c
-    "No network in this build: nothing connects, on or off.": ~
     # panel.c
     "No password: each address is allowed on the player.": "パスワードなし：アドレスごとにプレーヤーで許可する。"
     # panel.c
@@ -371,7 +371,9 @@ ja:
     # recorder.c
     "Not enough memory to record.": "録音するメモリが足りない。"
     # panel.c
-    "Not in this build: it has no network to listen on.": ~
+    "Not in this build yet: it needs the HTTP client.": ~
+    # panel.c
+    "Not in this build yet: it needs the HTTP server.": ~
     # remote.html
     "Nothing here.": ~
     # recorder.c
@@ -484,8 +486,6 @@ ja:
     "Radio": "ラジオ"
     # portal.c, remote.html
     "Radio stations": "ラジオ局"
-    # panel.c
-    "Radio, downloads, the remote and MPD need a launcher that gives its apps the network.": ~
     # panel.c
     "Reading %s without decoding…": "%s をデコードせずに読込中…"
     # remote.html
@@ -736,6 +736,8 @@ ja:
     "Waiting for a network.": "ネットワークを待っています。"
     # player.c
     "Waiting for network": "ネット待ち"
+    # panel.c
+    "Web radio, downloads and the remote wait for the box to answer HTTP; MPD works on the cable.": ~
     # player.c
     "Web setup is open": "Web設定が開いている"
     # remote.c

@@ -10,10 +10,14 @@
  * u-feckless-0049) has no host call for. Each is defined
  * here to fail the way the player already copes with on a trusted run:
  *
- *   the network      down and never coming up: no Wi-Fi, no Ethernet, no
- *                    sockets, no HTTP client or server. The player is an
- *                    offline player that way already when nothing is
- *                    configured, and its network screens say so.
+ *   the network      the routes and sockets answered by the box since
+ *                    u-feckless-0071 (u-defeatist-0042): a cable the
+ *                    launcher brought up is the player's, and MPD serves on
+ *                    it. Still here: the radio's control and the portal,
+ *                    esp_netif's handles, the HTTP client and server,
+ *                    feckless_fetch and feckless_https, which call back
+ *                    into the player or need the launcher's hooks; they
+ *                    fail as with no Wi-Fi, and net_limited() says so.
  *   NVS              answered by the box since u-feckless-0053
  *                    (u-defeatist-0024), in the namespace the launcher
  *                    names; with none named it reads as empty, as here
@@ -85,32 +89,19 @@ static bool empty(char *out, size_t n)
 /* ---- the network: down ---------------------------------------------------- */
 
 void feckless_net_set_hooks(const feckless_net_hooks_t *hooks) { (void)hooks; }
-bool net_online(void) { return false; }
-bool net_probe(uint32_t timeout_ms, int *gw_ms, int *net_ms, char *what, size_t what_size)
-{
-    (void)timeout_ms;
-    if (gw_ms) *gw_ms = -1;
-    if (net_ms) *net_ms = -1;
-    if (what && what_size) snprintf(what, what_size, "no network in a box");
-    return false;
-}
-void net_route_describe(char *out, size_t out_size)
-{
-    if (out && out_size) snprintf(out, out_size, "none (boxed)");
-}
-bool ethernet_connected(void) { return false; }
-bool ethernet_link(void) { return false; }
-bool ethernet_ip(char *out, size_t out_size) { return empty(out, out_size); }
+/*
+ * u-defeatist-0042: the routes' state -- net_online, net_probe,
+ * net_route_describe, ethernet_*, wifi_up, wifi_connected, wifi_ntp_synced,
+ * wifi_sta_ip, wifi_sta_ssid, wifistore_count -- and lwIP's sockets,
+ * select() and close() are the box's now (u-feckless-0071), and gone from
+ * here. What stays below calls back into the player, or controls the
+ * radio, which a box cannot do yet.
+ */
 
-/* u-defeatist-0041: said, not only failed -- see netabsent.h. Goes with
- * the network stand-ins below when a box answers the network. */
-bool net_absent(void) { return true; }
+/* u-defeatist-0041, 0042: said, not only failed -- see netabsent.h. Goes
+ * when a box answers the rest of the network. */
+bool net_limited(void) { return true; }
 
-bool wifi_up(void) { return false; }
-bool wifi_connected(void) { return false; }
-bool wifi_ntp_synced(void) { return false; }
-bool wifi_sta_ip(char *out, size_t out_size) { return empty(out, out_size); }
-bool wifi_sta_ssid(char *out, size_t out_size) { return empty(out, out_size); }
 int wifi_scan_list(wifi_seen_t *out, int max) { (void)out; (void)max; return 0; }
 esp_err_t wifi_join(const char *ssid, const char *secret, uint32_t timeout_ms)
 {
@@ -131,7 +122,6 @@ esp_err_t wifi_psk(const char *ssid, const char *passphrase, uint8_t key[32])
     memset(key, 0, 32);
     return ESP_ERR_NOT_SUPPORTED;
 }
-int wifistore_count(void) { return 0; }
 esp_err_t wifistore_save(const char *ssid, const char *secret, bool is_psk)
 {
     (void)ssid; (void)secret; (void)is_psk;
@@ -165,62 +155,6 @@ esp_err_t esp_netif_dhcps_option(esp_netif_t *n, esp_netif_dhcp_option_mode_t op
     (void)n; (void)op; (void)id; (void)val; (void)len;
     return ESP_ERR_NOT_SUPPORTED;
 }
-
-/* sockets: every call fails, as with no interface up */
-int lwip_socket(int domain, int type, int protocol)
-{
-    (void)domain; (void)type; (void)protocol;
-    errno = ENOSYS;
-    return -1;
-}
-int lwip_bind(int s, const struct sockaddr *name, socklen_t namelen) { (void)s; (void)name; (void)namelen; errno = EBADF; return -1; }
-int lwip_listen(int s, int backlog) { (void)s; (void)backlog; errno = EBADF; return -1; }
-int lwip_accept(int s, struct sockaddr *addr, socklen_t *addrlen) { (void)s; (void)addr; (void)addrlen; errno = EBADF; return -1; }
-int lwip_setsockopt(int s, int level, int optname, const void *optval, socklen_t optlen)
-{
-    (void)s; (void)level; (void)optname; (void)optval; (void)optlen;
-    errno = EBADF;
-    return -1;
-}
-int lwip_getsockname(int s, struct sockaddr *name, socklen_t *namelen) { (void)s; (void)name; (void)namelen; errno = EBADF; return -1; }
-int lwip_getpeername(int s, struct sockaddr *name, socklen_t *namelen) { (void)s; (void)name; (void)namelen; errno = EBADF; return -1; }
-ssize_t lwip_recv(int s, void *mem, size_t len, int flags) { (void)s; (void)mem; (void)len; (void)flags; errno = EBADF; return -1; }
-ssize_t lwip_recvfrom(int s, void *mem, size_t len, int flags, struct sockaddr *from, socklen_t *fromlen)
-{
-    (void)s; (void)mem; (void)len; (void)flags; (void)from; (void)fromlen;
-    errno = EBADF;
-    return -1;
-}
-ssize_t lwip_send(int s, const void *data, size_t size, int flags) { (void)s; (void)data; (void)size; (void)flags; errno = EBADF; return -1; }
-ssize_t lwip_sendto(int s, const void *data, size_t size, int flags, const struct sockaddr *to, socklen_t tolen)
-{
-    (void)s; (void)data; (void)size; (void)flags; (void)to; (void)tolen;
-    errno = EBADF;
-    return -1;
-}
-const char *lwip_inet_ntop(int af, const void *src, char *dst, socklen_t size)
-{
-    (void)af; (void)src;
-    if (dst && size) dst[0] = '\0';
-    errno = EAFNOSUPPORT;
-    return NULL;
-}
-int lwip_getaddrinfo(const char *nodename, const char *servname, const struct addrinfo *hints, struct addrinfo **res)
-{
-    (void)nodename; (void)servname; (void)hints;
-    if (res) *res = NULL;
-    return EAI_FAIL;
-}
-void lwip_freeaddrinfo(struct addrinfo *ai) { (void)ai; }
-u32_t ipaddr_addr(const char *cp) { (void)cp; return IPADDR_NONE; }
-int select(int nfds, fd_set *rd, fd_set *wr, fd_set *ex, struct timeval *timeout)
-{
-    (void)nfds; (void)rd; (void)wr; (void)ex; (void)timeout;
-    errno = ENOSYS;
-    return -1;
-}
-/* No socket was ever opened, and a file is fclose()d: nothing to close. */
-int close(int fd) { (void)fd; errno = EBADF; return -1; }
 
 /* the HTTP client: no handle, so nothing after init does anything */
 esp_http_client_handle_t esp_http_client_init(const esp_http_client_config_t *config) { (void)config; return NULL; }

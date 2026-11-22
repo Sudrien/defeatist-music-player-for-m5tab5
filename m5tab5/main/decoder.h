@@ -143,6 +143,39 @@ typedef struct {
     const uint32_t *frame;
 } decoder_index_t;
 
+/*
+ * u-defeatist-0040: AN MP3'S SEEK TABLE FROM ITS FRAME HEADERS, AS THE
+ * FILE ARRIVES. For poddl: walked a megabyte at a time while an episode
+ * downloads (feckless_fetch's READY), so the table is in the episode's
+ * sidecar when the download is done, not built by a scan at its first
+ * open.
+ *
+ * The entries are the frames minimp3's own index would hold -- its frame
+ * finder, on the bytes its reader would have in hand (mp3dec_iterate_cb's
+ * 128 KB buffer, refilled below 16 KB), after an ID3v2 tag and after a
+ * Xing/Info frame -- so a table from here is what decoder_index_extract()
+ * gives after a scan, at a spacing that starts at `spacing_sec` and
+ * doubles when `max` entries are full. Samples are counted from headers;
+ * minimp3 counts what its first frames decode, which differs only for a
+ * file whose first frames do not decode (a cut stream).
+ *
+ * `read` reads exactly `n` bytes at `off` and says whether it did.
+ * mp3walk_step() walks what the first `avail` bytes allow; `whole` says
+ * they are the file. It waits rather than refill short, so a step that
+ * cannot go on returns true with nothing done. False: a read failed, and
+ * the walk is over.
+ */
+typedef struct mp3walk mp3walk_t;
+typedef bool (*mp3walk_read_t)(void *ctx, uint64_t off, void *dst, size_t n);
+mp3walk_t *mp3walk_new(int max, uint32_t spacing_sec);
+void mp3walk_free(mp3walk_t *w);
+bool mp3walk_step(mp3walk_t *w, mp3walk_read_t read, void *ctx, uint64_t avail, bool whole);
+/* After a whole step: the table, as decoder_index_t's units, and the
+ * length. False if the walk found fewer than two entries. */
+bool mp3walk_table(const mp3walk_t *w, const uint32_t **offset, const uint32_t **frame,
+                   int *count, uint32_t *spacing_sec, uint64_t *frames,
+                   uint32_t *hz, int *channels, int *kbps);
+
 /* NULL on failure. Logs the reason. */
 decoder_t *decoder_open(const char *path);
 

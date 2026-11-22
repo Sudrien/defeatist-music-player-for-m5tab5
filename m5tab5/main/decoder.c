@@ -2659,6 +2659,199 @@ bool decoder_install_index(decoder_t *d, const decoder_index_t *ix)
 }
 
 /* ------------------------------------------------------------------ */
+/* u-defeatist-0040: the seek table from the headers, as a file arrives */
+/* ------------------------------------------------------------------ */
+
+/*
+ * See decoder.h. This is mp3dec_iterate_cb() turned inside out: the same
+ * buffer and refill rule, so mp3d_find_frame() sees what it would have
+ * seen and accepts the same frames, but stopped wherever the bytes on
+ * hand run out and taken up again when more arrive -- a refill that
+ * cannot be made whole waits, since a short one would change the frames
+ * found. The callback is mp3dec_load_index()'s choice of frames (the
+ * first one skipped when it is a Xing/Info frame, as both the scan at
+ * open and the build at a first seek skip it) with samples from the
+ * headers, kept every `spacing` seconds rather than every frame.
+ *
+ * texttest/mp3walktest.c lifts everything between the two marker lines
+ * and checks it against minimp3's own index.
+ */
+/* MP3WALK-BEGIN */
+struct mp3walk {
+    uint8_t *buf;                   /* MINIMP3_IO_SIZE, as the iterator's */
+    size_t   filled, consumed;
+    uint64_t pos;                   /* the file offset of the next read */
+    uint64_t readed;                /* the iterator's: the next frame's offset */
+    int      phase;                 /* 0 not begun, 1 walking, 2 done */
+    bool     eof, refill;
+    bool     first;                 /* the first frame has been seen */
+    uint32_t hz;
+    int      ch, kbps;
+    uint64_t samples;               /* int16 values over all channels, as minimp3's */
+    uint32_t *off, *frm;
+    int      n, max;
+    uint32_t spacing;
+    uint64_t next;                  /* samples at which the next entry is due */
+    bool     stopped;               /* an offset past 4 GB: no more entries */
+};
+
+mp3walk_t *mp3walk_new(int max, uint32_t spacing_sec)
+{
+    if (max < 2 || !spacing_sec) return NULL;
+    mp3walk_t *w = heap_caps_calloc(1, sizeof(*w), MALLOC_CAP_SPIRAM | MALLOC_CAP_8BIT);
+    if (!w) return NULL;
+    w->buf = heap_caps_malloc(MINIMP3_IO_SIZE, MALLOC_CAP_SPIRAM | MALLOC_CAP_8BIT);
+    w->off = heap_caps_malloc((size_t)max * sizeof(uint32_t), MALLOC_CAP_SPIRAM | MALLOC_CAP_8BIT);
+    w->frm = heap_caps_malloc((size_t)max * sizeof(uint32_t), MALLOC_CAP_SPIRAM | MALLOC_CAP_8BIT);
+    if (!w->buf || !w->off || !w->frm) {
+        mp3walk_free(w);
+        return NULL;
+    }
+    w->max = max;
+    w->spacing = spacing_sec;
+    return w;
+}
+
+void mp3walk_free(mp3walk_t *w)
+{
+    if (!w) return;
+    heap_caps_free(w->buf);
+    heap_caps_free(w->off);
+    heap_caps_free(w->frm);
+    heap_caps_free(w);
+}
+
+/* One kept entry every `spacing` seconds, greedy from the last one, as
+ * decoder_index_extract() keeps them; full, every other one goes and the
+ * spacing doubles. */
+static void mp3walk_keep(mp3walk_t *w, uint64_t offset)
+{
+    if (w->stopped) return;
+    if (offset > UINT32_MAX) { w->stopped = true; return; }
+    const uint64_t per_sec = (uint64_t)w->hz * (uint64_t)w->ch;
+    if (w->n && w->samples < w->next) return;
+    if (w->n && offset <= w->off[w->n - 1]) return;
+    if (w->n == w->max) {
+        int k = 0;
+        for (int i = 0; i < w->n; i += 2, k++) {
+            w->off[k] = w->off[i];
+            w->frm[k] = w->frm[i];
+        }
+        w->n = k;
+        w->spacing *= 2;
+        w->next = (uint64_t)w->frm[w->n - 1] * (uint64_t)w->ch + w->spacing * per_sec;
+        if (w->samples < w->next) return;
+    }
+    w->off[w->n] = (uint32_t)offset;
+    w->frm[w->n] = (uint32_t)(w->samples / (uint64_t)w->ch);
+    w->n++;
+    w->next = w->samples + w->spacing * per_sec;
+}
+
+/* mp3dec_load_index()'s part, from the header alone. */
+static void mp3walk_frame(mp3walk_t *w, const uint8_t *hdr, int frame_size, uint64_t offset)
+{
+    if (!w->first) {
+        w->first = true;
+        w->hz = hdr_sample_rate_hz(hdr);
+        w->ch = HDR_IS_MONO(hdr) ? 1 : 2;
+        w->kbps = (int)hdr_bitrate_kbps(hdr);
+        if (3 == 4 - HDR_GET_LAYER(hdr)) {
+            uint32_t frames;
+            int delay, padding;
+            if (mp3dec_check_vbrtag(hdr, frame_size, &frames, &delay, &padding)) return;
+        }
+    }
+    mp3walk_keep(w, offset);
+    w->samples += (uint64_t)hdr_frame_samples(hdr) * (uint64_t)(HDR_IS_MONO(hdr) ? 1 : 2);
+}
+
+bool mp3walk_step(mp3walk_t *w, mp3walk_read_t read, void *ctx, uint64_t avail, bool whole)
+{
+    if (!w || !read) return false;
+    if (w->phase == 2) return true;
+    const size_t bsz = MINIMP3_IO_SIZE;
+
+    if (w->phase == 0) {
+        /* The iterator's first reads: ten bytes for an ID3v2 header, then
+         * the buffer from after the tag or from the eleventh byte. */
+        if (avail < MINIMP3_ID3_DETECT_SIZE) {
+            if (whole) w->phase = 2;            /* too short to be anything */
+            return true;
+        }
+        if (!read(ctx, 0, w->buf, MINIMP3_ID3_DETECT_SIZE)) return false;
+        const size_t id3 = mp3dec_skip_id3v2(w->buf, MINIMP3_ID3_DETECT_SIZE);
+        const uint64_t from = id3 ? id3 : MINIMP3_ID3_DETECT_SIZE;
+        const size_t at = id3 ? 0 : MINIMP3_ID3_DETECT_SIZE;
+        size_t want = bsz - at;
+        if (avail < from + want) {
+            if (!whole) return true;
+            want = avail > from ? (size_t)(avail - from) : 0;
+        }
+        if (want && !read(ctx, from, w->buf + at, want)) return false;
+        w->filled = at + want;
+        w->pos = from + want;
+        w->readed = id3;
+        if (w->filled < MINIMP3_BUF_SIZE) mp3dec_skip_id3v1(w->buf, &w->filled);
+        w->phase = 1;
+    }
+
+    for (;;) {
+        if (w->refill) {
+            size_t want = bsz - w->filled;
+            if (avail < w->pos + want) {
+                if (!whole) return true;
+                want = avail > w->pos ? (size_t)(avail - w->pos) : 0;
+                w->eof = true;
+            }
+            if (want && !read(ctx, w->pos, w->buf + w->filled, want)) return false;
+            w->pos += want;
+            w->filled += want;
+            if (w->eof) mp3dec_skip_id3v1(w->buf, &w->filled);
+            w->refill = false;
+        }
+        int ffb = 0, fsize = 0;
+        const int i = mp3d_find_frame(w->buf + w->consumed, (int)(w->filled - w->consumed),
+                                      &ffb, &fsize);
+        if (i && !fsize) {
+            w->consumed += (size_t)i;
+            continue;
+        }
+        if (!fsize) {
+            w->phase = 2;
+            return true;
+        }
+        w->readed += (uint64_t)i;
+        mp3walk_frame(w, w->buf + w->consumed + i, fsize, w->readed);
+        w->readed += (uint64_t)fsize;
+        w->consumed += (size_t)(i + fsize);
+        if (!w->eof && w->filled - w->consumed < MINIMP3_BUF_SIZE) {
+            memmove(w->buf, w->buf + w->consumed, w->filled - w->consumed);
+            w->filled -= w->consumed;
+            w->consumed = 0;
+            w->refill = true;
+        }
+    }
+}
+
+bool mp3walk_table(const mp3walk_t *w, const uint32_t **offset, const uint32_t **frame,
+                   int *count, uint32_t *spacing_sec, uint64_t *frames,
+                   uint32_t *hz, int *channels, int *kbps)
+{
+    if (!w || w->phase != 2 || w->n < 2 || !w->hz || !w->ch) return false;
+    *offset = w->off;
+    *frame = w->frm;
+    *count = w->n;
+    *spacing_sec = w->spacing;
+    *frames = w->samples / (uint64_t)w->ch;
+    *hz = w->hz;
+    *channels = w->ch;
+    *kbps = w->kbps;
+    return true;
+}
+/* MP3WALK-END */
+
+/* ------------------------------------------------------------------ */
 /* Cue tracks                                                          */
 /* ------------------------------------------------------------------ */
 

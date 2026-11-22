@@ -31,6 +31,7 @@
 #include "freertos/semphr.h"
 
 #include "covertag.h"           /* 8027: COVERTAG_MAX_IMAGE */
+#include "decoder.h"            /* u-defeatist-0040: mp3walk */
 #include "feckless_fetch.h"     /* 8124 */
 #include "folderart.h"          /* 8027: folderart_own_path() */
 #include "podindex.h"           /* 8130: podindex_feed_url() */
@@ -413,6 +414,96 @@ static void fetch_pictures(const char *episode_path)
     }
 }
 
+/*
+ * u-defeatist-0040: AN MP3 EPISODE'S SEEK TABLE, BUILT AS IT ARRIVES.
+ *
+ * An episode with no table in its sidecar was scanned at its first open:
+ * minimp3 reading the whole file, 20 s for a 53 MB episode and 28 s for
+ * a 72 MB one at the card's 2.7 MB/s, before the first sound. So the
+ * table is walked from the frame headers as the part file fills
+ * (feckless_fetch's READY, a megabyte at a time, u-feckless-0070), the
+ * last of it at VERIFY, and written to the sidecar at DONE with the
+ * length, before the picture -- whose replaygain_save_art_ext() keeps
+ * them. The first open then installs it and reads one frame.
+ *
+ * READY comes on the download's writer task and VERIFY and DONE on its
+ * own, one after the other and never together, so the walk needs no lock.
+ * It reads back what was written, at BACKGROUND: one more read of the
+ * file, spread over the download. Started afresh at each START, since a
+ * resumed run tells READY from the start again. Only for an .mp3, as the
+ * extension HEADERS chose; any failure drops the walk, and the episode is
+ * scanned at its first open as before.
+ */
+static mp3walk_t *s_walk;
+static bool       s_walk_whole;
+
+static void walk_drop(void)
+{
+    mp3walk_free(s_walk);
+    s_walk = NULL;
+    s_walk_whole = false;
+}
+
+static bool walk_read(void *ctx, uint64_t off, void *dst, size_t n)
+{
+    return off <= INT64_MAX && storage_io_read_at((FILE *)ctx, (int64_t)off, dst, n,
+                                                  STORAGE_IO_BACKGROUND);
+}
+
+/* The part file up to `avail`, opened again each time: a FatFs handle
+ * reads only to the size the file had when it was opened. */
+static void walk_step(const char *part, int64_t avail, bool whole)
+{
+    if (!s_walk || avail <= 0) return;
+    storage_io_acquire(STORAGE_IO_BACKGROUND);
+    FILE *f = storage_io_open(part, "rb");
+    storage_io_release();
+    const bool ok = f && mp3walk_step(s_walk, walk_read, f, (uint64_t)avail, whole);
+    if (f) {
+        storage_io_acquire(STORAGE_IO_BACKGROUND);
+        storage_io_close(f);
+        storage_io_release();
+    }
+    if (!ok) {
+        ESP_LOGW(TAG, "seek table: could not read %s at %lld; scanned at the first play instead",
+                 part, (long long)avail);
+        walk_drop();
+        return;
+    }
+    if (whole) s_walk_whole = true;
+}
+
+static void walk_save(const char *path)
+{
+    const uint32_t *off, *frm;
+    int n = 0, ch = 0, kbps = 0;
+    uint32_t spacing = 0, hz = 0;
+    uint64_t frames = 0;
+    if (!s_walk || !s_walk_whole ||
+        !mp3walk_table(s_walk, &off, &frm, &n, &spacing, &frames, &hz, &ch, &kbps)) {
+        if (s_walk) ESP_LOGW(TAG, "seek table: none from the walk of %s", path);
+        walk_drop();
+        return;
+    }
+    replaygain_format_t fmt = {0};
+    fmt.sec = (uint32_t)((frames + hz / 2) / hz);
+    fmt.sample_rate = hz;
+    fmt.channels = (uint8_t)ch;
+    fmt.kbps = (uint16_t)kbps;
+    snprintf(fmt.codec, sizeof(fmt.codec), "mp3");
+    storage_io_acquire(STORAGE_IO_BACKGROUND);
+    const esp_err_t ierr = replaygain_save_index(path, off, frm, n, spacing);
+    const esp_err_t ferr = fmt.sec ? replaygain_save_format(path, &fmt) : ESP_OK;
+    storage_io_release();
+    if (ierr == ESP_OK && ferr == ESP_OK) {
+        ESP_LOGI(TAG, "seek table: %d entries every %" PRIu32 " s, %" PRIu32 " s long, in the sidecar",
+                 n, spacing, fmt.sec);
+    } else {
+        ESP_LOGW(TAG, "seek table: could not write the sidecar of %s", path);
+    }
+    walk_drop();
+}
+
 /* ---- feckless_fetch's callback ----------------------------------------- */
 
 /* The extension: the URL's, else the reply's Content-Type, else mp3. */
@@ -442,12 +533,18 @@ static bool on_event(feckless_fetch_ev_t *ev)
             if (rename(old, ev->part) == 0) ESP_LOGI(TAG, "moved an earlier part file to %s", ev->part);
         }
         storage_io_release();
+        walk_drop();                                /* u-defeatist-0040: afresh each run */
         return true;
     }
     case FECKLESS_FETCH_EV_HEADERS: {
         char ext[8];
         choose_ext(ev->url, ev->ctype, ext, sizeof(ext));
         snprintf(ev->path, ev->path_size, "%s/%s.%s", s_dir, s_base, ext);
+        /* u-defeatist-0040 */
+        if (!strcasecmp(ext, "mp3") && !s_walk) {
+            s_walk = mp3walk_new(REPLAYGAIN_INDEX_MAX, REPLAYGAIN_INDEX_SPACING_SEC);
+            if (!s_walk) ESP_LOGW(TAG, "seek table: no room to walk; scanned at the first play instead");
+        }
         /* 8127: the server has said yes (a 200, or the 206 of a resume), so
          * the podcast's folder and its way back are made now: the chooser
          * shows the link while the episode comes. Not at START (8126),
@@ -459,16 +556,22 @@ static bool on_event(feckless_fetch_ev_t *ev)
         storage_io_release();
         return true;
     }
+    case FECKLESS_FETCH_EV_READY:                   /* u-defeatist-0040 */
+        walk_step(ev->part, ev->size, false);
+        return true;
     case FECKLESS_FETCH_EV_VERIFY:
+        walk_step(ev->part, ev->size, true);        /* u-defeatist-0040: the rest */
         return true;
     case FECKLESS_FETCH_EV_DONE:
         storage_io_acquire(STORAGE_IO_BACKGROUND);
         write_link();                               /* 8021: again, for a renamed podcast */
         drop_part_dir(s_dir);                       /* 8029 */
         storage_io_release();
+        walk_save(ev->path);                        /* u-defeatist-0040: before the picture */
         fetch_pictures(ev->path);
         return true;
     case FECKLESS_FETCH_EV_CANCELLED:
+        walk_drop();                                /* u-defeatist-0040 */
         storage_io_acquire(STORAGE_IO_BACKGROUND);
         drop_part_dir(s_dir);                       /* 8029 */
         drop_empty_podcast_dir(s_dir);

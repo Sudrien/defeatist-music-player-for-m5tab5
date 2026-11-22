@@ -30455,3 +30455,77 @@ each with a `defeatist_player.app.elf.debug` several MB in size; the
 built without the option, if compared); and addr2line on the `.debug`
 naming a function for the addresses above. The workflow does not
 publish the `.debug`.
+
+### u-defeatist-0040 -- an MP3 episode's seek table built as it downloads
+
+An episode the player had not seen was scanned at its first open, minimp3
+reading the whole file: 20.8 s for a 53 MB episode, 28.5 s for a 72 MB
+one, before the first sound (0038's logs). 0038 keeps the table once
+built; this builds it before the first play. feckless-libs'
+u-feckless-0070 tells poddl each time another megabyte of the part file
+can be read (READY), and the table is walked from the frame headers as
+it arrives, finished at VERIFY and written to the episode's `.rgcache`,
+with the length, at DONE.
+
+- **`decoder.c`: `mp3walk_*`.** `mp3dec_iterate_cb()` turned inside out:
+  the same 128 KB buffer refilled below 16 KB, so `mp3d_find_frame()`
+  sees what it would see and accepts the same frames, but stopped where
+  the bytes on hand end and taken up again when more come. A refill that
+  cannot be made whole waits; a short one would change the frames found.
+  The frames kept are `mp3dec_load_index()`'s: after an ID3v2 tag, the
+  first one dropped if it is a Xing/Info frame (the scan at open and the
+  build at a first seek both drop it, so one rule serves files with and
+  without one), ID3v1 and APEv2 off the end, and the iterator's offsets
+  exactly -- including that it does not count junk it skipped in a call
+  that found no frame. Samples are counted from the headers (header-only,
+  as asked): minimp3 counts what its first frames decode, which differs
+  only where a stream starts mid-reservoir. One entry every 2 s, greedy as
+  decoder_index_extract() keeps them; full at 256, every other one goes
+  and the spacing doubles. In decoder.c because minimp3's implementation
+  and its static helpers are there; decoder.h has the interface, with a
+  read callback so it does not know about files.
+- **`poddl.c`.** A walker at HEADERS when the extension is `.mp3`,
+  dropped at START (a resumed run tells READY from the start again) and
+  at CANCELLED. READY: the part file opened again (FatFs reads only to the
+  size it had when opened) and walked up to `ready`, read back at
+  BACKGROUND with `storage_io_read_at()`. VERIFY: the rest, `whole`. DONE:
+  `replaygain_save_index()` and `replaygain_save_format()`, then the
+  picture as before, whose `replaygain_save_art_ext()` keeps both. Any
+  failure drops the walk with a line, and the episode is scanned at its
+  first play as before. READY runs on feckless_fetch's writer task and
+  VERIFY and DONE on its download task, never at once, so no lock. The
+  switch gains READY, which u-feckless-0070's enum needs under
+  `-Werror=all`.
+- **`texttest/mp3walktest.c`.** The walker lifted from decoder.c between
+  its `MP3WALK-BEGIN` and `MP3WALK-END` lines (the Makefile makes
+  `mp3walk_lifted.inc`; ignored), against minimp3's own index.
+
+What it costs: the file is read once more, a megabyte at a time behind
+the download (at its ~450 KB/s the card has the room: it reads 2.7 MB/s);
+128 KB of PSRAM for the buffer while a download runs (kept after a pause
+or a failure until the next START); the writer task waits for each
+megabyte's walk. The walk is a few kilobytes of stack on a 6144-byte
+task; feckless_fetch logs its high-water mark at the end of every run.
+
+**Needs u-feckless-0070 pushed and the lock moved to it**: against
+b4aa074, `FECKLESS_FETCH_EV_READY` does not exist and poddl.c does not
+compile.
+
+*Checked:* `make run-mp3walk` in texttest, 99 checks: for 03 (CBR, no
+Xing), 04 (VBR with a Xing frame, against the index a first seek builds),
+12 (a large ID3v2 cover), 03 with APEv2 and ID3v1 footers, 03 after 1000
+bytes of junk, 03 at a cap of 16, and 03 ten times over (149 entries
+every 4 s at the real cap): every entry kept is a frame of minimp3's index
+at the same sample, the length agrees with minimp3's frames, the table is
+the same walked in one step, in 7919-byte steps and in 65539-byte steps,
+and no step read past what it was allowed. decoder.c and poddl.c compiled
+with gcc -O2 -Wall -Werror=all -Wextra -Werror=extra
+(-Wno-unused-parameter) against minimal IDF stubs, esp_audio_codec's
+headers, the real minimp3 and feckless-libs with u-feckless-0070: both
+clean; poddl.c before this, against 0070, fails on the missing READY
+case. *Not checked:* a build, a board. What a board's log should show
+on a new episode: `tab5_poddl: seek table: N entries every S s, L s long,
+in the sidecar` after feckless_fetch's `done:`; then at its first play
+`tab5_rg: sidecar: ...: seek-table length art` and `mp3: seek table
+installed ... no scan at open`, `open took` in milliseconds; and
+feckless_fetch's writer stack line with room left.

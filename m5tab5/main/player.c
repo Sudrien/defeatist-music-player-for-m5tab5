@@ -102,6 +102,7 @@
 #include "levelhist.h"
 #include "ui.h"
 #include "i18n.h"         /* 6017 */
+#include "netabsent.h"         /* u-defeatist-0041 */
 #include "usbhost.h"
 #include "wifi.h"
 #include "portal.h"
@@ -16296,6 +16297,13 @@ void defeatist_main(void)
      * on-screen controls doing everything they already did. */
     if (hid_init(hid_button) != ESP_OK) {
         ESP_LOGW(TAG, "no USB remote support this boot");
+    }
+
+    /* u-defeatist-0041: said once at boot, beside the other things this
+     * boot will not do, so a log read later does not have to infer it. */
+    if (net_absent()) {
+        ESP_LOGW(TAG, "no network in this build (absent.c): Wi-Fi, Ethernet, radio, "
+                      "podcast downloads, remote control and MPD stay off");
     }
 
     /* 8074: the USB Ethernet class was registered by feckless_net_start(),

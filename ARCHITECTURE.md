@@ -30529,3 +30529,46 @@ in the sidecar` after feckless_fetch's `done:`; then at its first play
 `tab5_rg: sidecar: ...: seek-table length art` and `mp3: seek table
 installed ... no scan at open`, `open took` in milliseconds; and
 feckless_fetch's writer stack line with room left.
+
+### u-defeatist-0041 -- no network in the build, said rather than only failed
+
+A board run switched Wi-Fi on, then remote control, then plugged in a USB
+Ethernet adapter: the launcher's side brought the cable up (192.168.1.125)
+and the player did nothing, with nothing in the log or on the screen to
+say why. Nothing could: absent.c stands in for the whole network section
+(u-defeatist-0022) -- `wifi_apply_settings()` is NOT_SUPPORTED, every
+`lwip_*` call fails EBADF, `esp_netif_*` finds no interface,
+`feckless_https_start()` and `feckless_fetch_start()` fail -- because a
+box has no host calls for it yet. The NET tab still drew Wi-Fi ON, and
+remote control and MPD "Waiting for a network address."
+
+- **`main/netabsent.h`, `net_absent()`**, defined in absent.c beside the
+  network stand-ins, true. It goes with them when a box answers the
+  network, and the code below then reads false and does what it did.
+- **At boot**, beside `no USB remote support this boot`:
+  `W tab5_mp3: no network in this build (absent.c): Wi-Fi, Ethernet,
+  radio, podcast downloads, remote control and MPD stay off`.
+- **On the NET tab**: Wi-Fi, network time, add-a-network, remote
+  control, MPD and benchmark are greyed whatever their setting; Wi-Fi's
+  note says there is no network in this build and what needs one
+  (`k_wifi_note_absent`; the rows below are placed for the longer of the
+  two notes, so neither runs into the next row); remote control and MPD
+  say "Not in this build: it has no network to listen on."
+- **On a tap**: Wi-Fi, remote control, MPD and network time still change
+  their setting -- kept for a build that has a network -- and log a
+  `W` line that nothing will connect or start; network setup and the
+  benchmark refuse, with a `W` line, instead of starting and failing
+  (setup's old refusal said "radio off").
+- **Translations**: three new sentences, extracted and compiled; `~` in
+  every locale, so drawn in English until translated. None written here.
+
+*Checked:* panel.c and player.c compiled with gcc -O2 -Wall -Werror=all
+-Wextra -Werror=extra (-Wno-unused-parameter) against minimal IDF stubs
+and feckless-libs' headers: clean. absent.c against the same stubs: the
+same errors before and after, every one a gap in the stubs (lwIP, netif
+and httpd types), none on the lines changed. `./tools/i18n.py check`:
+up to date. texttest's run-i18n needs managed_components/, so not run.
+*Not checked:* a build; the NET tab's layout on the panel. What to look
+for: the boot line; the NET tab greyed with the new notes, the remote
+row's note not overlapping the allowed-devices row; a `W tab5_panel:`
+line on each tap.

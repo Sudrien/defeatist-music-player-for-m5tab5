@@ -23,6 +23,7 @@
 #include "ethernet.h"     /* 5096: net_online() */
 #include "gfx.h"
 #include "i18n.h"         /* 6013 */
+#include "netabsent.h"     /* u-defeatist-0041 */
 #include "medialib.h"
 #include "menuscroll.h"
 #include "panel.h"
@@ -781,7 +782,21 @@ static const char *const k_ntp_note[] = {
        "invalid at an unset clock."),
     N_("Over Wi-Fi or a USB Ethernet cable."),           /* 6126 */
 };
-#define NET_WIFI_NOTE_LINES note_rows(k_wifi_note, COUNT(k_wifi_note))
+/* u-defeatist-0041: in place of k_wifi_note when the build has no network
+ * (netabsent.h). The rows below are placed for the longer of the two, so
+ * neither runs into the remote's row. */
+static const char *const k_wifi_note_absent[] = {
+    N_("No network in this build: nothing connects, on or off."),
+    N_("Radio, downloads, the remote and MPD need a launcher that "
+       "gives its apps the network."),
+};
+static int net_wifi_note_lines(void)
+{
+    const int a = note_rows(k_wifi_note, COUNT(k_wifi_note));
+    const int b = note_rows(k_wifi_note_absent, COUNT(k_wifi_note_absent));
+    return a > b ? a : b;
+}
+#define NET_WIFI_NOTE_LINES net_wifi_note_lines()
 #define NET_NTP_NOTE_LINES  note_rows(k_ntp_note, COUNT(k_ntp_note))
 
 /* 5117: the browser remote, under Wi-Fi because it is what Wi-Fi is on
@@ -1048,19 +1063,27 @@ static int draw_net(void)
     const int w = gfx_w();
     int x, y, bw, bh;
     const bool wifi = settings_wifi_enabled();
+    /* u-defeatist-0041: with no network in the build, every row that
+     * needs one is greyed and says why, whatever its setting. */
+    const bool absent = net_absent();
     /* 5096: the benchmark reads a station over whatever route there is,
      * so a cable enables it as well as the radio does. */
-    const bool netok = wifi || net_online();
+    const bool netok = (wifi || net_online()) && !absent;
 
     /* --- Wi-Fi ------------------------------------------------------ */
     wifi_switch_box(&x, &y, &bw, &bh);
     gfx_fill_rect(x, y, bw, bh, C_ROW);
     gfx_draw_text(24, y + (bh - GFX_GLYPH_H(NAME_SCALE)) / 2, same("Wi-Fi"),
-                  NAME_SCALE, 400, C_TEXT);
+                  NAME_SCALE, 400, absent ? C_DISABLED : C_TEXT);
     {
         const int pw = 132, ph = 56;
-        draw_pill(w - 24 - pw, y + (bh - ph) / 2, pw, ph,
-                  wifi ? _("ON") : _("OFF"), wifi, NAME_SCALE);
+        if (absent) {                                       /* u-defeatist-0041 */
+            draw_state_pill(w - 24 - pw, y + (bh - ph) / 2, pw, ph,
+                            wifi ? _("ON") : _("OFF"), wifi, false, NAME_SCALE);
+        } else {
+            draw_pill(w - 24 - pw, y + (bh - ph) / 2, pw, ph,
+                      wifi ? _("ON") : _("OFF"), wifi, NAME_SCALE);
+        }
     }
 
     /*
@@ -1069,7 +1092,9 @@ static int draw_net(void)
      * that has never needed a network and still does not need one to
      * play a card.
      */
-    draw_paras(y + bh + AUDIO_NOTE_GAP, k_wifi_note, COUNT(k_wifi_note), 99);
+    if (absent) draw_paras(y + bh + AUDIO_NOTE_GAP, k_wifi_note_absent,
+                           COUNT(k_wifi_note_absent), 99);          /* u-defeatist-0041 */
+    else        draw_paras(y + bh + AUDIO_NOTE_GAP, k_wifi_note, COUNT(k_wifi_note), 99);
 
     /* --- Remote control (5117) -------------------------------------- */
     remote_box(&x, &y, &bw, &bh);
@@ -1091,7 +1116,10 @@ static int draw_net(void)
         static char url_line[64];
         const char *rn[NET_REMOTE_NOTE_PARAS];
         char url[48];
-        if (remote_running() && remote_url(url, sizeof(url))) {
+        if (absent) {                                       /* u-defeatist-0041 */
+            rn[0] = N_("Not in this build: it has no network to listen on.");
+            rn[1] = NULL;
+        } else if (remote_running() && remote_url(url, sizeof(url))) {
             snprintf(url_line, sizeof(url_line), _("Open %s"), url);
             rn[0] = url_line;
             /* 5121: the start of the certificate's fingerprint, to match
@@ -1165,7 +1193,10 @@ static int draw_net(void)
         static char addr_line[64], who_line[48];
         const char *mn[NET_MPD_NOTE_LINES];
         char addr[32];
-        if (mpd_running() && mpd_address(addr, sizeof(addr))) {
+        if (absent) {                                       /* u-defeatist-0041 */
+            mn[0] = N_("Not in this build: it has no network to listen on.");
+            mn[1] = NULL;
+        } else if (mpd_running() && mpd_address(addr, sizeof(addr))) {
             snprintf(addr_line, sizeof(addr_line), _("Connect an MPD app to %s"), addr);
             mn[0] = addr_line;
             const int n = mpd_clients();
@@ -1192,12 +1223,12 @@ static int draw_net(void)
     gfx_fill_rect(x, y, bw, bh, C_ROW);
     /* 6126: not greyed with Wi-Fi off -- a cable sets the clock too. */
     gfx_draw_text(24, y + (bh - GFX_GLYPH_H(NAME_SCALE)) / 2, _("Network time"),
-                  NAME_SCALE, 400, C_TEXT);
+                  NAME_SCALE, 400, absent ? C_DISABLED : C_TEXT);   /* u-defeatist-0041 */
     {
         const bool pref = settings_ntp_pref();
         const int pw = 132, ph = 56;
         draw_state_pill(w - 24 - pw, y + (bh - ph) / 2, pw, ph,
-                        pref ? _("ON") : _("OFF"), pref, true, NAME_SCALE);
+                        pref ? _("ON") : _("OFF"), pref, !absent, NAME_SCALE);
     }
 
     (void)draw_paras(y + bh + AUDIO_NOTE_GAP, k_ntp_note, COUNT(k_ntp_note), 99);
@@ -1207,16 +1238,17 @@ static int draw_net(void)
     portal_state_t st;
     portal_state(&st);
     const bool running = portal_running();
+    const bool wifi_live = wifi && !absent;                 /* u-defeatist-0041 */
     gfx_fill_rect(x, y, bw, bh, C_ROW);
     gfx_draw_text(24, y + (bh - GFX_GLYPH_H(NAME_SCALE)) / 2, _("Add a network"),
-                  NAME_SCALE, 400, wifi ? C_TEXT : C_DISABLED);
+                  NAME_SCALE, 400, wifi_live ? C_TEXT : C_DISABLED);
     {
         const int pw = 132, ph = 56;
         draw_state_pill(w - 24 - pw, y + (bh - ph) / 2, pw, ph,
-                        running ? _("STOP") : _("START"), running, wifi, NAME_SCALE);
+                        running ? _("STOP") : _("START"), running, wifi_live, NAME_SCALE);
     }
     char lines[NET_SETUP_NOTE_LINES][64];
-    setup_lines(&st, wifi, running, lines);
+    setup_lines(&st, wifi_live, running, lines);
     const char *setup_note[NET_SETUP_NOTE_LINES] = { lines[0], lines[1], lines[2] };
     /* Discarded, like the ntp note above: draw_note() returns the y it
      * reached, so the only one worth keeping is the last. */
@@ -1691,6 +1723,8 @@ bool panel_touch(bool down, int x, int y)
             const bool on = !settings_wifi_enabled();
             settings_set_wifi_enabled(on);
             ESP_LOGI(TAG, "wifi %s", on ? "on" : "off");
+            /* u-defeatist-0041: kept for a build that has one, but said */
+            if (net_absent()) ESP_LOGW(TAG, "wifi: no network in this build; nothing will connect");
             /* Posts and returns. Doing the work here would block
              * ui_task, and this is the only writer of the framebuffer. */
             wifi_request_apply();
@@ -1705,6 +1739,8 @@ bool panel_touch(bool down, int x, int y)
             const bool on = !settings_remote_enabled();
             settings_set_remote_enabled(on);
             ESP_LOGI(TAG, "remote control %s", on ? "on" : "off");
+            if (net_absent()) ESP_LOGW(TAG, "remote control: no network in this build; "   /* u-defeatist-0041 */
+                                            "no server will start");
             s_dirty = true;
             return false;
         }
@@ -1731,6 +1767,8 @@ bool panel_touch(bool down, int x, int y)
             const bool on = !settings_mpd_enabled();
             settings_set_mpd_enabled(on);
             ESP_LOGI(TAG, "mpd server %s", on ? "on" : "off");
+            if (net_absent()) ESP_LOGW(TAG, "mpd server: no network in this build; "        /* u-defeatist-0041 */
+                                            "no server will start");
             s_dirty = true;
             return false;
         }
@@ -1750,6 +1788,8 @@ bool panel_touch(bool down, int x, int y)
             const bool on = !settings_ntp_pref();
             settings_set_ntp_enabled(on);
             ESP_LOGI(TAG, "ntp %s", on ? "on" : "off");
+            if (net_absent()) ESP_LOGW(TAG, "network time: no network in this build; "      /* u-defeatist-0041 */
+                                            "the clock keeps its own time");
             s_dirty = true;
         }
 
@@ -1761,6 +1801,8 @@ bool panel_touch(bool down, int x, int y)
             if (portal_running()) {
                 ESP_LOGI(TAG, "network setup: stop");
                 portal_request_stop();
+            } else if (net_absent()) {                      /* u-defeatist-0041 */
+                ESP_LOGW(TAG, "network setup: refused -- no network in this build");
             } else {
                 const esp_err_t err = portal_start();
                 ESP_LOGI(TAG, "network setup: start%s",
@@ -1777,6 +1819,10 @@ bool panel_touch(bool down, int x, int y)
          * is playing, because that loop is not running then.
          */
         bench_box(&bx, &by, &bw, &bh);
+        if (y >= by && y < by + bh && net_absent()) {      /* u-defeatist-0041 */
+            ESP_LOGW(TAG, "benchmark: refused -- no network in this build");
+            return false;
+        }
         if (y >= by && y < by + bh) {
             const bool asked = bench_request();
             ESP_LOGI(TAG, "benchmark: %s", asked ? "requested"

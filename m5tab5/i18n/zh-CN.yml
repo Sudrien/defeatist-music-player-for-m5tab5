@@ -355,6 +355,8 @@ zh-CN:
     # bench.c
     "No memory to measure with.": "内存不足，无法测量。"
     # panel.c
+    "No network in this build: nothing connects, on or off.": ~
+    # panel.c
     "No password: each address is allowed on the player.": "无密码：每个地址都需在播放器上允许。"
     # panel.c
     "No password: each browser is allowed on the player.": "无密码：每个浏览器都需在播放器上允许。"
@@ -368,6 +370,8 @@ zh-CN:
     "None yet. A browser or MPD app asks when it connects.": "暂无。浏览器或 MPD 应用连接时会请求允许。"
     # recorder.c
     "Not enough memory to record.": "内存不足，无法录音。"
+    # panel.c
+    "Not in this build: it has no network to listen on.": ~
     # remote.html
     "Nothing here.": ~
     # recorder.c
@@ -480,6 +484,8 @@ zh-CN:
     "Radio": "电台"
     # portal.c, remote.html
     "Radio stations": "电台"
+    # panel.c
+    "Radio, downloads, the remote and MPD need a launcher that gives its apps the network.": ~
     # panel.c
     "Reading %s without decoding…": "正在读取 %s（不解码）…"
     # remote.html

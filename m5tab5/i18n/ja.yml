@@ -355,6 +355,8 @@ ja:
     # bench.c
     "No memory to measure with.": "測定するメモリがない。"
     # panel.c
+    "No network in this build: nothing connects, on or off.": ~
+    # panel.c
     "No password: each address is allowed on the player.": "パスワードなし：アドレスごとにプレーヤーで許可する。"
     # panel.c
     "No password: each browser is allowed on the player.": "パスワードなし：ブラウザごとにプレーヤーで許可する。"
@@ -368,6 +370,8 @@ ja:
     "None yet. A browser or MPD app asks when it connects.": "まだない。ブラウザや MPD アプリは接続時に許可を求める。"
     # recorder.c
     "Not enough memory to record.": "録音するメモリが足りない。"
+    # panel.c
+    "Not in this build: it has no network to listen on.": ~
     # remote.html
     "Nothing here.": ~
     # recorder.c
@@ -480,6 +484,8 @@ ja:
     "Radio": "ラジオ"
     # portal.c, remote.html
     "Radio stations": "ラジオ局"
+    # panel.c
+    "Radio, downloads, the remote and MPD need a launcher that gives its apps the network.": ~
     # panel.c
     "Reading %s without decoding…": "%s をデコードせずに読込中…"
     # remote.html

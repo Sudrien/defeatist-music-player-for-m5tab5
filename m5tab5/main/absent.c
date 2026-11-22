@@ -47,6 +47,7 @@
 #include <unistd.h>
 
 #include "esp_err.h"
+#include "netabsent.h"   /* u-defeatist-0041 */
 #include "esp_log.h"
 
 #include "esp_crt_bundle.h"
@@ -100,6 +101,10 @@ void net_route_describe(char *out, size_t out_size)
 bool ethernet_connected(void) { return false; }
 bool ethernet_link(void) { return false; }
 bool ethernet_ip(char *out, size_t out_size) { return empty(out, out_size); }
+
+/* u-defeatist-0041: said, not only failed -- see netabsent.h. Goes with
+ * the network stand-ins below when a box answers the network. */
+bool net_absent(void) { return true; }
 
 bool wifi_up(void) { return false; }
 bool wifi_connected(void) { return false; }

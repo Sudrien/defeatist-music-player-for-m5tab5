@@ -13389,11 +13389,15 @@ static track_end_t play_file(const char *path)
      * the end of the next track. Turning it back on is a decision with a
      * person behind it, and the panel is where that person is.
      *
-     * All three attachment questions, because a device that is not a
+     * All four attachment questions, because a device that is not a
      * disk still needs the rail: `storage_present()` for a mounted
      * volume, `uac_present()` for an audio device, and `hid_present()`
      * for a remote -- which announces itself to nothing else and would
      * otherwise be invisible here and have its power cut mid-press.
+     * And `ethernet_link()`: a USB network adapter with a cable in is
+     * the player's network, the remote's page and any download with it.
+     * It is no disk, no audio device and no remote, so without this the
+     * end of the first track cut it off.
      *
      * `storage_usb_power(false)` rather than `usbhost_set_power(false)`,
      * because cutting VBUS under a mounted volume is a physical unplug
@@ -13412,6 +13416,7 @@ static track_end_t play_file(const char *path)
             !storage_present(STORAGE_USB) &&
             !uac_present() &&
             !hid_present() &&
+            !ethernet_link() &&
             !storage_usb_busy() &&
             storage_usb_power(false)) {
             ESP_LOGI(TAG, "USB bus power off: nothing attached after a track");

@@ -117,7 +117,8 @@ static int64_t        s_sent_us;
 static uint32_t       s_wave_gen = UINT32_MAX;
 static int64_t        s_retry_us;
 /* u-defeatist-0043: feckless_https_start() said this build has no server
- * (ESP_ERR_NOT_SUPPORTED: absent.c in a box). Said once, not retried:
+ * (ESP_ERR_NOT_SUPPORTED: a launcher without the HTTP server, or a box
+ * with no callback loop -- u-feckless-0075, 0077). Said once, not retried:
  * nothing changes it short of another build. */
 static bool           s_unsupported;
 /* PSRAM, from remote_init(): 3 KB of scratch is 3 KB of internal RAM

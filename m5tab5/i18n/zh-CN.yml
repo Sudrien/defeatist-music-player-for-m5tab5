@@ -370,8 +370,6 @@ zh-CN:
     "None yet. A browser or MPD app asks when it connects.": "暂无。浏览器或 MPD 应用连接时会请求允许。"
     # recorder.c
     "Not enough memory to record.": "内存不足，无法录音。"
-    # panel.c
-    "Not in this build yet: it needs the HTTP server.": ~
     # remote.html
     "Nothing here.": ~
     # recorder.c
@@ -735,7 +733,7 @@ zh-CN:
     # player.c
     "Waiting for network": "等待网络"
     # panel.c
-    "Web radio and MPD work on the cable; downloads and the remote wait for the box to answer more.": ~
+    "Web radio, MPD and the remote work on the cable; downloads wait for the box to answer more.": ~
     # player.c
     "Web setup is open": "网页设置已开启"
     # remote.c

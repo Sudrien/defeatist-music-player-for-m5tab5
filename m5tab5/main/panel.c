@@ -788,8 +788,8 @@ static const char *const k_ntp_note[] = {
  * remote's row. */
 static const char *const k_wifi_note_absent[] = {
     N_("No Wi-Fi in this build yet: a cable connects, the radio does not."),
-    N_("Web radio and MPD work on the cable; downloads and the "
-       "remote wait for the box to answer more."),
+    N_("Web radio, MPD and the remote work on the cable; downloads "
+       "wait for the box to answer more."),
 };
 static int net_wifi_note_lines(void)
 {
@@ -1065,18 +1065,17 @@ static int draw_net(void)
     int x, y, bw, bh;
     const bool wifi = settings_wifi_enabled();
     /* u-defeatist-0041, 0042: with only the box's network, the rows that
-     * need what it lacks -- the radio's control, NTP, the HTTP server --
-     * are greyed and say why, whatever their setting. MPD is a socket
-     * server and the benchmark an HTTP client (u-defeatist-0044), so a
-     * cable enables both. */
+     * need what it lacks -- the radio's control, NTP -- are greyed and say
+     * why, whatever their setting. MPD is a socket server, the benchmark
+     * an HTTP client (u-defeatist-0044) and the remote an HTTP server
+     * (u-defeatist-0045), so a cable enables all three. */
     const bool absent = net_limited();
     /* 5096: the benchmark reads a station over whatever route there is,
      * so a cable enables it as well as the radio does. */
     const bool netok = absent ? net_online() : (wifi || net_online());
-    /* u-defeatist-0042: the remote is an HTTP server, not in the box yet:
-     * greyed on a cable too. u-defeatist-0044: the benchmark is an HTTP
-     * client, which the box answers, so a cable enables it. */
-    const bool httpok = netok && !absent;
+    /* u-defeatist-0044, 0045: the benchmark is an HTTP client and the
+     * remote an HTTP server, both the box's now, so a cable enables them. */
+    const bool httpok = netok;
     const bool clientok = netok;
 
     /* --- Wi-Fi ------------------------------------------------------ */
@@ -1125,10 +1124,7 @@ static int draw_net(void)
         static char url_line[64];
         const char *rn[NET_REMOTE_NOTE_PARAS];
         char url[48];
-        if (absent) {                                       /* u-defeatist-0041, 0042 */
-            rn[0] = N_("Not in this build yet: it needs the HTTP server.");
-            rn[1] = NULL;
-        } else if (remote_running() && remote_url(url, sizeof(url))) {
+        if (remote_running() && remote_url(url, sizeof(url))) {
             snprintf(url_line, sizeof(url_line), _("Open %s"), url);
             rn[0] = url_line;
             /* 5121: the start of the certificate's fingerprint, to match
@@ -1746,8 +1742,6 @@ bool panel_touch(bool down, int x, int y)
             const bool on = !settings_remote_enabled();
             settings_set_remote_enabled(on);
             ESP_LOGI(TAG, "remote control %s", on ? "on" : "off");
-            if (net_limited()) ESP_LOGW(TAG, "remote control: no HTTP server in this build; "   /* u-defeatist-0041, 0042 */
-                                             "none will start");
             s_dirty = true;
             return false;
         }

@@ -35,6 +35,7 @@
 #endif
 #include "feckless_abi_image.h"          /* u-defeatist-0029 */
 #include "feckless_abi_network.h"        /* u-defeatist-0042 */
+#include "feckless_abi_crypto.h"         /* u-defeatist-0045 */
 
 void app_main(void)
 {
@@ -54,6 +55,9 @@ void app_main(void)
      * (u-feckless-0071), so a cable the launcher brought up is the
      * player's; a box without them refuses the ELF by this name. */
     feckless_abi_require_network();
+    /* u-defeatist-0045: SHA-256 through the box (u-feckless-0078), for
+     * approve.c's allowed browsers; a box without it refuses the ELF. */
+    feckless_abi_require_crypto();
 #if DEFEATIST_BOXED_CODEC
     /* u-defeatist-0023: esp_audio_codec through the box (u-feckless-0052);
      * a launcher without the codec refuses the ELF by this name. */

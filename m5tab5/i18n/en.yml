@@ -370,8 +370,6 @@ en:
     "None yet. A browser or MPD app asks when it connects.": ~
     # recorder.c
     "Not enough memory to record.": "Not enough memory\nto record."
-    # panel.c
-    "Not in this build yet: it needs the HTTP server.": ~
     # remote.html
     "Nothing here.": ~
     # recorder.c
@@ -735,7 +733,7 @@ en:
     # player.c
     "Waiting for network": ~
     # panel.c
-    "Web radio and MPD work on the cable; downloads and the remote wait for the box to answer more.": ~
+    "Web radio, MPD and the remote work on the cable; downloads wait for the box to answer more.": ~
     # player.c
     "Web setup is open": ~
     # remote.c

@@ -30696,3 +30696,51 @@ side has its own host test (u-feckless-0073). *Not checked:* a build; the
 board. What to look for: on an ICY station, the `  icy-...:` lines after
 `hop 1:` and `metaint` non-zero on the `HTTP 200` line; the benchmark
 running on a cable; a station picture.
+
+### u-defeatist-0045 -- remote control on the box's HTTP server
+
+feckless-libs u-feckless-0075..0078 answer what the remote needs in a box:
+- the callback loop its handlers, `open_fn` and queued work run on;
+- the HTTP server with WebSockets and the launcher's TLS (`feckless_https`);
+- esp_netif's interfaces, which `peer_on_link()` judges a browser by;
+- SHA-256, which approve.c keeps allowed browsers by.
+
+So absent.c's stand-ins for all of those come out:
+- `httpd_*`;
+- `feckless_https_*`;
+- `esp_netif_find_if`, `esp_netif_get_ip_info` and
+  `esp_netif_get_all_ip6` (the first is now feckless_box_libc's, run in
+  the player);
+- `psa_hash_compute`.
+
+remote.c is unchanged apart from a comment: in a box,
+`feckless_https_start()` now starts the launcher's server, port 80
+redirects with no callback into the player, and each request runs the
+player's own handler on its callback loop. The loop's thread is the
+player's eighth; the box now allows twelve.
+
+- **`elf_main.c`** calls `feckless_abi_require_crypto()`: the ELF imports
+  `psa_hash_compute` now, and a box without the section refuses it by
+  name.
+- **NET tab**:
+  - the remote's row is enabled by a cable (`httpok` is `netok`);
+  - its "needs the HTTP server" note and the switch's log line are gone;
+  - the Wi-Fi note says web radio, MPD and the remote work on the cable,
+    and downloads don't yet;
+  - the boot line says the same.
+- Still absent, and still greyed: Wi-Fi control and the portal, NTP, and
+  podcast downloads (`feckless_fetch`). The remote's Wi-Fi pages answer as
+  with no radio.
+- Two strings out, one in (`~`); i18n_tab.c recompiled.
+
+*Not checked:* a build; the board. The ELF needs the libs at u-feckless-0078
+or later (it imports `feckless_box_upcall_*`, `feckless_box_netif_next`
+and `psa_hash_compute`); an older launcher refuses it by name. What to
+look for:
+- `box_upcall: callbacks into the app on thread 8 (12288 bytes of stack,
+  priority 5)` when the remote starts;
+- no `tab5_remote: not in this build` line;
+- the NET tab showing `Open https://192.168.1.x/`;
+- in a browser on the same network: the pairing page, then the remote
+  once allowed on the player;
+- a refusal logged for a peer off the subnet.

@@ -30342,3 +30342,26 @@ them (median 72 dB). Through a linear resampler to 48 kHz the median
 falls to 24 dB and the same four are found, nothing else. A copy of the
 MP3 with five 600-byte holes is reported damaged. *Not checked:* a real
 tap from the board.
+
+### u-defeatist-0037 -- assertions and error checks say what failed again
+
+8095 made both silent to fit the .bin into a 3 MB slot: a failed assert
+gave an address and no expression or `file:line`, and `ESP_RETURN_ON_*` /
+`ESP_EXIT_ON_*` gave no message. 8142 gave app0 6 MB, and 0030's build was
+0x2951e0 bytes in it, 57% free, so that reason has gone. In a box an
+assert's address is in PSRAM where esp_elf relocated it, which made the
+silent form the hardest kind to read.
+
+- **`sdkconfig.defaults`**: `CONFIG_COMPILER_OPTIMIZATION_ASSERTIONS_ENABLE=y`
+  and `CONFIG_COMPILER_OPTIMIZATION_CHECKS_SILENT=n`, ESP-IDF's defaults,
+  written out rather than deleted so `defaults_check.cmake` names a
+  stale sdkconfig. The sdkconfig is shared, so the ELF gets them too.
+  8095's other choices (log level at Info, `ESP_ERR_TO_NAME_LOOKUP`) did
+  not change.
+
+**This changes sdkconfig.defaults: `rm sdkconfig` before building.** Proof
+it took: no drift warning at configure naming either key, no
+`SDKCONFIG_DRIFT` under the banner, and `app_check_size` reporting a
+larger .bin -- 8095 measured about 217 KB of merged string literals on the
+launcher side, of which this is part. *Not checked:* a build; how much
+larger the .bin and the ELF come out.

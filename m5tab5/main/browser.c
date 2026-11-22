@@ -1040,8 +1040,18 @@ static void pod_download(int ep, storage_id_t vol)
         return;
     }
     if (!poddl_start(s_pod_eps[ep].id, s_pod_eps[ep].url, dir, base, s_pod_cur, s_pod_show,
-                     s_pod_eps[ep].feed_image, s_pod_eps[ep].image))                    /* 8027 */
-        ESP_LOGI(TAG, "episode %lld: another download is running", (long long)s_pod_eps[ep].id);
+                     s_pod_eps[ep].feed_image, s_pod_eps[ep].image)) {                  /* 8027 */
+        /* u-defeatist-0046: "another download is running" only when one is;
+         * poddl_start() has logged why otherwise (no network, a path too
+         * long), and the row says it did not start. */
+        if (poddl_state(NULL, NULL, NULL, NULL, 0, NULL) == PODDL_RUNNING) {
+            ESP_LOGI(TAG, "episode %lld: another download is running", (long long)s_pod_eps[ep].id);
+            s_pod_note = _("another episode is downloading");
+        } else {
+            s_pod_note = _("the download did not start");
+        }
+        s_dirty = true;
+    }
 }
 
 /* 8024: bytes as "12.3 MB", tenths of a MiB, which is what a card's

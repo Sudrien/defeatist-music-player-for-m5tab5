@@ -30744,3 +30744,36 @@ look for:
 - in a browser on the same network: the pairing page, then the remote
   once allowed on the player;
 - a refusal logged for a peer off the subnet.
+
+### u-defeatist-0046 -- podcast downloads through the box's feckless_fetch
+
+feckless-libs u-feckless-0081 answers `feckless_fetch` in a box. The
+launcher's downloader does the work, and poddl.c's `on_event()` runs on
+the player's callback loop (u-feckless-0075) for each event: START,
+HEADERS (the extension chosen, the folder made), READY and VERIFY (the
+MP3 seek index walked as the file arrives, u-defeatist-0040), DONE (the
+index saved, the pictures fetched) and CANCELLED. So absent.c's stand-ins
+for `feckless_fetch_*` come out, along with its now-unused `empty()`, and
+"Download to microSD" downloads.
+
+- **`browser.c`**: when `poddl_start()` said no, `pod_download()` always
+  logged "another download is running". On the board it said that for
+  `not started: no network in a box`, with nothing running. It now says
+  so only when a download is running, with the episode row's existing
+  "another episode is downloading" note. Otherwise the note is "the
+  download did not start", and poddl.c's own line says why.
+- The NET tab's note, the boot line, netabsent.h and BOX.md now count
+  downloads among what works on a cable. Wi-Fi control and NTP are what
+  remain absent.
+- One string in, one out (`~`); i18n_tab.c recompiled.
+
+*Not checked:* a build; the board. Needs the libs at u-feckless-0081. What
+to look for:
+- `tab5_poddl: episode …: downloading`;
+- the episode's progress on its row;
+- `moved an earlier part file` or `seek table …` lines from the
+  callbacks;
+- at the end, the file in the podcast's folder with its cover.
+
+Pausing from the row, and cancelling from the remote's page, which is the
+callback-loop path u-feckless-0081 defers, are worth a try too.

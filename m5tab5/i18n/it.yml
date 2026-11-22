@@ -733,7 +733,7 @@ it:
     # player.c
     "Waiting for network": "In attesa della rete"
     # panel.c
-    "Web radio, MPD and the remote work on the cable; downloads wait for the box to answer more.": ~
+    "Web radio, MPD, the remote and podcast downloads work on the cable.": ~
     # player.c
     "Web setup is open": "Config. web aperta"
     # remote.c
@@ -908,6 +908,8 @@ it:
     "the directory did not answer": "la directory non ha risposto"
     # player.c
     "the directory has nothing there": "la directory non ha niente lì"
+    # browser.c
+    "the download did not start": ~
     # panel.c
     "the setup network": "la rete di configurazione"
     # panel.c

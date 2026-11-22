@@ -733,7 +733,7 @@ ja:
     # player.c
     "Waiting for network": "ネット待ち"
     # panel.c
-    "Web radio, MPD and the remote work on the cable; downloads wait for the box to answer more.": ~
+    "Web radio, MPD, the remote and podcast downloads work on the cable.": ~
     # player.c
     "Web setup is open": "Web設定が開いている"
     # remote.c
@@ -908,6 +908,8 @@ ja:
     "the directory did not answer": "ディレクトリが応答しない"
     # player.c
     "the directory has nothing there": "ディレクトリに何もない"
+    # browser.c
+    "the download did not start": ~
     # panel.c
     "the setup network": "設定用ネットワーク"
     # panel.c

@@ -10,7 +10,7 @@
 #include <stdint.h>
 #include "i18n.h"
 
-const unsigned i18n_count = 465;
+const unsigned i18n_count = 466;
 const char *const i18n_keys[] = {
     "%.32s did not work. Try again.",
     "%d h",
@@ -375,7 +375,7 @@ const char *const i18n_keys[] = {
     "Waiting for a network address.",
     "Waiting for a network.",
     "Waiting for network",
-    "Web radio, MPD and the remote work on the cable; downloads wait for the box to answer more.",
+    "Web radio, MPD, the remote and podcast downloads work on the cable.",
     "Web setup is open",
     "Wi-Fi is off on the player.",
     "Working. The key and secret are saved on the player.",
@@ -463,6 +463,7 @@ const char *const i18n_keys[] = {
     "the card would not take the write",
     "the directory did not answer",
     "the directory has nothing there",
+    "the download did not start",
     "the setup network",
     "the station",
     "the stream did not start",
@@ -845,7 +846,7 @@ const unsigned char i18n_on_screen[] = {
     1,  /* 'Waiting for a network address.' */
     0,  /* 'Waiting for a network.' */
     1,  /* 'Waiting for network' */
-    1,  /* 'Web radio, MPD and the remote work on th' */
+    1,  /* 'Web radio, MPD, the remote and podcast d' */
     1,  /* 'Web setup is open' */
     0,  /* 'Wi-Fi is off on the player.' */
     0,  /* 'Working. The key and secret are saved on' */
@@ -933,6 +934,7 @@ const unsigned char i18n_on_screen[] = {
     1,  /* 'the card would not take the write' */
     1,  /* 'the directory did not answer' */
     1,  /* 'the directory has nothing there' */
+    1,  /* 'the download did not start' */
     1,  /* 'the setup network' */
     1,  /* 'the station' */
     1,  /* 'the stream did not start' */
@@ -1025,7 +1027,7 @@ const uint16_t i18n_voff[] = {
     I18N_NONE, I18N_NONE, I18N_NONE, I18N_NONE, I18N_NONE, I18N_NONE, I18N_NONE, I18N_NONE,
     771, I18N_NONE, I18N_NONE, I18N_NONE, I18N_NONE, I18N_NONE, I18N_NONE, I18N_NONE,
     I18N_NONE, I18N_NONE, I18N_NONE, I18N_NONE, I18N_NONE, I18N_NONE, I18N_NONE, I18N_NONE,
-    I18N_NONE,
+    I18N_NONE, I18N_NONE,
     /* zh-CN */
     0, 31, 41, 51, I18N_NONE, 58, 77, I18N_NONE,
     I18N_NONE, 87, 109, 146, 178, 191, 201, 208,
@@ -1083,9 +1085,9 @@ const uint16_t i18n_voff[] = {
     I18N_NONE, I18N_NONE, I18N_NONE, I18N_NONE, I18N_NONE, I18N_NONE, 8906, 8913,
     8920, 8954, 8985, I18N_NONE, 8992, 8999, 9024, 9034,
     9041, 9057, 9064, 5007, 9087, I18N_NONE, 9124, 9149,
-    9159, 9175, 9191, 9213, 4655, 9226, 9248, I18N_NONE,
-    9269, 9276, 9283, 9317, 9330, 9337, 9353, 9378,
-    9394,
+    9159, 9175, 9191, I18N_NONE, 9213, 4655, 9226, 9248,
+    I18N_NONE, 9269, 9276, 9283, 9317, 9330, 9337, 9353,
+    9378, 9394,
     /* ja */
     0, 34, 44, 51, I18N_NONE, 58, 95, I18N_NONE,
     I18N_NONE, 105, 151, 203, 235, 248, 261, 268,
@@ -1143,9 +1145,9 @@ const uint16_t i18n_voff[] = {
     I18N_NONE, I18N_NONE, I18N_NONE, I18N_NONE, I18N_NONE, I18N_NONE, 12592, 12602,
     12609, 12658, 12707, I18N_NONE, 12714, 12724, 12758, 12774,
     12781, 12800, 12807, 6866, 12833, I18N_NONE, 12885, 12922,
-    12932, 12966, 13003, 13037, 13065, 13069, 13103, I18N_NONE,
-    13121, 13134, 13141, 13170, 13183, 13199, 13218, 13249,
-    13268,
+    12932, 12966, 13003, I18N_NONE, 13037, 13065, 13069, 13103,
+    I18N_NONE, 13121, 13134, 13141, 13170, 13183, 13199, 13218,
+    13249, 13268,
     /* es */
     0, 28, 33, 40, I18N_NONE, 45, 63, I18N_NONE,
     I18N_NONE, 73, 101, 141, 170, 183, 192, 197,
@@ -1203,9 +1205,9 @@ const uint16_t i18n_voff[] = {
     I18N_NONE, I18N_NONE, I18N_NONE, I18N_NONE, I18N_NONE, I18N_NONE, 10107, 10114,
     10123, 10157, 10203, I18N_NONE, 10210, 10217, 10241, 10249,
     10259, 10284, 10291, 10318, 10327, I18N_NONE, 10367, 10395,
-    10399, 10434, 10462, 10495, 10520, 10531, 10551, I18N_NONE,
-    10568, 10580, 10585, 10621, 10628, 10637, 10658, 10683,
-    10703,
+    10399, 10434, 10462, I18N_NONE, 10495, 10520, 10531, 10551,
+    I18N_NONE, 10568, 10580, 10585, 10621, 10628, 10637, 10658,
+    10683, 10703,
     /* pt */
     0, 29, 34, 41, I18N_NONE, 46, 65, I18N_NONE,
     I18N_NONE, 75, 95, 137, 167, 180, 189, 194,
@@ -1263,9 +1265,9 @@ const uint16_t i18n_voff[] = {
     I18N_NONE, I18N_NONE, I18N_NONE, I18N_NONE, I18N_NONE, I18N_NONE, 9595, 9601,
     9609, 9642, 9685, I18N_NONE, 9692, 9698, 9724, 9737,
     9748, 9775, 9782, 9806, 9815, I18N_NONE, 9845, 9868,
-    9873, 9909, 9937, 9968, 9993, 10002, 10025, I18N_NONE,
-    10043, 10055, 10060, 10101, 10112, 10120, 10142, 10173,
-    10193,
+    9873, 9909, 9937, I18N_NONE, 9968, 9993, 10002, 10025,
+    I18N_NONE, 10043, 10055, 10060, 10101, 10112, 10120, 10142,
+    10173, 10193,
     /* fr */
     0, 30, 35, 42, I18N_NONE, 47, 68, I18N_NONE,
     I18N_NONE, 77, 107, 142, 170, 183, 193, 198,
@@ -1323,9 +1325,9 @@ const uint16_t i18n_voff[] = {
     I18N_NONE, I18N_NONE, I18N_NONE, I18N_NONE, I18N_NONE, I18N_NONE, 10473, 10478,
     10486, 10520, 10564, I18N_NONE, 10571, 10579, 10605, 10618,
     10626, 10658, 10664, 10689, 10698, I18N_NONE, 10741, 10772,
-    10781, 10812, 10840, 10864, 10892, 10901, 10927, I18N_NONE,
-    10943, 10954, 10959, 11000, 11010, 11018, 11040, 11075,
-    11100,
+    10781, 10812, 10840, I18N_NONE, 10864, 10892, 10901, 10927,
+    I18N_NONE, 10943, 10954, 10959, 11000, 11010, 11018, 11040,
+    11075, 11100,
     /* it */
     0, 34, 39, 46, I18N_NONE, 51, 71, I18N_NONE,
     I18N_NONE, 82, 111, 142, 172, 185, 193, 198,
@@ -1383,9 +1385,9 @@ const uint16_t i18n_voff[] = {
     I18N_NONE, I18N_NONE, I18N_NONE, I18N_NONE, I18N_NONE, I18N_NONE, 9722, 9728,
     9737, 9769, 9812, I18N_NONE, 9819, 9827, 9851, 9864,
     9874, 9898, 9904, 9930, 9937, I18N_NONE, 9970, 10000,
-    10007, 10043, 10072, 10103, 10129, 10138, 10163, I18N_NONE,
-    10178, 10193, 10198, 10233, 10243, 10252, 10279, 10307,
-    10331,
+    10007, 10043, 10072, I18N_NONE, 10103, 10129, 10138, 10163,
+    I18N_NONE, 10178, 10193, 10198, 10233, 10243, 10252, 10279,
+    10307, 10331,
 };
 
 const unsigned i18n_pcount = 12;

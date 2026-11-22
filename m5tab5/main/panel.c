@@ -788,8 +788,8 @@ static const char *const k_ntp_note[] = {
  * remote's row. */
 static const char *const k_wifi_note_absent[] = {
     N_("No Wi-Fi in this build yet: a cable connects, the radio does not."),
-    N_("Web radio, MPD and the remote work on the cable; downloads "
-       "wait for the box to answer more."),
+    N_("Web radio, MPD, the remote and podcast downloads work on "
+       "the cable."),
 };
 static int net_wifi_note_lines(void)
 {

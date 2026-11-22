@@ -733,7 +733,7 @@ zh-CN:
     # player.c
     "Waiting for network": "等待网络"
     # panel.c
-    "Web radio, MPD and the remote work on the cable; downloads wait for the box to answer more.": ~
+    "Web radio, MPD, the remote and podcast downloads work on the cable.": ~
     # player.c
     "Web setup is open": "网页设置已开启"
     # remote.c
@@ -908,6 +908,8 @@ zh-CN:
     "the directory did not answer": "目录无响应"
     # player.c
     "the directory has nothing there": "目录中没有内容"
+    # browser.c
+    "the download did not start": ~
     # panel.c
     "the setup network": "设置网络"
     # panel.c

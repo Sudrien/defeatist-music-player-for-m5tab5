@@ -16303,7 +16303,7 @@ void defeatist_main(void)
      * this boot will not do, so a log read later does not have to infer it. */
     if (net_limited()) {
         ESP_LOGW(TAG, "the box's network only (absent.c has the rest): a cable, MPD, the HTTP "
-                      "client and remote control work; Wi-Fi and podcast downloads do not yet");
+                      "client, remote control and downloads work; Wi-Fi and NTP do not yet");
     }
 
     /* 8074: the USB Ethernet class was registered by feckless_net_start(),

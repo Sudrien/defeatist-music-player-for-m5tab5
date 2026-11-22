@@ -18,11 +18,12 @@
  *                    benchmark, podcast search, station pictures. The
  *                    HTTP server, feckless_https and esp_netif's
  *                    interfaces since u-feckless-0075..0077
- *                    (u-defeatist-0045): remote control. Still here: the
- *                    radio's control and the portal's DHCP and DNS,
- *                    feckless_fetch, NTP, which control the launcher's
- *                    radio or need its hooks; they fail as with no Wi-Fi,
- *                    and net_limited() says so.
+ *                    (u-defeatist-0045): remote control. feckless_fetch
+ *                    since u-feckless-0081 (u-defeatist-0046): podcast
+ *                    downloads. Still here: the radio's control and the
+ *                    portal's DHCP and DNS, and NTP, which control the
+ *                    launcher's radio or need its hooks; they fail as with
+ *                    no Wi-Fi, and net_limited() says so.
  *   the crypto       SHA-256 answered by the box since u-feckless-0078
  *                    (u-defeatist-0045): approve.c's allowed browsers.
  *   NVS              answered by the box since u-feckless-0053
@@ -73,7 +74,6 @@
 #include "lwip/sockets.h"
 
 #include "ethernet.h"
-#include "feckless_fetch.h"
 #include "feckless_net.h"
 #include "hid.h"
 #include "usbhost.h"
@@ -81,12 +81,6 @@
 #include "wifistore.h"
 
 static const char *TAG = "boxed";
-
-static bool empty(char *out, size_t n)
-{
-    if (out && n) out[0] = '\0';
-    return false;
-}
 
 /* ---- the network: down ---------------------------------------------------- */
 
@@ -151,36 +145,6 @@ esp_err_t esp_netif_dhcps_option(esp_netif_t *n, esp_netif_dhcp_option_mode_t op
 {
     (void)n; (void)op; (void)id; (void)val; (void)len;
     return ESP_ERR_NOT_SUPPORTED;
-}
-
-/* downloads */
-bool feckless_fetch_start(const feckless_fetch_opts_t *opts) { (void)opts; return false; }
-void feckless_fetch_cancel(void) {}
-void feckless_fetch_pause(void) {}
-void feckless_fetch_discard(const char *part) { (void)part; }
-feckless_fetch_state_t feckless_fetch_state(int64_t *id, int64_t *got, int64_t *total, char *path, size_t path_size,
-                                            uint32_t *gen)
-{
-    if (id) *id = 0;
-    if (got) *got = 0;
-    if (total) *total = 0;
-    if (gen) *gen = 0;
-    empty(path, path_size);
-    return FECKLESS_FETCH_IDLE;
-}
-bool feckless_fetch_live(const char *path, char *part, size_t part_size, int64_t *ready, int64_t *total,
-                         feckless_fetch_state_t *st)
-{
-    (void)path;
-    empty(part, part_size);
-    if (ready) *ready = 0;
-    if (total) *total = 0;
-    if (st) *st = FECKLESS_FETCH_IDLE;
-    return false;
-}
-void feckless_fetch_why(char *out, size_t out_size)
-{
-    if (out && out_size) snprintf(out, out_size, "no network in a box");
 }
 
 /* ---- the rest -------------------------------------------------------------- */

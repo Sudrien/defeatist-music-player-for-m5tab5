@@ -7243,6 +7243,26 @@ static void request_track(const char *path)
     request_track_at(path, -1);
 }
 
+/*
+ * A file or folder picked in the chooser plays, paused or not before --
+ * as request_stream() opens the gate for a picked station. Picking it IS
+ * the request to hear it; carrying a pause over (from the boot's
+ * "ready to resume ... (paused)", say) left it sitting silent until a
+ * second press of play. The remote's open and playdir are the same
+ * choice from a browser. Here and not in request_track(): next and
+ * previous while paused move the paused position, and stay paused.
+ *
+ * After request_track(), for request_stream()'s reason: s_pending_ready
+ * is up first, so the loop leaving the old track sees the handover
+ * before it sees the gate move, and does not take it for a press.
+ */
+static void choose_to_hear(void)
+{
+    /* Not while network setup or a recording holds playback: PLAY_PAUSE's
+     * rules, and qplay's (5197). */
+    if (s_pending_ready && !portal_running() && !recorder_active()) s_playing = true;
+}
+
 static void prev_step_back(void)
 {
     /* 6174/6175: back through the LIST, one track per tap, from
@@ -8599,6 +8619,7 @@ static void ui_task(void *arg)
                     if (playlist_load_dir(rpath) == ESP_OK && playlist_count() > 0) {
                         playlist_set_current(0);
                         request_track(playlist_path(0));
+                        choose_to_hear();
                     } else {
                         ESP_LOGW(TAG, "nothing playable in %s", rpath);
                     }
@@ -8611,6 +8632,7 @@ static void ui_task(void *arg)
                         playlist_set_current(playlist_index_of(rpath));
                     }
                     request_track(rpath);
+                    choose_to_hear();
                 }
             }
         }
@@ -9226,6 +9248,7 @@ static void ui_task(void *arg)
                     }
                     request_track(r.path);
                 }
+                choose_to_hear();
                 browser_close();
                 touch_swallow();        /* mirror image: see touch_swallow() */
                 s_repaint_art = true;
@@ -9234,6 +9257,7 @@ static void ui_task(void *arg)
                 if (playlist_load_dir(r.path) == ESP_OK && playlist_count() > 0) {
                     playlist_set_current(0);
                     request_track(playlist_path(0));
+                    choose_to_hear();
                 } else {
                     ESP_LOGW(TAG, "nothing playable in %s", r.path);
                 }

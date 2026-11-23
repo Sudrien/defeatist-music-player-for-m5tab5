@@ -109,6 +109,7 @@ idf_component_register(
          "portal.c" "portalweb.c" "dnsreply.c"
          "sleeppage.c" "streamprobe.c" "netstream.c" "netdec.c" "stations.c" "favorites.c" "starred.c" "streamgain.c" "radiobrowser.c" "bench.c" "cuedir.c" "cardtime.c" "mediacat.c" "mediawalk.c" "mediasync.c" "medialib.c" "mediadir.c" "rateconv.c" "varispeed.c" "fx.c" "radiokeep.c" "heapmap.c" "flacenc.c" "recorder.c" "beam.c"
          "mpdqueue.c" "mpdproto.c" "mpdfilter.c" "casefold_tab.c" "mpduri.c" "mpdmode.c" "mpdidle.c" "mpd.c" "uireq.c" "m3uline.c" "urlclean.c" "remote.c" "approve.c" "podindex.c" "poddl.c" "remoteproto.c" "wifijoin.c" "launcher.c"
+         "netform.c" "wifiadd.c"   # u-defeatist-0048: adding a network on the screen
          "elf_main.c" "absent.c"     # u-defeatist-0028: the box's entry; what a box does not answer
     INCLUDE_DIRS "."
     EMBED_FILES "remote_i18n.html.gz"    # 6028: generated from remote.html; 6127: gzipped
@@ -128,6 +129,7 @@ idf_component_register(
              feckless_graphics_handler   # 6055: gfx, lcd, ark12, arabixel
              feckless_image_handler   # 8069: every decoder, the fit, the ico converter; miniz.h
              feckless_box_libc        # u-defeatist-0028: linked into the ELF
+             feckless_keyboard        # u-defeatist-0048: netform's keys; into the ELF
     PRIV_REQUIRES minimp3
 )
 
@@ -182,7 +184,7 @@ set_property(SOURCE
         mpd.c mpdproto.c mpdfilter.c mpdidle.c mpdmode.c mpduri.c
         remote.c remoteproto.c portal.c portalweb.c dnsreply.c sleeppage.c
         poddl.c podindex.c radiobrowser.c stations.c favorites.c starred.c
-        approve.c wifijoin.c launcher.c
+        approve.c wifijoin.c launcher.c netform.c wifiadd.c
     APPEND PROPERTY COMPILE_OPTIONS -Os)
 # 8032: -Os inlines further, and -Wformat-truncation then sees ranges it did
 # not at -O2 (poddl.c's picture path was the first). Those files only, a
@@ -193,7 +195,7 @@ set_property(SOURCE
         mpd.c mpdproto.c mpdfilter.c mpdidle.c mpdmode.c mpduri.c
         remote.c remoteproto.c portal.c portalweb.c dnsreply.c sleeppage.c
         poddl.c podindex.c radiobrowser.c stations.c favorites.c starred.c
-        approve.c wifijoin.c launcher.c
+        approve.c wifijoin.c launcher.c netform.c wifiadd.c
     APPEND PROPERTY COMPILE_OPTIONS -Wno-error=format-truncation)
 
 # 5277: every file in main at -O3, off by default. Build with

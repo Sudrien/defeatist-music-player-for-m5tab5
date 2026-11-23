@@ -48,10 +48,12 @@ FECKLESS_STORAGE ?= ../managed_components/feckless_storage_handler
 FECKLESS_DRIVERS ?= ../managed_components/feckless_drivers
 FECKLESS_GRAPHICS ?= ../managed_components/feckless_graphics_handler
 FECKLESS_IMAGE   ?= ../managed_components/feckless_image_handler
+FECKLESS_KEYBOARD ?= ../managed_components/feckless_keyboard       # u-defeatist-0048
 FECKLESS_INC     := -I$(FECKLESS_NET)/include -I$(FECKLESS_STORAGE)/include \
                     -I$(FECKLESS_DRIVERS)/include \
                     -I$(FECKLESS_GRAPHICS)/include -I$(FECKLESS_IMAGE)/include \
-                    -I$(FECKLESS_GRAPHICS)/fonts/ark12 -I$(FECKLESS_GRAPHICS)/fonts/arabixel
+                    -I$(FECKLESS_GRAPHICS)/fonts/ark12 -I$(FECKLESS_GRAPHICS)/fonts/arabixel \
+                    -I$(FECKLESS_KEYBOARD)/include
 
 WARNCFLAGS := -std=c11 -O2 -Wall -Wextra -Werror -Wno-unused-parameter \
               -D_GNU_SOURCE -I. -Ifake -I../main $(FECKLESS_INC)
@@ -75,6 +77,10 @@ CTRL_BIN := ctrltest
 # the committed table, after tools/i18n.py check says that table is what
 # the source and the YAML make.
 I18N_BIN := i18ntest
+
+# u-defeatist-0048: adding a network on the screen -- netform.c with
+# gfx.c, feckless_keyboard.c and portalweb.c themselves.
+NETFORM_BIN := netformtest
 
 # The clock floor. Its own binary for the same reason the others are.
 CLOCK_BIN := clocktest
@@ -322,7 +328,7 @@ LEVELHIST_BIN := levelhisttest
 # ../test_audio_files so the bytes under test are the bytes on the card.
 CUE_BIN := cuesheettest
 
-all: run-mp3walk run-remote run-ctrl run-clock run-rotate run-cardtime run-mediaindex run-medialist run-mediasearch run-mpdqueue run-mpdproto run-mpduri run-mpdfilter run-mpdmode run-mpdidle run-uireq run-m3uline run-urlclean run-playlist run-screendimplace run-mediawalk run-mediasync run-menuscroll run-fade run-tail run-portal run-old check-ui check-netbudget run-sleep run-launcherpres run-sniff run-icy run-netplan run-stations run-pcmfold run-imaadpcm run-mp4opus run-mp4mp3 run-aiff run-dsd run-ape run-flacseek run-bufplan run-oggseek run-addrpin run-codec run-hlsplay run-hlsseg run-tsdemux run-folderart run-mp3 run-framewin run-streamplan run-stationnav run-radiobrowser run-levelhist run-favmatch run-podauth run-podcats run-podfeeds run-podeps run-podrss run-podweb run-podpath run-podhtml run-lanpeer run-approve run-cue run-tagextra run-flacenc run-beam run-i18n run-varispeed run-speedring run-fx
+all: run-mp3walk run-remote run-ctrl run-clock run-rotate run-cardtime run-mediaindex run-medialist run-mediasearch run-mpdqueue run-mpdproto run-mpduri run-mpdfilter run-mpdmode run-mpdidle run-uireq run-m3uline run-urlclean run-playlist run-screendimplace run-mediawalk run-mediasync run-menuscroll run-fade run-tail run-portal run-old check-ui check-netbudget run-sleep run-launcherpres run-sniff run-icy run-netplan run-stations run-pcmfold run-imaadpcm run-mp4opus run-mp4mp3 run-aiff run-dsd run-ape run-flacseek run-bufplan run-oggseek run-addrpin run-codec run-hlsplay run-hlsseg run-tsdemux run-folderart run-mp3 run-framewin run-streamplan run-stationnav run-radiobrowser run-levelhist run-favmatch run-podauth run-podcats run-podfeeds run-podeps run-podrss run-podweb run-podpath run-podhtml run-lanpeer run-approve run-cue run-tagextra run-flacenc run-beam run-i18n run-netform run-varispeed run-speedring run-fx
 
 $(CTRL_BIN): ctrltest.c
 	$(CC) $(CFLAGS) -D_GNU_SOURCE -pthread -o $@ ctrltest.c $(LDFLAGS) -pthread
@@ -347,6 +353,15 @@ run-i18n: $(I18N_BIN)
 	./$(I18N_BIN)-fixture
 	./$(I18N_BIN)-bad
 	./$(I18N_BIN)
+
+$(NETFORM_BIN): netformtest.c ../main/netform.c ../main/netform.h ../main/portalweb.c $(GFX_SRCS) $(I18N_BIN)
+	$(CC) $(WARNCFLAGS) -c ../main/netform.c -o /dev/null
+	$(CC) $(CFLAGS) -I$(PNGLE_DIR) -o $@ netformtest.c ../main/netform.c ../main/portalweb.c \
+	    $(FECKLESS_KEYBOARD)/src/feckless_keyboard.c ../main/i18n.c ../main/i18n_tab.c $(GFX_SRCS) shim.c \
+	    $(I18N_BIN)-miniz.o $(LDFLAGS)
+
+run-netform: $(NETFORM_BIN)
+	ASAN_OPTIONS=detect_leaks=1:abort_on_error=0 ./$(NETFORM_BIN)
 
 $(CLOCK_BIN): clocktest.c
 	$(CC) $(WARNCFLAGS) -c clocktest.c -o /dev/null
@@ -740,7 +755,7 @@ run-old: $(OLD_BINS)
 	done
 
 clean:
-	rm -f netbudget_probe.c $(CTRL_BIN) $(I18N_BIN) $(I18N_BIN)-fixture $(CLOCK_BIN) $(FADE_BIN) $(VARISPEED_BIN) $(SPEEDRING_BIN) $(FX_BIN) $(TAIL_BIN) $(PORTAL_BIN) $(REMOTE_BIN) $(OLD_BINS) $(SLEEP_BIN) $(LAUNCHERPRES_BIN) $(SNIFF_BIN) $(ICY_BIN) $(NETPLAN_BIN) $(STATION_BIN) $(BUFPLAN_BIN) $(CODEC_BIN) $(HLSPLAY_BIN) $(HLSSEG_BIN) $(TSDEMUX_BIN) $(FOLDERART_BIN) $(MP3_BIN) $(FRAMEWIN_BIN) $(STREAMPLAN_BIN) $(STATIONNAV_BIN) $(RADIOBROWSER_BIN) $(LEVELHIST_BIN) $(SGAIN_BIN) $(JSONPICK_BIN) $(PODAUTH_BIN) $(PODCATS_BIN) $(PODFEEDS_BIN) $(PODEPS_BIN) $(PODWEB_BIN) $(PODPATH_BIN) $(PODHTML_BIN) $(FAVMATCH_BIN) $(LANPEER_BIN) $(APPROVE_BIN) $(FLACENC_BIN) $(BEAM_BIN) $(CUE_BIN) $(TAGEXTRA_BIN) $(ROTATE_BIN) $(CARDTIME_BIN) $(MEDIAINDEX_BIN) $(MEDIALIST_BIN) $(MEDIASEARCH_BIN) $(MPDQUEUE_BIN) $(MPDPROTO_BIN) $(MPDURI_BIN) $(MPDFILTER_BIN) $(MPDMODE_BIN) $(MPDIDLE_BIN) $(UIREQ_BIN) $(M3ULINE_BIN) $(URLCLEAN_BIN) $(PLAYLIST_BIN) $(SCREENDIM_BIN) $(ARTPLACE_BIN) $(MEDIAWALK_BIN) $(MEDIASYNC_BIN) $(MENUSCROLL_BIN) $(OGGSEEK_BIN) $(ADDRPIN_BIN) $(IMAADPCM_BIN) $(MP4OPUS_BIN) $(MP4MP3_BIN) $(MP3WALK_BIN) mp3walk_lifted.inc $(AIFF_BIN) $(DSD_BIN) $(DSD_BIN)-pie $(APE_BIN) $(APE_BIN)-pie $(FLACSEEK_BIN)
+	rm -f netbudget_probe.c $(CTRL_BIN) $(I18N_BIN) $(I18N_BIN)-fixture $(NETFORM_BIN) $(CLOCK_BIN) $(FADE_BIN) $(VARISPEED_BIN) $(SPEEDRING_BIN) $(FX_BIN) $(TAIL_BIN) $(PORTAL_BIN) $(REMOTE_BIN) $(OLD_BINS) $(SLEEP_BIN) $(LAUNCHERPRES_BIN) $(SNIFF_BIN) $(ICY_BIN) $(NETPLAN_BIN) $(STATION_BIN) $(BUFPLAN_BIN) $(CODEC_BIN) $(HLSPLAY_BIN) $(HLSSEG_BIN) $(TSDEMUX_BIN) $(FOLDERART_BIN) $(MP3_BIN) $(FRAMEWIN_BIN) $(STREAMPLAN_BIN) $(STATIONNAV_BIN) $(RADIOBROWSER_BIN) $(LEVELHIST_BIN) $(SGAIN_BIN) $(JSONPICK_BIN) $(PODAUTH_BIN) $(PODCATS_BIN) $(PODFEEDS_BIN) $(PODEPS_BIN) $(PODWEB_BIN) $(PODPATH_BIN) $(PODHTML_BIN) $(FAVMATCH_BIN) $(LANPEER_BIN) $(APPROVE_BIN) $(FLACENC_BIN) $(BEAM_BIN) $(CUE_BIN) $(TAGEXTRA_BIN) $(ROTATE_BIN) $(CARDTIME_BIN) $(MEDIAINDEX_BIN) $(MEDIALIST_BIN) $(MEDIASEARCH_BIN) $(MPDQUEUE_BIN) $(MPDPROTO_BIN) $(MPDURI_BIN) $(MPDFILTER_BIN) $(MPDMODE_BIN) $(MPDIDLE_BIN) $(UIREQ_BIN) $(M3ULINE_BIN) $(URLCLEAN_BIN) $(PLAYLIST_BIN) $(SCREENDIM_BIN) $(ARTPLACE_BIN) $(MEDIAWALK_BIN) $(MEDIASYNC_BIN) $(MENUSCROLL_BIN) $(OGGSEEK_BIN) $(ADDRPIN_BIN) $(IMAADPCM_BIN) $(MP4OPUS_BIN) $(MP4MP3_BIN) $(MP3WALK_BIN) mp3walk_lifted.inc $(AIFF_BIN) $(DSD_BIN) $(DSD_BIN)-pie $(APE_BIN) $(APE_BIN)-pie $(FLACSEEK_BIN)
 	rm -rf $(CTRL_BIN).dSYM $(CLOCK_BIN).dSYM $(FADE_BIN).dSYM $(TAIL_BIN).dSYM $(PORTAL_BIN).dSYM
 	rm -rf $(addsuffix .dSYM,$(OLD_BINS))
 

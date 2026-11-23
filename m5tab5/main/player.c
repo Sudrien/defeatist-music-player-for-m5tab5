@@ -16328,13 +16328,10 @@ void defeatist_main(void)
         ESP_LOGW(TAG, "no USB remote support this boot");
     }
 
-    /* u-defeatist-0041, 0042, 0047: said once at boot, beside the other
-     * things this boot will not do, so a log read later does not have to
-     * infer it. */
-    if (portal_absent()) {
-        ESP_LOGW(TAG, "no network setup portal in this box (absent.c): Wi-Fi, NTP and saved "
-                      "networks work; add a network from the browser remote");
-    }
+    /* u-defeatist-0041, 0042, 0047, 0048: the boot line about the box's
+     * missing network went with the last thing it named -- "Add a
+     * network" is typed on the screen now, not served by the portal's
+     * access point. */
 
     /* 8074: the USB Ethernet class was registered by feckless_net_start(),
      * with the port still down, so it is installed with these two. */

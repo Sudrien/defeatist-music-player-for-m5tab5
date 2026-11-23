@@ -16,7 +16,7 @@ zh-CN:
     "%d s": "%d 秒"
     # browser.c
     "%s - Podcast Index did not answer; UP, then try again": ~
-    # remote.c
+    # netform.c, remote.c
     "%s did not answer.": "%s 没有响应。"
     # remote.html
     "%s left": "剩余 %s"
@@ -24,9 +24,9 @@ zh-CN:
     "%s of %s": ~
     # browser.c
     "%s on Podcast Index": ~
-    # remote.c
+    # netform.c, remote.c
     "%s refused the password.": "%s 拒绝了密码。"
-    # remote.c
+    # netform.c, remote.c
     "%s was not found. Is it in range?": "找不到 %s。是否在范围内？"
     # panel.c
     "%s: %d mean, %d peak kbit/s": "%s: 平均 %d, 峰值 %d kbit/s"
@@ -56,13 +56,13 @@ zh-CN:
     "30 s": "30秒"
     # screendim.h
     "5 min": "5分钟"
-    # portal.c, remote.c
+    # netform.c, portal.c, remote.c
     "A Wi-Fi password is 8 to 63 characters, or 64 hex digits.": "Wi-Fi 密码为 8 到 63 个字符，或 64 位十六进制数字。"
     # remote.html
     "A key and a secret are letters, digits and punctuation, with no spaces.": ~
-    # portal.c, remote.c
+    # netform.c, portal.c, remote.c
     "A network name is 1 to 32 characters.": "网络名称为 1 到 32 个字符。"
-    # panel.c
+    # not in the source any more
     "A phone supplies the password.": "由手机输入密码。"
     # panel.c
     "A sign-in page opens with the form.": "会打开带表单的登录页。"
@@ -70,6 +70,8 @@ zh-CN:
     "A tap anywhere brings it back, and does not press anything.": "轻点任意处就能恢复，不会误按。"
     # remote.html
     "A working key is already saved.": ~
+    # panel.c
+    "ADD": ~
     # browser.c
     "ALL": "顺序"
     # remote.html
@@ -80,7 +82,7 @@ zh-CN:
     "AUTO": "自动"
     # panel.c
     "About twenty seconds.": "约二十秒。"
-    # panel.c
+    # netform.c, panel.c
     "Add a network": "添加网络"
     # panel.c
     "Add a radio station to the card.": "向卡中添加电台。"
@@ -134,7 +136,7 @@ zh-CN:
     "BOOT": "保持"
     # panel.c
     "BUSY": "进行中"
-    # remote.html
+    # netform.c, remote.html
     "Back": ~
     # portal.c
     "Back to the form": "返回表单"
@@ -158,7 +160,7 @@ zh-CN:
     "CHRG %d%%": "充电 %d%%"
     # panel.c, sleeppage.c
     "CLOSE": "关闭"
-    # ui.c
+    # netform.c, ui.c
     "Cancel": "取消"
     # remote.html
     "Cancel and delete": ~
@@ -168,6 +170,8 @@ zh-CN:
     "Cannot record": "无法录音"
     # panel.c
     "Cert %.29s…": "证书 %.29s…"
+    # panel.c
+    "Choose one and type its password here.": ~
     # portal.c
     "Choose the network this player should use, and enter its password. It is tried before it is saved.": "选择本机要使用的网络并输入密码。保存前会先尝试连接。"
     # remote.html
@@ -184,7 +188,7 @@ zh-CN:
     "Connecting to the player…": "正在连接播放器…"
     # recorder.c
     "Could not create the recording file.": "无法创建录音文件。"
-    # remote.c
+    # netform.c, remote.c
     "Could not join %s.": "无法连接 %s。"
     # recorder.c
     "Could not make the Recordings folder.": "无法创建\nRecordings 文件夹。"
@@ -194,6 +198,8 @@ zh-CN:
     "Could not save": "无法保存"
     # remote.c
     "Could not scan. Is Wi-Fi on, on the player?": "无法扫描。播放器的 Wi-Fi 是否已打开？"
+    # netform.c
+    "Could not scan. Is Wi-Fi on?": ~
     # recorder.c
     "Could not start the file.": "无法开始写文件。"
     # bench.c
@@ -220,6 +226,8 @@ zh-CN:
     "Deny": "拒绝"
     # sleeppage.c
     "Dim screen": "屏幕变暗"
+    # netform.c
+    "Done": ~
     # remote.html
     "Download": ~
     # remote.html
@@ -274,6 +282,8 @@ zh-CN:
     "HEADSET": "耳麦"
     # panel.c
     "Headset, UAC: the jack, a USB mic.": "耳麦、UAC：插孔、USB 麦克风。"
+    # netform.c
+    "Hide": ~
     # ui.c
     "IDLE": "空闲"
     # ui.c
@@ -288,11 +298,11 @@ zh-CN:
     "It comes back when setup closes.": "设置关闭后恢复。"
     # recorder.c
     "It reached 4 GB, the most one file can hold.": "已达 4 GB，\n单个文件的上限。"
-    # portal.c, remote.html
+    # netform.c, portal.c, remote.html
     "Join": "连接"
     # panel.c
     "Join %s on a phone.": "用手机连接 %s。"
-    # remote.c
+    # netform.c, remote.c
     "Joined and saved %s.": "已连接并保存 %s。"
     # portal.c
     "Joined and saved %s. The setup network is closing; you can leave it.": "已连接并保存 %s。设置网络正在关闭，你可以离开它了。"
@@ -334,7 +344,7 @@ zh-CN:
     "Needed for internet radio and the clock.": "网络电台和时钟需要它。"
     # panel.c
     "Needs a network: Wi-Fi or a cable.": "需要网络：Wi-Fi 或网线。"
-    # portal.c, remote.html
+    # netform.c, portal.c, remote.html
     "Network": "网络"
     # remote.c
     "Network setup is running on the player; use that page.": "播放器正在进行网络设置，请使用那个页面。"
@@ -356,6 +366,8 @@ zh-CN:
     "No memory for the recording task.": "录音任务内存不足。"
     # bench.c
     "No memory to measure with.": "内存不足，无法测量。"
+    # netform.c
+    "No networks heard. Scan again, or type a hidden one's name.": ~
     # panel.c
     "No password: each address is allowed on the player.": "无密码：每个地址都需在播放器上允许。"
     # panel.c
@@ -402,15 +414,17 @@ zh-CN:
     "One folder counts as one album.": "一个文件夹算作一张专辑。"
     # panel.c
     "Open %s": "打开 %s"
-    # portal.c, remote.c
+    # netform.c, portal.c, remote.c
     "Open networks are not supported yet.": "暂不支持开放网络。"
     # portal.c, remote.html
     "Or type a network name": "或输入网络名称"
+    # netform.c
+    "Other network": ~
     # portal.c, remote.html
     "Other or hidden network (type it below)": "其他或隐藏网络（在下方输入）"
     # panel.c
     "Over Wi-Fi or a USB Ethernet cable.": "通过 Wi-Fi 或 USB 以太网线均可。"
-    # portal.c, remote.html
+    # netform.c, portal.c, remote.html
     "Password": "密码"
     # remote.html
     "Pause": ~
@@ -430,7 +444,7 @@ zh-CN:
     "Play, pause, skip, seek and volume from a browser on the same network.": "在同一网络的浏览器中播放、暂停、切歌、定位和调音量。"
     # panel.c
     "Play, pause, skip, seek and volume from an MPD app such as MALP or mpc.": "用 MALP 或 mpc 等 MPD 应用播放、暂停、切歌、定位和调音量。"
-    # panel.c
+    # not in the source any more
     "Playback pauses while setup runs.": "设置期间暂停播放。"
     # remote.html
     "Podcast Index answered with something the player did not expect.": ~
@@ -516,7 +530,7 @@ zh-CN:
     "SLEEP": "睡眠"
     # ui.c
     "SLEEP %dM": "睡眠%d分"
-    # panel.c
+    # not in the source any more
     "START": "开始"
     # panel.c
     "STEREO": "立体声"
@@ -530,7 +544,9 @@ zh-CN:
     "Saved %.32s.": "已保存 %.32s。"
     # remote.html
     "Scan": "扫描"
-    # remote.c
+    # netform.c
+    "Scan again": ~
+    # netform.c, remote.c
     "Scanning…": "正在扫描…"
     # sleeppage.c
     "Screen": "屏幕"
@@ -548,6 +564,8 @@ zh-CN:
     "Setup closed after five minutes.": "设置已在五分钟后关闭。"
     # panel.c
     "Setup could not start.": "设置无法启动。"
+    # netform.c
+    "Show": ~
     # sleeppage.c
     "Sleep": "睡眠"
     # remote.html
@@ -586,6 +604,8 @@ zh-CN:
     "TRACK": "每曲"
     # ui.c
     "TREB": "高音"
+    # netform.c
+    "Tap a network, then type its password.": ~
     # remote.html
     "That episode is already on the drive.": ~
     # remote.c
@@ -630,7 +650,7 @@ zh-CN:
     "The password contains %s. A Wi-Fi password is plain keyboard characters only; phones substitute these when autocorrect or smart punctuation is on. Retype it with that turned off.": "密码中含有 %s。Wi-Fi 密码只能使用普通键盘字符；开启自动更正或智能标点时，手机会替换这些字符。请关闭后重新输入。"
     # portal.c
     "The password did not work. Try again.": "密码无效。请重试。"
-    # remote.c
+    # netform.c, remote.c
     "The password has a character a Wi-Fi password cannot have -- often a phone's smart punctuation. Retype it with that turned off.": "密码中有 Wi-Fi 密码不能使用的字符——通常是手机的智能标点。请关闭后重新输入。"
     # remote.html
     "The player could not add that podcast. Try again.": ~
@@ -640,7 +660,7 @@ zh-CN:
     "The player could not read a podcast feed at that address.": ~
     # remote.html
     "The player could not save that. Try again.": ~
-    # remote.c, remote.html
+    # netform.c, remote.c, remote.html
     "The player could not start that. Try again.": "播放器无法开始。请重试。"
     # remote.html
     "The player did not answer.": "播放器没有响应。"
@@ -698,7 +718,7 @@ zh-CN:
     "Track: back to matching when a new track starts. Repeat one is not a new track.": "每曲：新曲目开始时恢复原速。单曲重复不算新曲目。"
     # remote.html
     "Try and save": ~
-    # panel.c
+    # netform.c, panel.c
     "Trying %.32s…": "正在尝试 %.32s…"
     # portal.c
     "Trying %s… This can take fifteen seconds, and this phone may lose the setup network for a moment. The player's screen shows the result either way.": "正在尝试 %s… 这可能需要十五秒，手机可能会暂时断开设置网络。无论结果如何，本机屏幕都会显示。"
@@ -706,6 +726,8 @@ zh-CN:
     "Turn Wi-Fi on first.": "请先打开 Wi-Fi。"
     # player.c
     "Turning off to protect the battery. Charge it before use.": "正在关机以保护电池。\n使用前请充电。"
+    # netform.c
+    "Type the network's name, then its password.": ~
     # browser.c
     "UP": "上级"
     # browser.c
@@ -736,7 +758,7 @@ zh-CN:
     "Web radio, MPD, the remote and podcast downloads work on the cable.": ~
     # player.c
     "Web setup is open": "网页设置已开启"
-    # remote.c
+    # netform.c, remote.c
     "Wi-Fi is off on the player.": "播放器的 Wi-Fi 已关闭。"
     # remote.html
     "Working. The key and secret are saved on the player.": ~
@@ -840,6 +862,8 @@ zh-CN:
     "on the player": "在播放器上"
     # portal.c, remote.html
     "only if not in the list": "仅当列表中没有时"
+    # netform.c
+    "open": ~
     # portal.c, remote.html
     "optional": "可选"
     # browser.c
@@ -882,6 +906,8 @@ zh-CN:
     "sector": "扇区"
     # player.c
     "slide or tap to cancel": "滑动或轻点以取消"
+    # netform.c
+    "space": ~
     # panel.c
     "speaker": "扬声器"
     # panel.c

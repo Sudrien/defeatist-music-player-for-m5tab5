@@ -16,7 +16,7 @@ it:
     "%d s": "%d s"
     # browser.c
     "%s - Podcast Index did not answer; UP, then try again": ~
-    # remote.c
+    # netform.c, remote.c
     "%s did not answer.": "%s non ha risposto."
     # remote.html
     "%s left": "mancano %s"
@@ -24,9 +24,9 @@ it:
     "%s of %s": ~
     # browser.c
     "%s on Podcast Index": ~
-    # remote.c
+    # netform.c, remote.c
     "%s refused the password.": "%s ha rifiutato la password."
-    # remote.c
+    # netform.c, remote.c
     "%s was not found. Is it in range?": "%s non trovata. È nel raggio?"
     # panel.c
     "%s: %d mean, %d peak kbit/s": "%s: media %d, picco %d kbit/s"
@@ -56,13 +56,13 @@ it:
     "30 s": "30 s"
     # screendim.h
     "5 min": "5 min"
-    # portal.c, remote.c
+    # netform.c, portal.c, remote.c
     "A Wi-Fi password is 8 to 63 characters, or 64 hex digits.": "Una password Wi-Fi ha da 8 a 63 caratteri, o 64 cifre esadecimali."
     # remote.html
     "A key and a secret are letters, digits and punctuation, with no spaces.": ~
-    # portal.c, remote.c
+    # netform.c, portal.c, remote.c
     "A network name is 1 to 32 characters.": "Un nome di rete ha da 1 a 32 caratteri."
-    # panel.c
+    # not in the source any more
     "A phone supplies the password.": "Un telefono fornisce la password."
     # panel.c
     "A sign-in page opens with the form.": "Si apre una pagina di accesso con il modulo."
@@ -70,6 +70,8 @@ it:
     "A tap anywhere brings it back, and does not press anything.": "Un tocco ovunque la riaccende, senza premere niente."
     # remote.html
     "A working key is already saved.": ~
+    # panel.c
+    "ADD": ~
     # browser.c
     "ALL": "TUTTI"
     # remote.html
@@ -80,7 +82,7 @@ it:
     "AUTO": "AUTO"
     # panel.c
     "About twenty seconds.": "Una ventina di secondi."
-    # panel.c
+    # netform.c, panel.c
     "Add a network": "Aggiungi rete"
     # panel.c
     "Add a radio station to the card.": "Aggiungi una radio alla scheda."
@@ -134,7 +136,7 @@ it:
     "BOOT": "SEMPRE"
     # panel.c
     "BUSY": "OCCUP."
-    # remote.html
+    # netform.c, remote.html
     "Back": ~
     # portal.c
     "Back to the form": "Torna al modulo"
@@ -158,7 +160,7 @@ it:
     "CHRG %d%%": "CARIC %d%%"
     # panel.c, sleeppage.c
     "CLOSE": "CHIUDI"
-    # ui.c
+    # netform.c, ui.c
     "Cancel": "Annulla"
     # remote.html
     "Cancel and delete": ~
@@ -168,6 +170,8 @@ it:
     "Cannot record": "Non registra"
     # panel.c
     "Cert %.29s…": "Cert. %.29s…"
+    # panel.c
+    "Choose one and type its password here.": ~
     # portal.c
     "Choose the network this player should use, and enter its password. It is tried before it is saved.": "Scegli la rete che questo lettore deve usare e inserisci la password. Viene provata prima di salvarla."
     # remote.html
@@ -184,7 +188,7 @@ it:
     "Connecting to the player…": "Connessione al lettore…"
     # recorder.c
     "Could not create the recording file.": "Impossibile creare il\nfile di registrazione."
-    # remote.c
+    # netform.c, remote.c
     "Could not join %s.": "Impossibile collegarsi a %s."
     # recorder.c
     "Could not make the Recordings folder.": "Impossibile creare la\ncartella Recordings."
@@ -194,6 +198,8 @@ it:
     "Could not save": "Non salvato"
     # remote.c
     "Could not scan. Is Wi-Fi on, on the player?": "Ricerca impossibile. Il Wi-Fi del lettore è acceso?"
+    # netform.c
+    "Could not scan. Is Wi-Fi on?": ~
     # recorder.c
     "Could not start the file.": "Impossibile avviare\nil file."
     # bench.c
@@ -220,6 +226,8 @@ it:
     "Deny": "Nega"
     # sleeppage.c
     "Dim screen": "Attenua schermo"
+    # netform.c
+    "Done": ~
     # remote.html
     "Download": ~
     # remote.html
@@ -274,6 +282,8 @@ it:
     "HEADSET": "CUFFIA"
     # panel.c
     "Headset, UAC: the jack, a USB mic.": "Cuffia, UAC: il jack, un microfono USB."
+    # netform.c
+    "Hide": ~
     # ui.c
     "IDLE": "INATT"
     # ui.c
@@ -288,11 +298,11 @@ it:
     "It comes back when setup closes.": "Torna quando la configurazione si chiude."
     # recorder.c
     "It reached 4 GB, the most one file can hold.": "Ha raggiunto 4 GB, il\nmassimo per un file."
-    # portal.c, remote.html
+    # netform.c, portal.c, remote.html
     "Join": "Collegati"
     # panel.c
     "Join %s on a phone.": "Collegati a %s col telefono."
-    # remote.c
+    # netform.c, remote.c
     "Joined and saved %s.": "Collegato a %s e salvata."
     # portal.c
     "Joined and saved %s. The setup network is closing; you can leave it.": "Collegato a %s e salvata. La rete di configurazione si sta chiudendo; puoi lasciarla."
@@ -334,7 +344,7 @@ it:
     "Needed for internet radio and the clock.": "Serve per la radio internet e l'orologio."
     # panel.c
     "Needs a network: Wi-Fi or a cable.": "Serve una rete: Wi-Fi o cavo."
-    # portal.c, remote.html
+    # netform.c, portal.c, remote.html
     "Network": "Rete"
     # remote.c
     "Network setup is running on the player; use that page.": "Il lettore è in configurazione di rete; usa quella pagina."
@@ -356,6 +366,8 @@ it:
     "No memory for the recording task.": "Memoria insufficiente per\nla registrazione."
     # bench.c
     "No memory to measure with.": "Memoria insufficiente per misurare."
+    # netform.c
+    "No networks heard. Scan again, or type a hidden one's name.": ~
     # panel.c
     "No password: each address is allowed on the player.": "Senza password: ogni indirizzo va consentito sul lettore."
     # panel.c
@@ -402,15 +414,17 @@ it:
     "One folder counts as one album.": "Una cartella vale un album."
     # panel.c
     "Open %s": "Apri %s"
-    # portal.c, remote.c
+    # netform.c, portal.c, remote.c
     "Open networks are not supported yet.": "Le reti aperte non sono ancora supportate."
     # portal.c, remote.html
     "Or type a network name": "Oppure scrivi il nome di una rete"
+    # netform.c
+    "Other network": ~
     # portal.c, remote.html
     "Other or hidden network (type it below)": "Altra rete o rete nascosta (scrivila sotto)"
     # panel.c
     "Over Wi-Fi or a USB Ethernet cable.": "Via Wi-Fi o con un cavo Ethernet USB."
-    # portal.c, remote.html
+    # netform.c, portal.c, remote.html
     "Password": "Password"
     # remote.html
     "Pause": ~
@@ -430,7 +444,7 @@ it:
     "Play, pause, skip, seek and volume from a browser on the same network.": "Riproduci, pausa, salta, cerca e volume da un browser nella stessa rete."
     # panel.c
     "Play, pause, skip, seek and volume from an MPD app such as MALP or mpc.": "Riproduci, pausa, salta, cerca e volume da un'app MPD come MALP o mpc."
-    # panel.c
+    # not in the source any more
     "Playback pauses while setup runs.": "La riproduzione va in pausa durante la configurazione."
     # remote.html
     "Podcast Index answered with something the player did not expect.": ~
@@ -516,7 +530,7 @@ it:
     "SLEEP": "SONNO"
     # ui.c
     "SLEEP %dM": "SONNO %dM"
-    # panel.c
+    # not in the source any more
     "START": "APRI"
     # panel.c
     "STEREO": "STEREO"
@@ -530,7 +544,9 @@ it:
     "Saved %.32s.": "%.32s salvata."
     # remote.html
     "Scan": "Cerca"
-    # remote.c
+    # netform.c
+    "Scan again": ~
+    # netform.c, remote.c
     "Scanning…": "Ricerca…"
     # sleeppage.c
     "Screen": "Schermo"
@@ -548,6 +564,8 @@ it:
     "Setup closed after five minutes.": "Configurazione chiusa dopo 5 min."
     # panel.c
     "Setup could not start.": "Configurazione non avviata."
+    # netform.c
+    "Show": ~
     # sleeppage.c
     "Sleep": "Riposo"
     # remote.html
@@ -586,6 +604,8 @@ it:
     "TRACK": "BRANO"
     # ui.c
     "TREB": "ALTI"
+    # netform.c
+    "Tap a network, then type its password.": ~
     # remote.html
     "That episode is already on the drive.": ~
     # remote.c
@@ -630,7 +650,7 @@ it:
     "The password contains %s. A Wi-Fi password is plain keyboard characters only; phones substitute these when autocorrect or smart punctuation is on. Retype it with that turned off.": "La password contiene %s. Una password Wi-Fi usa solo caratteri semplici della tastiera; i telefoni li sostituiscono con la correzione automatica o la punteggiatura intelligente attive. Riscrivila dopo averle disattivate."
     # portal.c
     "The password did not work. Try again.": "La password non ha funzionato. Riprova."
-    # remote.c
+    # netform.c, remote.c
     "The password has a character a Wi-Fi password cannot have -- often a phone's smart punctuation. Retype it with that turned off.": "La password ha un carattere non ammesso in una password Wi-Fi, spesso la punteggiatura intelligente del telefono. Riscrivila dopo averla disattivata."
     # remote.html
     "The player could not add that podcast. Try again.": ~
@@ -640,7 +660,7 @@ it:
     "The player could not read a podcast feed at that address.": ~
     # remote.html
     "The player could not save that. Try again.": ~
-    # remote.c, remote.html
+    # netform.c, remote.c, remote.html
     "The player could not start that. Try again.": "Il lettore non è riuscito ad avviarlo. Riprova."
     # remote.html
     "The player did not answer.": "Il lettore non ha risposto."
@@ -698,7 +718,7 @@ it:
     "Track: back to matching when a new track starts. Repeat one is not a new track.": "Brano: torna normale quando inizia un nuovo brano. Ripeti uno non è un nuovo brano."
     # remote.html
     "Try and save": ~
-    # panel.c
+    # netform.c, panel.c
     "Trying %.32s…": "Provo %.32s…"
     # portal.c
     "Trying %s… This can take fifteen seconds, and this phone may lose the setup network for a moment. The player's screen shows the result either way.": "Provo %s… Può richiedere quindici secondi, e questo telefono può perdere per un attimo la rete di configurazione. Lo schermo del lettore mostra comunque il risultato."
@@ -706,6 +726,8 @@ it:
     "Turn Wi-Fi on first.": "Prima accendi il Wi-Fi."
     # player.c
     "Turning off to protect the battery. Charge it before use.": "Si spegne per proteggere\nla batteria. Ricaricala\nprima dell'uso."
+    # netform.c
+    "Type the network's name, then its password.": ~
     # browser.c
     "UP": "SU"
     # browser.c
@@ -736,7 +758,7 @@ it:
     "Web radio, MPD, the remote and podcast downloads work on the cable.": ~
     # player.c
     "Web setup is open": "Config. web aperta"
-    # remote.c
+    # netform.c, remote.c
     "Wi-Fi is off on the player.": "Il Wi-Fi del lettore è spento."
     # remote.html
     "Working. The key and secret are saved on the player.": ~
@@ -840,6 +862,8 @@ it:
     "on the player": "sul lettore"
     # portal.c, remote.html
     "only if not in the list": "solo se non è nell'elenco"
+    # netform.c
+    "open": ~
     # portal.c, remote.html
     "optional": "facoltativo"
     # browser.c
@@ -882,6 +906,8 @@ it:
     "sector": "settore"
     # player.c
     "slide or tap to cancel": "scorri o tocca: annulla"
+    # netform.c
+    "space": ~
     # panel.c
     "speaker": "altoparlante"
     # panel.c

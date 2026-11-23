@@ -10,8 +10,9 @@
  * (remote control); since u-feckless-0081 feckless_fetch (downloads); and
  * since u-feckless-0083 (u-defeatist-0047) the radio's control and the
  * network hooks, so Wi-Fi, its saved networks and NTP. Not yet the
- * portal's AP (wifi_ap_begin and the DHCP server): the "Add a network"
- * row is greyed and says why, and its press logs it. Was net_limited(),
+ * portal's AP (wifi_ap_begin and the DHCP server). Nothing asks since
+ * u-defeatist-0048, which adds a network on the screen; kept for the
+ * hotspot, the next thing to want the AP. Was net_limited(),
  * which covered the radio and NTP too. Defined in absent.c beside the
  * stand-ins, and goes with them.
  */

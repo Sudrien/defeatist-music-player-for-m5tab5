@@ -16,7 +16,7 @@ ja:
     "%d s": "%d 秒"
     # browser.c
     "%s - Podcast Index did not answer; UP, then try again": ~
-    # remote.c
+    # netform.c, remote.c
     "%s did not answer.": "%s から応答がありません。"
     # remote.html
     "%s left": "残り %s"
@@ -24,9 +24,9 @@ ja:
     "%s of %s": ~
     # browser.c
     "%s on Podcast Index": ~
-    # remote.c
+    # netform.c, remote.c
     "%s refused the password.": "%s がパスワードを拒否しました。"
-    # remote.c
+    # netform.c, remote.c
     "%s was not found. Is it in range?": "%s が見つかりません。範囲内ですか？"
     # panel.c
     "%s: %d mean, %d peak kbit/s": "%s: 平均 %d, 最大 %d kbit/s"
@@ -56,13 +56,13 @@ ja:
     "30 s": "30秒"
     # screendim.h
     "5 min": "5分"
-    # portal.c, remote.c
+    # netform.c, portal.c, remote.c
     "A Wi-Fi password is 8 to 63 characters, or 64 hex digits.": "Wi-Fiのパスワードは8～63文字、または16進数64桁です。"
     # remote.html
     "A key and a secret are letters, digits and punctuation, with no spaces.": ~
-    # portal.c, remote.c
+    # netform.c, portal.c, remote.c
     "A network name is 1 to 32 characters.": "ネットワーク名は1～32文字です。"
-    # panel.c
+    # not in the source any more
     "A phone supplies the password.": "パスワードはスマホから。"
     # panel.c
     "A sign-in page opens with the form.": "フォーム付きの画面が開く。"
@@ -70,6 +70,8 @@ ja:
     "A tap anywhere brings it back, and does not press anything.": "どこかをタップすると戻る。ボタンは押されない。"
     # remote.html
     "A working key is already saved.": ~
+    # panel.c
+    "ADD": ~
     # browser.c
     "ALL": "全曲"
     # remote.html
@@ -80,7 +82,7 @@ ja:
     "AUTO": "自動"
     # panel.c
     "About twenty seconds.": "約20秒。"
-    # panel.c
+    # netform.c, panel.c
     "Add a network": "ネットワーク追加"
     # panel.c
     "Add a radio station to the card.": "カードに局を追加。"
@@ -134,7 +136,7 @@ ja:
     "BOOT": "保持"
     # panel.c
     "BUSY": "作業中"
-    # remote.html
+    # netform.c, remote.html
     "Back": ~
     # portal.c
     "Back to the form": "フォームに戻る"
@@ -158,7 +160,7 @@ ja:
     "CHRG %d%%": "充電 %d%%"
     # panel.c, sleeppage.c
     "CLOSE": "閉じる"
-    # ui.c
+    # netform.c, ui.c
     "Cancel": "キャンセル"
     # remote.html
     "Cancel and delete": ~
@@ -168,6 +170,8 @@ ja:
     "Cannot record": "録音できない"
     # panel.c
     "Cert %.29s…": "証明書 %.29s…"
+    # panel.c
+    "Choose one and type its password here.": ~
     # portal.c
     "Choose the network this player should use, and enter its password. It is tried before it is saved.": "この機器が使うネットワークを選び、パスワードを入力してください。保存する前に接続を試します。"
     # remote.html
@@ -184,7 +188,7 @@ ja:
     "Connecting to the player…": "プレーヤーに接続中…"
     # recorder.c
     "Could not create the recording file.": "録音ファイルを\n作れなかった。"
-    # remote.c
+    # netform.c, remote.c
     "Could not join %s.": "%s に接続できませんでした。"
     # recorder.c
     "Could not make the Recordings folder.": "Recordings フォルダを\n作れなかった。"
@@ -194,6 +198,8 @@ ja:
     "Could not save": "保存できない"
     # remote.c
     "Could not scan. Is Wi-Fi on, on the player?": "スキャンできません。プレーヤーのWi-Fiはオンですか？"
+    # netform.c
+    "Could not scan. Is Wi-Fi on?": ~
     # recorder.c
     "Could not start the file.": "ファイルを開始できない。"
     # bench.c
@@ -220,6 +226,8 @@ ja:
     "Deny": "拒否"
     # sleeppage.c
     "Dim screen": "画面を暗く"
+    # netform.c
+    "Done": ~
     # remote.html
     "Download": ~
     # remote.html
@@ -274,6 +282,8 @@ ja:
     "HEADSET": "ヘッドセット"
     # panel.c
     "Headset, UAC: the jack, a USB mic.": "ヘッドセット、UAC：端子、USBマイク。"
+    # netform.c
+    "Hide": ~
     # ui.c
     "IDLE": "待機"
     # ui.c
@@ -288,11 +298,11 @@ ja:
     "It comes back when setup closes.": "設定が閉じると戻る。"
     # recorder.c
     "It reached 4 GB, the most one file can hold.": "4 GB に達した。\n1ファイルの上限。"
-    # portal.c, remote.html
+    # netform.c, portal.c, remote.html
     "Join": "接続"
     # panel.c
     "Join %s on a phone.": "スマホで %s に接続。"
-    # remote.c
+    # netform.c, remote.c
     "Joined and saved %s.": "%s に接続して保存しました。"
     # portal.c
     "Joined and saved %s. The setup network is closing; you can leave it.": "%s に接続して保存しました。設定用ネットワークは閉じます。離れてかまいません。"
@@ -334,7 +344,7 @@ ja:
     "Needed for internet radio and the clock.": "ネットラジオと時計に必要。"
     # panel.c
     "Needs a network: Wi-Fi or a cable.": "ネットワークが必要：Wi-Fiかケーブル。"
-    # portal.c, remote.html
+    # netform.c, portal.c, remote.html
     "Network": "ネットワーク"
     # remote.c
     "Network setup is running on the player; use that page.": "プレーヤーでネットワーク設定中です。そちらのページを使ってください。"
@@ -356,6 +366,8 @@ ja:
     "No memory for the recording task.": "録音タスクのメモリ不足。"
     # bench.c
     "No memory to measure with.": "測定するメモリがない。"
+    # netform.c
+    "No networks heard. Scan again, or type a hidden one's name.": ~
     # panel.c
     "No password: each address is allowed on the player.": "パスワードなし：アドレスごとにプレーヤーで許可する。"
     # panel.c
@@ -402,15 +414,17 @@ ja:
     "One folder counts as one album.": "1つのフォルダを1枚のアルバムとみなす。"
     # panel.c
     "Open %s": "%s を開く"
-    # portal.c, remote.c
+    # netform.c, portal.c, remote.c
     "Open networks are not supported yet.": "パスワードなしのネットワークにはまだ対応していません。"
     # portal.c, remote.html
     "Or type a network name": "またはネットワーク名を入力"
+    # netform.c
+    "Other network": ~
     # portal.c, remote.html
     "Other or hidden network (type it below)": "その他・非公開のネットワーク（下に入力）"
     # panel.c
     "Over Wi-Fi or a USB Ethernet cable.": "Wi-Fi でも USB イーサネットのケーブルでも。"
-    # portal.c, remote.html
+    # netform.c, portal.c, remote.html
     "Password": "パスワード"
     # remote.html
     "Pause": ~
@@ -430,7 +444,7 @@ ja:
     "Play, pause, skip, seek and volume from a browser on the same network.": "同じネットワークのブラウザから再生、一時停止、スキップ、シーク、音量。"
     # panel.c
     "Play, pause, skip, seek and volume from an MPD app such as MALP or mpc.": "MALPやmpcなどのMPDアプリから再生、一時停止、スキップ、シーク、音量。"
-    # panel.c
+    # not in the source any more
     "Playback pauses while setup runs.": "設定中は再生を一時停止。"
     # remote.html
     "Podcast Index answered with something the player did not expect.": ~
@@ -516,7 +530,7 @@ ja:
     "SLEEP": "睡眠"
     # ui.c
     "SLEEP %dM": "睡眠%d分"
-    # panel.c
+    # not in the source any more
     "START": "開始"
     # panel.c
     "STEREO": "ステレオ"
@@ -530,7 +544,9 @@ ja:
     "Saved %.32s.": "%.32s を保存。"
     # remote.html
     "Scan": "スキャン"
-    # remote.c
+    # netform.c
+    "Scan again": ~
+    # netform.c, remote.c
     "Scanning…": "スキャン中…"
     # sleeppage.c
     "Screen": "画面"
@@ -548,6 +564,8 @@ ja:
     "Setup closed after five minutes.": "設定は5分で閉じた。"
     # panel.c
     "Setup could not start.": "設定を開始できなかった。"
+    # netform.c
+    "Show": ~
     # sleeppage.c
     "Sleep": "スリープ"
     # remote.html
@@ -586,6 +604,8 @@ ja:
     "TRACK": "曲ごと"
     # ui.c
     "TREB": "高音"
+    # netform.c
+    "Tap a network, then type its password.": ~
     # remote.html
     "That episode is already on the drive.": ~
     # remote.c
@@ -630,7 +650,7 @@ ja:
     "The password contains %s. A Wi-Fi password is plain keyboard characters only; phones substitute these when autocorrect or smart punctuation is on. Retype it with that turned off.": "パスワードに %s が含まれています。Wi-Fiのパスワードは通常のキーボード文字だけです。自動修正やスマート句読点がオンだと、スマホがこれらの文字を置き換えます。オフにして入力し直してください。"
     # portal.c
     "The password did not work. Try again.": "パスワードが違います。もう一度お試しください。"
-    # remote.c
+    # netform.c, remote.c
     "The password has a character a Wi-Fi password cannot have -- often a phone's smart punctuation. Retype it with that turned off.": "パスワードにWi-Fiのパスワードに使えない文字があります。多くはスマホのスマート句読点です。オフにして入力し直してください。"
     # remote.html
     "The player could not add that podcast. Try again.": ~
@@ -640,7 +660,7 @@ ja:
     "The player could not read a podcast feed at that address.": ~
     # remote.html
     "The player could not save that. Try again.": ~
-    # remote.c, remote.html
+    # netform.c, remote.c, remote.html
     "The player could not start that. Try again.": "プレーヤーで開始できませんでした。もう一度お試しください。"
     # remote.html
     "The player did not answer.": "プレーヤーから応答がありません。"
@@ -698,7 +718,7 @@ ja:
     "Track: back to matching when a new track starts. Repeat one is not a new track.": "曲ごと：新しい曲が始まると元に戻ります。1曲リピートは新しい曲ではありません。"
     # remote.html
     "Try and save": ~
-    # panel.c
+    # netform.c, panel.c
     "Trying %.32s…": "%.32s を試行中…"
     # portal.c
     "Trying %s… This can take fifteen seconds, and this phone may lose the setup network for a moment. The player's screen shows the result either way.": "%s を試しています… 15秒ほどかかり、このスマホは一時的に設定用ネットワークから外れることがあります。結果はどちらにしても機器の画面に表示されます。"
@@ -706,6 +726,8 @@ ja:
     "Turn Wi-Fi on first.": "先にWi-Fiをオン。"
     # player.c
     "Turning off to protect the battery. Charge it before use.": "電池を守るため電源を切る。\n使う前に充電を。"
+    # netform.c
+    "Type the network's name, then its password.": ~
     # browser.c
     "UP": "上へ"
     # browser.c
@@ -736,7 +758,7 @@ ja:
     "Web radio, MPD, the remote and podcast downloads work on the cable.": ~
     # player.c
     "Web setup is open": "Web設定が開いている"
-    # remote.c
+    # netform.c, remote.c
     "Wi-Fi is off on the player.": "プレーヤーのWi-Fiがオフです。"
     # remote.html
     "Working. The key and secret are saved on the player.": ~
@@ -840,6 +862,8 @@ ja:
     "on the player": "プレーヤーで"
     # portal.c, remote.html
     "only if not in the list": "リストにない場合のみ"
+    # netform.c
+    "open": ~
     # portal.c, remote.html
     "optional": "省略可"
     # browser.c
@@ -882,6 +906,8 @@ ja:
     "sector": "セクタ"
     # player.c
     "slide or tap to cancel": "スライドかタップで中止"
+    # netform.c
+    "space": ~
     # panel.c
     "speaker": "スピーカー"
     # panel.c

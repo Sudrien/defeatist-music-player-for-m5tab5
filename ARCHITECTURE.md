@@ -30841,3 +30841,65 @@ After feckless-libs' umode branch carries u-feckless-0083,
 - a join of a saved network;
 - `NTP sync:` with network time on.
 
+### u-defeatist-0048 -- adding a network on the screen
+
+The setup portal existed for the lack of a keyboard. That's an open
+access point, captive DNS, and a form served to a phone. feckless-libs'
+feckless_keyboard is one, so the NET tab's "Add a network" now opens a
+form on the player itself. It works the same in a box and a trusted
+build, using only what u-feckless-0083 gave the box.
+
+- **netform.c** has two pages, shaped like feckless_mail's mailform: no
+  task, no radio, its pieces drawn by panel.c on ui_task.
+  - *The list:* the scan, strongest first, one row per name, hidden
+    networks left out, open networks dimmed. Tapping an open network
+    says why it can't be used. Under the list: Cancel, Scan again, and
+    Other network, for a hidden one typed by name.
+  - *The entry page:* the network, the password with Show, a two-line
+    note, Back and Join, and the keyboard with a space bar.
+  - *Join* refuses what `portalweb_check()` refuses, in the browser Wi-Fi
+    section's words.
+  - *The join's state* is in remote.c's words too: "Trying...", "Joined
+    and saved", "refused the password", and so on. So both say the same
+    thing, translated once.
+  - *No keys while a join runs.* The password stays until the join works
+    or the form closes, so a typo can be fixed.
+  - *Fit:* `netform_fit()` makes a row a twelfth of the height, at most
+    72 px, and the width at most 900 px; both orientations fit.
+- **wifiadd.c** runs the scan and the join on a short task, as remote.c's
+  `w_start()` does. The join is `wifijoin_try()`. The panel collects each
+  result by generation.
+- **panel.c:** while the form is open it has the whole screen and every
+  tap. The row's pill reads ADD, or STOP while the station form runs.
+  The row is greyed with Wi-Fi off. Its middle line now says "Choose one
+  and type its password here."
+- **Portal:** nothing starts `PORTAL_MODE_SETUP` any more. The station
+  form (`PORTAL_MODE_STATION`) is unchanged, and the access point code
+  stays for the hotspot. The box's boot line about the missing portal
+  is gone. `portal_absent()` stays, unused, for the same reason.
+- **Build:**
+  - feckless_keyboard is added to `idf_component.yml`, main's
+    `REQUIRES`, and the ELF's `ELF_COMPONENTS`: it's plain code, and its
+    gfx calls are the ABI's.
+  - texttest has a fake `esp_wifi.h` (one error code) and a
+    `FECKLESS_KEYBOARD` path.
+
+*Tested:* texttest's netformtest (66 checks) runs netform.c with gfx.c,
+feckless_keyboard.c and portalweb.c themselves, portrait and landscape.
+It finds keys by asking `kbd_hit()`, so it presses what a person would.
+It checks:
+- the fit;
+- the list's dedupe, hidden networks and cap;
+- the open-network refusal;
+- Scan again, including while a scan runs;
+- typing with shift and symbols, del and space;
+- the short-password and empty-name refusals;
+- Join, no keys while joining, and a key clearing a failure;
+- Done, Back clearing the password, and Show.
+
+run-i18n, run-portal, run-remote, run-rotate and run-menuscroll pass.
+
+*Not checked:* the board, and a build. panel.c and wifiadd.c don't build
+on a host. `idf.py update-dependencies` adds feckless_keyboard to the
+lock.
+

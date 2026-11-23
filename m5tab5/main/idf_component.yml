@@ -258,3 +258,10 @@ dependencies:
     git: https://github.com/Sudrien/feckless-libs-for-m5tab5.git
     path: components/feckless_box_calls
     version: "umode"
+  # u-defeatist-0048: the on-screen keyboard, for adding a network on the
+  # player itself (netform.c). Plain code: elf/CMakeLists.txt puts it in
+  # the ELF.
+  feckless_keyboard:
+    git: https://github.com/Sudrien/feckless-libs-for-m5tab5.git
+    path: components/feckless_keyboard
+    version: "umode"

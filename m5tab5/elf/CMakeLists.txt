@@ -90,6 +90,9 @@ project(defeatist_player)
 # for it, found only a -L (the archives are add_prebuilt_library()
 # targets, not paths; 8091's -l<name> skips targets too) and is gone with it.
 set(ELF_COMPONENTS feckless_image_handler)
+# u-defeatist-0048: the on-screen keyboard. Plain code; its gfx calls are
+# the ABI's, so the code itself goes into the ELF.
+list(APPEND ELF_COMPONENTS feckless_keyboard)
 idf_build_get_property(_comps BUILD_COMPONENTS)
 foreach(_c IN LISTS _comps)
     if(_c MATCHES "(^|__)(c?json|esp_jpeg)$")

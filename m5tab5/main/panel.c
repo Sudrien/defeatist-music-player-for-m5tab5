@@ -35,6 +35,9 @@
 #include "wifi.h"
 #include "wifistore.h"
 #include "portal.h"
+#include "netform.h"           /* u-defeatist-0048 */
+#include "wifiadd.h"           /* u-defeatist-0048 */
+#include "wifijoin.h"          /* u-defeatist-0048: wifijoin_net() */
 #include "storage.h"
 #include "uac.h"
 #include "usbhost.h"
@@ -141,8 +144,76 @@ void panel_open(void)
      * navigate twice. */
 }
 
+/* ------------------------------------------------------------------ */
+/* Adding a network: netform over the whole screen (u-defeatist-0048)  */
+/* ------------------------------------------------------------------ */
+
+static netform_t s_nf;
+static bool      s_nf_open;
+static uint32_t  s_nf_gen;
+static wifiadd_result_t s_nf_res;           /* 2.8 KB: not ui_task's stack */
+
+static void nf_open(void)
+{
+    (void)wifiadd_take(&s_nf_gen, &s_nf_res);       /* an older job's result is not this one's */
+    memset(&s_nf, 0, sizeof s_nf);
+    netform_fit(&s_nf, 0, 0, gfx_w(), gfx_h());
+    s_nf.bg = C_BG; s_nf.row = C_ROW; s_nf.field = C_TAB_OFF; s_nf.key = C_BTN; s_nf.text = C_TEXT;
+    s_nf.dim = C_DIM; s_nf.edge = C_RULE; s_nf.go = C_ON; s_nf.bad = C_ACCENT; s_nf.on = C_ON;
+    netform_begin(&s_nf);
+    s_nf_open = true;
+    if (!wifiadd_scan()) netform_set_scan(&s_nf, NULL, -1);         /* a scan still running */
+    ESP_LOGI(TAG, "add a network: scanning");
+}
+
+static void nf_close(void)
+{
+    netform_done(&s_nf);
+    s_nf_open = false;
+}
+
+/* A finished scan or join, into the form. */
+static void nf_poll(void)
+{
+    if (!wifiadd_take(&s_nf_gen, &s_nf_res)) return;
+    if (s_nf_res.job == WIFIADD_SCAN) {
+        netform_set_scan(&s_nf, s_nf_res.seen, s_nf_res.n);
+    } else if (s_nf_res.job == WIFIADD_JOIN) {
+        netform_set_status(&s_nf, s_nf_res.err == ESP_OK ? NETFORM_JOINED : NETFORM_FAILED, s_nf_res.err);
+        if (s_nf_res.err == ESP_OK) netform_forget_pass(&s_nf);
+    }
+    s_dirty = true;
+}
+
+static void nf_tap(int x, int y)
+{
+    switch (netform_tap(&s_nf, x, y)) {
+    case NETFORM_NONE:
+        return;
+    case NETFORM_CLOSE:
+        ESP_LOGI(TAG, "add a network: %s", s_nf.status == NETFORM_JOINED ? "done" : "cancelled");
+        nf_close();
+        break;
+    case NETFORM_SCAN:
+        if (!wifiadd_scan()) netform_set_scan(&s_nf, NULL, -1);
+        break;
+    case NETFORM_JOIN: {
+        /* The password stays in the form until the join works or the form
+         * closes, so a typo is fixed rather than retyped. */
+        const portalweb_net_t net = s_nf.from_scan ? wifijoin_net(s_nf.auth) : PORTALWEB_NET_UNKNOWN;
+        if (wifiadd_join(s_nf.ssid, s_nf.pass, net)) netform_set_status(&s_nf, NETFORM_JOINING, ESP_OK);
+        else netform_set_status(&s_nf, NETFORM_FAILED, ESP_ERR_NO_MEM);
+        break;
+    }
+    case NETFORM_REDRAW:
+        break;
+    }
+    s_dirty = true;
+}
+
 void panel_close(void)
 {
+    if (s_nf_open) nf_close();
     s_open = false;
 }
 
@@ -1018,10 +1089,9 @@ static void setup_lines(const portal_state_t *st, bool wifi, bool running,
     case PORTAL_SAVED:    snprintf(l[1], 64, _("Saved %.32s."), st->last_ssid); break;
     case PORTAL_TIMEDOUT: snprintf(l[1], 64, "%s", _("Setup closed after five minutes.")); break;
     case PORTAL_ERROR:    snprintf(l[1], 64, "%s", _("Setup could not start.")); break;
-    default:              snprintf(l[1], 64, "%s", _("A phone supplies the password.")); break;
+    default:              snprintf(l[1], 64, "%s", _("Choose one and type its password here.")); break;
     }
-    snprintf(l[2], 64, "%s", !wifi ? _("Turn Wi-Fi on first.")
-                                   : _("Playback pauses while setup runs."));
+    snprintf(l[2], 64, "%s", !wifi ? _("Turn Wi-Fi on first.") : "");      /* u-defeatist-0048 */
 }
 
 /*
@@ -1051,10 +1121,8 @@ static int draw_net(void)
     const int w = gfx_w();
     int x, y, bw, bh;
     const bool wifi = settings_wifi_enabled();
-    /* u-defeatist-0041, 0042, 0047: in a box, the one row that needs what
-     * it lacks -- network setup, the portal's access point -- is greyed and
-     * says why. The radio and NTP are the box's since u-feckless-0083. */
-    const bool noportal = portal_absent();
+    /* u-defeatist-0048: no row here needs what a box lacks any more --
+     * "Add a network" is typed on this screen, not the portal's AP. */
     /* 5096: the benchmark reads a station over whatever route there is,
      * so a cable enables it as well as the radio does. */
     const bool netok = wifi || net_online();
@@ -1218,14 +1286,17 @@ static int draw_net(void)
     portal_state_t st;
     portal_state(&st);
     const bool running = portal_running();
-    const bool wifi_live = wifi && !noportal;               /* u-defeatist-0041, 0047 */
+    /* u-defeatist-0048: on this screen now, with the keyboard; the
+     * portal runs only as the station form (the radio chooser's Add
+     * station), which this row stops. */
+    const bool wifi_live = wifi || running;
     gfx_fill_rect(x, y, bw, bh, C_ROW);
     gfx_draw_text(24, y + (bh - GFX_GLYPH_H(NAME_SCALE)) / 2, _("Add a network"),
                   NAME_SCALE, 400, wifi_live ? C_TEXT : C_DISABLED);
     {
         const int pw = 132, ph = 56;
         draw_state_pill(w - 24 - pw, y + (bh - ph) / 2, pw, ph,
-                        running ? _("STOP") : _("START"), running, wifi_live, NAME_SCALE);
+                        running ? _("STOP") : _("ADD"), running, wifi_live, NAME_SCALE);
     }
     char lines[NET_SETUP_NOTE_LINES][64];
     setup_lines(&st, wifi_live, running, lines);
@@ -1465,6 +1536,17 @@ void panel_draw(void)
 {
     if (!s_open) return;
 
+    if (s_nf_open) {                                        /* u-defeatist-0048 */
+        nf_poll();
+        const TickType_t now = xTaskGetTickCount();
+        if (!s_dirty && (now - s_last_draw) < pdMS_TO_TICKS(REFRESH_MS)) return;
+        s_dirty = false;
+        s_last_draw = now;
+        netform_draw(&s_nf);
+        gfx_blit(0, gfx_h());
+        return;
+    }
+
     const uint32_t gen = storage_generation();
     if (gen != s_seen_generation) {
         s_seen_generation = gen;
@@ -1586,6 +1668,11 @@ bool panel_touch(bool down, int x, int y)
     s_was_down = down;
 
     if (!s_open) return false;
+
+    if (s_nf_open) {                                        /* u-defeatist-0048: it has the screen */
+        if (tapped) nf_tap(x, y);
+        return false;
+    }
 
     const int w = gfx_w(), h = gfx_h();
 
@@ -1773,12 +1860,10 @@ bool panel_touch(bool down, int x, int y)
             if (portal_running()) {
                 ESP_LOGI(TAG, "network setup: stop");
                 portal_request_stop();
-            } else if (portal_absent()) {                   /* u-defeatist-0041, 0042, 0047 */
-                ESP_LOGW(TAG, "network setup: refused -- no setup access point in this build yet");
+            } else if (!settings_wifi_enabled()) {          /* u-defeatist-0048 */
+                ESP_LOGI(TAG, "add a network: refused (Wi-Fi off)");
             } else {
-                const esp_err_t err = portal_start();
-                ESP_LOGI(TAG, "network setup: start%s",
-                         err == ESP_OK ? "" : " refused (radio off)");
+                nf_open();
             }
             s_dirty = true;
         }

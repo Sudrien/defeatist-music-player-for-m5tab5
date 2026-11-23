@@ -1,6 +1,12 @@
 /*
  * portal.h -- the way a network gets into this player.
  *
+ * u-defeatist-0048: no longer. feckless_keyboard is a keyboard, and the
+ * NET tab's "Add a network" types the network on the screen (netform.h).
+ * Nothing starts PORTAL_MODE_SETUP now; PORTAL_MODE_STATION, the radio
+ * chooser's station form, still runs. The access point below is kept for
+ * the hotspot. What follows is the reasoning as it stood:
+ *
  * There is no keyboard. A WPA passphrase is up to 63 characters of mixed
  * case, digits and punctuation, and building an on-screen keyboard for a
  * field typed once per network would be the largest thing on this

@@ -177,6 +177,8 @@ esp_err_t usbhost_register_class(const char *name, usbhost_class_fn fn) { (void)
  * to the compiler, so it is called here. */
 void esp_deep_sleep_start(void)
 {
-    ESP_LOGW(TAG, "power off asked for: a boxed app ends instead; the board stays on");
+    /* u-defeatist-0028 made the launcher power off (or go back to
+     * M5Launcher) after a clean end; "the board stays on" predated it. */
+    ESP_LOGW(TAG, "power off asked for: the app ends here and the launcher powers off");
     esp_restart();
 }

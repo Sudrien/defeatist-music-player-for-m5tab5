@@ -50,6 +50,7 @@
 #include "wifijoin.h"
 #include "wifistore.h"
 #include "wifi.h"
+#include "hotspot.h"            /* u-defeatist-0049 */
 #include "i18n.h"          /* 6025 */
 #include "lanpeer.h"        /* 8001 */
 #include "approve.h"        /* 8002 */
@@ -1421,7 +1422,9 @@ static esp_err_t h_ws(httpd_req_t *req)
 
 static bool have_ip(char *ip, size_t n)
 {
-    return wifi_sta_ip(ip, n) || ethernet_ip(ip, n);
+    /* u-defeatist-0049: and the hotspot's, last -- a player on a network
+     * as well says the address that network's devices can reach */
+    return wifi_sta_ip(ip, n) || ethernet_ip(ip, n) || hotspot_ip(ip, n);
 }
 
 /*

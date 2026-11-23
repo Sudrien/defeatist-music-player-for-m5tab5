@@ -103,6 +103,7 @@
 #include "ui.h"
 #include "i18n.h"         /* 6017 */
 #include "netabsent.h"         /* u-defeatist-0041 */
+#include "hotspot.h"           /* u-defeatist-0049 */
 #include "usbhost.h"
 #include "wifi.h"
 #include "portal.h"
@@ -8552,6 +8553,7 @@ static void ui_task(void *arg)
          * until the panel was closed, and its note never showed the
          * address it was waiting for.
          */
+        hotspot_poll();                 /* u-defeatist-0049: before the servers, which look for its address */
         remote_poll(settings_remote_enabled());
         /*
          * 8002: a browser asking to be allowed lights the screen, once
@@ -16095,6 +16097,17 @@ static void player_loop(void)
  * the console, NVS, the bus, the USB host's owner, storage, the network
  * brought up to be asked for, the Wi-Fi import). The board inits here are
  * the ones that return ESP_OK a second time, as Errant's do. */
+/*
+ * u-defeatist-0049: what the network's portal_running hook asks -- "hold
+ * the background join" -- is yes for the hotspot as well as the portal:
+ * a player that is its own network must not hop channels hunting for
+ * another under its own phones. A network already joined stays joined.
+ */
+static bool net_hold(void)
+{
+    return portal_running() || (settings_wifi_enabled() && settings_hotspot());
+}
+
 void defeatist_main(void)
 {
     /* The SD drivers narrate every probe; let this file decide what is
@@ -16263,7 +16276,7 @@ void defeatist_main(void)
         .ntp_enabled        = settings_ntp_enabled,
         .ntp_reply          = settings_note_ntp_reply,
         .wifi_enabled       = settings_wifi_enabled,
-        .portal_running     = portal_running,
+        .portal_running     = net_hold,             /* u-defeatist-0049 */
         .portal_stop        = portal_stop,
         .usb_register_class = usbhost_register_class,
     };

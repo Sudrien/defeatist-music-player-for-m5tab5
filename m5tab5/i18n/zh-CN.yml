@@ -281,9 +281,13 @@ zh-CN:
     # panel.c
     "HEADSET": "耳麦"
     # panel.c
+    "HOTSPOT": ~
+    # panel.c
     "Headset, UAC: the jack, a USB mic.": "耳麦、UAC：插孔、USB 麦克风。"
     # netform.c
     "Hide": ~
+    # panel.c
+    "Hotspot": ~
     # ui.c
     "IDLE": "空闲"
     # ui.c
@@ -336,6 +340,8 @@ zh-CN:
     "Move down": "下移"
     # remote.html
     "Move up": "上移"
+    # panel.c
+    "NEW": ~
     # ui.c
     "NO BATT": "无电池"
     # portal.c, remote.html
@@ -350,6 +356,8 @@ zh-CN:
     "Network setup is running on the player; use that page.": "播放器正在进行网络设置，请使用那个页面。"
     # panel.c
     "Network time": "网络时间"
+    # panel.c
+    "Network: %.32s": ~
     # powerdown.h, screendim.h
     "Never": "从不"
     # remote.html
@@ -426,6 +434,8 @@ zh-CN:
     "Over Wi-Fi or a USB Ethernet cable.": "通过 Wi-Fi 或 USB 以太网线均可。"
     # netform.c, portal.c, remote.html
     "Password": "密码"
+    # panel.c
+    "Password: %s": ~
     # remote.html
     "Pause": ~
     # browser.c
@@ -700,6 +710,8 @@ zh-CN:
     "Then it shows the address to open.": "之后会显示要打开的地址。"
     # panel.c
     "Then it shows the address to use.": "之后会显示要使用的地址。"
+    # panel.c
+    "Then open https://%s/ -- %d connected": ~
     # remote.html
     "There is no card or drive in the player to add it to.": ~
     # remote.html
@@ -738,6 +750,8 @@ zh-CN:
     "USB port coming up": "USB 端口启动中"
     # browser.c
     "USB port on - waiting for a drive": "USB 端口已开 - 等待驱动器"
+    # panel.c
+    "Up; waiting for its address.": ~
     # ui.c
     "VOX": "人声"
     # remote.html

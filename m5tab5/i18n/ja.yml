@@ -281,9 +281,13 @@ ja:
     # panel.c
     "HEADSET": "ヘッドセット"
     # panel.c
+    "HOTSPOT": ~
+    # panel.c
     "Headset, UAC: the jack, a USB mic.": "ヘッドセット、UAC：端子、USBマイク。"
     # netform.c
     "Hide": ~
+    # panel.c
+    "Hotspot": ~
     # ui.c
     "IDLE": "待機"
     # ui.c
@@ -336,6 +340,8 @@ ja:
     "Move down": "下へ移動"
     # remote.html
     "Move up": "上へ移動"
+    # panel.c
+    "NEW": ~
     # ui.c
     "NO BATT": "電池なし"
     # portal.c, remote.html
@@ -350,6 +356,8 @@ ja:
     "Network setup is running on the player; use that page.": "プレーヤーでネットワーク設定中です。そちらのページを使ってください。"
     # panel.c
     "Network time": "ネット時刻"
+    # panel.c
+    "Network: %.32s": ~
     # powerdown.h, screendim.h
     "Never": "しない"
     # remote.html
@@ -426,6 +434,8 @@ ja:
     "Over Wi-Fi or a USB Ethernet cable.": "Wi-Fi でも USB イーサネットのケーブルでも。"
     # netform.c, portal.c, remote.html
     "Password": "パスワード"
+    # panel.c
+    "Password: %s": ~
     # remote.html
     "Pause": ~
     # browser.c
@@ -700,6 +710,8 @@ ja:
     "Then it shows the address to open.": "その後、開くアドレスが出る。"
     # panel.c
     "Then it shows the address to use.": "その後、使うアドレスが出る。"
+    # panel.c
+    "Then open https://%s/ -- %d connected": ~
     # remote.html
     "There is no card or drive in the player to add it to.": ~
     # remote.html
@@ -738,6 +750,8 @@ ja:
     "USB port coming up": "USBポート起動中"
     # browser.c
     "USB port on - waiting for a drive": "USBポートオン - ドライブ待ち"
+    # panel.c
+    "Up; waiting for its address.": ~
     # ui.c
     "VOX": "声"
     # remote.html

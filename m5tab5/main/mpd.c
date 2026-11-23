@@ -107,6 +107,7 @@
 #include "settings.h"         /* 5161: settings_rg_enabled() */
 #include "stations.h"
 #include "wifi.h"
+#include "hotspot.h"            /* u-defeatist-0049 */
 
 static const char *TAG = "tab5_mpd";
 
@@ -415,7 +416,9 @@ static int64_t            s_retry_us;
 
 static bool have_ip(char *ip, size_t n)
 {
-    return wifi_sta_ip(ip, n) || ethernet_ip(ip, n);
+    /* u-defeatist-0049: and the hotspot's, last -- a player on a network
+     * as well says the address that network's devices can reach */
+    return wifi_sta_ip(ip, n) || ethernet_ip(ip, n) || hotspot_ip(ip, n);
 }
 
 /* ---- output ------------------------------------------------------------- */

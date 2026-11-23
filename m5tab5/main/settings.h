@@ -39,6 +39,7 @@
 #pragma once
 
 #include <stdbool.h>
+#include <stddef.h>
 #include <stdint.h>
 
 #include "esp_err.h"
@@ -427,6 +428,23 @@ void settings_set_mpd_enabled(bool on);
  */
 bool settings_wifi_enabled(void);
 void settings_set_wifi_enabled(bool on);
+
+/*
+ * u-defeatist-0049: the third position of the Wi-Fi switch. With
+ * settings_wifi_enabled() it makes off / on / hotspot: the hotspot is the
+ * radio on AND this, so everything that asks only "is the radio wanted"
+ * keeps its answer. Kept in the same NVS byte (2 for hotspot) and as
+ * "hotspot" in the card's record. hotspot.c acts on it.
+ *
+ * settings_hotspot_pass() is its WPA2 password, made the first time and
+ * kept; settings_hotspot_new_pass() makes another. Both write at least
+ * 11 bytes and take the NVS lock: not from ui_task in a hurry, but fine
+ * from a press.
+ */
+bool settings_hotspot(void);
+void settings_set_hotspot(bool on);
+void settings_hotspot_pass(char *out, size_t out_size);
+void settings_hotspot_new_pass(char *out, size_t out_size);
 
 /*
  * 6015: the screen's language, an i18n_lang_t (i18n.h) as a byte.

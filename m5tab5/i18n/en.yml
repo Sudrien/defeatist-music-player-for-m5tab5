@@ -281,9 +281,13 @@ en:
     # panel.c
     "HEADSET": ~
     # panel.c
+    "HOTSPOT": ~
+    # panel.c
     "Headset, UAC: the jack, a USB mic.": ~
     # netform.c
     "Hide": ~
+    # panel.c
+    "Hotspot": ~
     # ui.c
     "IDLE": ~
     # ui.c
@@ -336,6 +340,8 @@ en:
     "Move down": ~
     # remote.html
     "Move up": ~
+    # panel.c
+    "NEW": ~
     # ui.c
     "NO BATT": ~
     # portal.c, remote.html
@@ -350,6 +356,8 @@ en:
     "Network setup is running on the player; use that page.": ~
     # panel.c
     "Network time": ~
+    # panel.c
+    "Network: %.32s": ~
     # powerdown.h, screendim.h
     "Never": ~
     # remote.html
@@ -426,6 +434,8 @@ en:
     "Over Wi-Fi or a USB Ethernet cable.": ~
     # netform.c, portal.c, remote.html
     "Password": ~
+    # panel.c
+    "Password: %s": ~
     # remote.html
     "Pause": ~
     # browser.c
@@ -700,6 +710,8 @@ en:
     "Then it shows the address to open.": ~
     # panel.c
     "Then it shows the address to use.": ~
+    # panel.c
+    "Then open https://%s/ -- %d connected": ~
     # remote.html
     "There is no card or drive in the player to add it to.": ~
     # remote.html
@@ -738,6 +750,8 @@ en:
     "USB port coming up": ~
     # browser.c
     "USB port on - waiting for a drive": ~
+    # panel.c
+    "Up; waiting for its address.": ~
     # ui.c
     "VOX": ~
     # remote.html

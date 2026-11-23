@@ -30903,3 +30903,70 @@ run-i18n, run-portal, run-remote, run-rotate and run-menuscroll pass.
 on a host. `idf.py update-dependencies` adds feckless_keyboard to the
 lock.
 
+### u-defeatist-0049 -- Wi-Fi off / on / hotspot
+
+The NET tab's Wi-Fi switch has three positions. Hotspot makes the player
+its own network: a WPA2 access point named as the portal's was
+("Defeatist-XXXX", from `portalweb_ap_name()`), with the AP's own DHCP
+server. A phone joins it, opens https://192.168.4.1/, and has the remote
+and MPD with no router at all. Nothing on it reaches the internet;
+anything on the card plays.
+
+- **settings:**
+  - Hotspot is the radio on *and* `settings_hotspot()`, so everything
+    that asks "is the radio wanted" keeps its answer.
+  - Kept in the same NVS byte: `wifi_on` = 2. An older build reads that
+    as "on", the nearest thing it has.
+  - Kept as `"hotspot"` in the card's record, read before `"wifi"`,
+    whose sync writes the byte.
+  - The password comes from `settings_hotspot_pass()`: ten characters
+    from 31 that can't be misread (no 0/o, 1/l/i), made with
+    `esp_random()` on first use and kept in NVS (`hs_pass`), so a phone
+    that joined once joins again. `settings_hotspot_new_pass()` makes
+    another.
+- **hotspot.c** raises the AP with `wifi_ap_begin_secure()` once the
+  radio is up and the hotspot is wanted. It runs from the player's loop,
+  beside `remote_poll()`, never from ui_task. It lowers the AP when the
+  hotspot isn't wanted any more. If the radio went down, the AP went
+  with it. A refused start is retried after 10 s. A new password brings
+  the AP down and back up.
+- **The station isn't stopped.** A network already joined stays joined,
+  and the AP follows its channel. Only the background join holds:
+  player.c's `net_hold()` is the network's `portal_running` hook, and
+  says yes for the portal or the hotspot. So a player at home can be
+  both, and one in a field doesn't hop channels under its own phones.
+- **remote.c and mpd.c:** `have_ip()` takes the hotspot's address last,
+  so the servers start on a hotspot alone. Their peer check already
+  walks every interface, so phones on the AP's subnet get answers.
+- **panel.c:**
+  - The Wi-Fi row has three segments (OFF, ON, HOTSPOT), each sized to
+    its word. A tap on a segment picks it; a tap elsewhere on the row
+    steps to the next, as the row used to toggle.
+  - While the hotspot is on, the "Add a network" row becomes the
+    hotspot's: the network name, the password, and "Then open
+    https://192.168.4.1/ -- N connected", or Starting.... Its NEW pill
+    makes another password.
+- **absent.c:** `wifi_ap_*` are gone: the box answers them
+  (u-feckless-0084), and `wifi_ap_netif` comes from feckless_box_libc.
+  Only the setup portal's DHCP options and captive DNS stay.
+
+*Tested on the host:*
+- run-netform, run-i18n, run-portal, run-remote, run-rotate and
+  run-menuscroll pass.
+- hotspot.c syntax-checks against stand-ins.
+
+*Not checked:* panel.c, settings.c and player.c don't build on a host,
+nor has the whole been built or run on the board.
+
+On the board, look for:
+- `wifi hotspot` from the panel;
+- `APSTA up: Defeatist-XXXX is broadcasting (WPA2)`, then
+  `hotspot up: ..., at 192.168.4.1`;
+- a phone joining with the password on screen;
+- `tab5_remote: up at https://192.168.4.1/`, with no cable or other
+  network;
+- the approval prompt for that phone.
+
+Also unconfirmed: that mDNS answers `feckless-XXXXXX.local` on the AP.
+`CONFIG_MDNS_PREDEF_NETIF_AP` is the setting to check.
+

@@ -103,10 +103,11 @@ static const char *TAG = "boxed";
  * Goes when a box answers the portal's AP. */
 bool portal_absent(void) { return true; }
 
-esp_err_t wifi_ap_begin(const char *ssid) { (void)ssid; return ESP_ERR_NOT_SUPPORTED; }
-esp_err_t wifi_ap_end(void) { return ESP_OK; }
-int wifi_ap_clients(void) { return 0; }
-struct esp_netif_obj *wifi_ap_netif(void) { return NULL; }
+/* u-defeatist-0049: wifi_ap_begin, wifi_ap_begin_secure, wifi_ap_end,
+ * wifi_ap_clients and wifi_ap_ip are the box's, and wifi_ap_netif is
+ * feckless_box_libc's (u-feckless-0084): the hotspot. What stays is the
+ * setup portal's DHCP options and captive DNS, which nothing starts since
+ * u-defeatist-0048. */
 
 esp_err_t esp_netif_set_dns_info(esp_netif_t *n, esp_netif_dns_type_t t, esp_netif_dns_info_t *d)
 {

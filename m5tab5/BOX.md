@@ -64,7 +64,7 @@ that fail the way the player already copes with:
 
 | absent | so |
 |---|---|
-| the portal's access point and DHCP server | nothing a person reaches: every network feature works, over a cable or Wi-Fi -- MPD, web radio, the benchmark, podcast search and downloads, remote control, NTP, and adding a network, typed on the screen (u-defeatist-0042, 0044, 0045, 0046, 0047, 0048). The access point waits for the hotspot |
+| the setup portal's DHCP options and captive DNS | nothing a person reaches: every network feature works, over a cable, Wi-Fi or the player's own hotspot -- MPD, web radio, the benchmark, podcast search and downloads, remote control, NTP, and adding a network, typed on the screen (u-defeatist-0042, 0044, 0045, 0046, 0047, 0048, 0049) |
 | the hardware JPEG decoder | album art in software |
 | esp_ota, esp_partition | the table says "hosted" (u-defeatist-0025): Exit to Launcher shows, and ends the app |
 | raw I2C, deep sleep | no power-off pulse: power off ends the app, and the board stays on |

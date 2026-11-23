@@ -281,9 +281,13 @@ pt:
     # panel.c
     "HEADSET": "HEADSET"
     # panel.c
+    "HOTSPOT": ~
+    # panel.c
     "Headset, UAC: the jack, a USB mic.": "Headset, UAC: o P2, um microfone USB."
     # netform.c
     "Hide": ~
+    # panel.c
+    "Hotspot": ~
     # ui.c
     "IDLE": "OCIO"
     # ui.c
@@ -336,6 +340,8 @@ pt:
     "Move down": "Descer"
     # remote.html
     "Move up": "Subir"
+    # panel.c
+    "NEW": ~
     # ui.c
     "NO BATT": "SEM BAT"
     # portal.c, remote.html
@@ -350,6 +356,8 @@ pt:
     "Network setup is running on the player; use that page.": "O player está em configuração de rede; use aquela página."
     # panel.c
     "Network time": "Hora da rede"
+    # panel.c
+    "Network: %.32s": ~
     # powerdown.h, screendim.h
     "Never": "Nunca"
     # remote.html
@@ -426,6 +434,8 @@ pt:
     "Over Wi-Fi or a USB Ethernet cable.": "Por Wi-Fi ou por um cabo Ethernet USB."
     # netform.c, portal.c, remote.html
     "Password": "Senha"
+    # panel.c
+    "Password: %s": ~
     # remote.html
     "Pause": ~
     # browser.c
@@ -700,6 +710,8 @@ pt:
     "Then it shows the address to open.": "Depois mostra o endereço a abrir."
     # panel.c
     "Then it shows the address to use.": "Depois mostra o endereço a usar."
+    # panel.c
+    "Then open https://%s/ -- %d connected": ~
     # remote.html
     "There is no card or drive in the player to add it to.": ~
     # remote.html
@@ -738,6 +750,8 @@ pt:
     "USB port coming up": "Porta USB iniciando"
     # browser.c
     "USB port on - waiting for a drive": "Porta USB ligada - esperando um pendrive"
+    # panel.c
+    "Up; waiting for its address.": ~
     # ui.c
     "VOX": "VOZ"
     # remote.html

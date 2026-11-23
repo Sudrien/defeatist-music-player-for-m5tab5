@@ -110,6 +110,7 @@ idf_component_register(
          "sleeppage.c" "streamprobe.c" "netstream.c" "netdec.c" "stations.c" "favorites.c" "starred.c" "streamgain.c" "radiobrowser.c" "bench.c" "cuedir.c" "cardtime.c" "mediacat.c" "mediawalk.c" "mediasync.c" "medialib.c" "mediadir.c" "rateconv.c" "varispeed.c" "fx.c" "radiokeep.c" "heapmap.c" "flacenc.c" "recorder.c" "beam.c"
          "mpdqueue.c" "mpdproto.c" "mpdfilter.c" "casefold_tab.c" "mpduri.c" "mpdmode.c" "mpdidle.c" "mpd.c" "uireq.c" "m3uline.c" "urlclean.c" "remote.c" "approve.c" "podindex.c" "poddl.c" "remoteproto.c" "wifijoin.c" "launcher.c"
          "netform.c" "wifiadd.c"   # u-defeatist-0048: adding a network on the screen
+         "hotspot.c"               # u-defeatist-0049: Wi-Fi off / on / hotspot
          "elf_main.c" "absent.c"     # u-defeatist-0028: the box's entry; what a box does not answer
     INCLUDE_DIRS "."
     EMBED_FILES "remote_i18n.html.gz"    # 6028: generated from remote.html; 6127: gzipped
@@ -184,7 +185,7 @@ set_property(SOURCE
         mpd.c mpdproto.c mpdfilter.c mpdidle.c mpdmode.c mpduri.c
         remote.c remoteproto.c portal.c portalweb.c dnsreply.c sleeppage.c
         poddl.c podindex.c radiobrowser.c stations.c favorites.c starred.c
-        approve.c wifijoin.c launcher.c netform.c wifiadd.c
+        approve.c wifijoin.c launcher.c netform.c wifiadd.c hotspot.c
     APPEND PROPERTY COMPILE_OPTIONS -Os)
 # 8032: -Os inlines further, and -Wformat-truncation then sees ranges it did
 # not at -O2 (poddl.c's picture path was the first). Those files only, a
@@ -195,7 +196,7 @@ set_property(SOURCE
         mpd.c mpdproto.c mpdfilter.c mpdidle.c mpdmode.c mpduri.c
         remote.c remoteproto.c portal.c portalweb.c dnsreply.c sleeppage.c
         poddl.c podindex.c radiobrowser.c stations.c favorites.c starred.c
-        approve.c wifijoin.c launcher.c netform.c wifiadd.c
+        approve.c wifijoin.c launcher.c netform.c wifiadd.c hotspot.c
     APPEND PROPERTY COMPILE_OPTIONS -Wno-error=format-truncation)
 
 # 5277: every file in main at -O3, off by default. Build with

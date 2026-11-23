@@ -38,6 +38,7 @@
 #include "netform.h"           /* u-defeatist-0048 */
 #include "wifiadd.h"           /* u-defeatist-0048 */
 #include "wifijoin.h"          /* u-defeatist-0048: wifijoin_net() */
+#include "hotspot.h"           /* u-defeatist-0049 */
 #include "storage.h"
 #include "uac.h"
 #include "usbhost.h"
@@ -908,6 +909,49 @@ static void wifi_switch_box(int *x, int *y, int *w, int *h)
     *x = 0; *y = wifi_y(); *w = gfx_w(); *h = AUDIO_SWITCH_H;
 }
 
+/*
+ * u-defeatist-0049: the Wi-Fi switch has three positions, as three
+ * segments at the row's right, each as wide as its word needs -- HOTSPOT
+ * and its translations run past the old pill's 132. 0 off, 1 on, 2
+ * hotspot.
+ */
+#define WIFI_SEGS 3
+static const char *wifi_seg_label(int i)
+{
+    return i == 0 ? _("OFF") : i == 1 ? _("ON") : _("HOTSPOT");
+}
+static void wifi_segs(int xs[WIFI_SEGS], int ws[WIFI_SEGS])
+{
+    int x = gfx_w() - 24;
+    for (int i = WIFI_SEGS - 1; i >= 0; i--) {
+        int pw = gfx_text_w(wifi_seg_label(i), NAME_SCALE) + 32;
+        if (pw < 112) pw = 112;
+        x -= pw;
+        xs[i] = x;
+        ws[i] = pw;
+        x -= 8;
+    }
+}
+static int wifi_mode(void)
+{
+    return !settings_wifi_enabled() ? 0 : settings_hotspot() ? 2 : 1;
+}
+static void wifi_mode_set(int m)
+{
+    if (m == wifi_mode()) return;
+    settings_set_hotspot(m == 2);           /* first: the NVS byte is both */
+    settings_set_wifi_enabled(m != 0);
+    ESP_LOGI(TAG, "wifi %s", m == 0 ? "off" : m == 1 ? "on" : "hotspot");
+    /* Posts and returns. Doing the work here would block ui_task, the
+     * only writer of the framebuffer. hotspot_poll() raises the AP once
+     * the radio is up; the request carries the answers in a box. */
+    wifi_request_apply();
+}
+
+/* The hotspot's password as last read or made, for the screen: read once
+ * from NVS, not once a second. */
+static char s_hs_pass[16];
+
 static void ntp_switch_box(int *x, int *y, int *w, int *h)
 {
     *x = 0; *y = ntp_y(); *w = gfx_w(); *h = AUDIO_SWITCH_H;
@@ -1134,12 +1178,15 @@ static int draw_net(void)
     /* --- Wi-Fi ------------------------------------------------------ */
     wifi_switch_box(&x, &y, &bw, &bh);
     gfx_fill_rect(x, y, bw, bh, C_ROW);
-    gfx_draw_text(24, y + (bh - GFX_GLYPH_H(NAME_SCALE)) / 2, same("Wi-Fi"),
-                  NAME_SCALE, 400, C_TEXT);
     {
-        const int pw = 132, ph = 56;
-        draw_pill(w - 24 - pw, y + (bh - ph) / 2, pw, ph,
-                  wifi ? _("ON") : _("OFF"), wifi, NAME_SCALE);
+        int xs[WIFI_SEGS], ws[WIFI_SEGS];
+        wifi_segs(xs, ws);
+        gfx_draw_text(24, y + (bh - GFX_GLYPH_H(NAME_SCALE)) / 2, same("Wi-Fi"),
+                      NAME_SCALE, xs[0] - 32, C_TEXT);
+        const int ph = 56, m = wifi_mode();
+        for (int i = 0; i < WIFI_SEGS; i++) {               /* u-defeatist-0049 */
+            draw_pill(xs[i], y + (bh - ph) / 2, ws[i], ph, wifi_seg_label(i), i == m, NAME_SCALE);
+        }
     }
 
     /*
@@ -1300,6 +1347,23 @@ static int draw_net(void)
     }
     char lines[NET_SETUP_NOTE_LINES][64];
     setup_lines(&st, wifi_live, running, lines);
+    /* u-defeatist-0049: in the hotspot, this row is the hotspot's: what a
+     * phone needs to join it, and NEW for another password. */
+    if (wifi && settings_hotspot() && !running) {
+        if (!s_hs_pass[0]) settings_hotspot_pass(s_hs_pass, sizeof s_hs_pass);
+        gfx_fill_rect(x, y, bw, bh, C_ROW);
+        gfx_draw_text(24, y + (bh - GFX_GLYPH_H(NAME_SCALE)) / 2, _("Hotspot"), NAME_SCALE, 400, C_TEXT);
+        const int pw = 132, ph = 56;
+        draw_state_pill(w - 24 - pw, y + (bh - ph) / 2, pw, ph, _("NEW"), false, true, NAME_SCALE);
+        char name[40], ip[20];
+        hotspot_name(name, sizeof name);
+        snprintf(lines[0], 64, _("Network: %.32s"), name[0] ? name : "…");
+        snprintf(lines[1], 64, _("Password: %s"), s_hs_pass);
+        if (!hotspot_running()) snprintf(lines[2], 64, "%s", _("Starting…"));
+        else if (hotspot_ip(ip, sizeof ip))
+            snprintf(lines[2], 64, _("Then open https://%s/ -- %d connected"), ip, hotspot_clients());
+        else snprintf(lines[2], 64, "%s", _("Up; waiting for its address."));
+    }
     const char *setup_note[NET_SETUP_NOTE_LINES] = { lines[0], lines[1], lines[2] };
     /* Discarded, like the ntp note above: draw_note() returns the y it
      * reached, so the only one worth keeping is the last. */
@@ -1787,12 +1851,13 @@ bool panel_touch(bool down, int x, int y)
          * give below. */
         wifi_switch_box(&bx, &by, &bw, &bh);
         if (y >= by && y < by + bh) {
-            const bool on = !settings_wifi_enabled();
-            settings_set_wifi_enabled(on);
-            ESP_LOGI(TAG, "wifi %s", on ? "on" : "off");
-            /* Posts and returns. Doing the work here would block
-             * ui_task, and this is the only writer of the framebuffer. */
-            wifi_request_apply();
+            /* u-defeatist-0049: a segment picks its position; the rest of
+             * the row steps to the next, as the whole row toggled before. */
+            int xs[WIFI_SEGS], ws[WIFI_SEGS], m = (wifi_mode() + 1) % WIFI_SEGS;
+            wifi_segs(xs, ws);
+            for (int i = 0; i < WIFI_SEGS; i++)
+                if (x >= xs[i] - 4 && x < xs[i] + ws[i] + 4) m = i;
+            wifi_mode_set(m);
             s_dirty = true;
             return false;
         }
@@ -1856,7 +1921,14 @@ bool panel_touch(bool down, int x, int y)
          * portal's task, and the stop is a request. A refusal is logged
          * and shows on the row's own lines at the next redraw. */
         setup_box(&bx, &by, &bw, &bh);
-        if (y >= by && y < by + bh) {
+        if (y >= by && y < by + bh && settings_wifi_enabled() && settings_hotspot() && !portal_running()) {
+            /* u-defeatist-0049: NEW -- another password, and the AP back
+             * up with it; phones that knew the old one are off it. */
+            settings_hotspot_new_pass(s_hs_pass, sizeof s_hs_pass);
+            hotspot_restart();
+            ESP_LOGI(TAG, "hotspot: new password");
+            s_dirty = true;
+        } else if (y >= by && y < by + bh) {
             if (portal_running()) {
                 ESP_LOGI(TAG, "network setup: stop");
                 portal_request_stop();

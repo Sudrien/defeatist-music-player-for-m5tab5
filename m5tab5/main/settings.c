@@ -9,6 +9,7 @@
 #include <stdlib.h>
 #include <inttypes.h>
 #include <string.h>
+#include "esp_random.h"            /* u-defeatist-0049: the hotspot password */
 #include <time.h>
 #include <sys/time.h>
 
@@ -56,19 +57,28 @@
  * brightness and rotation back to the defaults for a boot. */
 #define LANG_NVS_KEY    "lang"
 
-static bool wifi_nvs_read(bool *on)
+/* u-defeatist-0049: 2 is the hotspot. An older build reads wifi_on as
+ * "not 0", so it comes up with Wi-Fi on -- the nearest thing it has. */
+#define WIFI_NVS_HOTSPOT 2
+#define HOTSPOT_PASS_KEY "hs_pass"
+
+static bool wifi_nvs_read(bool *on, bool *hotspot)
 {
     uint8_t v = 0;
     if (nvsh_get_u8(WIFI_NVS_NS, WIFI_NVS_KEY, &v) != ESP_OK) return false;
     *on = v != 0;
+    *hotspot = v == WIFI_NVS_HOTSPOT;
     return true;
 }
 
+static bool s_hotspot;                  /* u-defeatist-0049: with s_wifi_enabled */
+
 static void wifi_nvs_sync(bool on)
 {
-    bool cur;
-    if (wifi_nvs_read(&cur) && cur == on) return;
-    (void)nvsh_set_u8(WIFI_NVS_NS, WIFI_NVS_KEY, on ? 1 : 0);
+    const uint8_t want = !on ? 0 : s_hotspot ? WIFI_NVS_HOTSPOT : 1;
+    uint8_t cur = 0;
+    if (nvsh_get_u8(WIFI_NVS_NS, WIFI_NVS_KEY, &cur) == ESP_OK && cur == want) return;
+    (void)nvsh_set_u8(WIFI_NVS_NS, WIFI_NVS_KEY, want);
 }
 
 static const char *TAG = "tab5_settings";
@@ -560,6 +570,45 @@ void settings_set_crossfade_album(bool on)
 
 bool settings_wifi_enabled(void) { return s_wifi_enabled; }
 
+/* u-defeatist-0049 */
+bool settings_hotspot(void) { return s_hotspot; }
+
+/*
+ * The hotspot's password: ten characters from 31 that cannot be misread
+ * on a screen or typed wrong on a phone -- no 0/o, 1/l/i -- made from
+ * esp_random() the first time it is asked for, and kept in NVS beside
+ * the switch, so a phone that joined once joins again. 31^10 is 2^49.5:
+ * past what a WPA2 handshake capture can be ground against in a party's
+ * length of time, and short enough to type off the screen.
+ */
+static const char k_pass_chars[] = "abcdefghjkmnpqrstuvwxyz23456789";
+
+static void pass_make(char *out, size_t n)
+{
+    size_t i = 0;
+    for (; i < 10 && i + 1 < n; i++) out[i] = k_pass_chars[esp_random() % (sizeof k_pass_chars - 1)];
+    out[i] = '\0';
+}
+
+void settings_hotspot_pass(char *out, size_t out_size)
+{
+    if (!out || out_size < 11) {
+        if (out && out_size) out[0] = '\0';
+        return;
+    }
+    size_t len = out_size;
+    if (nvsh_get_str(WIFI_NVS_NS, HOTSPOT_PASS_KEY, out, &len) == ESP_OK && strlen(out) >= 8) return;
+    settings_hotspot_new_pass(out, out_size);
+}
+
+void settings_hotspot_new_pass(char *out, size_t out_size)
+{
+    char p[11];
+    pass_make(p, sizeof p);
+    (void)nvsh_set_str(WIFI_NVS_NS, HOTSPOT_PASS_KEY, p);
+    if (out && out_size) snprintf(out, out_size, "%s", p);
+}
+
 /* The effective answer, and the gate is here rather than in each caller
  * on purpose -- see the header. */
 /* 6126: the setting alone. It was "and Wi-Fi on" from ea98ac6, when Wi-Fi
@@ -856,6 +905,15 @@ void settings_set_wifi_enabled(bool on)
     s_dirty_since = xTaskGetTickCount();
 }
 
+void settings_set_hotspot(bool on)      /* u-defeatist-0049 */
+{
+    if (on == s_hotspot) return;
+    s_hotspot = on;
+    wifi_nvs_sync(s_wifi_enabled);
+    s_dirty = true;
+    s_dirty_since = xTaskGetTickCount();
+}
+
 void settings_set_ntp_enabled(bool on)
 {
     if (on == s_ntp_enabled) return;
@@ -1097,6 +1155,13 @@ static bool parse_line(char *line, storage_id_t id, bool take_settings,
         const cJSON *md = cJSON_GetObjectItemCaseSensitive(root, "mpd");
         if (take_settings && cJSON_IsBool(md)) {
             s_mpd = cJSON_IsTrue(md);
+            any = true;
+        }
+
+        /* u-defeatist-0049: before "wifi", whose sync writes both */
+        const cJSON *hs = cJSON_GetObjectItemCaseSensitive(root, "hotspot");
+        if (take_settings && cJSON_IsBool(hs)) {
+            s_hotspot = cJSON_IsTrue(hs);
             any = true;
         }
 
@@ -1400,7 +1465,7 @@ static int record_line(storage_id_t id, char *out, size_t out_len)
                             "\"poweroff_step\":%u," \
                             "\"screen_flipped\":%s," \
                             "\"screen_rotation\":%u," \
-                            "\"wifi\":%s,\"ntp\":%s," \
+                            "\"wifi\":%s,\"hotspot\":%s,\"ntp\":%s," \
                             "\"ntp_epoch\":%s,\"ntp_boot_us\":%s," \
                             "\"remote\":%s," \
                             "\"mpd\":%s,\"rec_from\":%u," \
@@ -1412,7 +1477,7 @@ static int record_line(storage_id_t id, char *out, size_t out_len)
                              (unsigned)s_off_step, \
                              (unsigned)s_poweroff_step, fl, \
                              (unsigned)s_screen_rot, \
-                             wf, np, nte, ntb, rc, md, \
+                             wf, s_hotspot ? "true" : "false", np, nte, ntb, rc, md, \
                              (unsigned)s_rec_from, \
                              (unsigned)s_speed_played, \
                              (unsigned)s_speed_cut, \
@@ -1926,8 +1991,11 @@ void settings_init(void)
      * otherwise. Absent (first boot after this patch) keeps the default,
      * off. */
     {
-        bool on;
-        if (wifi_nvs_read(&on)) s_wifi_enabled = on;
+        bool on, hotspot;
+        if (wifi_nvs_read(&on, &hotspot)) {
+            s_wifi_enabled = on;
+            s_hotspot = hotspot;                /* u-defeatist-0049 */
+        }
     }
     prefs_nvs_load();                   /* 5064 */
     clkfix_load();                      /* 5115 */

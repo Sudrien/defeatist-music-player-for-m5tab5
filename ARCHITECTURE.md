@@ -30806,3 +30806,38 @@ real internal RAM, where they used to show the box's 10 MB of PSRAM.
 - feckless_fetch's `internal free ... min ...` in the tens of KB;
 - the boot heap map's internal line showing a believable figure, not
   10677856.
+
+### u-defeatist-0047 -- Wi-Fi and NTP in a box
+
+feckless-libs u-feckless-0083 answers the radio's control in a box:
+scan, join, the PSK, the saved networks, the switch, the MAC, and the
+network hooks. The hooks' yes/no answers are worked out in the app,
+on the thread that asks; the notes go to the app's callback loop. So the
+player's Wi-Fi and network-time switches work in the boxed build, as do
+the browser remote's scan and join and NTP over either route.
+
+- **absent.c** keeps only the setup portal's access point (`wifi_ap_*`,
+  the DHCP server's options, DNS). `feckless_net_set_hooks`,
+  `wifi_scan_list`, `wifi_join`, `wifi_psk`, `wifistore_save`,
+  `wifi_apply_settings`, `wifi_request_apply`, `wifi_request_restart`,
+  `wifi_auth_name` and `esp_wifi_get_mac` are gone from it. The box
+  answers the first group, and feckless_box_libc the app-side ones.
+- **`net_limited()` is now `portal_absent()`** (netabsent.h). The NET
+  tab's Wi-Fi and Network time rows are live again, and their presses no
+  longer log "not in this build". Only "Add a network" stays greyed, and
+  its press says why. The cable-only Wi-Fi note
+  (`k_wifi_note_absent`) is gone; its two strings stay in the YAML as
+  "not in the source any more".
+- **The boot line** now names the portal only, and points to the browser
+  remote for adding a network.
+- **The hooks are the same struct as before.** `usb_register_class`
+  (absent.c's stand-in) is ignored: the launcher's is kept.
+
+*Not checked:* a build (no ESP-IDF where this was written) and the board.
+After feckless-libs' umode branch carries u-feckless-0083,
+`idf.py update-dependencies` moves `dependencies.lock`. Then look for:
+- no `wifi:` warning when the switch is pressed;
+- the radio coming up (`tab5_wifi` lines);
+- a join of a saved network;
+- `NTP sync:` with network time on.
+

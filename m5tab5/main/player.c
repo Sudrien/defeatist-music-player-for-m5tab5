@@ -16328,11 +16328,12 @@ void defeatist_main(void)
         ESP_LOGW(TAG, "no USB remote support this boot");
     }
 
-    /* u-defeatist-0041, 0042: said once at boot, beside the other things
-     * this boot will not do, so a log read later does not have to infer it. */
-    if (net_limited()) {
-        ESP_LOGW(TAG, "the box's network only (absent.c has the rest): a cable, MPD, the HTTP "
-                      "client, remote control and downloads work; Wi-Fi and NTP do not yet");
+    /* u-defeatist-0041, 0042, 0047: said once at boot, beside the other
+     * things this boot will not do, so a log read later does not have to
+     * infer it. */
+    if (portal_absent()) {
+        ESP_LOGW(TAG, "no network setup portal in this box (absent.c): Wi-Fi, NTP and saved "
+                      "networks work; add a network from the browser remote");
     }
 
     /* 8074: the USB Ethernet class was registered by feckless_net_start(),

@@ -346,7 +346,7 @@ ja:
     "Next": "次へ"
     # recorder.c
     "No USB microphone is plugged in.": "USBマイクが\nつながっていない。"
-    # panel.c
+    # not in the source any more
     "No Wi-Fi in this build yet: a cable connects, the radio does not.": ~
     # portal.c
     "No answer from that network. Try again.": "そのネットワークから応答がありません。もう一度お試しください。"
@@ -732,7 +732,7 @@ ja:
     "Waiting for a network.": "ネットワークを待っています。"
     # player.c
     "Waiting for network": "ネット待ち"
-    # panel.c
+    # not in the source any more
     "Web radio, MPD, the remote and podcast downloads work on the cable.": ~
     # player.c
     "Web setup is open": "Web設定が開いている"

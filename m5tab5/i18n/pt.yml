@@ -346,7 +346,7 @@ pt:
     "Next": "Próxima"
     # recorder.c
     "No USB microphone is plugged in.": "Nenhum microfone USB\nconectado."
-    # panel.c
+    # not in the source any more
     "No Wi-Fi in this build yet: a cable connects, the radio does not.": ~
     # portal.c
     "No answer from that network. Try again.": "Essa rede não responde. Tente de novo."
@@ -732,7 +732,7 @@ pt:
     "Waiting for a network.": "Esperando uma rede."
     # player.c
     "Waiting for network": "Esperando a rede"
-    # panel.c
+    # not in the source any more
     "Web radio, MPD, the remote and podcast downloads work on the cable.": ~
     # player.c
     "Web setup is open": "Ajuste web aberto"

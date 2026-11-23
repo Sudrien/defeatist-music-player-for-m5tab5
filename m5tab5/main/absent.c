@@ -20,10 +20,12 @@
  *                    interfaces since u-feckless-0075..0077
  *                    (u-defeatist-0045): remote control. feckless_fetch
  *                    since u-feckless-0081 (u-defeatist-0046): podcast
- *                    downloads. Still here: the radio's control and the
- *                    portal's DHCP and DNS, and NTP, which control the
- *                    launcher's radio or need its hooks; they fail as with
- *                    no Wi-Fi, and net_limited() says so.
+ *                    downloads. The radio's control, the saved networks
+ *                    and the network hooks since u-feckless-0083
+ *                    (u-defeatist-0047): Wi-Fi and NTP. Still here: the
+ *                    portal's access point and its DHCP server and DNS;
+ *                    they fail as with no radio, and portal_absent() says
+ *                    so.
  *   the crypto       SHA-256 answered by the box since u-feckless-0078
  *                    (u-defeatist-0045): approve.c's allowed browsers.
  *   NVS              answered by the box since u-feckless-0053
@@ -67,24 +69,20 @@
 #include "esp_partition.h"
 #include "esp_sleep.h"
 #include "esp_system.h"   /* u-defeatist-0025: esp_restart */
-#include "esp_wifi.h"
 #include "driver/i2c_master.h"
 #include "lwip/inet.h"
 #include "lwip/netdb.h"
 #include "lwip/sockets.h"
 
 #include "ethernet.h"
-#include "feckless_net.h"
 #include "hid.h"
 #include "usbhost.h"
 #include "wifi.h"
-#include "wifistore.h"
 
 static const char *TAG = "boxed";
 
 /* ---- the network: down ---------------------------------------------------- */
 
-void feckless_net_set_hooks(const feckless_net_hooks_t *hooks) { (void)hooks; }
 /*
  * u-defeatist-0042: the routes' state -- net_online, net_probe,
  * net_route_describe, ethernet_*, wifi_up, wifi_connected, wifi_ntp_synced,
@@ -93,45 +91,22 @@ void feckless_net_set_hooks(const feckless_net_hooks_t *hooks) { (void)hooks; }
  * esp_http_client and esp_crt_bundle_attach (u-feckless-0073,
  * u-defeatist-0044), and so are esp_http_server, feckless_https and
  * esp_netif_find_if / get_ip_info / get_all_ip6 (u-feckless-0075..0077,
- * u-defeatist-0045); all gone from here. What stays below controls the
- * radio or the launcher's interfaces, which a box cannot do yet.
+ * u-defeatist-0045). u-defeatist-0047: and the radio's control --
+ * wifi_scan_list, wifi_join, wifi_psk, wifistore_save, esp_wifi_get_mac --
+ * and, in feckless_box_libc, feckless_net_set_hooks, wifi_apply_settings,
+ * wifi_request_apply, wifi_request_restart and wifi_auth_name
+ * (u-feckless-0083). All gone from here. What stays below is the setup
+ * portal's access point, which a box cannot run yet.
  */
 
-/* u-defeatist-0041, 0042: said, not only failed -- see netabsent.h. Goes
- * when a box answers the rest of the network. */
-bool net_limited(void) { return true; }
+/* u-defeatist-0041, 0042, 0047: said, not only failed -- see netabsent.h.
+ * Goes when a box answers the portal's AP. */
+bool portal_absent(void) { return true; }
 
-int wifi_scan_list(wifi_seen_t *out, int max) { (void)out; (void)max; return 0; }
-esp_err_t wifi_join(const char *ssid, const char *secret, uint32_t timeout_ms)
-{
-    (void)ssid; (void)secret; (void)timeout_ms;
-    return ESP_ERR_NOT_SUPPORTED;
-}
-esp_err_t wifi_apply_settings(void) { return ESP_ERR_NOT_SUPPORTED; }
-void wifi_request_apply(void) {}
-void wifi_request_restart(const char *why) { (void)why; }
 esp_err_t wifi_ap_begin(const char *ssid) { (void)ssid; return ESP_ERR_NOT_SUPPORTED; }
 esp_err_t wifi_ap_end(void) { return ESP_OK; }
 int wifi_ap_clients(void) { return 0; }
 struct esp_netif_obj *wifi_ap_netif(void) { return NULL; }
-const char *wifi_auth_name(uint8_t auth) { (void)auth; return "?"; }
-esp_err_t wifi_psk(const char *ssid, const char *passphrase, uint8_t key[32])
-{
-    (void)ssid; (void)passphrase;
-    memset(key, 0, 32);
-    return ESP_ERR_NOT_SUPPORTED;
-}
-esp_err_t wifistore_save(const char *ssid, const char *secret, bool is_psk)
-{
-    (void)ssid; (void)secret; (void)is_psk;
-    return ESP_ERR_NOT_SUPPORTED;
-}
-esp_err_t esp_wifi_get_mac(wifi_interface_t ifx, uint8_t mac[6])
-{
-    (void)ifx;
-    memset(mac, 0, 6);
-    return ESP_ERR_NOT_SUPPORTED;
-}
 
 esp_err_t esp_netif_set_dns_info(esp_netif_t *n, esp_netif_dns_type_t t, esp_netif_dns_info_t *d)
 {

@@ -782,22 +782,9 @@ static const char *const k_ntp_note[] = {
        "invalid at an unset clock."),
     N_("Over Wi-Fi or a USB Ethernet cable."),           /* 6126 */
 };
-/* u-defeatist-0041, 0042: in place of k_wifi_note while the build has
- * only the box's network (netabsent.h): a cable, not the radio. The rows
- * below are placed for the longer of the two, so neither runs into the
- * remote's row. */
-static const char *const k_wifi_note_absent[] = {
-    N_("No Wi-Fi in this build yet: a cable connects, the radio does not."),
-    N_("Web radio, MPD, the remote and podcast downloads work on "
-       "the cable."),
-};
-static int net_wifi_note_lines(void)
-{
-    const int a = note_rows(k_wifi_note, COUNT(k_wifi_note));
-    const int b = note_rows(k_wifi_note_absent, COUNT(k_wifi_note_absent));
-    return a > b ? a : b;
-}
-#define NET_WIFI_NOTE_LINES net_wifi_note_lines()
+/* u-defeatist-0047: k_wifi_note_absent, the cable-only note, went with
+ * net_limited(): a box has the radio's control now (netabsent.h). */
+#define NET_WIFI_NOTE_LINES note_rows(k_wifi_note, COUNT(k_wifi_note))
 #define NET_NTP_NOTE_LINES  note_rows(k_ntp_note, COUNT(k_ntp_note))
 
 /* 5117: the browser remote, under Wi-Fi because it is what Wi-Fi is on
@@ -1064,15 +1051,13 @@ static int draw_net(void)
     const int w = gfx_w();
     int x, y, bw, bh;
     const bool wifi = settings_wifi_enabled();
-    /* u-defeatist-0041, 0042: with only the box's network, the rows that
-     * need what it lacks -- the radio's control, NTP -- are greyed and say
-     * why, whatever their setting. MPD is a socket server, the benchmark
-     * an HTTP client (u-defeatist-0044) and the remote an HTTP server
-     * (u-defeatist-0045), so a cable enables all three. */
-    const bool absent = net_limited();
+    /* u-defeatist-0041, 0042, 0047: in a box, the one row that needs what
+     * it lacks -- network setup, the portal's access point -- is greyed and
+     * says why. The radio and NTP are the box's since u-feckless-0083. */
+    const bool noportal = portal_absent();
     /* 5096: the benchmark reads a station over whatever route there is,
      * so a cable enables it as well as the radio does. */
-    const bool netok = absent ? net_online() : (wifi || net_online());
+    const bool netok = wifi || net_online();
     /* u-defeatist-0044, 0045: the benchmark is an HTTP client and the
      * remote an HTTP server, both the box's now, so a cable enables them. */
     const bool httpok = netok;
@@ -1082,16 +1067,11 @@ static int draw_net(void)
     wifi_switch_box(&x, &y, &bw, &bh);
     gfx_fill_rect(x, y, bw, bh, C_ROW);
     gfx_draw_text(24, y + (bh - GFX_GLYPH_H(NAME_SCALE)) / 2, same("Wi-Fi"),
-                  NAME_SCALE, 400, absent ? C_DISABLED : C_TEXT);
+                  NAME_SCALE, 400, C_TEXT);
     {
         const int pw = 132, ph = 56;
-        if (absent) {                                       /* u-defeatist-0041 */
-            draw_state_pill(w - 24 - pw, y + (bh - ph) / 2, pw, ph,
-                            wifi ? _("ON") : _("OFF"), wifi, false, NAME_SCALE);
-        } else {
-            draw_pill(w - 24 - pw, y + (bh - ph) / 2, pw, ph,
-                      wifi ? _("ON") : _("OFF"), wifi, NAME_SCALE);
-        }
+        draw_pill(w - 24 - pw, y + (bh - ph) / 2, pw, ph,
+                  wifi ? _("ON") : _("OFF"), wifi, NAME_SCALE);
     }
 
     /*
@@ -1100,9 +1080,7 @@ static int draw_net(void)
      * that has never needed a network and still does not need one to
      * play a card.
      */
-    if (absent) draw_paras(y + bh + AUDIO_NOTE_GAP, k_wifi_note_absent,
-                           COUNT(k_wifi_note_absent), 99);          /* u-defeatist-0041 */
-    else        draw_paras(y + bh + AUDIO_NOTE_GAP, k_wifi_note, COUNT(k_wifi_note), 99);
+    draw_paras(y + bh + AUDIO_NOTE_GAP, k_wifi_note, COUNT(k_wifi_note), 99);
 
     /* --- Remote control (5117) -------------------------------------- */
     remote_box(&x, &y, &bw, &bh);
@@ -1225,12 +1203,12 @@ static int draw_net(void)
     gfx_fill_rect(x, y, bw, bh, C_ROW);
     /* 6126: not greyed with Wi-Fi off -- a cable sets the clock too. */
     gfx_draw_text(24, y + (bh - GFX_GLYPH_H(NAME_SCALE)) / 2, _("Network time"),
-                  NAME_SCALE, 400, absent ? C_DISABLED : C_TEXT);   /* u-defeatist-0041 */
+                  NAME_SCALE, 400, C_TEXT);
     {
         const bool pref = settings_ntp_pref();
         const int pw = 132, ph = 56;
         draw_state_pill(w - 24 - pw, y + (bh - ph) / 2, pw, ph,
-                        pref ? _("ON") : _("OFF"), pref, !absent, NAME_SCALE);
+                        pref ? _("ON") : _("OFF"), pref, true, NAME_SCALE);
     }
 
     (void)draw_paras(y + bh + AUDIO_NOTE_GAP, k_ntp_note, COUNT(k_ntp_note), 99);
@@ -1240,7 +1218,7 @@ static int draw_net(void)
     portal_state_t st;
     portal_state(&st);
     const bool running = portal_running();
-    const bool wifi_live = wifi && !absent;                 /* u-defeatist-0041 */
+    const bool wifi_live = wifi && !noportal;               /* u-defeatist-0041, 0047 */
     gfx_fill_rect(x, y, bw, bh, C_ROW);
     gfx_draw_text(24, y + (bh - GFX_GLYPH_H(NAME_SCALE)) / 2, _("Add a network"),
                   NAME_SCALE, 400, wifi_live ? C_TEXT : C_DISABLED);
@@ -1725,9 +1703,6 @@ bool panel_touch(bool down, int x, int y)
             const bool on = !settings_wifi_enabled();
             settings_set_wifi_enabled(on);
             ESP_LOGI(TAG, "wifi %s", on ? "on" : "off");
-            /* u-defeatist-0041: kept for a build that has one, but said */
-            if (net_limited()) ESP_LOGW(TAG, "wifi: no Wi-Fi control in this build; the radio stays off "
-                                             "(a cable still connects)");
             /* Posts and returns. Doing the work here would block
              * ui_task, and this is the only writer of the framebuffer. */
             wifi_request_apply();
@@ -1787,8 +1762,6 @@ bool panel_touch(bool down, int x, int y)
             const bool on = !settings_ntp_pref();
             settings_set_ntp_enabled(on);
             ESP_LOGI(TAG, "ntp %s", on ? "on" : "off");
-            if (net_limited()) ESP_LOGW(TAG, "network time: not in this build; "              /* u-defeatist-0041, 0042 */
-                                             "the clock keeps its own time");
             s_dirty = true;
         }
 
@@ -1800,8 +1773,8 @@ bool panel_touch(bool down, int x, int y)
             if (portal_running()) {
                 ESP_LOGI(TAG, "network setup: stop");
                 portal_request_stop();
-            } else if (net_limited()) {                     /* u-defeatist-0041, 0042 */
-                ESP_LOGW(TAG, "network setup: refused -- no Wi-Fi control in this build");
+            } else if (portal_absent()) {                   /* u-defeatist-0041, 0042, 0047 */
+                ESP_LOGW(TAG, "network setup: refused -- no setup access point in this build yet");
             } else {
                 const esp_err_t err = portal_start();
                 ESP_LOGI(TAG, "network setup: start%s",

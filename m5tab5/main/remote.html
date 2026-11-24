@@ -905,6 +905,7 @@ function piShow(j) {
     busy:    T("Busy; try again in a moment."),
     locked:  T("A working key is already saved."),
     failed:  T("The player could not start that. Try again."),
+    offline: T("No internet: the player is on its own hotspot, or on no network. Podcast lists and downloads need a network with internet."),
   }[j.said];
   const st = {
     checking:    T("Asking Podcast Index\u2026"),
@@ -985,6 +986,7 @@ function pShow(j) {
       busy:    T("Another download is running. Pause or cancel it first."),
       idle:    T("There is no download to do that to."),
       failed:  T("The player could not start that. Try again."),
+      offline: T("No internet: the player is on its own hotspot, or on no network. Podcast lists and downloads need a network with internet."),
     }[j.said];
     $("pmsg").textContent = said || "";
     $("pmsg").className = said ? "msg bad" : "msg";
@@ -995,10 +997,11 @@ function pList(j) {
   const ul = $("plist"), m = $("pmsg");
   $("pback").hidden = !pv.up.length;
   $("pwhere").textContent = pv.title;
-  $("pretry").hidden = !["other", "failed"].includes(j.list);
-  m.className = j.list === "failed" ? "msg bad" : "msg";
+  $("pretry").hidden = !["other", "failed", "offline"].includes(j.list);
+  m.className = j.list === "failed" || j.list === "offline" ? "msg bad" : "msg";
   m.textContent = {
     nokey:   T("Podcast lists need a working Podcast Index key, above."),
+    offline: T("No internet: the player is on its own hotspot, or on no network. Podcast lists and downloads need a network with internet."),
     loading: T("Asking Podcast Index…"),
     wait:    T("Asking Podcast Index…"),
     other:   T("The player's screen has asked for another list since. Ask again to see this one."),
@@ -1089,6 +1092,7 @@ async function pAdd() {
     novol:   T("There is no card or drive in the player to add it to."),
     long:    T("That podcast's folder name is too long for the drive."),
     nokey:   T("Podcast lists need a working Podcast Index key, above."),
+    offline: T("No internet: the player is on its own hotspot, or on no network. Podcast lists and downloads need a network with internet."),
   }[j.said] || "";
 }
 $("paddform").onsubmit = e => { e.preventDefault(); pAdd(); };
@@ -1112,7 +1116,8 @@ async function pSearch(first) {
   if (j.said !== "looking") {
     m.className = "msg bad";
     m.textContent = { invalid: T("That is not something the player can search for."),
-                      nokey: T("Podcast lists need a working Podcast Index key, above.") }[j.said] || "";
+                      nokey: T("Podcast lists need a working Podcast Index key, above."),
+                      offline: T("No internet: the player is on its own hotspot, or on no network. Podcast lists and downloads need a network with internet.") }[j.said] || "";
     return;
   }
   if (first || pv.id !== -1) {

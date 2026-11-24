@@ -372,6 +372,8 @@ ja:
     "No answer from that network. Try again.": "そのネットワークから応答がありません。もう一度お試しください。"
     # panel.c
     "No app connected.": "接続中のアプリなし。"
+    # remote.html
+    "No internet: the player is on its own hotspot, or on no network. Podcast lists and downloads need a network with internet.": ~
     # recorder.c
     "No memory for the recording task.": "録音タスクのメモリ不足。"
     # bench.c

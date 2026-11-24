@@ -31049,3 +31049,38 @@ hold ran out.
 
 *Tested:* run-remote and run-approve pass, and hotspot.c syntax-checks.
 *Not checked:* the board.
+
+### u-defeatist-0052 -- no internet requests on the hotspot alone
+
+On the board, with the player on its own hotspot and a phone on the
+remote, the page's podcast section asked Podcast Index for its
+categories. Each try failed in the log
+(`couldn't get hostname for :api.podcastindex.org`) while the page said
+"Asking Podcast Index..." and polled. The hotspot has nothing behind it.
+`net_online()` already says so: it means a joined Wi-Fi network or a
+cable, never the AP.
+
+- **remote.c:** `no_internet()` is checked before anything that goes
+  out:
+  - the key check (`pi_reply` "offline");
+  - a list that would be fetched;
+  - search;
+  - adding a podcast by address;
+  - starting a download, and going on with one.
+
+  Each answers "offline" without trying. A list already fetched still
+  shows.
+- **remote.html:** "offline" in each of the podcast section's message
+  tables: "No internet: the player is on its own hotspot, or on no
+  network. Podcast lists and downloads need a network with internet."
+  The list shows it as a fault, with its retry button, and doesn't poll.
+- **poddl.c:** `poddl_start()` refuses with no route out and logs why,
+  for both its callers (the chooser and the remote), instead of failing
+  inside feckless_fetch.
+- **The chooser** already waited on `net_online()` for Podcast Index
+  and radio-browser lists, and is unchanged.
+
+*Tested:* run-remote, run-podweb and run-i18n pass, and the page's
+script passes `node --check`.
+
+*Not checked:* remotecheck.py (it needs a player), and the board.

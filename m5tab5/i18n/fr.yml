@@ -372,6 +372,8 @@ fr:
     "No answer from that network. Try again.": "Ce réseau ne répond pas. Réessayez."
     # panel.c
     "No app connected.": "Aucune app connectée."
+    # remote.html
+    "No internet: the player is on its own hotspot, or on no network. Podcast lists and downloads need a network with internet.": ~
     # recorder.c
     "No memory for the recording task.": "Pas de mémoire pour la\ntâche d'enregistrement."
     # bench.c

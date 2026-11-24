@@ -532,6 +532,18 @@ static esp_err_t pi_reply(httpd_req_t *req, const char *said)
 
 static esp_err_t h_podindex(httpd_req_t *req) { return pi_reply(req, ""); }
 
+/*
+ * u-defeatist-0052: everything below that goes to the internet -- Podcast
+ * Index's lists, search, lookups and key check, and downloads -- answers
+ * "offline" without trying when there is no route out: net_online() is a
+ * joined Wi-Fi network or a cable, never the player's own hotspot, which
+ * has nothing behind it. The page can be reached then (that is what the
+ * hotspot is for), and its podcast section said "Asking Podcast Index..."
+ * and polled, while each try failed in the log at getaddrinfo(). Now it
+ * says why, once, and does not poll.
+ */
+static bool no_internet(void) { return !net_online(); }
+
 static esp_err_t h_podindex_try(httpd_req_t *req)
 {
     static char body[512];
@@ -548,6 +560,10 @@ static esp_err_t h_podindex_try(httpd_req_t *req)
     if (!portalweb_field(body, got, "key", key, sizeof(key))) key[0] = '\0';
     if (!portalweb_field(body, got, "secret", secret, sizeof(secret))) secret[0] = '\0';
     memset(body, 0, sizeof(body));
+    if (no_internet()) {                                    /* u-defeatist-0052 */
+        memset(secret, 0, sizeof(secret));
+        return pi_reply(req, "offline");
+    }
     const podindex_try_t r = podindex_try(key, secret);
     memset(secret, 0, sizeof(secret));
     return pi_reply(req, r == PODINDEX_TRY_INVALID ? "invalid" :
@@ -680,7 +696,9 @@ static esp_err_t h_pod(httpd_req_t *req)
     const podweb_do_t d = podweb_decide(go, st, same);
     if (d != PODWEB_SHOW) {
         const char *say = "other";
-        if (d == PODWEB_FETCH) {
+        if (d == PODWEB_FETCH && no_internet()) {
+            say = "offline";                                /* u-defeatist-0052 */
+        } else if (d == PODWEB_FETCH) {
             const bool ok = kind == 'e' ? podindex_eps_fetch(want)
                           : kind == 'f' ? podindex_feeds_fetch((int)want)
                           : podindex_cats_fetch();
@@ -782,6 +800,7 @@ static esp_err_t h_pod_dl(httpd_req_t *req)
     podpath_base(e->published, e->title, base, sizeof(base));
     if (poddl_find(dir, base, have, sizeof(have))) return pw_said(req, "have");
     if (poddl_state(NULL, NULL, NULL, NULL, 0, NULL) == PODDL_RUNNING) return pw_said(req, "busy");
+    if (no_internet()) return pw_said(req, "offline");     /* u-defeatist-0052 */
 
     s_pw_last.ep = *e;
     s_pw_last.feed = feed;
@@ -870,6 +889,7 @@ static esp_err_t h_pod_add(httpd_req_t *req)
     if (portalweb_field(body, (size_t)got, "vol", vs, sizeof(vs))) vol = atoi(vs);
     if (vol < 0 || vol >= STORAGE_COUNT || !storage_present((storage_id_t)vol)) return pw_said(req, "novol");
     if (podindex_state(NULL, 0, NULL) != PODINDEX_WORKING) return pw_said(req, "nokey");
+    if (no_internet()) return pw_said(req, "offline");     /* u-defeatist-0052 */
 
     if (s_add_rss[0] && !strcmp(s_add_rss, u)) {            /* 8130: reading the feed itself */
         const int64_t id = podindex_url_feed(u);
@@ -919,6 +939,7 @@ static esp_err_t h_pod_search(httpd_req_t *req)
     for (size_t l = strlen(t); l && (t[l - 1] == ' ' || t[l - 1] == '\t'); l--) t[l - 1] = '\0';
     if (!podfeeds_term_ok(t)) return pw_said(req, "invalid");
     if (podindex_state(NULL, 0, NULL) != PODINDEX_WORKING) return pw_said(req, "nokey");
+    if (no_internet()) return pw_said(req, "offline");     /* u-defeatist-0052 */
     return pw_said(req, podindex_search(t) ? "looking" : "wait");
 }
 
@@ -943,6 +964,7 @@ static esp_err_t h_pod_ctl(httpd_req_t *req)
     } else if (!strcmp(what, "again")) {
         if (!s_pw_last.have) return pw_said(req, "idle");
         if (st == PODDL_RUNNING) return pw_said(req, "busy");
+        if (no_internet()) return pw_said(req, "offline"); /* u-defeatist-0052 */
         if (!poddl_start(s_pw_last.ep.id, s_pw_last.ep.url, s_pw_last.dir, s_pw_last.base,
                          s_pw_last.feed, s_pw_last.show, s_pw_last.ep.feed_image, s_pw_last.ep.image))
             return pw_said(req, "busy");

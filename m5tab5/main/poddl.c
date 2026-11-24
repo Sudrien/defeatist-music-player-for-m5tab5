@@ -12,6 +12,7 @@
  * SPDX-License-Identifier: MIT
  */
 #include "poddl.h"
+#include "ethernet.h"         /* u-defeatist-0052: net_online() */
 
 #include <dirent.h>
 #include <errno.h>
@@ -596,6 +597,13 @@ bool poddl_start(int64_t id, const char *url, const char *dir, const char *base,
                  int64_t feed, const char *show, const char *cover, const char *own)
 {
     if (!url || !dir || !base) return false;
+    /* u-defeatist-0052: no route out -- the player's own hotspot alone, or
+     * nothing -- is said here, for both callers (the chooser and the
+     * remote), rather than as a connection failure in feckless_fetch. */
+    if (!net_online()) {
+        ESP_LOGW(TAG, "episode %" PRId64 ": no internet (the hotspot has none); not downloading", id);
+        return false;
+    }
     static char part[DL_PART_MAX], path[DL_FILE_MAX], ua[64];
     char ext[8];
     lock();

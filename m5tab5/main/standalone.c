@@ -32,10 +32,13 @@
  *
  * When the player ends: Exit to Launcher and power off both end it the same
  * way in a box (esp_restart(), which the box answers by ending the app;
- * absent.c). So on a clean end this does what a launcher would be there
- * for: back to M5Launcher if one booted this from a slot, and otherwise the
- * power off the player asked for and could not do from the box -- the
- * PMS150's pulse, then deep sleep. A fault restarts, as a panic did.
+ * absent.c), and since u-defeatist-0055 it says first which it meant
+ * (feckless_box_end_wish). So on a clean end this does what the player
+ * could not from the box: back to M5Launcher for Exit to Launcher, the
+ * power off -- the PMS150's pulse, then deep sleep -- for a power off,
+ * even with M5Launcher installed. A player that says nothing gets the old
+ * guess: M5Launcher if one booted this, else power off. A fault restarts,
+ * as a panic did.
  */
 #include <stddef.h>
 #include <stdint.h>
@@ -252,9 +255,19 @@ void app_main(void)
     feckless_umode_unload(app);
     feckless_box_calls_end();
 
+    /* u-defeatist-0055: what the player said its end meant, taken once. */
+    const feckless_box_wish_t wish = feckless_box_calls_wish();
     if (end.reason == FECKLESS_UMODE_END_EXIT || end.reason == FECKLESS_UMODE_END_KILLED) {
-        ESP_LOGI(TAG, "the player ended");
-        if (launcher_present()) launcher_exit_to_launcher();   /* back to M5Launcher; no return */
+        /* What the player said it meant (u-feckless-0087): a power off is a
+         * power off even with M5Launcher installed, and Exit to Launcher
+         * goes there. Said nothing -- an older player -- the old guess. */
+        ESP_LOGI(TAG, "the player ended%s", wish == FECKLESS_BOX_WISH_POWER_OFF ? ", asking to power off"
+                                           : wish == FECKLESS_BOX_WISH_LAUNCHER  ? ", asking for the launcher"
+                                           : wish == FECKLESS_BOX_WISH_RESTART   ? ", asking to start again" : "");
+        if (wish == FECKLESS_BOX_WISH_RESTART) esp_restart();
+        if (wish != FECKLESS_BOX_WISH_POWER_OFF && launcher_present()) {
+            launcher_exit_to_launcher();            /* back to M5Launcher; no return */
+        }
         power_off();
     }
     ESP_LOGE(TAG, "the player ended: reason %d, %s at 0x%08x; restarting", (int)end.reason,

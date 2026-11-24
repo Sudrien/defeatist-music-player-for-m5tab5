@@ -34,6 +34,11 @@ bool launcher_present(void) {
     return launcher_kind_of_table() != LAUNCHER_NONE;
 }
 
+/* u-defeatist-0055: absent.c's, in a box, says "the launcher" to the
+ * launcher that will see this restart end the app; nothing in the trusted
+ * build, where the restart is a restart. */
+__attribute__((weak)) void launcher_before_restart(void) {}
+
 void launcher_exit_to_launcher(void) {
     switch (launcher_kind_of_table()) {
     case LAUNCHER_SLOT:
@@ -42,11 +47,13 @@ void launcher_exit_to_launcher(void) {
          * is named in the ELF build too (feckless-libs' 7002), though an
          * ELF never reaches it. */
         if (esp_ota_set_boot_partition(launcher_factory()) != ESP_OK) return;
+        launcher_before_restart();
         esp_restart();                                /* does not return */
         break;
     case LAUNCHER_HOSTED:
         /* The launcher's own slot is running, and nothing was chosen to
          * come back to: a restart lands in its menu. */
+        launcher_before_restart();
         esp_restart();
         break;
     case LAUNCHER_NONE:

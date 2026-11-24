@@ -65,17 +65,20 @@ that fail the way the player already copes with:
 | absent | so |
 |---|---|
 | the setup portal's DHCP options and captive DNS | nothing a person reaches: every network feature works, over a cable, Wi-Fi or the player's own hotspot -- MPD, web radio, the benchmark, podcast search and downloads, remote control, NTP, and adding a network, typed on the screen (u-defeatist-0042, 0044, 0045, 0046, 0047, 0048, 0049) |
-| the hardware JPEG decoder | album art in software |
-| esp_ota, esp_partition | the table says "hosted" (u-defeatist-0025): Exit to Launcher shows, and ends the app |
-| raw I2C, deep sleep | no power-off pulse: power off ends the app, and the board stays on |
-| HID, USB class registration | callbacks a box cannot make yet |
-| the crypto section | approve.c's hash; it approves only network features |
+| esp_ota, esp_partition | the table says "hosted" (u-defeatist-0025): Exit to Launcher shows; the app ends asking for the launcher (u-defeatist-0055), and the launcher goes there |
+| raw I2C, deep sleep | the app cannot give the power-off pulse itself: power off ends it asking to power off (u-defeatist-0055), and the launcher does |
+| USB class registration | an app's own USB class drivers; Defeatist's are the launcher's (storage, audio, Ethernet), and a headset's or keyboard's media keys are answered (u-defeatist-0054) |
 
-**Power off, and the low-battery power off, do not cut the power in a
-box.** The pulse to the power controller is raw I2C. The app saves its
-settings, ends, and the launcher's menu comes back on a board still
-running from its battery; the launcher puts the backlight back. Whatever
-protects a low battery from there is the launcher's.
+The hardware JPEG decoder, the crypto section (approve.c's hash) and HID
+were once in this table; the box answers them now.
+
+**Power off, and the low-battery power off, are the launcher's to do.**
+The pulse to the power controller is raw I2C, which the app cannot
+reach. The app saves its settings and ends, saying it wants the power
+off (`feckless_box_end_wish`, u-feckless-0087), and a launcher that
+reads it (`feckless_box_calls_wish()`) gives the pulse. The .bin's own
+launcher does; a launcher that does not read it is left to guess, and
+whatever protects a low battery from there is that launcher's.
 
 Each comes out of `absent.c` when a box answers it: the box's call then
 replaces it, and the checks say which are left.
@@ -86,17 +89,19 @@ replaces it, and the checks say which are left.
 the console, NVS, the bus, USB, storage and the network, then the panel
 on core 0, and runs the player in a box on core 1: the largest PSRAM
 block less 2 MB, at most 24 MB, NVS in the namespace `defeatist`. Power
-off and Exit to Launcher both end the player in a box; the .bin then goes
-back to M5Launcher if one booted it from a slot, and otherwise powers the
-board off itself (the PMS150's pulse, which the box cannot give). A fault
-restarts it.
+off and Exit to Launcher both end the player in a box, and it says which
+it meant (u-defeatist-0055): the .bin powers the board off itself for a
+power off (the PMS150's pulse, which the box cannot give), even with
+M5Launcher installed, and goes back to M5Launcher for Exit to Launcher.
+A fault restarts it.
 
 **Under Avoidant's umode branch.** The ELF on the card or a USB drive as
 `defeatist_player.app.elf`, or a release's
 `defeatist_<version>_music_player_for_m5tab5.elf`: Avoidant names the NVS
 namespace from the file name up to the first `_`, so either gets
 `defeatist`. Exit to Launcher, or power off, ends it and Avoidant's menu
-comes back; the board stays on.
+comes back. The player says which it meant (u-defeatist-0055); until
+Avoidant reads `feckless_box_calls_wish()`, the board stays on for both.
 
 The box must be as large as it allows: the ELF and its statics are
 1.35 MB, and the player's three PCM rings 10.5 MB of the box's heap

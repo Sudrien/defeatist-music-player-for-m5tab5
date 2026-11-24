@@ -165,8 +165,8 @@ esp_err_t i2c_master_transmit_receive(i2c_master_dev_handle_t dev, const uint8_t
     return ESP_ERR_NOT_SUPPORTED;
 }
 
-esp_err_t hid_init(hid_button_cb_t cb) { (void)cb; return ESP_ERR_NOT_SUPPORTED; }
-bool hid_present(void) { return false; }
+/* u-defeatist-0054: hid_init and hid_present are the box's
+ * (u-feckless-0086): a headset's and keyboard's media keys. */
 esp_err_t usbhost_register_class(const char *name, usbhost_class_fn fn) { (void)name; (void)fn; return ESP_ERR_NOT_SUPPORTED; }
 
 /* The power-off tail: a box cannot power the board down, so the app ends
@@ -176,10 +176,27 @@ esp_err_t usbhost_register_class(const char *name, usbhost_class_fn fn) { (void)
  * error, the app counted as killed. Both are noreturn, as this is: the
  * esp_restart() player.c writes after esp_deep_sleep_start() is dead code
  * to the compiler, so it is called here. */
+/* u-defeatist-0055: what the app meant by ending, for the launcher
+ * (u-feckless-0087's feckless_box_end_wish, in the box section; its values
+ * are feckless_box_calls.h's feckless_box_wish_t, which the ELF build does
+ * not include). */
+void feckless_box_end_wish(uint32_t wish);
+#define BOX_WISH_POWER_OFF 1
+#define BOX_WISH_LAUNCHER  2
+
 void esp_deep_sleep_start(void)
 {
     /* u-defeatist-0028 made the launcher power off (or go back to
-     * M5Launcher) after a clean end; "the board stays on" predated it. */
+     * M5Launcher) after a clean end; u-defeatist-0055 tells it which. */
     ESP_LOGW(TAG, "power off asked for: the app ends here and the launcher powers off");
+    feckless_box_end_wish(BOX_WISH_POWER_OFF);
     esp_restart();
+}
+
+/* launcher.c's hook, before its restart: back to the launcher's menu, not
+ * a power off (u-defeatist-0055). The trusted build has launcher.c's weak
+ * one, which does nothing. */
+void launcher_before_restart(void)
+{
+    feckless_box_end_wish(BOX_WISH_LAUNCHER);
 }

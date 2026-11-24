@@ -31107,3 +31107,37 @@ network, or by cable, is asked as before.
 
 *Tested:* run-approve and run-remote pass, and hotspot.c syntax-checks.
 *Not checked:* the board.
+
+### u-defeatist-0054, 0055 -- media keys in a box; power off vs Exit to Launcher; BOX.md
+
+- **u-defeatist-0054:** absent.c's `hid_init` and `hid_present` are
+  gone; the box answers them (u-feckless-0086). A headset's inline
+  remote and a keyboard's media keys work in the boxed build, and "no
+  USB remote support this boot" is gone from its log. The USB power-off
+  test's `hid_present()` now sees a remote too.
+- **u-defeatist-0055:** in a box, power off and Exit to Launcher both
+  end the app. The .bin's launcher guessed: back to M5Launcher whenever
+  one was installed, so a player started from M5Launcher couldn't power
+  off.
+  - The player now says which it meant first, with
+    `feckless_box_end_wish()` (u-feckless-0087).
+  - absent.c's `esp_deep_sleep_start()` says power off.
+  - launcher.c calls `launcher_before_restart()` before its restart.
+    It's weak and does nothing in the trusted build; absent.c's says
+    "the launcher".
+  - standalone.c reads `feckless_box_calls_wish()`: power off is a
+    power off, even with M5Launcher installed, the launcher goes back
+    to M5Launcher, and restart restarts. A player that says nothing
+    gets the old guess.
+- **BOX.md:**
+  - The absent table loses the hardware JPEG decoder, the crypto
+    section and HID, which the box has answered for a while (JPEG and
+    PSA) or answers now. It says so in one line under the table.
+  - The power-off rows and the two "On a board" paragraphs say what
+    happens now: the .bin powers off for a power off and goes back to
+    M5Launcher for Exit to Launcher. Under Avoidant the board stays on
+    until Avoidant reads the wish.
+
+*Tested:* run-netform, run-i18n, run-approve and run-remote pass.
+*Not checked:* absent.c, launcher.c and standalone.c don't build on a
+host, nor has any of it run on the board.

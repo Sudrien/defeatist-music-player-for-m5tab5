@@ -34,10 +34,15 @@ _Static_assert(APPROVE_TICKET == APPROVE_ADDR, "an address must fit a ticket");
  * zero to the list's key length. Not hashed: an address is not a
  * secret, and the prompt shows it anyway. */
 #define NVS_KEY_MPD      "mpd_ok"
+/* u-defeatist-0050: the phones allowed to stay on the open hotspot, each
+ * its MAC in an address's 16 bytes (approve_hotspot_addr()). Not hashed,
+ * for the MPD list's reason. */
+#define NVS_KEY_HOTSPOT  "hs_ok"
 
 static SemaphoreHandle_t  s_mu;
 static approve_list_t     s_browsers;
 static approve_list_t     s_mpd;            /* 8004 */
+static approve_list_t     s_hotspot;        /* u-defeatist-0050 */
 static approve_pending_t  s_pend;
 static uint8_t            s_shown[APPROVE_TICKET];   /* ui_task's: last prompt woken for */
 
@@ -83,6 +88,7 @@ static void load(void)
 {
     load_one(NVS_KEY_BROWSERS, &s_browsers);
     load_one(NVS_KEY_MPD, &s_mpd);                              /* 8004 */
+    load_one(NVS_KEY_HOTSPOT, &s_hotspot);                      /* u-defeatist-0050 */
 }
 
 /* ui_task only (approve.h). From a copy: the mutex is not held here. */
@@ -169,7 +175,10 @@ bool approve_prompt(approve_kind_t *kind, char *who, size_t who_size,
     if (code) memcpy(code, p.code, 5);
     if (who && who_size) {
         static const uint8_t mapped[12] = { 0,0,0,0, 0,0,0,0, 0,0,0xff,0xff };
-        if (memcmp(p.addr, mapped, 12) == 0) {
+        if (p.kind == APPROVE_FOR_HOTSPOT) {                    /* u-defeatist-0050: a MAC */
+            snprintf(who, who_size, "%02x:%02x:%02x:%02x:%02x:%02x", p.addr[0], p.addr[1], p.addr[2],
+                     p.addr[3], p.addr[4], p.addr[5]);
+        } else if (memcmp(p.addr, mapped, 12) == 0) {
             snprintf(who, who_size, "%u.%u.%u.%u", p.addr[12], p.addr[13], p.addr[14], p.addr[15]);
         } else if (!inet_ntop(AF_INET6, p.addr, who, who_size)) {
             who[0] = '\0';
@@ -229,18 +238,21 @@ void approve_answer(bool yes)
     } else if (save) {
         /* 8004: an MPD client is allowed by the address it asked from,
          * at the tap -- not when the client collects the answer, which
-         * one that has already timed out and gone never will. */
+         * one that has already timed out and gone never will. So is a
+         * hotspot phone, by its MAC (u-defeatist-0050). */
         uint8_t ak[APPROVE_KEY];
         addr_key(s_pend.addr, ak);
-        approve_list_add(&s_mpd, ak);
-        copy = s_mpd;
+        approve_list_t *l = kind == APPROVE_FOR_HOTSPOT ? &s_hotspot : &s_mpd;
+        approve_list_add(l, ak);
+        copy = *l;
     }
     xSemaphoreGive(s_mu);
     memset(tok, 0, sizeof(tok));
 
     if (!waiting || !answered) return;
     ESP_LOGI(TAG, "request %s", hashed ? "allowed" : "refused");
-    if (save) store(kind == APPROVE_FOR_BROWSER ? NVS_KEY_BROWSERS : NVS_KEY_MPD, &copy);
+    if (save) store(kind == APPROVE_FOR_BROWSER ? NVS_KEY_BROWSERS
+                    : kind == APPROVE_FOR_HOTSPOT ? NVS_KEY_HOTSPOT : NVS_KEY_MPD, &copy);
 }
 
 /* ---- 8004: MPD ---------------------------------------------------------- */
@@ -274,4 +286,68 @@ approve_state_t approve_mpd_collect(const uint8_t addr[APPROVE_ADDR])
                                                    esp_timer_get_time(), NULL);
     xSemaphoreGive(s_mu);
     return s;
+}
+
+/* ---- u-defeatist-0050: the hotspot's phones ------------------------------ */
+
+void approve_hotspot_addr(const uint8_t mac[6], uint8_t addr[APPROVE_ADDR])
+{
+    memset(addr, 0xee, APPROVE_ADDR);       /* no IPv6 address ends so: never an MPD key */
+    memcpy(addr, mac, 6);
+}
+
+bool approve_hotspot_ok(const uint8_t mac[6])
+{
+    if (!s_mu) return false;
+    uint8_t a[APPROVE_ADDR], k[APPROVE_KEY];
+    approve_hotspot_addr(mac, a);
+    addr_key(a, k);
+    xSemaphoreTake(s_mu, portMAX_DELAY);
+    const bool ok = approve_list_find(&s_hotspot, k) >= 0;
+    xSemaphoreGive(s_mu);
+    return ok;
+}
+
+approve_ask_t approve_hotspot_ask(const uint8_t mac[6])
+{
+    if (!s_mu) return APPROVE_ASK_BUSY;
+    uint8_t a[APPROVE_ADDR];
+    approve_hotspot_addr(mac, a);
+    xSemaphoreTake(s_mu, portMAX_DELAY);
+    const approve_ask_t r = approve_pend_ask(&s_pend, APPROVE_FOR_HOTSPOT, a, a, esp_timer_get_time());
+    xSemaphoreGive(s_mu);
+    return r;
+}
+
+approve_state_t approve_hotspot_collect(const uint8_t mac[6])
+{
+    if (!s_mu) return APPROVE_IDLE;
+    uint8_t a[APPROVE_ADDR];
+    approve_hotspot_addr(mac, a);
+    xSemaphoreTake(s_mu, portMAX_DELAY);
+    const approve_state_t s = approve_pend_collect(&s_pend, APPROVE_FOR_HOTSPOT, a, esp_timer_get_time(), NULL);
+    xSemaphoreGive(s_mu);
+    return s;
+}
+
+int approve_hotspot_count(void)
+{
+    if (!s_mu) return 0;
+    xSemaphoreTake(s_mu, portMAX_DELAY);
+    const int n = approve_list_count(&s_hotspot);
+    xSemaphoreGive(s_mu);
+    return n;
+}
+
+/* ui_task only: it writes NVS. */
+void approve_hotspot_forget(void)
+{
+    if (!s_mu) return;
+    approve_list_t copy;
+    xSemaphoreTake(s_mu, portMAX_DELAY);
+    approve_list_clear(&s_hotspot);
+    copy = s_hotspot;
+    xSemaphoreGive(s_mu);
+    store(NVS_KEY_HOTSPOT, &copy);
+    ESP_LOGI(TAG, "every hotspot phone forgotten");
 }

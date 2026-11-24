@@ -948,9 +948,6 @@ static void wifi_mode_set(int m)
     wifi_request_apply();
 }
 
-/* The hotspot's password as last read or made, for the screen: read once
- * from NVS, not once a second. */
-static char s_hs_pass[16];
 
 static void ntp_switch_box(int *x, int *y, int *w, int *h)
 {
@@ -1347,18 +1344,18 @@ static int draw_net(void)
     }
     char lines[NET_SETUP_NOTE_LINES][64];
     setup_lines(&st, wifi_live, running, lines);
-    /* u-defeatist-0049: in the hotspot, this row is the hotspot's: what a
-     * phone needs to join it, and NEW for another password. */
+    /* u-defeatist-0049, 0050: in the hotspot, this row is the hotspot's:
+     * its name, the phones allowed on it (asked on this screen as they
+     * join), where to point a browser, and FORGET for the allowed list. */
     if (wifi && settings_hotspot() && !running) {
-        if (!s_hs_pass[0]) settings_hotspot_pass(s_hs_pass, sizeof s_hs_pass);
         gfx_fill_rect(x, y, bw, bh, C_ROW);
         gfx_draw_text(24, y + (bh - GFX_GLYPH_H(NAME_SCALE)) / 2, _("Hotspot"), NAME_SCALE, 400, C_TEXT);
-        const int pw = 132, ph = 56;
-        draw_state_pill(w - 24 - pw, y + (bh - ph) / 2, pw, ph, _("NEW"), false, true, NAME_SCALE);
+        const int pw = 132, ph = 56, allowed = approve_hotspot_count();
+        draw_state_pill(w - 24 - pw, y + (bh - ph) / 2, pw, ph, _("FORGET"), false, allowed > 0, NAME_SCALE);
         char name[40], ip[20];
         hotspot_name(name, sizeof name);
-        snprintf(lines[0], 64, _("Network: %.32s"), name[0] ? name : "…");
-        snprintf(lines[1], 64, _("Password: %s"), s_hs_pass);
+        snprintf(lines[0], 64, _("Open network: %.32s"), name[0] ? name : "…");
+        snprintf(lines[1], 64, _("Phones allowed: %d -- new ones are asked here"), allowed);
         if (!hotspot_running()) snprintf(lines[2], 64, "%s", _("Starting…"));
         else if (hotspot_ip(ip, sizeof ip))
             snprintf(lines[2], 64, _("Then open https://%s/ -- %d connected"), ip, hotspot_clients());
@@ -1922,11 +1919,13 @@ bool panel_touch(bool down, int x, int y)
          * and shows on the row's own lines at the next redraw. */
         setup_box(&bx, &by, &bw, &bh);
         if (y >= by && y < by + bh && settings_wifi_enabled() && settings_hotspot() && !portal_running()) {
-            /* u-defeatist-0049: NEW -- another password, and the AP back
-             * up with it; phones that knew the old one are off it. */
-            settings_hotspot_new_pass(s_hs_pass, sizeof s_hs_pass);
-            hotspot_restart();
-            ESP_LOGI(TAG, "hotspot: new password");
+            /* u-defeatist-0050: FORGET -- every allowed phone asks again,
+             * and the AP starts again so the ones on it now do. */
+            if (approve_hotspot_count() > 0) {
+                approve_hotspot_forget();
+                hotspot_restart();
+                ESP_LOGI(TAG, "hotspot: allowed phones forgotten");
+            }
             s_dirty = true;
         } else if (y >= by && y < by + bh) {
             if (portal_running()) {

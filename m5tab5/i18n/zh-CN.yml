@@ -108,6 +108,8 @@ zh-CN:
     "Allow this MPD app?": "允许此 MPD 应用？"
     # ui.c
     "Allow this browser?": "允许此浏览器？"
+    # ui.c
+    "Allow this phone on the hotspot?": ~
     # panel.c
     "Allowed devices": "已允许的设备"
     # remote.html
@@ -340,7 +342,7 @@ zh-CN:
     "Move down": "下移"
     # remote.html
     "Move up": "上移"
-    # panel.c
+    # not in the source any more
     "NEW": ~
     # ui.c
     "NO BATT": "无电池"
@@ -356,7 +358,7 @@ zh-CN:
     "Network setup is running on the player; use that page.": "播放器正在进行网络设置，请使用那个页面。"
     # panel.c
     "Network time": "网络时间"
-    # panel.c
+    # not in the source any more
     "Network: %.32s": ~
     # powerdown.h, screendim.h
     "Never": "从不"
@@ -422,6 +424,8 @@ zh-CN:
     "One folder counts as one album.": "一个文件夹算作一张专辑。"
     # panel.c
     "Open %s": "打开 %s"
+    # panel.c
+    "Open network: %.32s": ~
     # netform.c, portal.c, remote.c
     "Open networks are not supported yet.": "暂不支持开放网络。"
     # portal.c, remote.html
@@ -434,7 +438,7 @@ zh-CN:
     "Over Wi-Fi or a USB Ethernet cable.": "通过 Wi-Fi 或 USB 以太网线均可。"
     # netform.c, portal.c, remote.html
     "Password": "密码"
-    # panel.c
+    # not in the source any more
     "Password: %s": ~
     # remote.html
     "Pause": ~
@@ -442,6 +446,8 @@ zh-CN:
     "Pause the download": ~
     # remote.html
     "Paused %s: %s": ~
+    # panel.c
+    "Phones allowed: %d -- new ones are asked here": ~
     # remote.html
     "Play": "播放"
     # browser.c

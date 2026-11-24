@@ -125,6 +125,7 @@ typedef enum {
 typedef enum {
     APPROVE_FOR_BROWSER = 0,
     APPROVE_FOR_MPD,
+    APPROVE_FOR_HOTSPOT,             /* u-defeatist-0050: a phone on the open hotspot, by MAC */
 } approve_kind_t;
 
 typedef enum {

@@ -9,7 +9,6 @@
 #include <stdlib.h>
 #include <inttypes.h>
 #include <string.h>
-#include "esp_random.h"            /* u-defeatist-0049: the hotspot password */
 #include <time.h>
 #include <sys/time.h>
 
@@ -60,7 +59,6 @@
 /* u-defeatist-0049: 2 is the hotspot. An older build reads wifi_on as
  * "not 0", so it comes up with Wi-Fi on -- the nearest thing it has. */
 #define WIFI_NVS_HOTSPOT 2
-#define HOTSPOT_PASS_KEY "hs_pass"
 
 static bool wifi_nvs_read(bool *on, bool *hotspot)
 {
@@ -573,41 +571,9 @@ bool settings_wifi_enabled(void) { return s_wifi_enabled; }
 /* u-defeatist-0049 */
 bool settings_hotspot(void) { return s_hotspot; }
 
-/*
- * The hotspot's password: ten characters from 31 that cannot be misread
- * on a screen or typed wrong on a phone -- no 0/o, 1/l/i -- made from
- * esp_random() the first time it is asked for, and kept in NVS beside
- * the switch, so a phone that joined once joins again. 31^10 is 2^49.5:
- * past what a WPA2 handshake capture can be ground against in a party's
- * length of time, and short enough to type off the screen.
- */
-static const char k_pass_chars[] = "abcdefghjkmnpqrstuvwxyz23456789";
-
-static void pass_make(char *out, size_t n)
-{
-    size_t i = 0;
-    for (; i < 10 && i + 1 < n; i++) out[i] = k_pass_chars[esp_random() % (sizeof k_pass_chars - 1)];
-    out[i] = '\0';
-}
-
-void settings_hotspot_pass(char *out, size_t out_size)
-{
-    if (!out || out_size < 11) {
-        if (out && out_size) out[0] = '\0';
-        return;
-    }
-    size_t len = out_size;
-    if (nvsh_get_str(WIFI_NVS_NS, HOTSPOT_PASS_KEY, out, &len) == ESP_OK && strlen(out) >= 8) return;
-    settings_hotspot_new_pass(out, out_size);
-}
-
-void settings_hotspot_new_pass(char *out, size_t out_size)
-{
-    char p[11];
-    pass_make(p, sizeof p);
-    (void)nvsh_set_str(WIFI_NVS_NS, HOTSPOT_PASS_KEY, p);
-    if (out && out_size) snprintf(out, out_size, "%s", p);
-}
+/* u-defeatist-0050: no password: the open hotspot's gate is approve.c's
+ * whitelist of phones, asked on this screen. hs_pass, if a 0049 build
+ * left one in NVS, is not read. */
 
 /* The effective answer, and the gate is here rather than in each caller
  * on purpose -- see the header. */

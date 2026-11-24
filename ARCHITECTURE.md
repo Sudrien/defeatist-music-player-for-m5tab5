@@ -30970,3 +30970,58 @@ On the board, look for:
 Also unconfirmed: that mDNS answers `feckless-XXXXXX.local` on the AP.
 `CONFIG_MDNS_PREDEF_NETIF_AP` is the setting to check.
 
+
+### u-defeatist-0050 -- the hotspot is open, with a whitelist on the player
+
+The hotspot (u-defeatist-0049) had a WPA2 password, shown far down the
+NET tab. It's open now, and its gate is a whitelist on the player
+itself.
+
+- **How a phone gets in:** it joins `Defeatist-XXXX` with no password.
+  hotspot.c sees it (feckless-libs `wifi_ap_stations()`, u-feckless-0085),
+  and the player asks "Allow this phone on the hotspot?" with its MAC.
+  The prompt is approve.c's: over the main screen, waking it, one
+  request at a time.
+  - *Allowed:* it stays, and is remembered in NVS (`hs_ok`).
+  - *Refused, or not answered in approvelist.h's two minutes:* it's sent
+    away with `wifi_ap_kick()`, and sent away again on sight for ten
+    minutes. Within that time approvelist won't let the same MAC ask
+    again either.
+- **approve.c** has a third kind, `APPROVE_FOR_HOTSPOT`, with its own
+  list. The address form is the MAC in the first 6 bytes and 0xee after.
+  It's counted and forgotten apart from browsers and MPD apps.
+- **hotspot.c** looks at who's on once a second, from the player's loop.
+  Another request already on screen means the phone is asked the next
+  second.
+- **The panel's hotspot row:** "Open network: Defeatist-XXXX", "Phones
+  allowed: N -- new ones are asked here", the address, and FORGET. That
+  empties the list and restarts the AP, so the phones on it now are
+  asked again.
+- **settings:** the password is gone, and `hs_pass` from a 0049 build
+  isn't read. The NVS byte and the card's `"hotspot"` are unchanged.
+
+*The trade, as chosen:* an open network is readable by anyone nearby.
+The remote is HTTPS regardless; MPD is plain text. A MAC can be copied
+by someone who has seen an allowed phone's. The remote's and MPD's own
+approvals still stand behind the whitelist.
+
+*Phones and MACs:* iOS and Android join with a private MAC kept per
+network, so a phone is asked once. iOS's "Rotate Wi-Fi Address" setting
+can bring a phone back as a stranger.
+
+*Tested on the host:*
+- approvelisttest (51 checks), run-remote, run-portal, run-netform and
+  run-i18n pass.
+- hotspot.c syntax-checks against stand-ins.
+
+*Not checked:* a build, or the board.
+
+On the board, look for:
+- `hotspot up: ... (open; phones are asked about here)`;
+- `AP: xx:.. joined (aid 1)`, then `... joined; asking`;
+- the prompt on the main screen;
+- after Allow, the phone staying;
+- after Refuse, `refused; sent away` and `AP: ... sent away`.
+
+If the deauth isn't carried over ESP-Hosted, that last line ends with
+"the deauth failed".

@@ -108,6 +108,8 @@ pt:
     "Allow this MPD app?": "Permitir este app MPD?"
     # ui.c
     "Allow this browser?": "Permitir este navegador?"
+    # ui.c
+    "Allow this phone on the hotspot?": ~
     # panel.c
     "Allowed devices": "Dispositivos"
     # remote.html
@@ -340,7 +342,7 @@ pt:
     "Move down": "Descer"
     # remote.html
     "Move up": "Subir"
-    # panel.c
+    # not in the source any more
     "NEW": ~
     # ui.c
     "NO BATT": "SEM BAT"
@@ -356,7 +358,7 @@ pt:
     "Network setup is running on the player; use that page.": "O player está em configuração de rede; use aquela página."
     # panel.c
     "Network time": "Hora da rede"
-    # panel.c
+    # not in the source any more
     "Network: %.32s": ~
     # powerdown.h, screendim.h
     "Never": "Nunca"
@@ -422,6 +424,8 @@ pt:
     "One folder counts as one album.": "Uma pasta conta como um álbum."
     # panel.c
     "Open %s": "Abra %s"
+    # panel.c
+    "Open network: %.32s": ~
     # netform.c, portal.c, remote.c
     "Open networks are not supported yet.": "Redes abertas ainda não são suportadas."
     # portal.c, remote.html
@@ -434,7 +438,7 @@ pt:
     "Over Wi-Fi or a USB Ethernet cable.": "Por Wi-Fi ou por um cabo Ethernet USB."
     # netform.c, portal.c, remote.html
     "Password": "Senha"
-    # panel.c
+    # not in the source any more
     "Password: %s": ~
     # remote.html
     "Pause": ~
@@ -442,6 +446,8 @@ pt:
     "Pause the download": ~
     # remote.html
     "Paused %s: %s": ~
+    # panel.c
+    "Phones allowed: %d -- new ones are asked here": ~
     # remote.html
     "Play": "Tocar"
     # browser.c

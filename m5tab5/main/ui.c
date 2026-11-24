@@ -2232,7 +2232,7 @@ static void draw_confirm(void)
         if (approve_prompt(&ak, who, sizeof(who), code, NULL)) {
             snprintf(sub, sizeof(sub), "%s", who);
             /* 8004: an MPD app has no page to show a code on. */
-            if (ak != APPROVE_FOR_MPD) snprintf(sub2, sizeof(sub2), _("code %s"), code);
+            if (ak == APPROVE_FOR_BROWSER) snprintf(sub2, sizeof(sub2), _("code %s"), code);
         }
     }
     const int line_h = gap + GFX_GLYPH_H(NOTICE_BODY_SC);
@@ -2246,6 +2246,7 @@ static void draw_confirm(void)
     const char *head = (s_confirm == CONFIRM_POWER)   ? _("Power off?")
                      : (s_confirm == CONFIRM_APPROVE)
                        ? (ak == APPROVE_FOR_MPD ? _("Allow this MPD app?")      /* 8004 */
+                          : ak == APPROVE_FOR_HOTSPOT ? _("Allow this phone on the hotspot?")  /* u-defeatist-0050 */
                                                 : _("Allow this browser?"))
                                                       : _("Exit to Launcher?");
     const int hw = gfx_text_w(head, NOTICE_BODY_SC);

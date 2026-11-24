@@ -12,6 +12,7 @@
 #include "esp_timer.h"
 #include "esp_wifi.h"
 
+#include "approve.h"
 #include "portal.h"
 #include "portalweb.h"
 #include "settings.h"
@@ -31,6 +32,101 @@ static bool wanted(void)
     return settings_wifi_enabled() && settings_hotspot() && !portal_running();
 }
 
+/* ---- the whitelist (u-defeatist-0050) ---------------------------------- */
+
+#define GATE_US   (1000 * 1000)             /* look at who is on once a second */
+#define GATE_MAX  4                         /* the AP's max_connection */
+
+/* Phones asked about, so a request that lapsed unanswered is told from one
+ * never made; and phones sent away, sent away again on sight. */
+static struct { uint8_t mac[6]; bool used; } s_asked[GATE_MAX];
+static struct { uint8_t mac[6]; int64_t until; } s_away[GATE_MAX];
+static int64_t s_gate_us;
+
+static int find_asked(const uint8_t mac[6])
+{
+    for (int i = 0; i < GATE_MAX; i++)
+        if (s_asked[i].used && !memcmp(s_asked[i].mac, mac, 6)) return i;
+    return -1;
+}
+
+static void set_asked(const uint8_t mac[6], bool on)
+{
+    int i = find_asked(mac);
+    if (!on) {
+        if (i >= 0) s_asked[i].used = false;
+        return;
+    }
+    if (i < 0) for (i = 0; i < GATE_MAX && s_asked[i].used; i++) {}
+    if (i >= GATE_MAX) i = 0;
+    memcpy(s_asked[i].mac, mac, 6);
+    s_asked[i].used = true;
+}
+
+static bool is_away(const uint8_t mac[6], int64_t now)
+{
+    for (int i = 0; i < GATE_MAX; i++)
+        if (now < s_away[i].until && !memcmp(s_away[i].mac, mac, 6)) return true;
+    return false;
+}
+
+static void send_away(const uint8_t mac[6], int64_t now, const char *why)
+{
+    int at = 0;
+    for (int i = 0; i < GATE_MAX; i++) {
+        if (!memcmp(s_away[i].mac, mac, 6)) { at = i; break; }
+        if (s_away[i].until < s_away[at].until) at = i;
+    }
+    memcpy(s_away[at].mac, mac, 6);
+    s_away[at].until = now + APPROVE_DENY_US;
+    set_asked(mac, false);
+    (void)why;                              /* a log that compiles out still has used it */
+    ESP_LOGI(TAG, "%02x:%02x:%02x:%02x:%02x:%02x: %s; sent away", mac[0], mac[1], mac[2], mac[3], mac[4],
+             mac[5], why);
+    (void)wifi_ap_kick(mac);
+}
+
+static void gate(void)
+{
+    const int64_t now = esp_timer_get_time();
+    if (now < s_gate_us) return;
+    s_gate_us = now + GATE_US;
+    uint8_t macs[GATE_MAX][6];
+    const int n = wifi_ap_stations(macs, GATE_MAX);
+    for (int i = 0; i < n; i++) {
+        const uint8_t *m = macs[i];
+        if (is_away(m, now)) {
+            (void)wifi_ap_kick(m);          /* back already: again, quietly */
+            continue;
+        }
+        if (approve_hotspot_ok(m)) {
+            set_asked(m, false);
+            continue;
+        }
+        switch (approve_hotspot_collect(m)) {
+        case APPROVE_YES:     set_asked(m, false); continue;   /* on the list now */
+        case APPROVE_NO:      send_away(m, now, "refused"); continue;
+        case APPROVE_WAITING: continue;                         /* on the screen */
+        default:              break;
+        }
+        if (find_asked(m) >= 0) {           /* asked, and the two minutes ran out */
+            send_away(m, now, "not answered");
+            continue;
+        }
+        switch (approve_hotspot_ask(m)) {
+        case APPROVE_ASK_OK:
+            set_asked(m, true);
+            ESP_LOGI(TAG, "%02x:%02x:%02x:%02x:%02x:%02x joined; asking", m[0], m[1], m[2], m[3], m[4], m[5]);
+            break;
+        case APPROVE_ASK_REFUSED:
+            send_away(m, now, "refused lately");
+            break;
+        default:                            /* another request is up: next second */
+            break;
+        }
+    }
+}
+
 void hotspot_poll(void)
 {
     if (s_on && (s_restart || !wanted() || !wifi_up())) {
@@ -38,20 +134,21 @@ void hotspot_poll(void)
          * radio still up has one to end */
         if (wifi_up()) (void)wifi_ap_end();
         s_on = false;
-        ESP_LOGI(TAG, "hotspot down%s", s_restart ? " for a new password" : "");
+        ESP_LOGI(TAG, "hotspot down%s", s_restart ? ", to start again" : "");
         s_restart = false;
         s_retry_us = 0;
     }
-    if (s_on || !wanted() || !wifi_up() || esp_timer_get_time() < s_retry_us) return;
+    if (s_on) {
+        gate();
+        return;
+    }
+    if (!wanted() || !wifi_up() || esp_timer_get_time() < s_retry_us) return;
 
     uint8_t mac[6] = { 0 };
     (void)esp_wifi_get_mac(WIFI_IF_STA, mac);
     char name[sizeof s_name];
     portalweb_ap_name(mac, name, sizeof name);
-    char pass[16];
-    settings_hotspot_pass(pass, sizeof pass);
-    const esp_err_t err = wifi_ap_begin_secure(name, pass);
-    memset(pass, 0, sizeof pass);
+    const esp_err_t err = wifi_ap_begin(name);      /* open: the whitelist is the gate */
     snprintf(s_name, sizeof s_name, "%s", name);
     if (err != ESP_OK) {
         ESP_LOGW(TAG, "hotspot %s: not started (%s); trying again in 10 s", name, esp_err_to_name(err));
@@ -59,9 +156,12 @@ void hotspot_poll(void)
         return;
     }
     s_on = true;
+    memset(s_asked, 0, sizeof s_asked);
+    s_gate_us = 0;
     char ip[16] = "";
     (void)wifi_ap_ip(ip, sizeof ip);
-    ESP_LOGI(TAG, "hotspot up: %s, at %s", name, ip[0] ? ip : "(address coming)");
+    ESP_LOGI(TAG, "hotspot up: %s (open; phones are asked about here), at %s", name,
+             ip[0] ? ip : "(address coming)");
 }
 
 bool hotspot_running(void) { return s_on; }

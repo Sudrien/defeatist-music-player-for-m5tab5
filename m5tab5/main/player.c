@@ -8572,7 +8572,8 @@ static void ui_task(void *arg)
                     lcd_backlight_set(screen_on_duty());
                 }
                 ESP_LOGI(TAG, "%s is asking to be allowed",              /* 8004 */
-                         kind == APPROVE_FOR_MPD ? "an MPD app" : "a browser");
+                         kind == APPROVE_FOR_MPD ? "an MPD app"
+                         : kind == APPROVE_FOR_HOTSPOT ? "a phone on the hotspot" : "a browser");
             }
         }
         /* 5158: the MPD server, on the same edges and for the same

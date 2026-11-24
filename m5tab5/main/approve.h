@@ -86,6 +86,21 @@ bool            approve_mpd_ok(const uint8_t addr[APPROVE_ADDR]);
 approve_ask_t   approve_mpd_ask(const uint8_t addr[APPROVE_ADDR]);
 approve_state_t approve_mpd_collect(const uint8_t addr[APPROVE_ADDR]);
 
+/* ---- u-defeatist-0050: the open hotspot's phones, by MAC ----
+ * The player's loop (hotspot.c) asks for a phone that joined, collects the
+ * answer, and sends away one refused. The prompt shows the MAC. Only a MAC
+ * is seen at that layer; a phone keeps one per network it has joined
+ * (iOS's and Android's private address), so it is asked once. Counted and
+ * forgotten apart from the browsers and MPD apps. The address form is the
+ * MAC in the first 6 bytes and 0xee after, which no IPv4-mapped or real
+ * IPv6 address in use here is. */
+void            approve_hotspot_addr(const uint8_t mac[6], uint8_t addr[APPROVE_ADDR]);
+bool            approve_hotspot_ok(const uint8_t mac[6]);
+approve_ask_t   approve_hotspot_ask(const uint8_t mac[6]);
+approve_state_t approve_hotspot_collect(const uint8_t mac[6]);
+int             approve_hotspot_count(void);
+void            approve_hotspot_forget(void);
+
 #ifdef __cplusplus
 }
 #endif

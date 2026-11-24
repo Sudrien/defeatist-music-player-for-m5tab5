@@ -52,8 +52,18 @@ void hotspot_name(char *out, size_t out_size);
 bool hotspot_ip(char *out, size_t out_size);
 int  hotspot_clients(void);
 
-/* The password changed: the AP comes down and back up with it. */
+/* The allowed list was forgotten: the AP comes down and back up. */
 void hotspot_restart(void);
+
+/*
+ * u-defeatist-0053: one prompt per phone. A browser asking to be allowed
+ * from the address the hotspot's DHCP server gave a phone already allowed
+ * onto it is that phone -- the listener said yes to it a moment ago -- so
+ * it is allowed without a second prompt. ui_task only (it answers, and
+ * answering writes NVS): called before each draw of the main screen, the
+ * panel and the chooser. True if it answered one.
+ */
+bool hotspot_allow_own_browser(void);
 
 #ifdef __cplusplus
 }

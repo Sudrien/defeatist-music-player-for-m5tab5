@@ -67,6 +67,11 @@ void approve_new_ticket(uint8_t ticket[APPROVE_TICKET]);
 bool approve_prompt(approve_kind_t *kind, char *who, size_t who_size,
                     char code[5], bool *fresh);
 
+/* u-defeatist-0053: the waiting request's kind and raw address (16 bytes,
+ * IPv4-mapped for IPv4), for hotspot.c to see that a browser is on a phone
+ * already allowed onto the hotspot. false with nothing waiting. */
+bool approve_prompt_raw(approve_kind_t *kind, uint8_t addr[APPROVE_ADDR]);
+
 /* The listener's tap. On yes, a browser's token is made and saved here. */
 void approve_answer(bool yes);
 

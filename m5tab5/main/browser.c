@@ -34,6 +34,7 @@
 #include "podindex.h"         /* 8008 */
 #include "remote.h"           /* 8008: remote_url() */
 #include "ethernet.h"         /* 8016: net_online() */
+#include "hotspot.h"          /* u-defeatist-0053 */
 #include "poddl.h"            /* 8020 */
 #include "podpath.h"          /* 8020 */
 
@@ -1619,6 +1620,7 @@ static void recordings_refresh(void)
 
 void browser_draw(void)
 {
+    (void)hotspot_allow_own_browser();      /* u-defeatist-0053: ui_task */
     if (!s_open) return;
     recordings_refresh();                               /* 5215 */
 

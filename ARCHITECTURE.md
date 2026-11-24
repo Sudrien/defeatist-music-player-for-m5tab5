@@ -31084,3 +31084,26 @@ cable, never the AP.
 script passes `node --check`.
 
 *Not checked:* remotecheck.py (it needs a player), and the board.
+
+### u-defeatist-0053 -- one prompt per phone on the hotspot
+
+A phone joining the hotspot was asked about ("Allow this phone on the
+hotspot?"), and its browser was asked about again on the remote ("Allow
+this browser?"). That was the same phone, allowed a moment before.
+
+- **hotspot.c** keeps the leases of the allowed phones (feckless-libs
+  `wifi_ap_leases()`, u-feckless-0088), refreshed once a second on the
+  player's loop.
+- **`hotspot_allow_own_browser()`** runs on ui_task before each draw of
+  the main screen, the panel and the chooser, because answering writes
+  NVS. If the waiting request is a browser from an allowed phone's
+  leased address, it answers yes and logs it. The browser gets its
+  cookie as if the listener had tapped Allow.
+- **approve.c** has `approve_prompt_raw()`, giving the waiting request's
+  kind and raw address.
+
+Only for IPv4 addresses on the hotspot's leases. A browser on a joined
+network, or by cable, is asked as before.
+
+*Tested:* run-approve and run-remote pass, and hotspot.c syntax-checks.
+*Not checked:* the board.

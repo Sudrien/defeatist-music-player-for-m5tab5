@@ -11,6 +11,7 @@
 #include "esp_log.h"
 #include "esp_timer.h"
 #include "esp_wifi.h"
+#include "freertos/FreeRTOS.h"      /* u-defeatist-0053: the leases' spinlock */
 
 #include "approve.h"
 #include "portal.h"
@@ -86,6 +87,43 @@ static void send_away(const uint8_t mac[6], int64_t now, const char *why)
     (void)wifi_ap_kick(mac);
 }
 
+/* u-defeatist-0053: the leases of allowed phones, refreshed by gate() on
+ * the player's loop, read by hotspot_allow_own_browser() on ui_task. */
+static uint32_t s_allowed_ip[GATE_MAX];
+static portMUX_TYPE s_ip_mux = portMUX_INITIALIZER_UNLOCKED;
+
+static void leases(void)
+{
+    uint8_t macs[GATE_MAX][6];
+    uint32_t ips[GATE_MAX], ok[GATE_MAX] = { 0 };
+    const int n = wifi_ap_leases(macs, ips, GATE_MAX);
+    for (int i = 0; i < n; i++) ok[i] = approve_hotspot_ok(macs[i]) ? ips[i] : 0;
+    portENTER_CRITICAL(&s_ip_mux);
+    memcpy(s_allowed_ip, ok, sizeof s_allowed_ip);
+    portEXIT_CRITICAL(&s_ip_mux);
+}
+
+bool hotspot_allow_own_browser(void)
+{
+    if (!s_on) return false;
+    approve_kind_t kind;
+    uint8_t addr[APPROVE_ADDR];
+    if (!approve_prompt_raw(&kind, addr) || kind != APPROVE_FOR_BROWSER) return false;
+    static const uint8_t mapped[12] = { 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0xff, 0xff };
+    if (memcmp(addr, mapped, 12) != 0) return false;
+    uint32_t ip;
+    memcpy(&ip, addr + 12, 4);              /* network order, as the lease */
+    bool mine = false;
+    portENTER_CRITICAL(&s_ip_mux);
+    for (int i = 0; i < GATE_MAX && !mine; i++) mine = ip && s_allowed_ip[i] == ip;
+    portEXIT_CRITICAL(&s_ip_mux);
+    if (!mine) return false;
+    approve_answer(true);
+    ESP_LOGI(TAG, "a browser on %u.%u.%u.%u, a phone allowed onto the hotspot: allowed without asking again",
+             addr[12], addr[13], addr[14], addr[15]);
+    return true;
+}
+
 static void gate(void)
 {
     const int64_t now = esp_timer_get_time();
@@ -93,6 +131,7 @@ static void gate(void)
     s_gate_us = now + GATE_US;
     uint8_t macs[GATE_MAX][6];
     const int n = wifi_ap_stations(macs, GATE_MAX);
+    leases();                               /* u-defeatist-0053 */
     for (int i = 0; i < n; i++) {
         const uint8_t *m = macs[i];
         if (is_away(m, now)) {
@@ -163,6 +202,9 @@ void hotspot_poll(void)
     s_on = true;
     memset(s_asked, 0, sizeof s_asked);
     s_gate_us = 0;
+    portENTER_CRITICAL(&s_ip_mux);
+    memset(s_allowed_ip, 0, sizeof s_allowed_ip);
+    portEXIT_CRITICAL(&s_ip_mux);
     char ip[16] = "";
     (void)wifi_ap_ip(ip, sizeof ip);
     ESP_LOGI(TAG, "hotspot up: %s (open; phones are asked about here), at %s", name,

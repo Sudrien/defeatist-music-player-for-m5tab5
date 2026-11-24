@@ -192,6 +192,20 @@ bool approve_prompt(approve_kind_t *kind, char *who, size_t who_size,
     return true;
 }
 
+bool approve_prompt_raw(approve_kind_t *kind, uint8_t addr[APPROVE_ADDR])  /* u-defeatist-0053 */
+{
+    if (!s_mu) return false;
+    xSemaphoreTake(s_mu, portMAX_DELAY);
+    approve_pend_tick(&s_pend, esp_timer_get_time());
+    const bool up = s_pend.state == APPROVE_WAITING;
+    if (up) {
+        if (kind) *kind = s_pend.kind;
+        if (addr) memcpy(addr, s_pend.addr, APPROVE_ADDR);
+    }
+    xSemaphoreGive(s_mu);
+    return up;
+}
+
 int approve_count(void)
 {
     if (!s_mu) return 0;

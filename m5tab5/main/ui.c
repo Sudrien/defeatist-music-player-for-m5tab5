@@ -21,6 +21,7 @@
 #include "ui.h"
 #include "i18n.h"         /* 6017 */
 #include "launcher.h"   /* launcher_present(), launcher_exit_to_launcher() */
+#include "hotspot.h"    /* u-defeatist-0053 */
 #include "waveform.h"
 #include "varispeed.h"       /* 6076 */
 #include "fx.h"              /* 6097 */
@@ -2904,6 +2905,7 @@ void ui_draw(const ui_state_t *st)
      * the speed and Fx popups, which it closes. It goes again when the
      * request does -- answered, or two minutes unanswered.
      */
+    (void)hotspot_allow_own_browser();                  /* u-defeatist-0053: before it is shown */
     if (s_confirm == CONFIRM_APPROVE && !approve_prompt(NULL, NULL, 0, NULL, NULL)) {
         s_confirm = CONFIRM_NONE;
     }

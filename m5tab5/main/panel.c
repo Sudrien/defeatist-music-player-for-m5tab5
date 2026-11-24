@@ -1596,6 +1596,7 @@ static int draw_audio(void)
 void panel_draw(void)
 {
     if (!s_open) return;
+    (void)hotspot_allow_own_browser();                      /* u-defeatist-0053: ui_task */
 
     if (s_nf_open) {                                        /* u-defeatist-0048 */
         nf_poll();

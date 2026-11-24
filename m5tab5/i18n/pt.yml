@@ -683,6 +683,8 @@ pt:
     # remote.html
     "The player did not understand that.": ~
     # remote.html
+    "The player is already asking about something else. Answer it on the player; this page will ask again.": ~
+    # not in the source any more
     "The player is asking about another browser. Try again in a moment.": "O player está perguntando sobre outro navegador. Tente de novo daqui a pouco."
     # remote.html
     "The player is on %s, and you are on its cable.": "O player está em %s, e você está no cabo dele."

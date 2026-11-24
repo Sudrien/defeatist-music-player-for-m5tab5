@@ -498,7 +498,9 @@ function pairStart(st) {
       if (n.state === "approved") location.reload(); else pairStart(n);
     }, 1000);
   } else if (st.state === "busy") {
-    pairShow(() => T("The player is asking about another browser. Try again in a moment."), "", true);
+    /* u-defeatist-0051: the waiting request may be a phone joining the
+       hotspot, or an MPD app -- not always a browser */
+    pairShow(() => T("The player is already asking about something else. Answer it on the player; this page will ask again."), "", true);
   } else if (st.state === "denied") {
     pairShow(() => T("The player said no. Try again in ten minutes."), "", true);
   } else if (st.state === "") {

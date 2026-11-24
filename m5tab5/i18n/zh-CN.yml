@@ -683,6 +683,8 @@ zh-CN:
     # remote.html
     "The player did not understand that.": ~
     # remote.html
+    "The player is already asking about something else. Answer it on the player; this page will ask again.": ~
+    # not in the source any more
     "The player is asking about another browser. Try again in a moment.": "播放器正在询问另一个浏览器。请稍后再试。"
     # remote.html
     "The player is on %s, and you are on its cable.": "播放器连接在 %s，你通过它的网线连接。"

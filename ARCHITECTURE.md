@@ -31025,3 +31025,27 @@ On the board, look for:
 
 If the deauth isn't carried over ESP-Hosted, that last line ends with
 "the deauth failed".
+
+### u-defeatist-0051 -- a hotspot answer no longer holds the request slot
+
+On the board, a phone joined the hotspot and the player asked about it.
+Its browser then opened the remote and was told "The player is asking
+about another browser", which was true: approve.c holds one request at a
+time. It went on being told that for a minute after the phone was
+allowed.
+
+approve.c holds an answer for APPROVE_HOLD_US (60 s) for its asker to
+collect. hotspot.c checked the allowed list first and never collected
+the answer for a phone already on it, so the slot stayed full until the
+hold ran out.
+
+- **hotspot.c** now collects first, every time it looks, so an answer
+  frees the slot at once. A refusal still holds through approvelist's
+  ten-minute refusal of that MAC, which isn't kept in the slot.
+- **remote.html:** the busy message says "The player is already asking
+  about something else. Answer it on the player; this page will ask
+  again." The waiting request may be a phone or an MPD app, and the
+  page does retry by itself.
+
+*Tested:* run-remote and run-approve pass, and hotspot.c syntax-checks.
+*Not checked:* the board.

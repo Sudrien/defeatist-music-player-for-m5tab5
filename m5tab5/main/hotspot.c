@@ -99,16 +99,21 @@ static void gate(void)
             (void)wifi_ap_kick(m);          /* back already: again, quietly */
             continue;
         }
-        if (approve_hotspot_ok(m)) {
+        /* Collected first, every time, even for a phone already on the
+         * list: approve.c holds an answer a minute for its asker to
+         * collect, and while it is held the one request slot is full --
+         * the browser on that same phone was told "the player is asking
+         * about another browser" for that minute (u-defeatist-0051). */
+        const approve_state_t st = approve_hotspot_collect(m);
+        if (st == APPROVE_YES || approve_hotspot_ok(m)) {
             set_asked(m, false);
             continue;
         }
-        switch (approve_hotspot_collect(m)) {
-        case APPROVE_YES:     set_asked(m, false); continue;   /* on the list now */
-        case APPROVE_NO:      send_away(m, now, "refused"); continue;
-        case APPROVE_WAITING: continue;                         /* on the screen */
-        default:              break;
+        if (st == APPROVE_NO) {
+            send_away(m, now, "refused");
+            continue;
         }
+        if (st == APPROVE_WAITING) continue;                    /* on the screen */
         if (find_asked(m) >= 0) {           /* asked, and the two minutes ran out */
             send_away(m, now, "not answered");
             continue;
